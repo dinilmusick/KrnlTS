@@ -28,14 +28,14 @@ The Calculator is an internal component (Entity) owned by the Math System.
 
 ### Communication Pattern
 ```javascript
-// Inside Calculator Entity
+// 1. Register a new Emitter named "result-out" on this entity's interface
 const resultEmitter = this.interface.createEmitter("result-out");
 
-// When 2 + 2 is solved:
+// 2. Prepare the data payload and push it through the emitter stream
 resultEmitter.pushDataStreamToEmitter({
-    val: 4,
-    equation: "2 + 2",
-    timestamp: Date.now()
+    val: 4,                      // The calculated result
+    equation: "2 + 2",           // Metadata describing the operation
+    timestamp: Date.now()        // Logical time of the event
 });
 ```
 
@@ -52,11 +52,12 @@ The Storage System listens for incoming data to save as new notes.
 
 ### Communication Pattern
 ```javascript
-// Inside NoteManager Entity
+// 1. Register a new Collector named "note-in" on this entity's interface
 const noteCollector = this.interface.createCollector("note-in");
 
-// Pipe incoming data directly to a saving function
+// 2. Subscribe the collector to a source and define the reaction logic
 noteCollector.subscribeTo(someEmitter, (msg) => {
+    // 3. Save the incoming message data directly into the entity's state
     this.stateManager.setStateValue("notes-list", msg.data.id, msg.data.text);
 });
 ```
@@ -71,19 +72,21 @@ To make the Calculator send its result to the Notes app, we use the **System Orc
 The `krnlSystemEntityBase` provides a `commComponent` specifically for this. By convention, we wire the **Emitter** of one system to the **Collector** of another.
 
 ```javascript
-// 1. MathSystem (Producer)
+// 1. Summon the Math System as a Producer (Network node on port 1001)
 const mathApp = new krnlSystemEntityBase("MathApp", null, 1001);
 
-// 2. NoteSystem (Consumer)
+// 2. Summon the Note System as a Consumer (Network node on port 1002)
 const noteApp = new krnlSystemEntityBase("NoteApp", null, 1002);
 
-// 3. The Orchestration (Wiring)
-// We take the "result-out" emitter from Math and wire it 
-// to the "note-in" collector in NoteApp.
+// 3. Locate the "result-out" Emitter from the Math System's interface
 const mathOutput = mathApp.interface.getEmitter("result-out");
+
+// 4. Locate the "note-in" Collector from the Note System's interface
 const noteInput = noteApp.interface.getCollector("note-in");
 
+// 5. Perform the sacred wiring: Connect the Emitter to the Collector
 noteInput.subscribeTo(mathOutput, (msg) => {
+    // 6. Log the successful cross-system transmission
     console.log("Note System received calculation:", msg.data.val);
 });
 ```
