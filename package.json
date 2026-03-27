@@ -1,0 +1,27 @@
+{
+  "name": "krnl-js",
+  "version": "1.0.0",
+  "description": "The core library for the Krnl ecosystem, providing a uniform syntax and API across JavaScript projects.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./core": "./krnl/core/index.js",
+    "./extensions": "./krnl/extensions/index.js"
+  },
+  "files": [
+    "krnl/core",
+    "krnl/extensions",
+    "index.js",
+    "README.md"
+  ],
+  "keywords": [
+    "krnl",
+    "framework",
+    "messaging",
+    "entities",
+    "orchestrator"
+  ],
+  "author": "",
+  "license": "MIT"
+}

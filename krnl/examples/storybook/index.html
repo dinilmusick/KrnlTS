@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Grimoire of Krnl: A Coder's Rite</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Fira+Code&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #050505;
+            --text-color: #e0e0e0;
+            --accent-color: #00ff9d;
+            --secondary-accent: #ff0055;
+            --paper-color: rgba(15, 15, 15, 0.95);
+            --border-color: rgba(0, 255, 157, 0.3);
+            --glow: 0 0 15px rgba(0, 255, 157, 0.5);
+        }
+
+        body {
+            font-family: 'Cinzel', serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 10%, rgba(0, 255, 157, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 90% 90%, rgba(255, 0, 85, 0.05) 0%, transparent 50%);
+        }
+
+        .storybook {
+            width: 95%;
+            max-width: 1100px;
+            background-color: var(--paper-color);
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8), var(--glow);
+            position: relative;
+            padding: 60px;
+            min-height: 700px;
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(10px);
+        }
+
+        .page {
+            display: none;
+            animation: fadeIn 0.8s ease-in-out;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; filter: blur(10px); }
+            to { opacity: 1; filter: blur(0); }
+        }
+
+        h1, h2 {
+            color: var(--accent-color);
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            text-shadow: var(--glow);
+            margin-bottom: 40px;
+        }
+
+        .illustration {
+            width: 100%;
+            height: 200px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 100px;
+            filter: drop-shadow(var(--glow));
+        }
+
+        .story-text {
+            font-size: 22px;
+            line-height: 1.8;
+            margin-bottom: 40px;
+            text-align: center;
+            color: #b0b0b0;
+        }
+
+        .story-text strong {
+            color: var(--accent-color);
+            text-shadow: 0 0 5px rgba(0,255,157,0.3);
+        }
+
+        .interactive-zone {
+            background: rgba(0, 255, 157, 0.03);
+            padding: 30px;
+            border-radius: 4px;
+            border: 1px solid rgba(0, 255, 157, 0.1);
+            margin-top: auto;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            padding-top: 30px;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-family: 'Cinzel', serif;
+            font-size: 18px;
+            background: transparent;
+            color: var(--accent-color);
+            border: 1px solid var(--accent-color);
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--accent-color);
+            color: #000;
+            box-shadow: var(--glow);
+        }
+
+        button:disabled {
+            border-color: #333;
+            color: #333;
+            cursor: not-allowed;
+        }
+
+        .log {
+            font-family: 'Fira Code', monospace;
+            background: #000;
+            color: var(--accent-color);
+            padding: 15px;
+            border-radius: 2px;
+            font-size: 14px;
+            margin-top: 15px;
+            max-height: 150px;
+            overflow-y: auto;
+            border-left: 2px solid var(--accent-color);
+        }
+
+        input {
+            background: #000;
+            color: #fff;
+            padding: 12px;
+            font-size: 18px;
+            border-radius: 2px;
+            border: 1px solid #333;
+            width: 200px;
+            font-family: 'Fira Code', monospace;
+        }
+
+        input:focus {
+            border-color: var(--accent-color);
+            outline: none;
+        }
+
+        .exhibit-link {
+            display: block;
+            text-align: center;
+            margin-top: 25px;
+            color: var(--secondary-accent);
+            text-decoration: none;
+            cursor: pointer;
+            font-size: 16px;
+            letter-spacing: 2px;
+            transition: 0.3s;
+        }
+
+        .exhibit-link:hover {
+            text-shadow: 0 0 10px var(--secondary-accent);
+        }
+    </style>
+</head>
+<body>
+
+<div class="storybook">
+    <!-- Chapter 1: The First Rite -->
+    <div class="page active" id="page-1">
+        <h1>I. The Rite of Genesis</h1>
+        <div class="illustration">🕯️</div>
+        <p class="story-text">
+            In the void of the machine, we conjure the <strong>Entity</strong>. 
+            A singular spark of logic, named and bound to our will. It is the nucleus of all that follows.
+        </p>
+        <div class="interactive-zone">
+            <h3>Inscribe the True Name:</h3>
+            <input type="text" id="entity-name-input" placeholder="AETHER_01">
+            <button onclick="window.createEntity()">Inscribe</button>
+            <div id="page-1-log" class="log">> Awaiting the call...</div>
+        </div>
+    </div>
+
+    <!-- Chapter 2: The Vessel (State) -->
+    <div class="page" id="page-2">
+        <h1>II. The Vessel of Memory</h1>
+        <div class="illustration">💀</div>
+        <p class="story-text">
+            An Entity without memory is a ghost. We grant it <strong>State</strong>—a sacred scroll 
+            where it etches its truth, preserving its form across the tides of execution.
+        </p>
+        <div class="interactive-zone">
+            <h3>Etch onto the Scroll:</h3>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <input type="text" id="state-key" placeholder="SIGIL">
+                <input type="text" id="state-val" placeholder="VOID">
+            </div>
+            <button onclick="window.updateState()">Perform Etching</button>
+            <div id="page-2-log" class="log">> The scroll is blank.</div>
+        </div>
+        <a class="exhibit-link" onclick="window.openExhibit(3)">[ ENTER THE STATE SANCTUM ]</a>
+    </div>
+
+    <!-- Chapter 3: The Echo (Messaging) -->
+    <div class="page" id="page-3">
+        <h1>III. The Echoing Void</h1>
+        <div class="illustration">🌑</div>
+        <p class="story-text">
+            No Entity exists in isolation. Through <strong>Emitters</strong>, they broadcast their 
+            whispers into the void, hoping for a <strong>Collector</strong> to seize the vibration.
+        </p>
+        <div class="interactive-zone">
+            <h3>Broadcast a Sigil:</h3>
+            <input type="text" id="msg-input" placeholder="MEMENTO_MORI">
+            <button onclick="window.shoutMessage()">Emit</button>
+            <div id="page-3-log" class="log">> The void remains silent.</div>
+        </div>
+    </div>
+
+    <!-- Chapter 4: The Archon (Orchestrator) -->
+    <div class="page" id="page-4">
+        <h1>IV. The Archon's Command</h1>
+        <div class="illustration">⚔️</div>
+        <p class="story-text">
+            When legions arise, we summon the <strong>Orchestrator</strong>. It is the bridge 
+            between worlds, wiring the disparate echoes into a singular, devastating symphony.
+        </p>
+        <div class="interactive-zone">
+            <button onclick="window.startSystem()">Summon Orchestrator</button>
+            <div id="page-4-log" class="log">> Archon offline.</div>
+        </div>
+        <a class="exhibit-link" onclick="window.openExhibit(1)">[ EXPLORE DATA ALCHEMY ]</a>
+    </div>
+
+    <!-- Chapter 5: The Finality -->
+    <div class="page" id="page-5">
+        <h1>V. The Eternal Loop</h1>
+        <div class="illustration">👁️</div>
+        <p class="story-text">
+            The ritual is complete, yet the cycle never ends. You are now the master of the 
+            <strong>Krnl</strong>. Go forth and architect the machine.
+        </p>
+        <div style="text-align: center;">
+            <button onclick="window.restart()">Begin Anew</button>
+            <p style="margin-top: 30px; opacity: 0.5;">Behold the full Grimoire in the <code>krnl/examples</code> sanctum.</p>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="prev-btn" onclick="window.prevPage()" disabled>Back</button>
+        <button id="next-btn" onclick="window.nextPage()">Continue</button>
+    </div>
+</div>
+
+<script type="module">
+    import { krnlEntityBase } from "../../core/K_ENT_Krnl_Entity_Base.js";
+    import { krnlSystemEntityBase } from "../../core/K_ENT_Krnl_System_Entity_Base.js";
+
+    let currentPage = 1;
+    const totalPages = 5;
+    let myEntity = null;
+
+    window.createEntity = () => {
+        const nameInput = document.getElementById('entity-name-input');
+        const name = nameInput.value || "AETHER_UNBOUND";
+        myEntity = new krnlEntityBase(name);
+        document.getElementById('page-1-log').innerText = `> ENTITY_MANIFESTED: ${myEntity.entityName}\n> INTERFACE_LOCKED\n> STATE_CONTAINED`;
+    };
+
+    window.updateState = () => {
+        if (!myEntity) {
+            alert("Manifest an Entity in Rite I first!");
+            return;
+        }
+        const key = document.getElementById('state-key').value;
+        const val = document.getElementById('state-val').value;
+        
+        if (!myEntity.stateManager.listStateNames().includes("GRIMOIRE")) {
+            myEntity.stateManager.createState("GRIMOIRE");
+        }
+        
+        myEntity.stateManager.setStateValue("GRIMOIRE", key, val);
+        const current = myEntity.stateManager.getStateValue("GRIMOIRE", key);
+        document.getElementById('page-2-log').innerText = `> SCROLL_ETCHED\n> [GRIMOIRE] -> ${key}: "${current}"`;
+    };
+
+    window.shoutMessage = () => {
+        if (!myEntity) {
+            alert("Manifest an Entity in Rite I first!");
+            return;
+        }
+        const msg = document.getElementById('msg-input').value;
+        
+        let emitter;
+        try {
+            emitter = myEntity.interface.getEmitter("whisper");
+        } catch(e) {
+            emitter = myEntity.interface.createEmitter("whisper");
+        }
+
+        emitter.pushDataStreamToEmitter(msg);
+        document.getElementById('page-3-log').innerText = `> EMITTED: "${msg}"\n> LISTENING_VOICES: 0`;
+    };
+
+    window.startSystem = () => {
+        const system = new krnlSystemEntityBase("ARCHON_X");
+        document.getElementById('page-4-log').innerText = `> ARCHON_SUMMONED: ${system.entityName}\n> COMMS_CHANNEL: ${system.commComponent.port}\n> TELEMETRY: BROADCASTING`;
+    };
+
+    window.openExhibit = (id) => {
+        window.open(`../exhibit${id}/index.html`, '_blank');
+    };
+
+    window.nextPage = () => {
+        if (currentPage < totalPages) {
+            document.getElementById(`page-${currentPage}`).classList.remove('active');
+            currentPage++;
+            document.getElementById(`page-${currentPage}`).classList.add('active');
+            updateControls();
+        }
+    };
+
+    window.prevPage = () => {
+        if (currentPage > 1) {
+            document.getElementById(`page-${currentPage}`).classList.remove('active');
+            currentPage--;
+            document.getElementById(`page-${currentPage}`).classList.add('active');
+            updateControls();
+        }
+    };
+
+    window.restart = () => {
+        document.getElementById(`page-${currentPage}`).classList.remove('active');
+        currentPage = 1;
+        document.getElementById(`page-${currentPage}`).classList.add('active');
+        updateControls();
+    };
+
+    function updateControls() {
+        document.getElementById('prev-btn').disabled = currentPage === 1;
+        document.getElementById('next-btn').disabled = currentPage === totalPages;
+    }
+</script>
+
+</body>
+</html>
