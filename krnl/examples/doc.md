@@ -1,40 +1,28 @@
-# Krnl Base JS Exhibits: The Grimoire
+# Krnl Storybook + Exhibits
 
-Interactive demonstrations of the Krnl framework semantics using a visual/mathematical learning approach.
+The storybook is now the primary website for learning and testing Krnl:
 
-## Core Logic & Atoms
-- [Exhibit 0: Function Atoms](exhibit0/index.html)
-  - Concepts: $rMap$, $rFilter$, $rReduce$, $rBuildMap$.
-  - Math: $f: A \to B$, $A' \subseteq A$, $\sum A \to S$.
+- Path: `krnl/examples/storybook/index.html`
+- It embeds all exhibits in a live iframe.
+- You can switch between exhibits without leaving the page.
+- It includes a vNext Local/Remote playground.
 
-## Data & Concepts
-- [Exhibit 1: Data Alchemy](exhibit1/index.html)
-  - Concepts: `createEnum`, `krnlDataFactory`.
-  - Math: $E = \{s_1, \dots, s_n\}$, $A = \text{Factory.audio}(config)$.
+## Exhibits
 
-## Error Handling
-- [Exhibit 2: Error Execution](exhibit2/index.html)
-  - Concepts: `krnlError`, Error Registry.
-  - Math: $E_{codes} = \{ -1, 100 \dots 400 \}$.
+- `exhibit0`: function atoms
+- `exhibit1`: base concepts + data factory
+- `exhibit2`: error concepts
+- `exhibit3`: state manager
+- `exhibit4`: entity hierarchy
+- `exhibit5`: returned functionalities (legacy compatibility)
+- `exhibit6`: broadcast functionalities (legacy compatibility)
+- `exhibit7`: system orchestration
 
-## Entity Mechanics
-- [Exhibit 3: Entity Sanctum](exhibit3/index.html)
-  - Concepts: `krnlState`, Derived Maps (SOT).
-  - Math: $V \in S[k] : S \subset E.states$.
+## Important: run with HTTP server
 
-- [Exhibit 4: Entity Hierarchy](exhibit4/index.html)
-  - Concepts: `hierarchyManager`, Component Lifecycle.
-  - Math: $E \supset \{e_1, \dots, e_n\}$.
+Do not open exhibits from `file://` URLs because browser module imports are blocked.
 
-## Functionality Lifecycle
-- [Exhibit 5: Returned Functions](exhibit5/index.html)
-  - Concepts: Definition $\to$ Instance $\to$ Call.
-  - Math: $\Phi_{def} \to \Phi_{ins} \to \Phi_{call}$.
-
-- [Exhibit 6: Broadcast Dynamics](exhibit6/index.html)
-  - Concepts: Emitters, Collectors, Data Streams.
-  - Math: $\Omega_{emit} \to \Omega_{collect}$.
-
-- [Exhibit 7: System Orchestration](exhibit7/index.html)
-  - Concepts: Inter-System wiring, Multi-system communication.
-  - Math: $S_B.C \gets S_A.E$.
+```bash
+python -m http.server 4173
+# open http://localhost:4173/krnl/examples/storybook/index.html
+```

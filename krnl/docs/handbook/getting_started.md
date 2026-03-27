@@ -1,167 +1,85 @@
-# Krnl Base Handbook
+# Krnl vNext Getting Started
 
-The **Krnl Base Handbook** is a high-level architectural guide for developers building new entities, logic, and systems within the Krnl ecosystem.
+## 1) Entity composition
 
----
+An entity is now explicitly split into:
 
-## 1. Core Concepts: The Entity Model
+- `localFunctionalities: Map<FID, LocalFunctionality>`
+- `remoteFunctionalities: Map<FID, RemoteFunctionality>`
+- `collectors: Set<Collector>`
 
-The fundamental unit of the Krnl system is the **`krnlEntity`**. Every logical block—from a simple Oscillator to a complex Sequencer—is an Entity.
+```js
+import { krnlEntityBase, krnlLocalFunctionality } from "../../core/index.js";
 
-### Anatomy of an Entity
-Every entity is composed of specialized **Managers** that handle its core responsibilities:
+const add = new krnlLocalFunctionality({
+  id: "add",
+  state: { calls: 0 },
+  api: (input, ctx) => {
+    ctx.state.calls += 1;
+    return Number(input.a) + Number(input.b);
+  },
+});
 
-1.  **`interface`**: The communication layer. It handles incoming (Collectors) and outgoing (Emitters) message streams.
-2.  **`stateManager`**: The memory layer. It stores and retrieves key-value pairs in named states.
-3.  **`broadcastFunctionalities`**: The stream-based logic layer. Defines functions that take input streams and output results to persistent streams.
-4.  **`returnedFunctionalities`**: The direct call layer. Defines functions for immediate request-response interactions.
-5.  **`hierarchyManager`**: The composition layer. Manages parent-child relationships, allowing an entity to own and control sub-entities.
-
----
-
-## 2. Building an Entity (JavaScript)
-
-To create a new entity, extend the `krnlEntity` class.
-
-### Basic Template
-```javascript
-import { krnlEntity } from './krnlBase/js/entities/krnlEntity/K_ENT_Krnl_Entity.js';
-
-class MyCoolEntity extends krnlEntity {
-  constructor(name, owner = null) {
-    super(name, owner);
-    
-    // Register custom logic during initialization
-    this.setupLogic();
-  }
-
-  setupLogic() {
-    // Logic goes here
-  }
-}
-```
-
----
-
-## 3. Defining Logic (Functionalities)
-
-Krnl logic is defined through **Functionalities**.
-
-### A. Broadcast Functionalities (Stream-Based)
-Used for data that flows over time (e.g., audio samples, control signals).
-
-```javascript
-// Define a functionality that adds 10 to any input
-this.broadcastFunctionalities.define('addTen', (data) => {
-  return Number(data) + 10;
-}, { stateful: true, stateKey: 'currentValue' });
-
-// Calling it returns an Emitter (stream)
-const resultStream = this.broadcastFunctionalities.call('addTen', 5);
-resultStream.subscribe(msg => console.log('Result:', msg.data)); // "Result: 15"
-```
-
-### B. Returned Functionalities (Immediate)
-Used for request-response interactions. Unlike simple functions, these follow a **3-step lifecycle** to ensure state isolation and multi-instance support.
-
-**Step 1: Define** (In the Entity/Library)
-```javascript
-this.returnedFunctionalities.define('getName', () => {
-  return this.entityName;
+const calculator = new krnlEntityBase({
+  id: "Calculator",
+  localFunctionalities: [add],
+  remoteFunctionalities: [],
 });
 ```
 
-**Step 2: Create Instance** (In the Caller)
-```javascript
-// Creates a unique instance for this specific caller
-const instance = targetEntity.returnedFunctionalities.createInstance('getName', 'MyCallerName');
-```
+## 2) Local functionality
 
-**Step 3: Call** (In the Caller)
-```javascript
-// Execute using the instance name
-const name = await targetEntity.returnedFunctionalities.call(instance.instanceName);
-```
+`LocalFunctionality` is the full definition:
 
-> [!IMPORTANT]
-> Never call a functionality by its definition name directly. Always create an instance first. This allows the system to track who is calling what and maintain separate states for each caller if needed.
+- mutable `state`
+- `api(input, context)`
+- `helpers`
+- `emitters`
+- `collectors`
+- lifecycle hooks (`onInit`, `onCall`, `onComplete`, `onError`)
 
----
+## 3) Remote functionality
 
-## 4. Connections & Messaging
+`RemoteFunctionality` is a proxy only:
 
-The communication between entities is handled by the **`interface`**.
+- has `target: { entity, functionality }`
+- has no local state/helpers/emitters
+- forwards call to target local functionality
 
-### Collectors & Emitters
-- **Collector**: Receives data.
-- **Emitter**: Sends data.
+```js
+import { krnlRemoteFunctionality } from "../../core/index.js";
 
-### Piping Streams
-You can pipe the output of one functionality (Emitter) directly into another (Collector):
-
-```javascript
-const emitter = sourceEntity.broadcastFunctionalities.call('sourceFunc', data);
-const collector = targetEntity.interface.getCollector('targetFuncIn');
-
-// Connect them
-emitter.pipeTo(targetEntity, (msg) => {
-    // Logic on data arrival
+const addRemote = new krnlRemoteFunctionality({
+  id: "addRemote",
+  target: {
+    entity: () => calculator,
+    functionality: "add",
+  },
 });
 ```
 
----
+## 4) Calls
 
-## 5. Storage (DasyJS)
-
-For persistent data storage on the web platform, use `DasyJS`. It abstracts the Browser's Origin Private File System (OPFS).
-
-```javascript
-import { DasyJS } from './krnlBase/js/libraries/dasyJS/K_LIB_Dasy_JS.js';
-
-const fs = new DasyJS();
-await fs.init();
-
-await fs.writeText('config.json', JSON.stringify({ theme: 'dark' }));
-const config = await fs.readText('config.json');
+```js
+await calculator.call("add", { a: 10, b: 20 });
+await gateway.call("addRemote", { a: 1, b: 2 });
 ```
 
----
+Resolution order:
 
-## 6. Error Handling
+1. if `fid` is local → call local API
+2. else if `fid` is remote → call proxy API
+3. else throw not found
 
-Always use **`krnlError`** and standardized error codes for cross-platform compatibility.
+## 5) Event forwarding
 
-```javascript
-import { krnlError, krnlErrorCodes } from './krnlBase/js/libraries/krnlErrorConcepts/K_LIB_Krnl_Error_Concepts.js';
+Remote functionality can subscribe to target local emitters using `bindEvents()` and route data to collectors.
 
-if (!exists) {
-    throw new krnlError(krnlErrorCodes.ENTITY_NOT_FOUND);
-}
+## 6) Run the live storybook
+
+```bash
+python -m http.server 4173
+# http://localhost:4173/krnl/examples/storybook/index.html
 ```
 
----
-
-## 7. Interactive Exploration
-
-To see the base framework in action, run the **[Visual Handbook Exhibit](krnlBase/js/entities/krnlEntity/exhibits/exhibit1/index.html)**. It allows you to create entities, define math logic, and visually trace the flow of data through the system.
-
----
-
-## 8. Lifecycle Management (Disposal)
-
-Scalable systems require proactive resource cleanup. All Krnl entities support a `dispose()` method.
-
-### The `dispose()` Method
-When an entity is no longer needed:
-1. It recursively disposes of all **owned component entities** via the `hierarchyManager`.
-2. it disconnects all **emitters and collectors** in its `interface`.
-3. It clears all **states** in its `stateManager`.
-4. It shuts down any **functionality instances**.
-
-```javascript
-// Example: Manually disposing an entity
-myEntity.dispose();
-```
-
-> [!TIP]
-> Always override `dispose()` in system-specific entities (like Brnda) to clean up external libraries (e.g., `engine.dispose()` for BabylonJS).
+Use storybook as the main website to navigate and run all exhibits.

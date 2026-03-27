@@ -1,368 +1,155 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Grimoire of Krnl: A Coder's Rite</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Fira+Code&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-color: #050505;
-            --text-color: #e0e0e0;
-            --accent-color: #00ff9d;
-            --secondary-accent: #ff0055;
-            --paper-color: rgba(15, 15, 15, 0.95);
-            --border-color: rgba(0, 255, 157, 0.3);
-            --glow: 0 0 15px rgba(0, 255, 157, 0.5);
-        }
-
-        body {
-            font-family: 'Cinzel', serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            overflow-x: hidden;
-            background-image: 
-                radial-gradient(circle at 10% 10%, rgba(0, 255, 157, 0.05) 0%, transparent 50%),
-                radial-gradient(circle at 90% 90%, rgba(255, 0, 85, 0.05) 0%, transparent 50%);
-        }
-
-        .storybook {
-            width: 95%;
-            max-width: 1100px;
-            background-color: var(--paper-color);
-            border: 2px solid var(--border-color);
-            border-radius: 4px;
-            box-shadow: 0 0 50px rgba(0,0,0,0.8), var(--glow);
-            position: relative;
-            padding: 60px;
-            min-height: 700px;
-            display: flex;
-            flex-direction: column;
-            backdrop-filter: blur(10px);
-        }
-
-        .page {
-            display: none;
-            animation: fadeIn 0.8s ease-in-out;
-        }
-
-        .page.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; filter: blur(10px); }
-            to { opacity: 1; filter: blur(0); }
-        }
-
-        h1, h2 {
-            color: var(--accent-color);
-            text-align: center;
-            text-transform: uppercase;
-            letter-spacing: 4px;
-            text-shadow: var(--glow);
-            margin-bottom: 40px;
-        }
-
-        .illustration {
-            width: 100%;
-            height: 200px;
-            background: rgba(0,0,0,0.4);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            margin-bottom: 30px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 100px;
-            filter: drop-shadow(var(--glow));
-        }
-
-        .story-text {
-            font-size: 22px;
-            line-height: 1.8;
-            margin-bottom: 40px;
-            text-align: center;
-            color: #b0b0b0;
-        }
-
-        .story-text strong {
-            color: var(--accent-color);
-            text-shadow: 0 0 5px rgba(0,255,157,0.3);
-        }
-
-        .interactive-zone {
-            background: rgba(0, 255, 157, 0.03);
-            padding: 30px;
-            border-radius: 4px;
-            border: 1px solid rgba(0, 255, 157, 0.1);
-            margin-top: auto;
-        }
-
-        .controls {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 40px;
-            border-top: 1px solid rgba(255,255,255,0.05);
-            padding-top: 30px;
-        }
-
-        button {
-            padding: 12px 30px;
-            font-family: 'Cinzel', serif;
-            font-size: 18px;
-            background: transparent;
-            color: var(--accent-color);
-            border: 1px solid var(--accent-color);
-            border-radius: 2px;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-transform: uppercase;
-        }
-
-        button:hover:not(:disabled) {
-            background: var(--accent-color);
-            color: #000;
-            box-shadow: var(--glow);
-        }
-
-        button:disabled {
-            border-color: #333;
-            color: #333;
-            cursor: not-allowed;
-        }
-
-        .log {
-            font-family: 'Fira Code', monospace;
-            background: #000;
-            color: var(--accent-color);
-            padding: 15px;
-            border-radius: 2px;
-            font-size: 14px;
-            margin-top: 15px;
-            max-height: 150px;
-            overflow-y: auto;
-            border-left: 2px solid var(--accent-color);
-        }
-
-        input {
-            background: #000;
-            color: #fff;
-            padding: 12px;
-            font-size: 18px;
-            border-radius: 2px;
-            border: 1px solid #333;
-            width: 200px;
-            font-family: 'Fira Code', monospace;
-        }
-
-        input:focus {
-            border-color: var(--accent-color);
-            outline: none;
-        }
-
-        .exhibit-link {
-            display: block;
-            text-align: center;
-            margin-top: 25px;
-            color: var(--secondary-accent);
-            text-decoration: none;
-            cursor: pointer;
-            font-size: 16px;
-            letter-spacing: 2px;
-            transition: 0.3s;
-        }
-
-        .exhibit-link:hover {
-            text-shadow: 0 0 10px var(--secondary-accent);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Krnl Storybook (vNext)</title>
+  <style>
+    :root {
+      --bg: #090b10;
+      --panel: #121722;
+      --text: #e6f1ff;
+      --accent: #32d0ff;
+      --muted: #a8b9d8;
+      --danger: #ff5f7a;
+      --ok: #5cff95;
+    }
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    .sidebar { background: var(--panel); border-right: 1px solid #23304a; padding: 16px; }
+    .brand { font-weight: 800; font-size: 1.2rem; color: var(--accent); margin-bottom: 6px; }
+    .hint { color: var(--muted); font-size: .9rem; margin-bottom: 18px; }
+    .chapters button {
+      width: 100%; text-align: left; margin-bottom: 8px; padding: 10px 12px;
+      background: #1a2233; color: var(--text); border: 1px solid #2e3b56; border-radius: 10px; cursor: pointer;
+    }
+    .chapters button.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+    .main { padding: 18px; display: grid; gap: 16px; grid-template-rows: auto auto 1fr; }
+    .card { background: var(--panel); border: 1px solid #2a3a58; border-radius: 12px; padding: 14px; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    input, button { padding: 8px 10px; border-radius: 8px; border: 1px solid #35435f; background: #0f1522; color: var(--text); }
+    button { background: #182338; cursor: pointer; }
+    .log { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; background: #0a0f18; border: 1px solid #2a3a58; border-radius: 8px; padding: 10px; min-height: 84px; color: var(--ok); }
+    iframe { width: 100%; min-height: 520px; border: 1px solid #2a3a58; border-radius: 10px; background: #fff; }
+    .small { color: var(--muted); font-size: .85rem; }
+    .danger { color: var(--danger); }
+  </style>
 </head>
 <body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Krnl Storybook</div>
+      <div class="hint">Interactive docs + all exhibits in one site.</div>
+      <div class="chapters" id="chapters"></div>
+    </aside>
 
-<div class="storybook">
-    <!-- Chapter 1: The First Rite -->
-    <div class="page active" id="page-1">
-        <h1>I. The Rite of Genesis</h1>
-        <div class="illustration">🕯️</div>
-        <p class="story-text">
-            In the void of the machine, we conjure the <strong>Entity</strong>. 
-            A singular spark of logic, named and bound to our will. It is the nucleus of all that follows.
-        </p>
-        <div class="interactive-zone">
-            <h3>Inscribe the True Name:</h3>
-            <input type="text" id="entity-name-input" placeholder="AETHER_01">
-            <button onclick="window.createEntity()">Inscribe</button>
-            <div id="page-1-log" class="log">> Awaiting the call...</div>
+    <main class="main">
+      <section class="card">
+        <h2>vNext playground (Local + Remote)</h2>
+        <div class="row">
+          <input id="payload" value="hello-krnl" />
+          <button id="run-local">Run Local</button>
+          <button id="run-remote">Run Remote Proxy</button>
         </div>
-    </div>
+        <p class="small">Remote call instantiates target entity and executes a <strong>local</strong> functionality only.</p>
+        <div id="play-log" class="log">Ready.</div>
+      </section>
 
-    <!-- Chapter 2: The Vessel (State) -->
-    <div class="page" id="page-2">
-        <h1>II. The Vessel of Memory</h1>
-        <div class="illustration">💀</div>
-        <p class="story-text">
-            An Entity without memory is a ghost. We grant it <strong>State</strong>—a sacred scroll 
-            where it etches its truth, preserving its form across the tides of execution.
-        </p>
-        <div class="interactive-zone">
-            <h3>Etch onto the Scroll:</h3>
-            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                <input type="text" id="state-key" placeholder="SIGIL">
-                <input type="text" id="state-val" placeholder="VOID">
-            </div>
-            <button onclick="window.updateState()">Perform Etching</button>
-            <div id="page-2-log" class="log">> The scroll is blank.</div>
-        </div>
-        <a class="exhibit-link" onclick="window.openExhibit(3)">[ ENTER THE STATE SANCTUM ]</a>
-    </div>
+      <section class="card row">
+        <strong id="exhibit-title">Exhibit 0</strong>
+        <button id="open-tab">Open in new tab</button>
+        <span class="small">Use this embedded frame for live examples.</span>
+      </section>
 
-    <!-- Chapter 3: The Echo (Messaging) -->
-    <div class="page" id="page-3">
-        <h1>III. The Echoing Void</h1>
-        <div class="illustration">🌑</div>
-        <p class="story-text">
-            No Entity exists in isolation. Through <strong>Emitters</strong>, they broadcast their 
-            whispers into the void, hoping for a <strong>Collector</strong> to seize the vibration.
-        </p>
-        <div class="interactive-zone">
-            <h3>Broadcast a Sigil:</h3>
-            <input type="text" id="msg-input" placeholder="MEMENTO_MORI">
-            <button onclick="window.shoutMessage()">Emit</button>
-            <div id="page-3-log" class="log">> The void remains silent.</div>
-        </div>
-    </div>
+      <section class="card">
+        <iframe id="exhibit-frame" src="../exhibit0/index.html"></iframe>
+      </section>
+    </main>
+  </div>
 
-    <!-- Chapter 4: The Archon (Orchestrator) -->
-    <div class="page" id="page-4">
-        <h1>IV. The Archon's Command</h1>
-        <div class="illustration">⚔️</div>
-        <p class="story-text">
-            When legions arise, we summon the <strong>Orchestrator</strong>. It is the bridge 
-            between worlds, wiring the disparate echoes into a singular, devastating symphony.
-        </p>
-        <div class="interactive-zone">
-            <button onclick="window.startSystem()">Summon Orchestrator</button>
-            <div id="page-4-log" class="log">> Archon offline.</div>
-        </div>
-        <a class="exhibit-link" onclick="window.openExhibit(1)">[ EXPLORE DATA ALCHEMY ]</a>
-    </div>
+  <script type="module">
+    import { krnlEntityBase, krnlLocalFunctionality, krnlRemoteFunctionality, krnlEmitter } from "../../core/index.js";
 
-    <!-- Chapter 5: The Finality -->
-    <div class="page" id="page-5">
-        <h1>V. The Eternal Loop</h1>
-        <div class="illustration">👁️</div>
-        <p class="story-text">
-            The ritual is complete, yet the cycle never ends. You are now the master of the 
-            <strong>Krnl</strong>. Go forth and architect the machine.
-        </p>
-        <div style="text-align: center;">
-            <button onclick="window.restart()">Begin Anew</button>
-            <p style="margin-top: 30px; opacity: 0.5;">Behold the full Grimoire in the <code>krnl/examples</code> sanctum.</p>
-        </div>
-    </div>
+    const chapters = [
+      { id: 0, title: "Exhibit 0 · Function Atoms", path: "../exhibit0/index.html" },
+      { id: 1, title: "Exhibit 1 · Data Alchemy", path: "../exhibit1/index.html" },
+      { id: 2, title: "Exhibit 2 · Error Model", path: "../exhibit2/index.html" },
+      { id: 3, title: "Exhibit 3 · State Manager", path: "../exhibit3/index.html" },
+      { id: 4, title: "Exhibit 4 · Entity Hierarchy", path: "../exhibit4/index.html" },
+      { id: 5, title: "Exhibit 5 · Returned Functions", path: "../exhibit5/index.html" },
+      { id: 6, title: "Exhibit 6 · Broadcast", path: "../exhibit6/index.html" },
+      { id: 7, title: "Exhibit 7 · Orchestration", path: "../exhibit7/index.html" }
+    ];
 
-    <div class="controls">
-        <button id="prev-btn" onclick="window.prevPage()" disabled>Back</button>
-        <button id="next-btn" onclick="window.nextPage()">Continue</button>
-    </div>
-</div>
+    const chaptersEl = document.getElementById("chapters");
+    const frame = document.getElementById("exhibit-frame");
+    const exhibitTitle = document.getElementById("exhibit-title");
+    const openTabBtn = document.getElementById("open-tab");
+    let active = chapters[0];
 
-<script type="module">
-    import { krnlEntityBase } from "../../core/K_ENT_Krnl_Entity_Base.js";
-    import { krnlSystemEntityBase } from "../../core/K_ENT_Krnl_System_Entity_Base.js";
-
-    let currentPage = 1;
-    const totalPages = 5;
-    let myEntity = null;
-
-    window.createEntity = () => {
-        const nameInput = document.getElementById('entity-name-input');
-        const name = nameInput.value || "AETHER_UNBOUND";
-        myEntity = new krnlEntityBase(name);
-        document.getElementById('page-1-log').innerText = `> ENTITY_MANIFESTED: ${myEntity.entityName}\n> INTERFACE_LOCKED\n> STATE_CONTAINED`;
-    };
-
-    window.updateState = () => {
-        if (!myEntity) {
-            alert("Manifest an Entity in Rite I first!");
-            return;
-        }
-        const key = document.getElementById('state-key').value;
-        const val = document.getElementById('state-val').value;
-        
-        if (!myEntity.stateManager.listStateNames().includes("GRIMOIRE")) {
-            myEntity.stateManager.createState("GRIMOIRE");
-        }
-        
-        myEntity.stateManager.setStateValue("GRIMOIRE", key, val);
-        const current = myEntity.stateManager.getStateValue("GRIMOIRE", key);
-        document.getElementById('page-2-log').innerText = `> SCROLL_ETCHED\n> [GRIMOIRE] -> ${key}: "${current}"`;
-    };
-
-    window.shoutMessage = () => {
-        if (!myEntity) {
-            alert("Manifest an Entity in Rite I first!");
-            return;
-        }
-        const msg = document.getElementById('msg-input').value;
-        
-        let emitter;
-        try {
-            emitter = myEntity.interface.getEmitter("whisper");
-        } catch(e) {
-            emitter = myEntity.interface.createEmitter("whisper");
-        }
-
-        emitter.pushDataStreamToEmitter(msg);
-        document.getElementById('page-3-log').innerText = `> EMITTED: "${msg}"\n> LISTENING_VOICES: 0`;
-    };
-
-    window.startSystem = () => {
-        const system = new krnlSystemEntityBase("ARCHON_X");
-        document.getElementById('page-4-log').innerText = `> ARCHON_SUMMONED: ${system.entityName}\n> COMMS_CHANNEL: ${system.commComponent.port}\n> TELEMETRY: BROADCASTING`;
-    };
-
-    window.openExhibit = (id) => {
-        window.open(`../exhibit${id}/index.html`, '_blank');
-    };
-
-    window.nextPage = () => {
-        if (currentPage < totalPages) {
-            document.getElementById(`page-${currentPage}`).classList.remove('active');
-            currentPage++;
-            document.getElementById(`page-${currentPage}`).classList.add('active');
-            updateControls();
-        }
-    };
-
-    window.prevPage = () => {
-        if (currentPage > 1) {
-            document.getElementById(`page-${currentPage}`).classList.remove('active');
-            currentPage--;
-            document.getElementById(`page-${currentPage}`).classList.add('active');
-            updateControls();
-        }
-    };
-
-    window.restart = () => {
-        document.getElementById(`page-${currentPage}`).classList.remove('active');
-        currentPage = 1;
-        document.getElementById(`page-${currentPage}`).classList.add('active');
-        updateControls();
-    };
-
-    function updateControls() {
-        document.getElementById('prev-btn').disabled = currentPage === 1;
-        document.getElementById('next-btn').disabled = currentPage === totalPages;
+    function setActive(chapter) {
+      active = chapter;
+      frame.src = chapter.path;
+      exhibitTitle.textContent = chapter.title;
+      openTabBtn.onclick = () => window.open(chapter.path, "_blank");
+      [...chaptersEl.querySelectorAll("button")].forEach((button) => {
+        button.classList.toggle("active", Number(button.dataset.id) === chapter.id);
+      });
     }
-</script>
 
+    chapters.forEach((chapter) => {
+      const button = document.createElement("button");
+      button.textContent = chapter.title;
+      button.dataset.id = String(chapter.id);
+      button.onclick = () => setActive(chapter);
+      chaptersEl.appendChild(button);
+    });
+    setActive(chapters[0]);
+
+    const mathEntityFactory = () => {
+      const emitter = new krnlEmitter();
+      const multiply = new krnlLocalFunctionality({
+        id: "multiplyByTwo",
+        state: { invocations: 0 },
+        emitters: { default: emitter },
+        api: (input, ctx) => {
+          ctx.state.invocations += 1;
+          const output = String(input).toUpperCase();
+          ctx.emitters.get("default").pushDataStreamToEmitter({ output, invocations: ctx.state.invocations });
+          return { output, invocations: ctx.state.invocations };
+        },
+      });
+
+      return new krnlEntityBase({ id: "MathEntity", localFunctionalities: [multiply] });
+    };
+
+    const gateway = new krnlEntityBase({
+      id: "Gateway",
+      remoteFunctionalities: [
+        new krnlRemoteFunctionality({
+          id: "remoteMultiply",
+          target: { entity: mathEntityFactory, functionality: "multiplyByTwo" },
+        }),
+      ],
+    });
+
+    const log = document.getElementById("play-log");
+    document.getElementById("run-local").onclick = async () => {
+      const payload = document.getElementById("payload").value;
+      const entity = mathEntityFactory();
+      const result = await entity.call("multiplyByTwo", payload);
+      log.textContent = `[LOCAL]\n${JSON.stringify(result, null, 2)}`;
+    };
+
+    document.getElementById("run-remote").onclick = async () => {
+      try {
+        const payload = document.getElementById("payload").value;
+        const result = await gateway.call("remoteMultiply", payload);
+        log.textContent = `[REMOTE PROXY]\n${JSON.stringify(result, null, 2)}`;
+      } catch (error) {
+        log.innerHTML = `<span class="danger">${error.message}</span>`;
+      }
+    };
+  </script>
 </body>
 </html>
