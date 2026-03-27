@@ -43,7 +43,7 @@ export class DasyJS {
     if (!trimmed) throw new Error("invalid path");
 
     const relative = trimmed.replace(/^\/+/, "");
-    const normalized = relative.replace(/\/g, "/");
+    const normalized = relative.replace(/\\/g, "/");
 
     if (normalized.includes("..")) {
       throw new Error("invalid path");

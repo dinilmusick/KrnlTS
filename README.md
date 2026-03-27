@@ -1,43 +1,76 @@
-# Krnl JS Core Library
+# Krnl JS Core Library (vNext)
 
-The foundational library for the Krnl ecosystem. It provides a uniform syntax and API for creating entities, managing state, and communicating across systems.
+Krnl now supports a **locality-first entity model**:
 
-## Installation
+- `LocalFunctionality` owns state, helpers, API logic, emitters, lifecycle hooks.
+- `RemoteFunctionality` is a **pure proxy** that forwards calls to a target entity's local functionality.
+- `Entity` composes `{ localFunctionalities ∪ remoteFunctionalities }`.
 
-You can install this package directly from GitHub:
+## Install
 
 ```bash
 npm install git+https://github.com/Krnl-JS/KrnlJS.git
 ```
 
-*(Note: Replace the URL with your actual repository URL if it's different.)*
+## Quick start
 
-## Usage
+```js
+import {
+  krnlEntityBase,
+  krnlLocalFunctionality,
+  krnlRemoteFunctionality,
+  krnlEmitter,
+} from "krnl-js";
 
-### Importing Core Entities
+const mathEntityFactory = () => {
+  const timesTwo = new krnlLocalFunctionality({
+    id: "timesTwo",
+    state: { calls: 0 },
+    emitters: { default: new krnlEmitter() },
+    api: (input, ctx) => {
+      ctx.state.calls += 1;
+      const value = Number(input) * 2;
+      ctx.emitters.get("default").pushDataStreamToEmitter({ value, calls: ctx.state.calls });
+      return value;
+    },
+  });
 
-```javascript
-import { krnlEntityBase, krnlSystemEntityBase } from 'krnl-js';
+  return new krnlEntityBase({
+    id: "MathEntity",
+    localFunctionalities: [timesTwo],
+  });
+};
 
-const myEntity = new krnlEntityBase("MyEntity");
+const gateway = new krnlEntityBase({
+  id: "GatewayEntity",
+  remoteFunctionalities: [
+    new krnlRemoteFunctionality({
+      id: "timesTwoRemote",
+      target: {
+        entity: mathEntityFactory,
+        functionality: "timesTwo",
+      },
+    }),
+  ],
+});
+
+const result = await gateway.call("timesTwoRemote", 21);
+console.log(result); // 42
 ```
 
-### Messaging & Communication
+## Storybook + exhibits
 
-```javascript
-const emitter = myEntity.interface.createEmitter("events");
-const collector = myEntity.interface.createCollector("commands");
+The examples are designed to run from an HTTP server (module imports will fail on raw `file://` URLs).
 
-emitter.pushDataStreamToEmitter({ message: "Hello Krnl!" });
+```bash
+python -m http.server 4173
+# then open http://localhost:4173/krnl/examples/storybook/index.html
 ```
 
-## Structure
+The storybook now acts as the entry point for all exhibits and embeds each exhibit as a live runnable page.
 
-- **`krnl/core`**: Essential building blocks (Entity, State, Messaging).
-- **`krnl/extensions`**: Optional utilities (File system, Discovery, Networking).
-- **`krnl/examples`**: Interactive exhibits and storybook (run in browser).
+## Docs
 
-## Documentation
-
-Detailed documentation can be found in `krnl/docs/`.
-Explore the **Interactive Grimoire** in `krnl/examples/storybook/index.html`.
+- `krnl/docs/handbook/getting_started.md`
+- `krnl/docs/handbook/api_reference.md`
+- `krnl/examples/doc.md`
