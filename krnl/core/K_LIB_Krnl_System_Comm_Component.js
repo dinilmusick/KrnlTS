@@ -256,6 +256,19 @@ export class krnlSystemCommComponent {
         });
     }
 
+    /**
+     * Wires a remote system's emitter to a local collector.
+     * This is used when a remote system initiates the wiring.
+     * 
+     * @param {string} remoteAddress - "host:port" of the remote system.
+     * @param {string} remoteEmitterName - Emitter name at the remote end.
+     * @param {string} localCollectorName - Local collector name.
+     * @param {string} remoteSystemName - Name of the remote system.
+     */
+    async wireRemoteEmitterToLocal(remoteAddress, remoteEmitterName, localCollectorName, remoteSystemName) {
+        return this.wireViaWs(remoteEmitterName, remoteAddress, localCollectorName, remoteSystemName);
+    }
+
     defineRpc(methodName, handler) {
         this._wsRpcHandlers.set(methodName, handler);
     }

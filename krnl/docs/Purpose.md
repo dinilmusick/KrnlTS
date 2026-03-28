@@ -10,7 +10,7 @@ These files define the fundamental building blocks of the Krnl ecosystem.
 | File | Purpose | Necessity | Ease of Use | Utility |
 | :--- | :--- | :---: | :---: | :---: |
 | `K_ENT_Krnl_Entity_Base.js` | The root class for all objects. Provides standardized state management, messaging interfaces, and lifecycle hooks (`dispose`). | 10 | 8 | **18** |
-| `K_ENT_Krnl_System_Entity_Base.js` | Base for system orchestrators. Adds `commComponent` for networking and standard telemetry/heartbeat functionalities. | 9 | 8 | **17** |
+| `K_ENT_Krnl_System_Entity_Base.js` | Base for system orchestrators. Adds `commComponent` for networking and a **Decentralized Discovery** mechanism (`startDiscovery`, `wire`). | 10 | 8 | **18** |
 | `K_ENT_Krnl_Sub_System_Orchestrator_Base.js` | Specialization for nested systems (e.g., a control system within a larger hub). | 7 | 8 | **15** |
 
 ---
@@ -21,7 +21,7 @@ The communication backbone that ensures uniform syntax across different projects
 | File | Purpose | Necessity | Ease of Use | Utility |
 | :--- | :--- | :---: | :---: | :---: |
 | `K_LIB_Krnl_Messaging_Concepts.js` | Defines `Emitter`, `Collector`, and `Interface`. This is the single most important part of the "uniform API" for inter-entity communication. | 10 | 9 | **19** |
-| `K_LIB_Krnl_System_Comm_Component.js` | Handles the technical wiring between systems (WebSocket, UDP, Local). Essential for distributed systems. | 9 | 7 | **16** |
+| `K_LIB_Krnl_System_Comm_Component.js` | Handles the technical wiring between systems (WebSocket, UDP, Local). Now supports **Remote Wiring RPCs**. | 10 | 7 | **17** |
 
 ---
 
