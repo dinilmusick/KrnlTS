@@ -4,8 +4,7 @@
  * @description Exhibit 1: Demonstrates Krnl Base Concepts, Enums, and Data Factories.
  */
 
-import { krnlDataFactory, krnlPrimitiveDataTypes, krnlSystemTypes } from "../../core/K_LIB_Krnl_Base_Concepts.js";
-import { createEnum } from "../../extensions/K_LIB_Krnl_Core_Function_Atoms.js";
+import { krnlDataFactory, krnlPrimitiveDataTypes, krnlSystemTypes, createEnum } from "../../core/K_LIB_Krnl_Base_Concepts.js";
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////// MAIN API FUNCTIONS AND DATA //////////////////////////////////////

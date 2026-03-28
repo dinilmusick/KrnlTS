@@ -4,11 +4,38 @@
  * @description These are building blocks for the basic structures that define the Krnl system.
  */
 
-import { createEnum } from "../extensions/K_LIB_Krnl_Core_Function_Atoms.js";
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////// MAIN API FUNCTIONS AND DATA ////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////// CREATE ENUM ////////////////////////////////////////
+/**
+ * Enum Template Object :
+ * Template enum "class"
+ */
+const EnumTemplate = {
+  types: [],
+  listTypes() {
+    return Object.freeze([...this.types]);
+  },
+  getTypeID(typeName) {
+    return this[typeName] !== undefined ? this[typeName] : -1;
+  },
+};
+
+/**
+ * Creates an immutable enum object from a list of type names.
+ * @param {string[]} typeNames - An array of strings representing the enum type names.
+ * @returns {Readonly<object>} An immutable enum object.
+ */
+export function createEnum(typeNames) {
+  const enumObj = Object.create(EnumTemplate);
+  enumObj.types = typeNames;
+  typeNames.forEach((name, index) => {
+    enumObj[name] = index;
+  });
+  return Object.freeze(enumObj);
+}
 
 //////////////////////////////////////// KRNL SYSTEM TYPES ////////////////////////////////////////
 export const krnlSystemTypes = Object.freeze(
@@ -42,7 +69,7 @@ export class krnlDataFactory {
   static audio(opts) {
     const {
       isSignal = true,
-      transportKind = "stream",   // or "blob"
+      transportKind = "stream",
       codec = "pcm16",
       sampleRate = 44100,
       channels = 2,

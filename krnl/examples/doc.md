@@ -2,11 +2,6 @@
 
 Interactive demonstrations of the Krnl framework semantics using a visual/mathematical learning approach.
 
-## Core Logic & Atoms
-- [Exhibit 0: Function Atoms](exhibit0/index.html)
-  - Concepts: $rMap$, $rFilter$, $rReduce$, $rBuildMap$.
-  - Math: $f: A \to B$, $A' \subseteq A$, $\sum A \to S$.
-
 ## Data & Concepts
 - [Exhibit 1: Data Alchemy](exhibit1/index.html)
   - Concepts: `createEnum`, `krnlDataFactory`.
