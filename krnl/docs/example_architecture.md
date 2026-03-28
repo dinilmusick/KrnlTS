@@ -1,101 +1,117 @@
 # Example Architecture: Calculator & Notes App
 
-This guide demonstrates how to architect a multi-system application using the **KrnlJS** standard syntax. We will build a **Math System** (Calculator) and a **Storage System** (Notes) that communicate seamlessly.
+This guide demonstrates how to architect a multi-system application using the **KrnlJS** decentralized syntax. We will build a **Math System** (Calculator) and a **Storage System** (Notes) that find and connect to each other automatically over a network.
 
 ---
 
 ## 🏛️ System Overview
 
-In the Krnl ecosystem, "Apps" are treated as **Systems**. This allows them to run in different processes or even on different machines while maintaining a uniform API.
+In the Krnl ecosystem, every application is a **System Entity**. They act as independent blocks that can be wired together regardless of whether they run on the same computer or different ones.
 
 | Component | Krnl Class | Responsibility |
 | :--- | :--- | :--- |
-| **MathSystem** | `krnlSystemEntityBase` | The "App" container. Handles networking and telemetry. |
-| **Calculator** | `krnlEntityBase` | The internal logic. Performs math and emits results. |
-| **NoteSystem** | `krnlSystemEntityBase` | The storage container. Receives data from the network. |
-| **NoteManager** | `krnlEntityBase` | Manages the list of notes and saves them to state. |
+| **MathSystem** | `krnlSystemEntityBase` | The producer. Performs math and broadcasts results. |
+| **NoteSystem** | `krnlSystemEntityBase` | The consumer. Discovers the Math system and wires itself. |
 
 ---
 
-## 🔢 1. The Math System (Calculator)
+## 🔢 1. The Math System (Producer)
 
-The Calculator is an internal component (Entity) owned by the Math System.
-
-### Structure
-- **Class**: `krnlEntityBase`
-- **Emitter**: `result-out` (Sends the calculated value)
-- **State**: `history` (Stores previous calculations)
-
-### Communication Pattern
-```javascript
-// 1. Register a new Emitter named "result-out" on this entity's interface
-const resultEmitter = this.interface.createEmitter("result-out");
-
-// 2. Prepare the data payload and push it through the emitter stream
-resultEmitter.pushDataStreamToEmitter({
-    val: 4,                      // The calculated result
-    equation: "2 + 2",           // Metadata describing the operation
-    timestamp: Date.now()        // Logical time of the event
-});
-```
-
----
-
-## 📝 2. The Storage System (Notes)
-
-The Storage System listens for incoming data to save as new notes.
-
-### Structure
-- **Class**: `krnlEntityBase`
-- **Collector**: `note-in` (Listens for incoming "whispers")
-- **State**: `notes-list` (The actual data)
-
-### Communication Pattern
-```javascript
-// 1. Register a new Collector named "note-in" on this entity's interface
-const noteCollector = this.interface.createCollector("note-in");
-
-// 2. Subscribe the collector to a source and define the reaction logic
-noteCollector.subscribeTo(someEmitter, (msg) => {
-    // 3. Save the incoming message data directly into the entity's state
-    this.stateManager.setStateValue("notes-list", msg.data.id, msg.data.text);
-});
-```
-
----
-
-## 🛰️ 3. Inter-System Orchestration (The Bridge)
-
-To make the Calculator send its result to the Notes app, we use the **System Orchestrator** level.
-
-### The Wiring Rite
-The `krnlSystemEntityBase` provides a `commComponent` specifically for this. By convention, we wire the **Emitter** of one system to the **Collector** of another.
+The Math System initializes itself and begins "advertising" its presence on the local network.
 
 ```javascript
-// 1. Summon the Math System as a Producer (Network node on port 1001)
+import { krnlSystemEntityBase } from 'krnl-js';
+
+// 1. Initialize the system on port 1001
 const mathApp = new krnlSystemEntityBase("MathApp", null, 1001);
 
-// 2. Summon the Note System as a Consumer (Network node on port 1002)
+// 2. Create an output emitter for calculations
+mathApp.interface.createEmitter("result-out");
+
+// 3. Start Discovery (UDP Beaconing)
+// This makes the system visible to other peers on the LAN
+await mathApp.startDiscovery();
+
+// 4. Periodically push data (Logic loop)
+setInterval(() => {
+    const result = Math.random() * 100;
+    mathApp.interface.getEmitter("result-out").pushDataStreamToEmitter({
+        val: result,
+        timestamp: Date.now()
+    });
+}, 5000);
+```
+
+---
+
+## 📝 2. The Note System (Consumer)
+
+The Note System searches for the Math System, inspects its available "ports," and wires them to its internal logic.
+
+```javascript
+import { krnlSystemEntityBase } from 'krnl-js';
+
+// 1. Initialize the system on port 1002
 const noteApp = new krnlSystemEntityBase("NoteApp", null, 1002);
 
-// 3. Locate the "result-out" Emitter from the Math System's interface
-const mathOutput = mathApp.interface.getEmitter("result-out");
+// 2. Create a collector to receive notes
+noteApp.interface.createCollector("incoming-notes");
+noteApp.interface.getCollector("incoming-notes")._directHandler = (msg) => {
+    console.log("📝 Note Saved:", msg.data.val);
+};
 
-// 4. Locate the "note-in" Collector from the Note System's interface
-const noteInput = noteApp.interface.getCollector("note-in");
+// 3. Start Discovery to find the Math System
+await noteApp.startDiscovery();
 
-// 5. Perform the sacred wiring: Connect the Emitter to the Collector
-noteInput.subscribeTo(mathOutput, (msg) => {
-    // 6. Log the successful cross-system transmission
-    console.log("Note System received calculation:", msg.data.val);
-});
+// 4. The Discovery & Wiring Logic
+setTimeout(async () => {
+    // List all discovered peers on the network
+    const peers = noteApp.listPeers();
+    const mathPeer = peers.find(p => p.name === "MathApp");
+
+    if (mathPeer) {
+        console.log(`Found MathApp at ${mathPeer.address}`);
+
+        // Introspect: See what inputs/outputs the remote system has
+        // This is like checking the ports on a hardware block
+        const manifest = await noteApp.commComponent.callWsRpc(mathPeer.address, 'get-manifest');
+        console.log("Remote Outputs available:", manifest.outputs.emitters);
+
+        // 5. Perform the sacred wiring:
+        // We wire the remote "result-out" to our local "incoming-notes"
+        await noteApp.wire("MathApp", {
+            remoteOutput: "result-out", // The name from MathApp
+            localInput: "incoming-notes" // The name on our local interface
+        });
+        
+        console.log("Network Bridge Established.");
+    }
+}, 2000);
 ```
+
+---
+
+## 🛰️ 3. Cross-Machine vs. Same-Machine
+
+Because Krnl uses **UDP Discovery** and **WebSockets**, the code above works in two scenarios without modification:
+
+### Scenario A: Same Machine
+- Both systems run on `localhost`.
+- Discovery finds `127.0.0.1:[PORT]`.
+- The `wire()` method creates a WebSocket link between the two internal ports.
+
+### Scenario B: Cross-Machine (LAN)
+- System A is on `192.168.1.10`.
+- System B is on `192.168.1.15`.
+- Discovery broadcasts to `255.255.255.255`.
+- System B receives the beacon, sees the real IP of System A, and calls `wire()`.
+- A WebSocket is established across the network.
 
 ---
 
 ## 🏆 Why use this architecture?
 
-1.  **Decoupling**: The Calculator doesn't need to know the Notes app exists. it just "emits" data.
-2.  **Scalability**: If you add a "History App" later, you just wire the Calculator's emitter to the new App's collector. No code changes are needed in the Calculator.
-3.  **Observability**: Because both are `krnlSystemEntityBase`, you can call `mathApp.returnedFunctionalities.call("getTelemetry")` at any time to see the status of your calculations and network routes.
-4.  **Uniformity**: Whether you are writing a Calculator in JS or a complex Audio Engine in C++, the `Emitter -> Collector` syntax remains identical.
+1.  **Zero Configuration**: Systems find each other. You don't need to hardcode IP addresses.
+2.  **Self-Documenting**: By calling `getManifest()`, a system can tell you exactly what it can do and what data it expects.
+3.  **Hardware-Like Wiring**: Software blocks are connected just like physical patch cables. You connect an **Output** to an **Input**.
+4.  **Language Agnostic**: A Go-based Orchestrator can call `get-manifest` on this JS-based system and wire it just as easily.

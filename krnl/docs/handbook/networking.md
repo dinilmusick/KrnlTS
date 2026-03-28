@@ -1,87 +1,86 @@
-# Uniform Networking Guide
+# Decentralized Networking Guide
 
-Networking in Krnl is designed to be **observable**, **decoupled**, and **uniform**. To prevent "architecture spoilage," every system in the stack must follow the same communication pattern.
-
----
-
-## 1. The CommComponent Architecture
-
-Every system (Brnda, Qwnsr, Wepr, etc.) possesses a `commComponent`. This component acts as a uniform bridge between a system's internal `interface` (Emitters/Collectors) and the outside world.
-
-### The Pipeline
-1.  **System A** defines an Emitter (e.g., `A-Events`).
-2.  **System B** defines a Collector (e.g., `B-Commands`).
-3.  **The Orchestrator** commands System A to wire `A-Events` to System B's `B-Commands`.
-4.  **System A's CommComponent** establishes the connection (either a direct reference or a WebSocket).
+Networking in Krnl is designed to be **observable**, **decoupled**, and **uniform**. In the latest architecture, there is no central hub. Every system is a pluggable block that can find and wire itself to any other block on the network.
 
 ---
 
-## 2. Wiring Modes
+## 1. Peer-to-Peer Discovery
 
-### Mode A: Direct (In-Process)
-Used when systems are running in the same Node.js process (e.g., during development or in unified monoliths).
-- **Pros**: Zero latency, zero-copy, extremely fast.
-- **Usage**: Managed automatically by the Orchestrator via `commComponent.wireDirectly()`.
+Every `krnlSystemEntityBase` has a built-in discovery mechanism using **UDP Beacons**.
 
-### Mode B: WebSocket (Network/P2P)
-Used when systems are running in separate processes or on different machines.
-- **Pros**: Fully decoupled, scalable.
-- **Usage**: Managed by the Orchestrator via `commComponent.wireViaWs()`.
-
----
-
-## 3. How to Implement as a Developer
-
-### Step 1: Extend the Correct Base
-Your system orchestrator must extend `krnlSystemEntityBase`.
+### How it works:
+1.  **Advertising**: When you call `startDiscovery()`, the system begins shouting its name and port to everyone on the local network (LAN).
+2.  **Listening**: Simultaneously, it listens for shouts from other Krnl systems.
+3.  **Peer Table**: It maintains a local list of all active systems it has heard from.
 
 ```javascript
-import { krnlSystemEntityBase } from "../../krnlBase/js/entities/krnlSystemEntityBase/K_ENT_System_Entity_Base.js";
+// Start discovery on the default port (10101)
+await mySystem.startDiscovery();
 
-class MySystemOrchestrator extends krnlSystemEntityBase {
-    constructor(name) {
-        super(name);
-        // this.commComponent is now available
-    }
-}
+// See who else is out there
+const peers = mySystem.listPeers(); 
+// Returns [{ name: "OtherApp", address: "192.168.1.50:10099", lastSeen: ... }]
 ```
 
-### Step 2: Define Your Interface
-Create emitters and collectors using `this.interface`.
+---
+
+## 2. Introspection (The Manifest)
+
+Before wiring systems, you can "look inside" a remote system to see its available ports. This is called the **Manifest**.
+
+### Input Ports (Can receive data):
+- **Collectors**: Continuous data streams.
+- **One-Shots**: Request-Response endpoints (Returned Functionalities).
+
+### Output Ports (Can send data):
+- **Emitters**: Continuous data broadcasts.
+- **Broadcasts**: Event-driven streams.
 
 ```javascript
-setupInterface() {
-    this.interface.createEmitter("myDataOut");
-    this.interface.createCollector("myDataIn");
-}
+// Ask a remote system for its manifest via RPC
+const manifest = await mySystem.commComponent.callWsRpc(peer.address, 'get-manifest');
+console.log(manifest.outputs.emitters); // e.g. ["audio-out", "midi-out"]
 ```
 
-### Step 3: Handle Incoming Data
-Use the helper `_attachCollectorHandler` to hook into data arriving at your collector. This abstracts the transport layer (you don't care if it came via WS or a direct reference).
+---
 
+## 3. The Wiring Rite
+
+Wiring is the act of connecting an **Output** from one system to an **Input** of another. The `wire()` method abstracts all the WebSocket and RPC logic.
+
+### Mode A: Local Output -> Remote Input
+Connect your system's data to a remote consumer.
 ```javascript
-this._attachCollectorHandler("myDataIn", (msg) => {
-    console.log("Data received:", msg.data);
-    this.processData(msg.data);
+await mySystem.wire("RemoteApp", {
+    localOutput: "my-data-out",
+    remoteInput: "their-data-in"
+});
+```
+
+### Mode B: Remote Output -> Local Input
+Subscribe your system to a remote producer's data.
+```javascript
+await mySystem.wire("RemoteApp", {
+    remoteOutput: "their-signal",
+    localInput: "my-listener"
 });
 ```
 
 ---
 
-## 4. The Orchestrator's Role
+## 4. Implementation Rules
 
-The `Krnl_Main_Orchestrator` is the **Wiring Broker**. It is the only entity that should call `wireSystems`. 
-
-### Logic Flow:
-1.  System A registers with Orchestrator.
-2.  System B registers with Orchestrator.
-3.  Orchestrator UI allows the user to click "Wire A.Out to B.In".
-4.  Orchestrator sends a command to System A: "Wire your emitter 'A.Out' to System B's collector 'B.In' at address X."
+1.  **Inheritance**: Always extend `krnlSystemEntityBase` for your main system entry.
+2.  **Discovery**: Call `startDiscovery()` immediately upon system startup.
+3.  **No Raw Sockets**: Never use raw `ws` or `net` modules. Always use `this.commComponent` or `this.wire()`.
+4.  **Uniform Ports**: By convention, use the `manifest` to discover port names rather than hardcoding them.
 
 ---
 
-## 5. Summary of Rules
-- **NEVER** use `raw` WebSockets or TCP sockets for system-to-system data logic.
-- **ALWAYS** use `commComponent` for wiring.
-- **ALWAYS** inherit from `krnlSystemEntityBase` for your main system entry point.
-- **ALWAYS** register your system with the Orchestrator so it can be wired visually.
+## 5. Network Transparency
+
+Because the discovery mechanism uses IP addresses, the code is identical whether the systems are on the **same machine** or **different machines** on the same network. 
+
+- **Local**: Discovery finds `127.0.0.1`.
+- **Remote**: Discovery finds `192.168.x.x`.
+- **Logic**: Stays exactly the same.
