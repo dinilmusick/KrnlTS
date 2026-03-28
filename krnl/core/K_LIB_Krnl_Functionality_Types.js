@@ -66,6 +66,26 @@ export class krnlLocalFunctionality {
 
   bindToEntity(entity) {
     this.hostEntity = entity;
+
+    // 1. Register main API as a collector in the entity interface
+    // This allows the functionality to be called via the messaging system
+    const mainCollector = entity.interface.createCollector(this.id);
+    mainCollector._directHandler = async (msg) => {
+      // The direct handler triggers the execution of the API
+      return await this.execute(msg.data);
+    };
+
+    // 2. Register all internal emitters in the entity interface
+    // Convention: "functionalityId:emitterId"
+    this.emitters.forEach((emitter, emitterId) => {
+      const interfaceEmitter = entity.interface.createEmitter(`${this.id}:${emitterId}`);
+      
+      // Mirror internal emitter pushes to the interface emitter
+      emitter.subscribe((msg) => {
+        interfaceEmitter.pushDataStreamToEmitter(msg.data, msg.time);
+      });
+    });
+
     if (typeof this.lifecycle.onInit === "function") {
       this.lifecycle.onInit({ entity, functionality: this });
     }
@@ -119,6 +139,31 @@ export class krnlRemoteFunctionality {
 
   bindToEntity(entity) {
     this.hostEntity = entity;
+
+    // 1. Register an emitter to call this remote functionality via interface
+    const remoteEmitter = entity.interface.createEmitter(this.id);
+    remoteEmitter.subscribe(async (msg) => {
+      return await this.execute(msg.data);
+    });
+
+    // 2. Automatically discover and mirror emitters from the target
+    // Note: This requires the target to be resolvable at bind time for full automation,
+    // otherwise it can be done lazily in resolveTarget or manually via bindEvents.
+    try {
+      const { targetFunctionality } = this.resolveTarget({});
+      targetFunctionality.emitters.forEach((emitter, emitterId) => {
+        const localMirror = entity.interface.createCollector(`${this.id}:${emitterId}`);
+        localMirror.subscribeTo(emitter, (msg) => {
+          // You could add global remote event handlers here
+        });
+        this.collectors.add(localMirror);
+      });
+    } catch (e) {
+      // If target is not resolvable yet (e.g. dynamic loading), 
+      // the user must call bindEvents or we handle it lazily.
+      console.warn(`[RemoteFunctionality:${this.id}] Could not auto-bind events: ${e.message}`);
+    }
+
     return this;
   }
 
