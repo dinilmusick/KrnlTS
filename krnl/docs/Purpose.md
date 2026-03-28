@@ -9,7 +9,7 @@ These files define the fundamental building blocks of the Krnl ecosystem.
 
 | File | Purpose | Necessity | Ease of Use | Utility |
 | :--- | :--- | :---: | :---: | :---: |
-| `K_ENT_Krnl_Entity_Base.js` | The root class for all objects. Provides locality-based functionality management, state management, and messaging. | 10 | 9 | **19** |
+| `K_ENT_Krnl_Entity_Base.js` | The root class for all objects. Provides locality-based functionality management and messaging. | 10 | 9 | **19** |
 | `K_ENT_Krnl_System_Entity_Base.js` | Base for system orchestrators. Adds `commComponent` for networking and a **Decentralized Discovery** mechanism (`startDiscovery`, `wire`). | 10 | 8 | **18** |
 | `K_ENT_Krnl_Sub_System_Orchestrator_Base.js` | Specialization for nested systems (e.g., a control system within a larger hub). | 7 | 8 | **15** |
 
@@ -32,9 +32,8 @@ Supporting libraries that provide common data structures and logic.
 | :--- | :--- | :---: | :---: | :---: |
 | `K_LIB_Krnl_Base_Concepts.js` | Defines the standard data payloads (`krnlData`), system-wide Enums, and the `createEnum` utility. Ensures data consistency. | 10 | 9 | **19** |
 | `K_LIB_Krnl_Error_Concepts.js` | Standardized error codes and exception handling. | 8 | 9 | **17** |
-| `K_LIB_Krnl_State_Manager.js` | A reactive state container for entities. Simplifies state synchronization. | 9 | 8 | **17** |
 | `K_LIB_Krnl_Entity_Compositional_Hierarchy.js` | Manages parent-child relationships and ownership, preventing memory leaks during disposal. | 9 | 8 | **17** |
-| `K_LIB_Krnl_Functionality_Types.js` | Defines `LocalFunctionality` and `RemoteFunctionality`. The core of the vNext logic model. | 10 | 9 | **19** |
+| `K_LIB_Krnl_Functionality_Types.js` | Defines `LocalFunctionality` and `RemoteFunctionality`. The core of the logic model, where each functionality owns its private state. | 10 | 9 | **19** |
 
 ---
 

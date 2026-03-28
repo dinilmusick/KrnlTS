@@ -2,17 +2,12 @@
 
 ## `krnlEntityBase`
 
-The foundation of every Krnl system. Entities are containers for state and logic (functionalities).
+The foundation of every Krnl system. Entities are containers for logic (functionalities) and their scoped state.
 
 Constructor:
 
 ```ts
 new krnlEntityBase(name: string)
-new krnlEntityBase({
-  id: string,
-  localFunctionalities?: LocalFunctionality[],
-  remoteFunctionalities?: RemoteFunctionality[]
-})
 ```
 
 Methods:
@@ -29,12 +24,11 @@ Properties:
 - `id: string`: Unique identifier.
 - `localFunctionalities: Map<string, krnlLocalFunctionality>`
 - `remoteFunctionalities: Map<string, krnlRemoteFunctionality>`
-- `stateManager: krnlStateManager`: Manages the entity's reactive state.
 - `interface: krnlInterface`: Handles low-level emitters and collectors.
 
 ## `krnlLocalFunctionality`
 
-A self-contained block of logic and state.
+A self-contained block of logic and private state.
 
 ```ts
 new krnlLocalFunctionality({

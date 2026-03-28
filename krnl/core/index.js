@@ -5,6 +5,5 @@ export * from "./K_LIB_Krnl_Base_Concepts.js";
 export * from "./K_LIB_Krnl_Entity_Compositional_Hierarchy.js";
 export * from "./K_LIB_Krnl_Error_Concepts.js";
 export * from "./K_LIB_Krnl_Messaging_Concepts.js";
-export * from "./K_LIB_Krnl_State_Manager.js";
 export * from "./K_LIB_Krnl_System_Comm_Component.js";
 export * from "./K_LIB_Krnl_Functionality_Types.js";

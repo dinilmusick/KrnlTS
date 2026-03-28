@@ -1,78 +1,69 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file script.js
- * @description Exhibit 3: Demonstrates State Management and State Manager.
+ * @description Exhibit 3: Demonstrates Scoped State (State encapsulated within functionalities).
  */
 
 import { krnlEntityBase } from "../../core/K_ENT_Krnl_Entity_Base.js";
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA //////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 function setupExhibit() {
     const container = document.getElementById("grimoire-container");
 
     // Entity Instance
-    const entity = new krnlEntityBase("ExhibitEntity");
+    const entity = new krnlEntityBase("ScopedStateEntity");
 
-    // State Creation
-    createStateSection(container, "State Incantation", "S \\gets E.stateManager.createState(name)", (name) => {
-        const { state, index } = entity.stateManager.createState(name);
-        return { fullName: state.name, index };
+    // STEP 1: DEFINE FUNCTIONALITY WITH SCOPED STATE
+    createSection(container, "Step 1: Define Functionality with State", "E.\\text{addLocal}({ id, state, api })", () => {
+        entity.addLocal({
+            id: "ProfileManager",
+            state: { name: "Initiate", level: 1 },
+            api: (input, { state }) => {
+                if (input.action === "update") {
+                    state.name = input.name || state.name;
+                    state.level = input.level || state.level;
+                }
+                return { ...state };
+            }
+        });
+        return "Functionality 'ProfileManager' added with private state { name, level }.";
+    }, "DEFINE");
+
+    // STEP 2: INTERACT WITH SCOPED STATE
+    createValueSection(container, "Step 2: Mutate/Access State", "R = \\text{await } E.\\text{call}(id, input)", async (name, level) => {
+        const res = await entity.call("ProfileManager", { action: "update", name, level });
+        return res;
     });
 
-    // State Values
-    createValueSection(container, "State Values (Set/Get)", "V \\in S[k] : S \\subset E.states", (stateName, key, value) => {
-        entity.stateManager.setStateValue(stateName, key, value);
-        return entity.stateManager.getStateValue(stateName, key);
-    });
-
-    // Derived Map (Single Source of Truth)
-    createListSection(container, "Derived State Map", "M = \\text{buildStateMap}(E.states)", () => {
-        const map = entity.stateManager.buildStateMap();
-        return Object.fromEntries(map);
-    });
-
-    // Entity Inspection
-    createListSection(container, "Entity Manifest", "L = E.listStateNames()", () => {
+    // STEP 3: INSPECT ENCAPSULATION
+    createListSection(container, "Step 3: Verify Encapsulation", "M = E.getLocal(id).state", () => {
+        const func = entity.getLocal("ProfileManager");
         return {
             entity: entity.entityName,
-            states: entity.stateManager.listStateNames(),
-            structure: entity.stateManager.states.map(s => ({
-                name: s.name,
-                data: s.entries()
-            }))
+            functionality: func.id,
+            internalState: func.state,
+            isEntityStateMissing: entity.stateManager === undefined // Should be true
         };
     });
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// HELPER FUNCTIONS /////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-function createStateSection(parent, title, mathDesc, logicFn) {
+function createSection(parent, title, mathDesc, logicFn, btnText) {
     const section = document.createElement("div");
     section.className = "spell-section";
     section.innerHTML = `
         <h3>${title}</h3>
         <div class="math-lingo">${mathDesc}</div>
-        <div class="input-group">
-            <input type="text" placeholder="State Name (e.g. Config)" id="state-name">
-            <button id="create-btn">ETCH</button>
-        </div>
-        <div class="output-log" id="create-log">Ready.</div>
+        <button class="action-btn">${btnText}</button>
+        <div class="output-log">Ready.</div>
     `;
     parent.appendChild(section);
 
-    const btn = section.querySelector("#create-btn");
-    const input = section.querySelector("#state-name");
-    const log = section.querySelector("#create-log");
+    const btn = section.querySelector("button");
+    const log = section.querySelector(".output-log");
 
     btn.onclick = () => {
         try {
-            const res = logicFn(input.value);
-            log.innerText = `> Created: ${JSON.stringify(res)}`;
+            const res = logicFn();
+            log.innerText = `> ${res}`;
             log.style.color = "#00ff9d";
         } catch (e) {
             log.innerText = `> FAILED: ${e.message}`;
@@ -88,26 +79,23 @@ function createValueSection(parent, title, mathDesc, logicFn) {
         <h3>${title}</h3>
         <div class="math-lingo">${mathDesc}</div>
         <div class="input-group">
-            <input type="text" placeholder="State Name" id="val-state-name">
-            <input type="text" placeholder="Key" id="val-key">
-            <input type="text" placeholder="Value" id="val-value">
-            <button id="set-btn">SET/GET</button>
+            <input type="text" placeholder="New Name" id="val-name">
+            <input type="number" placeholder="New Level" id="val-level">
+            <button id="set-btn">CALL API</button>
         </div>
         <div class="output-log" id="val-log">Ready.</div>
     `;
     parent.appendChild(section);
 
     const btn = section.querySelector("#set-btn");
-    const sName = section.querySelector("#val-state-name");
-    const sKey = section.querySelector("#val-key");
-    const sVal = section.querySelector("#val-value");
+    const sName = section.querySelector("#val-name");
+    const sLevel = section.querySelector("#val-level");
     const log = section.querySelector("#val-log");
 
-    btn.onclick = () => {
+    btn.onclick = async () => {
         try {
-            const val = isNaN(parseFloat(sVal.value)) ? sVal.value : parseFloat(sVal.value);
-            const res = logicFn(sName.value, sKey.value, val);
-            log.innerText = `> Current Value: ${JSON.stringify(res)}`;
+            const res = await logicFn(sName.value, parseInt(sLevel.value));
+            log.innerText = `> API Returned: ${JSON.stringify(res)}`;
             log.style.color = "#00ff9d";
         } catch (e) {
             log.innerText = `> FAILED: ${e.message}`;
@@ -122,7 +110,7 @@ function createListSection(parent, title, mathDesc, logicFn) {
     section.innerHTML = `
         <h3>${title}</h3>
         <div class="math-lingo">${mathDesc}</div>
-        <button id="refresh-btn">REFRESH</button>
+        <button id="refresh-btn">INSPECT</button>
         <div class="output-log" id="refresh-log">Waiting...</div>
     `;
     parent.appendChild(section);
@@ -132,8 +120,7 @@ function createListSection(parent, title, mathDesc, logicFn) {
 
     btn.onclick = () => {
         const res = logicFn();
-        log.innerText = `> Manifest:
-${JSON.stringify(res, null, 2)}`;
+        log.innerText = `> Manifest:\n${JSON.stringify(res, null, 2)}`;
     };
 }
 
