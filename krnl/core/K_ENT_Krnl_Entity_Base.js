@@ -1,7 +1,7 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file K_ENT_Krnl_Entity_Base.js
- * @description Defines the core base class for all Krnl entities.
+ * @description Defines the core base class for all Krnl entities (legacy + vNext locality model).
  */
 
 import { krnlInterface } from "./K_LIB_Krnl_Messaging_Concepts.js";
@@ -9,53 +9,101 @@ import { krnlStateManager } from "./K_LIB_Krnl_State_Manager.js";
 import { krnlReturnedFunctionalities } from "./K_LIB_Krnl_Returned_Functionalities.js";
 import { krnlBroadcastFunctionalities } from "./K_LIB_Krnl_Broadcast_Functionalities.js";
 import { krnlEntityCompositionalHierarchyManager } from "./K_LIB_Krnl_Entity_Compositional_Hierarchy.js";
+import { krnlLocalFunctionality, krnlRemoteFunctionality } from "./K_LIB_Krnl_Functionality_Types.js";
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA ////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////// KRNL ENTITY BASE ////////////////////////////////////////
-/**
- * Main Krnl Entity Base Class
- * Composed of state, broadcast, and returned functionalities.
- */
 export class krnlEntityBase {
-  constructor(name, owner = null) {
-    this.entityName = name;
+  constructor(nameOrConfig, owner = null) {
+    const config = typeof nameOrConfig === "string"
+      ? { id: nameOrConfig }
+      : (nameOrConfig || {});
+
+    this.__krnlEntityInstance = true;
+    this.id = config.id || "UnnamedEntity";
+    this.entityName = this.id;
+
     this.interface = new krnlInterface(this);
     this.stateManager = new krnlStateManager(this);
+
+    // Legacy APIs kept for backwards compatibility.
     this.broadcastFunctionalities = new krnlBroadcastFunctionalities(this);
     this.returnedFunctionalities = new krnlReturnedFunctionalities(this);
 
-    // Manager creates + owns entityCompHierarchyData
+    // vNext model.
+    this.localFunctionalities = new Map();
+    this.remoteFunctionalities = new Map();
+    this.collectors = new Set();
+
     this.hierarchyManager = new krnlEntityCompositionalHierarchyManager(
       this,
       owner,
       krnlEntityBase
     );
+
+    const local = config.localFunctionalities || [];
+    const remote = config.remoteFunctionalities || [];
+
+    for (const functionality of local) {
+      this.addLocal(functionality);
+    }
+
+    for (const functionality of remote) {
+      this.addRemote(functionality);
+    }
   }
 
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////// DISPOSAL /////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+  addLocal(localFunctionality) {
+    const functionality = localFunctionality instanceof krnlLocalFunctionality
+      ? localFunctionality
+      : new krnlLocalFunctionality(localFunctionality);
 
-  /**
-   * Disposes the entity and all its components (managers and owned entities).
-   */
+    functionality.bindToEntity(this);
+    this.localFunctionalities.set(functionality.id, functionality);
+    return functionality;
+  }
+
+  addRemote(remoteFunctionality) {
+    const functionality = remoteFunctionality instanceof krnlRemoteFunctionality
+      ? remoteFunctionality
+      : new krnlRemoteFunctionality(remoteFunctionality);
+
+    functionality.bindToEntity(this);
+    this.remoteFunctionalities.set(functionality.id, functionality);
+    return functionality;
+  }
+
+  getLocal(fid) {
+    return this.localFunctionalities.get(fid);
+  }
+
+  getRemote(fid) {
+    return this.remoteFunctionalities.get(fid);
+  }
+
+  async call(fid, input, opts = {}) {
+    if (this.localFunctionalities.has(fid)) {
+      return this.localFunctionalities.get(fid).execute(input, opts);
+    }
+
+    if (this.remoteFunctionalities.has(fid)) {
+      return this.remoteFunctionalities.get(fid).execute(input, opts);
+    }
+
+    throw new Error(`Functionality '${fid}' not found on entity '${this.id}'.`);
+  }
+
   dispose() {
-    console.log(`[${this.entityName}] Disposing entity...`);
-
-    // 1. Recursively dispose children first
     if (this.hierarchyManager) this.hierarchyManager.dispose();
-
-    // 2. Dispose functionalities
     if (this.broadcastFunctionalities) this.broadcastFunctionalities.dispose();
     if (this.returnedFunctionalities) this.returnedFunctionalities.dispose();
-
-    // 3. Dispose state
     if (this.stateManager) this.stateManager.dispose();
-
-    // 4. Dispose interface (connections)
     if (this.interface) this.interface.dispose();
+
+    for (const collector of this.collectors) {
+      if (collector?.disconnectCollector) collector.disconnectCollector();
+    }
+
+    this.collectors.clear();
+    this.localFunctionalities.clear();
+    this.remoteFunctionalities.clear();
   }
 }

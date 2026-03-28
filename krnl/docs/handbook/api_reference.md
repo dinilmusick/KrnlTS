@@ -1,90 +1,87 @@
-# Krnl Base API Reference
+# Krnl vNext API Reference
 
-This document provides a comprehensive reference for the core classes and utility libraries in `krnlBase`.
+## `krnlEntityBase`
 
----
+Constructor:
 
-## 1. Core Base Entities
+```ts
+new krnlEntityBase(name: string)
+new krnlEntityBase({
+  id: string,
+  localFunctionalities?: LocalFunctionality[],
+  remoteFunctionalities?: RemoteFunctionality[]
+})
+```
 
-### `krnlEntityBase`
-The fundamental building block. Every object in the system that has state or networking inherits from this.
-- **Properties**:
-    - `interface`: `krnlInterface` instance.
-    - `stateManager`: `krnlStateManager` instance.
-    - `hierarchyManager`: `krnlEntityCompositionalHierarchyManager` instance.
-- **Methods**:
-    - `dispose()`: Recursively cleans up all resources and child entities.
+Methods:
 
-### `krnlSystemEntityBase`
-Extends `krnlEntityBase`. Use this for system orchestrators.
-- **Properties**:
-    - `commComponent`: `krnlSystemCommComponent` instance for P2P networking.
-- **Methods**:
-    - `_attachCollectorHandler(name, callback)`: Attaches a data handler to an interface collector.
+- `addLocal(localFunctionality)`
+- `addRemote(remoteFunctionality)`
+- `getLocal(fid)`
+- `getRemote(fid)`
+- `call(fid, input?, opts?)`
+- `dispose()`
 
----
+Properties:
 
-## 2. Messaging & Networking (`krnlNetworking`)
+- `localFunctionalities: Map<string, krnlLocalFunctionality>`
+- `remoteFunctionalities: Map<string, krnlRemoteFunctionality>`
+- `collectors: Set<krnlCollector>`
 
-### `krnlEmitter`
-A source of data streams.
-- **Methods**:
-    - `pushDataStreamToEmitter(data)`: Broadcasts data to all subscribers.
-    - `subscribe(callback)`: Returns an unsubscribe function.
-    - `pipeTo(targetEntity, transformFn)`: Pipes data to another entity.
+Legacy properties remain for compatibility:
 
-### `krnlCollector`
-A consumer of data streams.
-- **Methods**:
-    - `pipeTo(outputEmitter)`: Pipes collected data to another emitter.
+- `returnedFunctionalities`
+- `broadcastFunctionalities`
+- `stateManager`
+- `interface`
 
-### `krnlInterface`
-Manages the emitters and collectors within an entity.
-- **Methods**:
-    - `createEmitter(name)`: Returns a new emitter.
-    - `createCollector(name)`: Returns a new collector.
+## `krnlLocalFunctionality`
 
----
+```ts
+new krnlLocalFunctionality({
+  id: string,
+  state?: object,
+  api?: (input, context) => any,
+  helpers?: Record<string, Function> | Map<string, Function>,
+  emitters?: Record<string, krnlEmitter> | Map<string, krnlEmitter>,
+  collectors?: krnlCollector[],
+  lifecycle?: {
+    onInit?: Function,
+    onCall?: Function,
+    onComplete?: Function,
+    onError?: Function
+  }
+})
+```
 
-## 3. Core Function Atoms (`krnlCoreFunctionAtoms`)
+Methods:
 
-Functional utilities used throughout the framework to ensure deterministic processing.
+- `bindToEntity(entity)`
+- `execute(input, opts?)`
 
-### Recursive Utilities
-- `rMap(array, callback)`: Recursive map implementation.
-- `rFind(array, predicate)`: Recursive find implementation.
-- `rFindIndex(array, predicate)`: Recursive findIndex implementation.
-- `rBuildMap(array, keyProp)`: Converts an array of objects into a Map indexed by `keyProp`.
+## `krnlRemoteFunctionality`
 
----
+```ts
+new krnlRemoteFunctionality({
+  id: string,
+  target: {
+    entity: Function | { createInstance?: Function, instantiate?: Function } | krnlEntityBase,
+    functionality: string
+  },
+  proxy_api?: (input, opts, remoteSelf) => any,
+  collectors?: krnlCollector[]
+})
+```
 
-## 4. State Management (`krnlStateManager`)
+Methods:
 
-Handles persistent and transient state for entities.
-- **Methods**:
-    - `createState(name, initialData)`: Initializes a new state slice.
-    - `setStateValue(stateName, key, value)`: Updates a specific key in a state.
-    - `getStateValue(stateName, key)`: Retrieves a value.
-    - `subscribeToState(stateName, callback)`: Notifies on any change to that state slice.
+- `bindToEntity(entity)`
+- `resolveTarget(opts?)`
+- `execute(input, opts?)`
+- `bindEvents(bindings)`
 
----
+Invariants:
 
-## 5. Functionality Lifecycle
-
-### `returnedFunctionalities`
-Standardized request-response pattern.
-- **Methods**:
-    - `define(name, logic)`: Registers a new capability.
-    - `createInstance(name, callerName)`: Returns a unique instance for a caller.
-    - `call(instanceName, params)`: Executes the logic.
-
----
-
-## 6. Storage (`DasyJS`)
-
-Web-optimized file system abstraction for OPFS.
-- **Methods**:
-    - `init()`: Connects to the browser filesystem.
-    - `writeText(path, text)`: Writes a file.
-    - `readText(path)`: Reads a file.
-    - `deleteFile(path)`: Removes a file.
+1. `LocalFunctionality` owns logic/state.
+2. `RemoteFunctionality` is forwarding-only.
+3. Cross-entity invocation should happen through remote functionalities.

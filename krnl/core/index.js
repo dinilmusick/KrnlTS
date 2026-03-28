@@ -9,3 +9,5 @@ export * from "./K_LIB_Krnl_Messaging_Concepts.js";
 export * from "./K_LIB_Krnl_Returned_Functionalities.js";
 export * from "./K_LIB_Krnl_State_Manager.js";
 export * from "./K_LIB_Krnl_System_Comm_Component.js";
+
+export * from "./K_LIB_Krnl_Functionality_Types.js";

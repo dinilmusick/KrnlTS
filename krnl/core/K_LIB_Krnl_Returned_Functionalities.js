@@ -5,7 +5,7 @@
  * Supports multi-instance: each instance has a unique name and its own state.
  */
 
-import { rFind, rMap, rFilter } from "../extensions/K_LIB_Krnl_Core_Function_Atoms.js";
+import { rFind, rFindIndex, rMap, rFilter } from "../extensions/K_LIB_Krnl_Core_Function_Atoms.js";
 import { krnlError, krnlErrorCodes } from "./K_LIB_Krnl_Error_Concepts.js";
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
