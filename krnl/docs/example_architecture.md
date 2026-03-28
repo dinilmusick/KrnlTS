@@ -89,9 +89,34 @@ setTimeout(async () => {
 }, 2000);
 ```
 
+## 🧩 3. Advanced Logic (Local Functionality)
+
+For more complex logic that requires internal state and event broadcasting, use the `addLocal` paradigm.
+
+```javascript
+// Inside MathApp
+mathApp.addLocal({
+    id: "SuperCalculator",
+    state: { operationsCount: 0 },
+    emitters: { "on-calculate": {} },
+    api: async (input, { state, emitters }) => {
+        state.operationsCount++;
+        const result = input.a + input.b;
+        
+        // Broadcast an event internally
+        emitters.get("on-calculate").pushDataStreamToEmitter({ result });
+        
+        return result; // Return value for request-response
+    }
+});
+
+// Call it locally
+const res = await mathApp.call("SuperCalculator", { a: 10, b: 20 });
+```
+
 ---
 
-## 🛰️ 3. Cross-Machine vs. Same-Machine
+## 🛰️ 4. Cross-Machine vs. Same-Machine
 
 Because Krnl uses **UDP Discovery** and **WebSockets**, the code above works in two scenarios without modification:
 

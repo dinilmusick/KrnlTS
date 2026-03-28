@@ -1,48 +1,44 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file script.js
- * @description Exhibit 6: Demonstrates Broadcast Functionalities.
+ * @description Exhibit 6: Demonstrates the new Functionality model with Emitters (replacing legacy Broadcast Functionalities).
  */
 
 import { krnlEntityBase } from "../../core/K_ENT_Krnl_Entity_Base.js";
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA //////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
+import { krnlCollector } from "../../core/K_LIB_Krnl_Messaging_Concepts.js";
 
 async function setupExhibit() {
     const container = document.getElementById("grimoire-container");
     const producer = new krnlEntityBase("DataProducer");
     const consumer = new krnlEntityBase("DataConsumer");
 
-    let streamInstance = null;
-
-    // STEP 1: DEFINE BROADCAST
-    createSection(container, "Step 1: Define Broadcast", "\\Omega_{def} = \\text{define}(name, logic)", () => {
-        producer.broadcastFunctionalities.define("SignalStream", (data) => {
-            return {
-                timestamp: Date.now(),
-                payload: data,
-                transformed: typeof data === 'string' ? data.toUpperCase() : data * 2
-            };
+    // STEP 1: DEFINE LOCAL FUNCTIONALITY WITH EMITTER
+    createSection(container, "Step 1: Define Functionality with Emitter", "E.\\text{addLocal}({ emitters: { id: {} } })", () => {
+        producer.addLocal({
+            id: "SignalStream",
+            emitters: { "dataOut": {} },
+            api: (data, { emitters }) => {
+                const payload = {
+                    timestamp: Date.now(),
+                    payload: data,
+                    transformed: typeof data === 'string' ? data.toUpperCase() : data * 2
+                };
+                emitters.get("dataOut").pushDataStreamToEmitter(payload);
+                return "Signal broadcasted.";
+            }
         });
-        return "Broadcast 'SignalStream' defined on Producer.";
+        return "Functionality 'SignalStream' with emitter 'dataOut' added to Producer.";
     }, "DEFINE");
 
-    // STEP 2: SPAWN INSTANCE
-    createSection(container, "Step 2: Spawn Stream", "\\Omega_{inst} = \\text{createInstance}(\\Omega_{def}, caller)", () => {
-        streamInstance = producer.broadcastFunctionalities.createInstance("SignalStream", "ConsumerEntity");
-        return `Stream Instance: ${streamInstance.instanceName}\nOutput Emitter: ${streamInstance.output.name}`;
-    }, "SPAWN");
+    // STEP 2: CONNECT COLLECTOR TO FUNCTIONALITY EMITTER
+    createSection(container, "Step 2: Connect Collector to Signal", "\\Xi_{collect} = E_{cons}.\\text{interface.createCollector}(name).\\text{subscribeTo}(\\Phi_{emit})", () => {
+        const prodFunc = producer.getLocal("SignalStream");
+        if (!prodFunc) throw new Error("Define functionality first!");
 
-    // STEP 3: SUBSCRIBE (COLLECT)
-    createSection(container, "Step 3: Connect Collector", "\\Xi_{collect} = E_{cons}.\\text{interface.createCollector}(name).\\text{subscribeTo}(\\Omega_{inst}.output)", () => {
-        if (!streamInstance) throw new Error("Spawn stream first!");
-
-        const collector = consumer.interface.createCollector("StreamGatherer");
+        const emitter = prodFunc.emitters.get("dataOut");
+        const collector = new krnlCollector();
         
-        // Correct wiring using subscribeTo
-        collector.subscribeTo(streamInstance.output, (msg) => {
+        collector.subscribeTo(emitter, (msg) => {
             const log = document.getElementById("stream-log");
             const entry = document.createElement("div");
             entry.innerText = `> RECEIVED: ${JSON.stringify(msg.data, null, 2)}`;
@@ -51,20 +47,18 @@ async function setupExhibit() {
             log.prepend(entry);
         });
 
-        return "Consumer subscribed to Producer's stream.";
+        // Track collector for disposal in consumer (mock)
+        consumer.collectors.add(collector);
+
+        return "Consumer subscribed to Producer's 'SignalStream:dataOut' emitter.";
     }, "SUBSCRIBE");
 
-    // STEP 4: PUSH DATA
-    createPushSection(container, "Step 4: Push Stream Data", "\\text{push}(D) \\to \\Omega_{inst} \\to \\Xi_{collect}", (data) => {
-        if (!streamInstance) throw new Error("Spawn stream first!");
-        producer.broadcastFunctionalities.call(streamInstance.instanceName, data);
-        return "Data pushed to stream.";
+    // STEP 3: PUSH DATA VIA API CALL
+    createPushSection(container, "Step 3: Trigger Broadcast via Call", "E.\\text{call}(id, data) \\implies \\Omega_{emit}", (data) => {
+        producer.call("SignalStream", data);
+        return "API called, triggering broadcast.";
     }, "PUSH");
 }
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// HELPER FUNCTIONS /////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 function createSection(parent, title, mathDesc, logicFn, btnText) {
     const section = document.createElement("div");

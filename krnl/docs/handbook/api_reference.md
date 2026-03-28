@@ -2,6 +2,8 @@
 
 ## `krnlEntityBase`
 
+The foundation of every Krnl system. Entities are containers for state and logic (functionalities).
+
 Constructor:
 
 ```ts
@@ -15,27 +17,24 @@ new krnlEntityBase({
 
 Methods:
 
-- `addLocal(localFunctionality)`
-- `addRemote(remoteFunctionality)`
-- `getLocal(fid)`
-- `getRemote(fid)`
-- `call(fid, input?, opts?)`
-- `dispose()`
+- `addLocal(localFunctionality)`: Registers a logic block owned by this entity.
+- `addRemote(remoteFunctionality)`: Registers a proxy to a functionality on another entity.
+- `getLocal(fid)`: Retrieves a local functionality by ID.
+- `getRemote(fid)`: Retrieves a remote functionality by ID.
+- `call(fid, input?, opts?)`: Executes a functionality (local or remote).
+- `dispose()`: Tears down the entity and all its components.
 
 Properties:
 
+- `id: string`: Unique identifier.
 - `localFunctionalities: Map<string, krnlLocalFunctionality>`
 - `remoteFunctionalities: Map<string, krnlRemoteFunctionality>`
-- `collectors: Set<krnlCollector>`
-
-Legacy properties remain for compatibility:
-
-- `returnedFunctionalities`
-- `broadcastFunctionalities`
-- `stateManager`
-- `interface`
+- `stateManager: krnlStateManager`: Manages the entity's reactive state.
+- `interface: krnlInterface`: Handles low-level emitters and collectors.
 
 ## `krnlLocalFunctionality`
+
+A self-contained block of logic and state.
 
 ```ts
 new krnlLocalFunctionality({
@@ -56,10 +55,12 @@ new krnlLocalFunctionality({
 
 Methods:
 
-- `bindToEntity(entity)`
-- `execute(input, opts?)`
+- `bindToEntity(entity)`: Attaches the functionality to a host.
+- `execute(input, opts?)`: Runs the API logic.
 
 ## `krnlRemoteFunctionality`
+
+A proxy that allows an entity to interact with a functionality on another entity.
 
 ```ts
 new krnlRemoteFunctionality({
@@ -75,13 +76,14 @@ new krnlRemoteFunctionality({
 
 Methods:
 
-- `bindToEntity(entity)`
-- `resolveTarget(opts?)`
-- `execute(input, opts?)`
-- `bindEvents(bindings)`
+- `bindToEntity(entity)`: Attaches the proxy to a host.
+- `resolveTarget(opts?)`: Locates the actual target entity and functionality.
+- `execute(input, opts?)`: Forwards the call to the target.
+- `bindEvents(bindings)`: Connects collectors to emitters on the target functionality.
 
 Invariants:
 
-1. `LocalFunctionality` owns logic/state.
-2. `RemoteFunctionality` is forwarding-only.
-3. Cross-entity invocation should happen through remote functionalities.
+1. `LocalFunctionality` owns logic and private state.
+2. `RemoteFunctionality` is forwarding-only (stateless proxy).
+3. The `api` function handles request-response (returned values).
+4. `emitters` within a functionality handle event streams (broadcasts).

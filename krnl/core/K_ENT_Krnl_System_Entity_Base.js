@@ -34,20 +34,28 @@ export class krnlSystemEntityBase extends krnlEntityBase {
 
   /**
    * Returns a manifest of all available inputs and outputs.
-   * Inputs = Collectors + Returned Functionalities (One-shot)
-   * Outputs = Emitters + Broadcast Functionalities (Stream)
+   * Inputs = Collectors + Functionalities (API call)
+   * Outputs = Emitters + Functionality Emitters (Events)
    */
   getManifest() {
+    const apiNames = [];
+    const eventsNames = [];
+
+    this.localFunctionalities.forEach((f) => {
+      apiNames.push(f.id);
+      f.emitters.forEach((_, eid) => eventsNames.push(`${f.id}:${eid}`));
+    });
+
     return {
       entityName: this.entityName,
       systemType: this.systemType,
       inputs: {
         collectors: this.interface.collectorNames,
-        oneShot: this.returnedFunctionalities.listNames(),
+        api: apiNames,
       },
       outputs: {
         emitters: this.interface.emitterNames,
-        broadcast: this.broadcastFunctionalities.listNames(),
+        events: eventsNames,
       }
     };
   }
@@ -117,10 +125,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    * 
    * @param {string} peerId - The ID of the discovered peer.
    * @param {Object} options 
-   * @param {string} [options.localOutput] - Name of local emitter/broadcast.
-   * @param {string} [options.remoteInput] - Name of remote collector/oneShot.
-   * @param {string} [options.remoteOutput] - Name of remote emitter/broadcast.
-   * @param {string} [options.localInput] - Name of local collector/oneShot.
+   * @param {string} [options.localOutput] - Name of local emitter.
+   * @param {string} [options.remoteInput] - Name of remote collector.
+   * @param {string} [options.remoteOutput] - Name of remote emitter.
+   * @param {string} [options.localInput] - Name of local collector.
    */
   async wire(peerId, options) {
     const peer = this.peers.get(peerId);
@@ -164,29 +172,49 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   _setupBaseFunctionalities() {
-    this.broadcastFunctionalities.define('heartbeat', () => ({
-      name: this.entityName,
-      type: this.systemType,
-      timestamp: new Date().toISOString()
-    }), { stateful: true, stateName: 'heartbeat' });
-
-    this.returnedFunctionalities.define('getTelemetry', () => ({
-      entityName: this.entityName,
-      systemType: this.systemType,
-      owner: this.hierarchyManager.getOwnerEntity()?.entityName || null,
-      ownedEntities: this.hierarchyManager.getAllOwnedComponentEntities().map(e => e.entityName),
-      activeRoutes: this.commComponent.listRoutes(),
-      uptime: typeof process !== 'undefined' && process.uptime ? process.uptime() : null,
-    }));
-
-    this.returnedFunctionalities.define('adminCommand', async ({ command, args }) => {
-      console.log(`[${this.entityName}] Admin command: ${command}`, args);
-      return { status: 'acknowledged', command };
+    // Heartbeat functionality
+    this.addLocal({
+      id: 'heartbeat',
+      api: () => ({
+        name: this.entityName,
+        type: this.systemType,
+        timestamp: new Date().toISOString()
+      }),
+      emitters: { 'status': {} }
     });
 
-    // One-shot discovery function
-    this.returnedFunctionalities.define('discoverPeers', () => this.listPeers());
-    this.returnedFunctionalities.define('getManifest', () => this.getManifest());
+    // Telemetry functionality
+    this.addLocal({
+      id: 'getTelemetry',
+      api: () => ({
+        entityName: this.entityName,
+        systemType: this.systemType,
+        owner: this.hierarchyManager.getOwnerEntity()?.entityName || null,
+        ownedEntities: this.hierarchyManager.getAllOwnedComponentEntities().map(e => e.entityName),
+        activeRoutes: this.commComponent.listRoutes(),
+        uptime: typeof process !== 'undefined' && process.uptime ? process.uptime() : null,
+      })
+    });
+
+    // Admin command executor
+    this.addLocal({
+      id: 'adminCommand',
+      api: async ({ command, args }) => {
+        console.log(`[${this.entityName}] Admin command: ${command}`, args);
+        return { status: 'acknowledged', command };
+      }
+    });
+
+    // Discovery helper functionalities
+    this.addLocal({
+      id: 'discoverPeers',
+      api: () => this.listPeers()
+    });
+
+    this.addLocal({
+      id: 'getManifest',
+      api: () => this.getManifest()
+    });
   }
 
   _setupBaseInterface() {

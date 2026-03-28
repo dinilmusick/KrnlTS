@@ -1,54 +1,43 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file script.js
- * @description Exhibit 5: Demonstrates Returned Functionalities.
+ * @description Exhibit 5: Demonstrates the new Functionality model (replacing legacy Returned Functionalities).
  */
 
 import { krnlEntityBase } from "../../core/K_ENT_Krnl_Entity_Base.js";
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA //////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 async function setupExhibit() {
     const container = document.getElementById("grimoire-container");
     const entity = new krnlEntityBase("MethodMaster");
 
-    let currentInstance = null;
-
-    // STEP 1: DEFINE
-    createSection(container, "Step 1: Define Definition", "\\Phi_{def} = \\text{define}(name, method, opts)", () => {
-        entity.returnedFunctionalities.define("ProcessLogic", (data) => {
-            console.log("Executing definition method with:", data);
-            return `Processed: ${data} at ${new Date().toLocaleTimeString()}`;
-        }, { stateful: true, stateKey: "lastResult" });
-        return "Functionality 'ProcessLogic' defined (Stateful).";
+    // STEP 1: DEFINE LOCAL FUNCTIONALITY
+    createSection(container, "Step 1: Define Local Functionality", "E.\\text{addLocal}(config)", () => {
+        entity.addLocal({
+            id: "ProcessLogic",
+            api: (data, { state }) => {
+                console.log("Executing API with:", data);
+                state.lastResult = `Processed: ${data} at ${new Date().toLocaleTimeString()}`;
+                return state.lastResult;
+            },
+            state: { lastResult: null }
+        });
+        return "Functionality 'ProcessLogic' added to entity.";
     }, "DEFINE");
 
-    // STEP 2: CREATE INSTANCE
-    createSection(container, "Step 2: Spawn Instance", "\\Phi_{ins} = \\text{createInstance}(\\Phi_{def}, caller)", () => {
-        currentInstance = entity.returnedFunctionalities.createInstance("ProcessLogic", "ExhibitCaller");
-        return `Instance Created: ${currentInstance.instanceName}\nConnected State Index: ${currentInstance.connectedStateIndex}`;
-    }, "SPAWN");
-
-    // STEP 3: CALL
-    createCallSection(container, "Step 3: Invoke Call", "R = \\text{await call}(\\Phi_{ins}, data)", async (data) => {
-        if (!currentInstance) throw new Error("Spawn an instance first!");
-        const result = await entity.returnedFunctionalities.call(currentInstance.instanceName, data);
-
-        // Peek at state to prove it's cached
-        const stateVal = entity.stateManager.getStateValue(currentInstance.connectedStateIndex, "lastResult");
+    // STEP 2: CALL FUNCTIONALITY
+    createCallSection(container, "Step 2: Invoke Call", "R = \\text{await } E.\\text{call}(id, data)", async (data) => {
+        const result = await entity.call("ProcessLogic", data);
+        
+        // Peek at state to prove it's cached within the functionality
+        const func = entity.getLocal("ProcessLogic");
+        const cached = func.state.lastResult;
 
         return {
             callResult: result,
-            cachedInState: stateVal
+            cachedInFuncState: cached
         };
     }, "INVOKE");
 }
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// HELPER FUNCTIONS /////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 function createSection(parent, title, mathDesc, logicFn, btnText) {
     const section = document.createElement("div");

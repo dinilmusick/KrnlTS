@@ -1,13 +1,11 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file K_ENT_Krnl_Entity_Base.js
- * @description Defines the core base class for all Krnl entities (legacy + vNext locality model).
+ * @description Defines the core base class for all Krnl entities using the locality model.
  */
 
 import { krnlInterface } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { krnlStateManager } from "./K_LIB_Krnl_State_Manager.js";
-import { krnlReturnedFunctionalities } from "./K_LIB_Krnl_Returned_Functionalities.js";
-import { krnlBroadcastFunctionalities } from "./K_LIB_Krnl_Broadcast_Functionalities.js";
 import { krnlEntityCompositionalHierarchyManager } from "./K_LIB_Krnl_Entity_Compositional_Hierarchy.js";
 import { krnlLocalFunctionality, krnlRemoteFunctionality } from "./K_LIB_Krnl_Functionality_Types.js";
 
@@ -24,11 +22,7 @@ export class krnlEntityBase {
     this.interface = new krnlInterface(this);
     this.stateManager = new krnlStateManager(this);
 
-    // Legacy APIs kept for backwards compatibility.
-    this.broadcastFunctionalities = new krnlBroadcastFunctionalities(this);
-    this.returnedFunctionalities = new krnlReturnedFunctionalities(this);
-
-    // vNext model.
+    // Functionality Maps
     this.localFunctionalities = new Map();
     this.remoteFunctionalities = new Map();
     this.collectors = new Set();
@@ -93,8 +87,6 @@ export class krnlEntityBase {
 
   dispose() {
     if (this.hierarchyManager) this.hierarchyManager.dispose();
-    if (this.broadcastFunctionalities) this.broadcastFunctionalities.dispose();
-    if (this.returnedFunctionalities) this.returnedFunctionalities.dispose();
     if (this.stateManager) this.stateManager.dispose();
     if (this.interface) this.interface.dispose();
 
