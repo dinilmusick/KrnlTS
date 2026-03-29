@@ -1,7 +1,7 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file script.js
- * @description Exhibit 3: Scoped State and Visibility.
+ * @description Exhibit 3: Ultrst Philosophy - Atomic Assembly and Events.
  */
 
 import { krnlEntityBase } from "../../core/K_ENT_Krnl_Entity_Base.js";
@@ -9,52 +9,55 @@ import { krnlEntityBase } from "../../core/K_ENT_Krnl_Entity_Base.js";
 function setupExhibit() {
     const container = document.getElementById("grimoire-container");
 
-    const entity = new krnlEntityBase("StateLab");
+    const entity = new krnlEntityBase("AtomicSystem");
 
-    // STEP 1: SINGLE STATE (SHARED)
-    createSection(container, "Step 1: Single State (Shared)", "S_{single} = \\text{initialState}", () => {
-        entity.addLocal({
-            id: "Counter",
-            stateModel: "single",
-            initialState: { count: 0 },
-            api: (input, { state }) => {
-                state.count++;
-                return state.count;
-            }
-        });
-        return "Single-state 'Counter' added. All callers share the same number.";
-    }, "INIT SINGLE");
-
-    // STEP 2: MULTI STATE (PER CALLER)
-    createSection(container, "Step 2: Multi-State (Per Caller)", "S_{caller} = \\text{initialState}_i", () => {
+    // STEP 1: DEFINE THE ATOM (MAIN + HELPERS + EVENTS)
+    createSection(container, "Step 1: Assembled Atom", "\\text{Events} = \\{ \\text{beginning, during, end, failure} \\}", () => {
         entity.addLocal({
             id: "Profile",
-            stateModel: "multi",
-            initialState: { lastAction: "none" },
-            api: (input, { state, caller }) => {
-                state.lastAction = input;
-                return { caller, state };
+            initialState: { logs: [] },
+            api: (input, { state, helpers }) => {
+                const timestamp = helpers.get("getNow")();
+                state.logs.push(`Action: ${input} at ${timestamp}`);
+                return `Action recorded at ${timestamp}`;
+            },
+            helpers: {
+                "getNow": () => new Date().toLocaleTimeString()
+            },
+            events: {
+                beginning: ({ functionality }) => console.log(`[${functionality.id}] RITE_BEGINS`),
+                during: ({ input }) => console.log(`[During] Processing: ${input}`),
+                end: ({ output }) => console.log(`[End] Result: ${output}`)
             }
         });
-        return "Multi-state 'Profile' added. State tracks unique 'caller' names.";
+        return "Atomic 'Profile' functionality assembled. Check console for events.";
+    }, "ASSEMBLE");
+
+    // STEP 2: MULTI-STATE TEST
+    createSection(container, "Step 2: Scoped State (Multi)", "S_{Alice} \\neq S_{Bob}", () => {
+        entity.addLocal({
+            id: "UserPoints",
+            stateModel: "multi",
+            initialState: { points: 0 },
+            api: (input, { state, caller }) => {
+                state.points += input;
+                return `${caller} total: ${state.points}`;
+            }
+        });
+        return "Multi-state 'UserPoints' added.";
     }, "INIT MULTI");
 
-    // STEP 3: INTERACT AS DIFFERENT CALLERS
-    createValueSection(container, "Step 3: Call Multi-State", "R = \\text{await } E.\\text{call}(id, input, \\{ caller \\})", async (action, caller) => {
-        const res = await entity.call("Profile", action, { caller });
+    // STEP 3: CALL AS DIFFERENT ENTITIES
+    createValueSection(container, "Step 3: Call as Callers", "E.\\text{call}(id, val, \\{ caller \\})", async (val, caller) => {
+        const res = await entity.call("UserPoints", parseInt(val), { caller });
         return res;
     });
 
-    // STEP 4: VISIBILITY DEMO
-    createSection(container, "Step 4: Private Visibility", "\\text{visibility} = 'private'", () => {
-        entity.addLocal({
-            id: "SecretKey",
-            visibility: "private",
-            api: () => "BEYOND_REACH"
-        });
-        const hasIO = entity.interface.collectorNames.includes("SecretKey");
-        return `Private logic 'SecretKey' added. Registered in interface: ${hasIO}`;
-    }, "TEST VISIBILITY");
+    // STEP 4: LIBRARIES
+    createSection(container, "Step 4: Register Library Atom", "E.\\text{addLibrary}(id, struct)", () => {
+        entity.addLibrary("Constants", { VERSION: "2.0.Ultrst", AUTHOR: "Dinil Palackal" });
+        return `Library 'Constants' registered. Author: ${entity.libraries.get("Constants").AUTHOR}`;
+    }, "ADD LIB");
 }
 
 function createSection(parent, title, mathDesc, logicFn, btnText) {
@@ -85,22 +88,22 @@ function createValueSection(parent, title, mathDesc, logicFn) {
         <h3>${title}</h3>
         <div class="math-lingo">${mathDesc}</div>
         <div class="input-group">
-            <input type="text" placeholder="Action" id="val-act">
+            <input type="number" placeholder="Points" id="val-in">
             <input type="text" placeholder="Caller Name" id="val-call">
-            <button id="set-btn">CALL API</button>
+            <button id="set-btn">EXECUTE</button>
         </div>
-        <div class="output-log" id="val-log">Ready.</div>
+        <div class="output-log" id="val-log">Waiting...</div>
     `;
     parent.appendChild(section);
 
     const btn = section.querySelector("#set-btn");
-    const sAct = section.querySelector("#val-act");
+    const sIn = section.querySelector("#val-in");
     const sCall = section.querySelector("#val-call");
     const log = section.querySelector("#val-log");
 
     btn.onclick = async () => {
-        const res = await logicFn(sAct.value, sCall.value);
-        log.innerText = `> API Returned: ${JSON.stringify(res)}`;
+        const res = await logicFn(sIn.value, sCall.value);
+        log.innerText = `> Result: ${res}`;
         log.style.color = "#00ff9d";
     };
 }

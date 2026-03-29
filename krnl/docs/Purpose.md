@@ -1,30 +1,26 @@
-# Krnl: The Modular Software Engine
+# Krnl: The Ultrst Logic Engine
 
-## 🏗️ Core Entities
-These define the building blocks of the Krnl ecosystem.
+By **Dinil Palackal**
 
-| File | Purpose | Necessity | Ease of Use | Utility |
-| :--- | :--- | :---: | :---: | :---: |
-| `K_ENT_Krnl_Entity_Base.js` | The root class for all objects. Supports **Automatic Interface Promotion** from components. | 10 | 9 | **19** |
-| `K_ENT_Krnl_System_Entity_Base.js` | Adds networking and discovery to the base entity. | 10 | 8 | **18** |
+## 🏗️ The Philosophy: Atomic Composition
+Krnl is not just a library; it is a physical code management system.
 
----
-
-## 📚 Core Libraries
-The internal engines of the Entity.
-
-| File | Purpose | Necessity | Ease of Use | Utility |
-| :--- | :--- | :---: | :---: | :---: |
-| `K_LIB_Krnl_Functionality_Types.js` | Defines **Visibility** (`public`/`private`) and **State Models** (`single`/`multi`). | 10 | 9 | **19** |
-| `K_LIB_Krnl_Messaging_Concepts.js` | The "Patch Panel" of the system (Interface, Emitter, Collector). | 10 | 9 | **19** |
-| `K_LIB_Krnl_Entity_Compositional_Hierarchy.js` | Manages parent-child links and enforces **Singleton Components**. | 9 | 8 | **17** |
+1.  **Strict Modularization**: Code is divided into Entities, Functionalities, and Libraries folders.
+2.  **Functionality Atoms**: Every logic block consists of a **Main Function**, **Helpers**, and **Events** (beginning, during, end, failure).
+3.  **Automatic Bubbling**: Public logic from component entities automatically promotes to the owner's interface.
+4.  **Scoped State**: State is localized to the functionality atom, either as a single shared object or unique states for every unique caller (multi-state).
 
 ---
 
-## 🛠️ The Compositional Paradigm
-Krnl is built on the principle of **Logic Bubbling**.
+## 🏗️ Core Classes
 
-1.  **Private Logic**: Keep it internal to organize a component.
-2.  **Public Logic**: Automatically promotes to the owner's interface.
-3.  **Scoped State**: State is owned by functionality, never shared globally.
-4.  **Multi-State**: A single functionality can maintain isolated states for different callers (e.g., a "Profile" logic serving 100 different users).
+| Class | Role | Ultrst Responsibility |
+| :--- | :--- | :--- |
+| `krnlEntityBase` | **Master Assembler** | Imports and registers functionalities and libraries from its folder. |
+| `krnlLocalFunctionality` | **Logic Atom** | Assembles modular code into a callable functionality. |
+| `krnlInterface` | **IO Hub** | Manages the promoted ports for the Entity. |
+
+---
+
+## 📡 The Modular Flow
+The code flows from the smallest **Helper Atom** into the **Functionality Atom**, which is then registered in the **Entity**, and ultimately bubbles up to the **System Orchestrator**.

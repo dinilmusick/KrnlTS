@@ -1,64 +1,57 @@
-# Example Architecture: Calculator + Logger
+# Ultrst Philosophy: Atomic Architecture
 
-This guide demonstrates building a system where a **Calculator** component automatically promotes its logic to the **MainSystem** owner.
+The **Ultrst Philosophy** (by Dinil Palackal) dictates a strict physical separation of code. Every Entity and Functionality is a directory, not just a file.
 
-## 1. Define the Calculator Component
+## 1. Directory Structure
+
+### Entity Folder (`/Calculator/`)
+- `Calculator.js` (The Assembler)
+- `doc.md` (Documentation)
+- `entities/` (Child component entities)
+- `functionalities/` (Logic atoms)
+- `libraries/` (Shared data/utils)
+
+### Functionality Folder (`/functionalities/add/`)
+- `add.js` (The Atom root)
+- `main_function/` (The primary logic file)
+- `helper_functions/` (Modular logic pieces)
+- `events/` (beginning.js, during.js, end.js, failure.js)
+
+---
+
+## 2. Assembly Example
+
+### Functionality Root (`add.js`)
+We import the separate "Atoms" and assemble them into a `krnlLocalFunctionality`.
+
+```javascript
+import { main } from "./main_function/logic.js";
+import { helpers } from "./helper_functions/index.js";
+import { events } from "./events/index.js";
+
+export const addAtom = {
+  id: "add",
+  visibility: "public",
+  api: main,
+  helpers: helpers,
+  events: events // beginning, during, end, failure
+};
+```
+
+### Entity Root (`Calculator.js`)
+The Entity imports its functionality atoms and library atoms.
 
 ```javascript
 import { krnlEntityBase } from "krnl/core";
+import { addAtom } from "./functionalities/add/add.js";
 
 const Calc = new krnlEntityBase("Calculator");
 
-// This logic is PUBLIC and will bubble up to the owner
-Calc.addLocal({
-  id: "add",
-  visibility: "public",
-  api: (data) => data.a + data.b
-});
-
-// This logic is PRIVATE and stays internal to Calculator
-Calc.addLocal({
-  id: "internalLog",
-  visibility: "private",
-  api: (msg) => console.log(`[Calc Internal]: ${msg}`)
-});
+// Assembly
+Calc.addLocal(addAtom);
 ```
 
-## 2. Define the Main System
+---
 
-```javascript
-import { krnlEntityBase } from "krnl/core";
-
-const App = new krnlEntityBase("MainApp");
-
-// 1. Summon the component
-const calc = App.hierarchyManager.createComponentEntity("Calculator");
-
-// 2. The 'add' logic is now automatically promoted!
-// You can call it directly on the App interface.
-const result = await App.call("add", { a: 5, b: 10 });
-console.log(result); // 15
-
-// 3. The 'internalLog' is NOT promoted.
-// This would throw an error:
-// await App.call("internalLog", "hello"); 
-```
-
-## 3. Using Multi-State for Callers
-
-```javascript
-// Each caller name gets its own isolated state bucket
-App.addLocal({
-  id: "UserSession",
-  stateModel: "multi",
-  initialState: { points: 0 },
-  api: (input, { state, caller }) => {
-    state.points += input;
-    return `${caller} has ${state.points} points.`;
-  }
-});
-
-await App.call("UserSession", 10, { caller: "Alice" }); // Alice has 10 points.
-await App.call("UserSession", 5, { caller: "Bob" });   // Bob has 5 points.
-await App.call("UserSession", 10, { caller: "Alice" }); // Alice has 20 points.
-```
+## 3. The Power of Bubbling
+When `Calculator` is added to an owner, its `public` logic (like `add`) automatically "bubbles up" to the owner's interface, maintaining atomic separation in the file system but a unified API in the runtime.
