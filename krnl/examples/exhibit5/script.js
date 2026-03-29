@@ -1,42 +1,55 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file script.js
- * @description Exhibit 5: Demonstrates the new Functionality model (replacing legacy Returned Functionalities).
+ * @description Exhibit 5: Messaging and Functionality-based Events.
  */
 
 import { krnlEntityBase } from "../../core/K_ENT_Krnl_Entity_Base.js";
 
-async function setupExhibit() {
+function setupExhibit() {
     const container = document.getElementById("grimoire-container");
-    const entity = new krnlEntityBase("MethodMaster");
 
-    // STEP 1: DEFINE LOCAL FUNCTIONALITY
-    createSection(container, "Step 1: Define Local Functionality", "E.\\text{addLocal}(config)", () => {
+    const entity = new krnlEntityBase("Herald");
+
+    // STEP 1: DEFINE FUNCTIONALITY WITH EMITTER
+    createSection(container, "Step 1: Bind Logic with Events", "\\text{Emitters} = \\{ 'status': \\dots \\}", () => {
         entity.addLocal({
-            id: "ProcessLogic",
-            api: (data, { state }) => {
-                console.log("Executing API with:", data);
-                state.lastResult = `Processed: ${data} at ${new Date().toLocaleTimeString()}`;
-                return state.lastResult;
-            },
-            state: { lastResult: null }
+            id: "WeatherSystem",
+            emitters: { "storm": {} },
+            api: (input, { emitters }) => {
+                emitters.get("storm").pushDataStreamToEmitter(`STORM_STRENGTH_${input}`);
+                return "Event triggered.";
+            }
         });
-        return "Functionality 'ProcessLogic' added to entity.";
-    }, "DEFINE");
+        return "Logic 'WeatherSystem' added with emitter 'storm'.";
+    }, "BIND LOGIC");
 
-    // STEP 2: CALL FUNCTIONALITY
-    createCallSection(container, "Step 2: Invoke Call", "R = \\text{await } E.\\text{call}(id, data)", async (data) => {
-        const result = await entity.call("ProcessLogic", data);
-        
-        // Peek at state to prove it's cached within the functionality
-        const func = entity.getLocal("ProcessLogic");
-        const cached = func.state.lastResult;
+    // STEP 2: SUBSCRIBE VIA INTERFACE
+    createSection(container, "Step 2: Subscribe to Promoted Emitter", "E.\\text{interface}.\\text{getEmitter}(id:storm)", () => {
+        // Events are promoted as "FunctionalityID:EmitterID"
+        const emitter = entity.interface.getEmitter("WeatherSystem:storm");
+        emitter.subscribe((msg) => {
+            const log = document.getElementById("event-log");
+            log.innerText += `\n> RECV: ${msg.data}`;
+            log.scrollTop = log.scrollHeight;
+        });
+        return "Subscribed to 'WeatherSystem:storm'. Check log below.";
+    }, "SUBSCRIBE");
 
-        return {
-            callResult: result,
-            cachedInFuncState: cached
-        };
-    }, "INVOKE");
+    // STEP 3: TRIGGER EVENT
+    createValueSection(container, "Step 3: Trigger Event", "E.\\text{call}('WeatherSystem', level)", async (level) => {
+        await entity.call("WeatherSystem", level);
+        return "Call executed.";
+    });
+
+    // Event Log Area
+    const logArea = document.createElement("div");
+    logArea.id = "event-log";
+    logArea.className = "output-log";
+    logArea.style.height = "150px";
+    logArea.style.overflowY = "auto";
+    logArea.innerText = "=== Event Stream ===";
+    container.appendChild(logArea);
 }
 
 function createSection(parent, title, mathDesc, logicFn, btnText) {
@@ -46,7 +59,7 @@ function createSection(parent, title, mathDesc, logicFn, btnText) {
         <h3>${title}</h3>
         <div class="math-lingo">${mathDesc}</div>
         <button class="action-btn">${btnText}</button>
-        <div class="output-log">Waiting...</div>
+        <div class="output-log">Ready.</div>
     `;
     parent.appendChild(section);
 
@@ -54,45 +67,34 @@ function createSection(parent, title, mathDesc, logicFn, btnText) {
     const log = section.querySelector(".output-log");
 
     btn.onclick = () => {
-        try {
-            const res = logicFn();
-            log.innerText = `> ${res}`;
-            log.style.color = "#00ff9d";
-        } catch (e) {
-            log.innerText = `> ERROR: ${e.message}`;
-            log.style.color = "#ff0055";
-        }
+        const res = logicFn();
+        log.innerText = `> ${res}`;
+        log.style.color = "#00ff9d";
     };
 }
 
-function createCallSection(parent, title, mathDesc, logicFn, btnText) {
+function createValueSection(parent, title, mathDesc, logicFn) {
     const section = document.createElement("div");
     section.className = "spell-section";
     section.innerHTML = `
         <h3>${title}</h3>
         <div class="math-lingo">${mathDesc}</div>
         <div class="input-group">
-            <input type="text" placeholder="Payload Data" id="call-input" value="Magic Sigil 42">
-            <button id="call-btn">${btnText}</button>
+            <input type="number" placeholder="Storm Level" id="val-in">
+            <button id="set-btn">TRIGGER</button>
         </div>
-        <div class="output-log" id="call-log">Ready.</div>
+        <div class="output-log" id="val-log">Waiting...</div>
     `;
     parent.appendChild(section);
 
-    const btn = section.querySelector("#call-btn");
-    const input = section.querySelector("#call-input");
-    const log = section.querySelector("#call-log");
+    const btn = section.querySelector("#set-btn");
+    const sIn = section.querySelector("#val-in");
+    const log = section.querySelector("#val-log");
 
     btn.onclick = async () => {
-        try {
-            log.innerText = "> Calling functionality...";
-            const res = await logicFn(input.value);
-            log.innerText = `> Result Manifest:\n${JSON.stringify(res, null, 2)}`;
-            log.style.color = "#00ff9d";
-        } catch (e) {
-            log.innerText = `> CALL FAILED: ${e.message}`;
-            log.style.color = "#ff0055";
-        }
+        const res = await logicFn(sIn.value);
+        log.innerText = `> ${res}`;
+        log.style.color = "#00ff9d";
     };
 }
 

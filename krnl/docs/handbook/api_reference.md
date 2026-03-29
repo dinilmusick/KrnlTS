@@ -2,7 +2,7 @@
 
 ## `krnlEntityBase`
 
-The foundation of every Krnl system. Entities are containers for logic (functionalities) and their scoped state.
+The foundation of every Krnl system. Entities are containers for logic (Functionalities) and their scoped state.
 
 Constructor:
 
@@ -12,19 +12,18 @@ new krnlEntityBase(name: string)
 
 Methods:
 
-- `addLocal(localFunctionality)`: Registers a logic block owned by this entity.
-- `addRemote(remoteFunctionality)`: Registers a proxy to a functionality on another entity.
-- `getLocal(fid)`: Retrieves a local functionality by ID.
-- `getRemote(fid)`: Retrieves a remote functionality by ID.
-- `call(fid, input?, opts?)`: Executes a functionality (local or remote).
-- `dispose()`: Tears down the entity and all its components.
+- `addLocal(localFunctionality)`: Registers a logic block. If `public`, it's promoted to the `interface`.
+- `addRemote(remoteFunctionality)`: Registers a proxy to an external entity.
+- `call(fid, input?, opts?)`: Executes a functionality. `opts.caller` is used for `multiState`.
+- `dispose()`: Recursive teardown of the entity and all child components.
 
 Properties:
 
 - `id: string`: Unique identifier.
-- `localFunctionalities: Map<string, krnlLocalFunctionality>`
-- `remoteFunctionalities: Map<string, krnlRemoteFunctionality>`
-- `interface: krnlInterface`: Handles low-level emitters and collectors.
+- `interface: krnlInterface`: The IO Hub (Emitters/Collectors).
+- `hierarchyManager: krnlEntityCompositionalHierarchyManager`: Manages singleton components.
+
+---
 
 ## `krnlLocalFunctionality`
 
@@ -33,51 +32,42 @@ A self-contained block of logic and private state.
 ```ts
 new krnlLocalFunctionality({
   id: string,
-  state?: object,
-  api?: (input, context) => any,
-  helpers?: Record<string, Function> | Map<string, Function>,
-  emitters?: Record<string, krnlEmitter> | Map<string, krnlEmitter>,
-  collectors?: krnlCollector[],
-  lifecycle?: {
-    onInit?: Function,
-    onCall?: Function,
-    onComplete?: Function,
-    onError?: Function
-  }
+  visibility: 'public' | 'private',    // 'private' is invisible to owner entities
+  stateModel: 'single' | 'multi',     // 'multi' tracks state per caller name
+  initialState: object,               // Template for the state
+  api: (input, context) => any,       // Logic (receives state, emitters, caller, etc.)
+  emitters: Record<string, krnlEmitter>,
+  lifecycle: { onInit, onCall, onError }
 })
 ```
 
-Methods:
+**State Scoping:**
+- In `single` model: One shared `state` object.
+- In `multi` model: A unique `state` is created and stored for every unique `caller`.
 
-- `bindToEntity(entity)`: Attaches the functionality to a host.
-- `execute(input, opts?)`: Runs the API logic.
+---
 
 ## `krnlRemoteFunctionality`
 
-A proxy that allows an entity to interact with a functionality on another entity.
+A proxy used to "borrow" logic from external (non-component) entities.
 
 ```ts
 new krnlRemoteFunctionality({
   id: string,
-  target: {
-    entity: Function | { createInstance?: Function, instantiate?: Function } | krnlEntityBase,
-    functionality: string
-  },
-  proxy_api?: (input, opts, remoteSelf) => any,
-  collectors?: krnlCollector[]
+  targetEntity: krnlEntityBase,
+  targetFunction: string,
+  visibility: 'public' | 'private'
 })
 ```
 
-Methods:
+---
 
-- `bindToEntity(entity)`: Attaches the proxy to a host.
-- `resolveTarget(opts?)`: Locates the actual target entity and functionality.
-- `execute(input, opts?)`: Forwards the call to the target.
-- `bindEvents(bindings)`: Connects collectors to emitters on the target functionality.
+## 🏗️ Interface Promotion (The Compositional Paradigm)
 
-Invariants:
+Krnl now uses **Automatic Promotion**. 
 
-1. `LocalFunctionality` owns logic and private state.
-2. `RemoteFunctionality` is forwarding-only (stateless proxy).
-3. The `api` function handles request-response (returned values).
-4. `emitters` within a functionality handle event streams (broadcasts).
+1. When you add a component to an owner: `owner.hierarchyManager.createComponentEntity("MyComp")`.
+2. When that component adds a `public` functionality: `MyComp.addLocal({ id: "Compute", visibility: "public", ... })`.
+3. **The Result:** The `Compute` functionality is automatically mirrored on the `owner.interface`. You can now call `owner.call("Compute", data)` as if it were local to the owner.
+
+This allows for deep nesting of logic while maintaining a flat, usable API at the top level.

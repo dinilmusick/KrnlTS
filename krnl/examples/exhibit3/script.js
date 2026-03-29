@@ -1,7 +1,7 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file script.js
- * @description Exhibit 3: Demonstrates Scoped State (State encapsulated within functionalities).
+ * @description Exhibit 3: Scoped State and Visibility.
  */
 
 import { krnlEntityBase } from "../../core/K_ENT_Krnl_Entity_Base.js";
@@ -9,41 +9,52 @@ import { krnlEntityBase } from "../../core/K_ENT_Krnl_Entity_Base.js";
 function setupExhibit() {
     const container = document.getElementById("grimoire-container");
 
-    // Entity Instance
-    const entity = new krnlEntityBase("ScopedStateEntity");
+    const entity = new krnlEntityBase("StateLab");
 
-    // STEP 1: DEFINE FUNCTIONALITY WITH SCOPED STATE
-    createSection(container, "Step 1: Define Functionality with State", "E.\\text{addLocal}({ id, state, api })", () => {
+    // STEP 1: SINGLE STATE (SHARED)
+    createSection(container, "Step 1: Single State (Shared)", "S_{single} = \\text{initialState}", () => {
         entity.addLocal({
-            id: "ProfileManager",
-            state: { name: "Initiate", level: 1 },
+            id: "Counter",
+            stateModel: "single",
+            initialState: { count: 0 },
             api: (input, { state }) => {
-                if (input.action === "update") {
-                    state.name = input.name || state.name;
-                    state.level = input.level || state.level;
-                }
-                return { ...state };
+                state.count++;
+                return state.count;
             }
         });
-        return "Functionality 'ProfileManager' added with private state { name, level }.";
-    }, "DEFINE");
+        return "Single-state 'Counter' added. All callers share the same number.";
+    }, "INIT SINGLE");
 
-    // STEP 2: INTERACT WITH SCOPED STATE
-    createValueSection(container, "Step 2: Mutate/Access State", "R = \\text{await } E.\\text{call}(id, input)", async (name, level) => {
-        const res = await entity.call("ProfileManager", { action: "update", name, level });
+    // STEP 2: MULTI STATE (PER CALLER)
+    createSection(container, "Step 2: Multi-State (Per Caller)", "S_{caller} = \\text{initialState}_i", () => {
+        entity.addLocal({
+            id: "Profile",
+            stateModel: "multi",
+            initialState: { lastAction: "none" },
+            api: (input, { state, caller }) => {
+                state.lastAction = input;
+                return { caller, state };
+            }
+        });
+        return "Multi-state 'Profile' added. State tracks unique 'caller' names.";
+    }, "INIT MULTI");
+
+    // STEP 3: INTERACT AS DIFFERENT CALLERS
+    createValueSection(container, "Step 3: Call Multi-State", "R = \\text{await } E.\\text{call}(id, input, \\{ caller \\})", async (action, caller) => {
+        const res = await entity.call("Profile", action, { caller });
         return res;
     });
 
-    // STEP 3: INSPECT ENCAPSULATION
-    createListSection(container, "Step 3: Verify Encapsulation", "M = E.getLocal(id).state", () => {
-        const func = entity.getLocal("ProfileManager");
-        return {
-            entity: entity.entityName,
-            functionality: func.id,
-            internalState: func.state,
-            isEntityStateMissing: entity.stateManager === undefined // Should be true
-        };
-    });
+    // STEP 4: VISIBILITY DEMO
+    createSection(container, "Step 4: Private Visibility", "\\text{visibility} = 'private'", () => {
+        entity.addLocal({
+            id: "SecretKey",
+            visibility: "private",
+            api: () => "BEYOND_REACH"
+        });
+        const hasIO = entity.interface.collectorNames.includes("SecretKey");
+        return `Private logic 'SecretKey' added. Registered in interface: ${hasIO}`;
+    }, "TEST VISIBILITY");
 }
 
 function createSection(parent, title, mathDesc, logicFn, btnText) {
@@ -61,14 +72,9 @@ function createSection(parent, title, mathDesc, logicFn, btnText) {
     const log = section.querySelector(".output-log");
 
     btn.onclick = () => {
-        try {
-            const res = logicFn();
-            log.innerText = `> ${res}`;
-            log.style.color = "#00ff9d";
-        } catch (e) {
-            log.innerText = `> FAILED: ${e.message}`;
-            log.style.color = "#ff0055";
-        }
+        const res = logicFn();
+        log.innerText = `> ${res}`;
+        log.style.color = "#00ff9d";
     };
 }
 
@@ -79,8 +85,8 @@ function createValueSection(parent, title, mathDesc, logicFn) {
         <h3>${title}</h3>
         <div class="math-lingo">${mathDesc}</div>
         <div class="input-group">
-            <input type="text" placeholder="New Name" id="val-name">
-            <input type="number" placeholder="New Level" id="val-level">
+            <input type="text" placeholder="Action" id="val-act">
+            <input type="text" placeholder="Caller Name" id="val-call">
             <button id="set-btn">CALL API</button>
         </div>
         <div class="output-log" id="val-log">Ready.</div>
@@ -88,39 +94,14 @@ function createValueSection(parent, title, mathDesc, logicFn) {
     parent.appendChild(section);
 
     const btn = section.querySelector("#set-btn");
-    const sName = section.querySelector("#val-name");
-    const sLevel = section.querySelector("#val-level");
+    const sAct = section.querySelector("#val-act");
+    const sCall = section.querySelector("#val-call");
     const log = section.querySelector("#val-log");
 
     btn.onclick = async () => {
-        try {
-            const res = await logicFn(sName.value, parseInt(sLevel.value));
-            log.innerText = `> API Returned: ${JSON.stringify(res)}`;
-            log.style.color = "#00ff9d";
-        } catch (e) {
-            log.innerText = `> FAILED: ${e.message}`;
-            log.style.color = "#ff0055";
-        }
-    };
-}
-
-function createListSection(parent, title, mathDesc, logicFn) {
-    const section = document.createElement("div");
-    section.className = "spell-section";
-    section.innerHTML = `
-        <h3>${title}</h3>
-        <div class="math-lingo">${mathDesc}</div>
-        <button id="refresh-btn">INSPECT</button>
-        <div class="output-log" id="refresh-log">Waiting...</div>
-    `;
-    parent.appendChild(section);
-
-    const btn = section.querySelector("#refresh-btn");
-    const log = section.querySelector("#refresh-log");
-
-    btn.onclick = () => {
-        const res = logicFn();
-        log.innerText = `> Manifest:\n${JSON.stringify(res, null, 2)}`;
+        const res = await logicFn(sAct.value, sCall.value);
+        log.innerText = `> API Returned: ${JSON.stringify(res)}`;
+        log.style.color = "#00ff9d";
     };
 }
 

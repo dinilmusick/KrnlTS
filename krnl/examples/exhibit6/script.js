@@ -1,63 +1,46 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file script.js
- * @description Exhibit 6: Demonstrates the new Functionality model with Emitters (replacing legacy Broadcast Functionalities).
+ * @description Exhibit 6: Remote Functionalities and External Proxies.
  */
 
 import { krnlEntityBase } from "../../core/K_ENT_Krnl_Entity_Base.js";
-import { krnlCollector } from "../../core/K_LIB_Krnl_Messaging_Concepts.js";
 
-async function setupExhibit() {
+function setupExhibit() {
     const container = document.getElementById("grimoire-container");
-    const producer = new krnlEntityBase("DataProducer");
-    const consumer = new krnlEntityBase("DataConsumer");
 
-    // STEP 1: DEFINE LOCAL FUNCTIONALITY WITH EMITTER
-    createSection(container, "Step 1: Define Functionality with Emitter", "E.\\text{addLocal}({ emitters: { id: {} } })", () => {
-        producer.addLocal({
-            id: "SignalStream",
-            emitters: { "dataOut": {} },
-            api: (data, { emitters }) => {
-                const payload = {
-                    timestamp: Date.now(),
-                    payload: data,
-                    transformed: typeof data === 'string' ? data.toUpperCase() : data * 2
-                };
-                emitters.get("dataOut").pushDataStreamToEmitter(payload);
-                return "Signal broadcasted.";
-            }
+    // 1. External Singleton Entity (e.g., A global database)
+    const externalDB = new krnlEntityBase("GlobalRegistry");
+    externalDB.addLocal({
+        id: "save",
+        api: (data, { caller }) => `[DB] Record saved for ${caller}: ${data}`
+    });
+
+    // 2. Local Entity that wants to borrow logic
+    const clientEntity = new krnlEntityBase("LocalClient");
+
+    // STEP 1: ADD REMOTE PROXY
+    createSection(container, "Step 1: Add Remote Proxy", "\\text{E}.\\text{addRemote}(\\{ targetEntity, targetFunction \\})", () => {
+        clientEntity.addRemote({
+            id: "RemoteSave",
+            targetEntity: externalDB,
+            targetFunction: "save"
         });
-        return "Functionality 'SignalStream' with emitter 'dataOut' added to Producer.";
-    }, "DEFINE");
+        return "Proxy 'RemoteSave' added. Targeted at 'GlobalRegistry:save'.";
+    }, "INIT PROXY");
 
-    // STEP 2: CONNECT COLLECTOR TO FUNCTIONALITY EMITTER
-    createSection(container, "Step 2: Connect Collector to Signal", "\\Xi_{collect} = E_{cons}.\\text{interface.createCollector}(name).\\text{subscribeTo}(\\Phi_{emit})", () => {
-        const prodFunc = producer.getLocal("SignalStream");
-        if (!prodFunc) throw new Error("Define functionality first!");
+    // STEP 2: VERIFY LOCAL INTERFACE
+    createSection(container, "Step 2: Verify Registration", "E.\\text{interface}.\\text{has}(id)", () => {
+        const hasIO = clientEntity.interface.emitterNames.includes("RemoteSave");
+        return `Proxy registered as local emitter: ${hasIO}`;
+    }, "CHECK INTERFACE");
 
-        const emitter = prodFunc.emitters.get("dataOut");
-        const collector = new krnlCollector();
-        
-        collector.subscribeTo(emitter, (msg) => {
-            const log = document.getElementById("stream-log");
-            const entry = document.createElement("div");
-            entry.innerText = `> RECEIVED: ${JSON.stringify(msg.data, null, 2)}`;
-            entry.style.borderBottom = "1px solid rgba(58, 134, 255, 0.2)";
-            entry.style.padding = "0.5rem 0";
-            log.prepend(entry);
-        });
-
-        // Track collector for disposal in consumer (mock)
-        consumer.collectors.add(collector);
-
-        return "Consumer subscribed to Producer's 'SignalStream:dataOut' emitter.";
-    }, "SUBSCRIBE");
-
-    // STEP 3: PUSH DATA VIA API CALL
-    createPushSection(container, "Step 3: Trigger Broadcast via Call", "E.\\text{call}(id, data) \\implies \\Omega_{emit}", (data) => {
-        producer.call("SignalStream", data);
-        return "API called, triggering broadcast.";
-    }, "PUSH");
+    // STEP 3: EXECUTE LOCAL CALL (FORWARDS REMOTE)
+    createValueSection(container, "Step 3: Forward Call", "R = \\text{await } E.\\text{call}('RemoteSave', data)", async (data) => {
+        // Calling our local proxy which forwards to the external singleton
+        const res = await clientEntity.call("RemoteSave", data);
+        return res;
+    });
 }
 
 function createSection(parent, title, mathDesc, logicFn, btnText) {
@@ -67,7 +50,7 @@ function createSection(parent, title, mathDesc, logicFn, btnText) {
         <h3>${title}</h3>
         <div class="math-lingo">${mathDesc}</div>
         <button class="action-btn">${btnText}</button>
-        <div class="output-log">Waiting...</div>
+        <div class="output-log">Ready.</div>
     `;
     parent.appendChild(section);
 
@@ -75,45 +58,34 @@ function createSection(parent, title, mathDesc, logicFn, btnText) {
     const log = section.querySelector(".output-log");
 
     btn.onclick = () => {
-        try {
-            const res = logicFn();
-            log.innerText = `> ${res}`;
-            log.style.color = "#00ff9d";
-        } catch (e) {
-            log.innerText = `> ERROR: ${e.message}`;
-            log.style.color = "#ff0055";
-        }
+        const res = logicFn();
+        log.innerText = `> ${res}`;
+        log.style.color = "#00ff9d";
     };
 }
 
-function createPushSection(parent, title, mathDesc, logicFn, btnText) {
+function createValueSection(parent, title, mathDesc, logicFn) {
     const section = document.createElement("div");
     section.className = "spell-section";
     section.innerHTML = `
         <h3>${title}</h3>
         <div class="math-lingo">${mathDesc}</div>
         <div class="input-group">
-            <input type="text" id="push-input" value="Ether Wave 71">
-            <button id="push-btn">${btnText}</button>
+            <input type="text" placeholder="Record Data" id="val-in">
+            <button id="set-btn">CALL PROXY</button>
         </div>
-        <div class="output-log" id="stream-log" style="max-height: 200px; overflow-y: auto;">Awaiting data flow...</div>
+        <div class="output-log" id="val-log">Waiting...</div>
     `;
     parent.appendChild(section);
 
-    const btn = section.querySelector("#push-btn");
-    const input = section.querySelector("#push-input");
-    const log = section.querySelector("#stream-log");
+    const btn = section.querySelector("#set-btn");
+    const sIn = section.querySelector("#val-in");
+    const log = section.querySelector("#val-log");
 
-    btn.onclick = () => {
-        try {
-            const val = isNaN(parseFloat(input.value)) ? input.value : parseFloat(input.value);
-            logicFn(val);
-        } catch (e) {
-            const entry = document.createElement("div");
-            entry.innerText = `> ERROR: ${e.message}`;
-            entry.style.color = "#ff0055";
-            log.prepend(entry);
-        }
+    btn.onclick = async () => {
+        const res = await logicFn(sIn.value);
+        log.innerText = `> Response: ${res}`;
+        log.style.color = "#00ff9d";
     };
 }
 

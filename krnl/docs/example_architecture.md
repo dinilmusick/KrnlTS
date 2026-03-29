@@ -1,142 +1,64 @@
-# Example Architecture: Calculator & Notes App
+# Example Architecture: Calculator + Logger
 
-This guide demonstrates how to architect a multi-system application using the **KrnlJS** decentralized syntax. We will build a **Math System** (Calculator) and a **Storage System** (Notes) that find and connect to each other automatically over a network.
+This guide demonstrates building a system where a **Calculator** component automatically promotes its logic to the **MainSystem** owner.
 
----
-
-## 🏛️ System Overview
-
-In the Krnl ecosystem, every application is a **System Entity**. They act as independent blocks that can be wired together regardless of whether they run on the same computer or different ones.
-
-| Component | Krnl Class | Responsibility |
-| :--- | :--- | :--- |
-| **MathSystem** | `krnlSystemEntityBase` | The producer. Performs math and broadcasts results. |
-| **NoteSystem** | `krnlSystemEntityBase` | The consumer. Discovers the Math system and wires itself. |
-
----
-
-## 🔢 1. The Math System (Producer)
-
-The Math System initializes itself and begins "advertising" its presence on the local network.
+## 1. Define the Calculator Component
 
 ```javascript
-import { krnlSystemEntityBase } from 'krnl-js';
+import { krnlEntityBase } from "krnl/core";
 
-// 1. Initialize the system on port 1001
-const mathApp = new krnlSystemEntityBase("MathApp", null, 1001);
+const Calc = new krnlEntityBase("Calculator");
 
-// 2. Create an output emitter for calculations
-mathApp.interface.createEmitter("result-out");
-
-// 3. Start Discovery (UDP Beaconing)
-// This makes the system visible to other peers on the LAN
-await mathApp.startDiscovery();
-
-// 4. Periodically push data (Logic loop)
-setInterval(() => {
-    const result = Math.random() * 100;
-    mathApp.interface.getEmitter("result-out").pushDataStreamToEmitter({
-        val: result,
-        timestamp: Date.now()
-    });
-}, 5000);
-```
-
----
-
-## 📝 2. The Note System (Consumer)
-
-The Note System searches for the Math System, inspects its available "ports," and wires them to its internal logic.
-
-```javascript
-import { krnlSystemEntityBase } from 'krnl-js';
-
-// 1. Initialize the system on port 1002
-const noteApp = new krnlSystemEntityBase("NoteApp", null, 1002);
-
-// 2. Create a collector to receive notes
-noteApp.interface.createCollector("incoming-notes");
-noteApp.interface.getCollector("incoming-notes")._directHandler = (msg) => {
-    console.log("📝 Note Saved:", msg.data.val);
-};
-
-// 3. Start Discovery to find the Math System
-await noteApp.startDiscovery();
-
-// 4. The Discovery & Wiring Logic
-setTimeout(async () => {
-    // List all discovered peers on the network
-    const peers = noteApp.listPeers();
-    const mathPeer = peers.find(p => p.name === "MathApp");
-
-    if (mathPeer) {
-        console.log(`Found MathApp at ${mathPeer.address}`);
-
-        // Introspect: See what inputs/outputs the remote system has
-        // This is like checking the ports on a hardware block
-        const manifest = await noteApp.commComponent.callWsRpc(mathPeer.address, 'get-manifest');
-        console.log("Remote Outputs available:", manifest.outputs.emitters);
-
-        // 5. Perform the sacred wiring:
-        // We wire the remote "result-out" to our local "incoming-notes"
-        await noteApp.wire("MathApp", {
-            remoteOutput: "result-out", // The name from MathApp
-            localInput: "incoming-notes" // The name on our local interface
-        });
-        
-        console.log("Network Bridge Established.");
-    }
-}, 2000);
-```
-
-## 🧩 3. Advanced Logic (Local Functionality)
-
-For more complex logic that requires internal state and event broadcasting, use the `addLocal` paradigm.
-
-```javascript
-// Inside MathApp
-mathApp.addLocal({
-    id: "SuperCalculator",
-    state: { operationsCount: 0 },
-    emitters: { "on-calculate": {} },
-    api: async (input, { state, emitters }) => {
-        state.operationsCount++;
-        const result = input.a + input.b;
-        
-        // Broadcast an event internally
-        emitters.get("on-calculate").pushDataStreamToEmitter({ result });
-        
-        return result; // Return value for request-response
-    }
+// This logic is PUBLIC and will bubble up to the owner
+Calc.addLocal({
+  id: "add",
+  visibility: "public",
+  api: (data) => data.a + data.b
 });
 
-// Call it locally
-const res = await mathApp.call("SuperCalculator", { a: 10, b: 20 });
+// This logic is PRIVATE and stays internal to Calculator
+Calc.addLocal({
+  id: "internalLog",
+  visibility: "private",
+  api: (msg) => console.log(`[Calc Internal]: ${msg}`)
+});
 ```
 
----
+## 2. Define the Main System
 
-## 🛰️ 4. Cross-Machine vs. Same-Machine
+```javascript
+import { krnlEntityBase } from "krnl/core";
 
-Because Krnl uses **UDP Discovery** and **WebSockets**, the code above works in two scenarios without modification:
+const App = new krnlEntityBase("MainApp");
 
-### Scenario A: Same Machine
-- Both systems run on `localhost`.
-- Discovery finds `127.0.0.1:[PORT]`.
-- The `wire()` method creates a WebSocket link between the two internal ports.
+// 1. Summon the component
+const calc = App.hierarchyManager.createComponentEntity("Calculator");
 
-### Scenario B: Cross-Machine (LAN)
-- System A is on `192.168.1.10`.
-- System B is on `192.168.1.15`.
-- Discovery broadcasts to `255.255.255.255`.
-- System B receives the beacon, sees the real IP of System A, and calls `wire()`.
-- A WebSocket is established across the network.
+// 2. The 'add' logic is now automatically promoted!
+// You can call it directly on the App interface.
+const result = await App.call("add", { a: 5, b: 10 });
+console.log(result); // 15
 
----
+// 3. The 'internalLog' is NOT promoted.
+// This would throw an error:
+// await App.call("internalLog", "hello"); 
+```
 
-## 🏆 Why use this architecture?
+## 3. Using Multi-State for Callers
 
-1.  **Zero Configuration**: Systems find each other. You don't need to hardcode IP addresses.
-2.  **Self-Documenting**: By calling `getManifest()`, a system can tell you exactly what it can do and what data it expects.
-3.  **Hardware-Like Wiring**: Software blocks are connected just like physical patch cables. You connect an **Output** to an **Input**.
-4.  **Language Agnostic**: A Go-based Orchestrator can call `get-manifest` on this JS-based system and wire it just as easily.
+```javascript
+// Each caller name gets its own isolated state bucket
+App.addLocal({
+  id: "UserSession",
+  stateModel: "multi",
+  initialState: { points: 0 },
+  api: (input, { state, caller }) => {
+    state.points += input;
+    return `${caller} has ${state.points} points.`;
+  }
+});
+
+await App.call("UserSession", 10, { caller: "Alice" }); // Alice has 10 points.
+await App.call("UserSession", 5, { caller: "Bob" });   // Bob has 5 points.
+await App.call("UserSession", 10, { caller: "Alice" }); // Alice has 20 points.
+```

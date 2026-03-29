@@ -1,51 +1,30 @@
-# Krnl Base: Purpose & Utility Analysis
-
-This document outlines the purpose of each component within the `krnl` library.
-
----
+# Krnl: The Modular Software Engine
 
 ## 🏗️ Core Entities
-These files define the fundamental building blocks of the Krnl ecosystem.
+These define the building blocks of the Krnl ecosystem.
 
 | File | Purpose | Necessity | Ease of Use | Utility |
 | :--- | :--- | :---: | :---: | :---: |
-| `K_ENT_Krnl_Entity_Base.js` | The root class for all objects. Provides locality-based functionality management and messaging. | 10 | 9 | **19** |
-| `K_ENT_Krnl_System_Entity_Base.js` | Base for system orchestrators. Adds `commComponent` for networking and a **Decentralized Discovery** mechanism (`startDiscovery`, `wire`). | 10 | 8 | **18** |
-| `K_ENT_Krnl_Sub_System_Orchestrator_Base.js` | Specialization for nested systems (e.g., a control system within a larger hub). | 7 | 8 | **15** |
+| `K_ENT_Krnl_Entity_Base.js` | The root class for all objects. Supports **Automatic Interface Promotion** from components. | 10 | 9 | **19** |
+| `K_ENT_Krnl_System_Entity_Base.js` | Adds networking and discovery to the base entity. | 10 | 8 | **18** |
 
 ---
 
-## 📡 Networking & Messaging
-The communication backbone that ensures uniform syntax across different projects.
+## 📚 Core Libraries
+The internal engines of the Entity.
 
 | File | Purpose | Necessity | Ease of Use | Utility |
 | :--- | :--- | :---: | :---: | :---: |
-| `K_LIB_Krnl_Messaging_Concepts.js` | Defines `Emitter`, `Collector`, and `Interface`. This is the single most important part of the "uniform API" for inter-entity communication. | 10 | 9 | **19** |
-| `K_LIB_Krnl_System_Comm_Component.js` | Handles the technical wiring between systems (WebSocket, UDP, Local). Supports **Remote Wiring RPCs**. | 10 | 7 | **17** |
+| `K_LIB_Krnl_Functionality_Types.js` | Defines **Visibility** (`public`/`private`) and **State Models** (`single`/`multi`). | 10 | 9 | **19** |
+| `K_LIB_Krnl_Messaging_Concepts.js` | The "Patch Panel" of the system (Interface, Emitter, Collector). | 10 | 9 | **19** |
+| `K_LIB_Krnl_Entity_Compositional_Hierarchy.js` | Manages parent-child links and enforces **Singleton Components**. | 9 | 8 | **17** |
 
 ---
 
-## 📚 Core Libraries & Utilities
-Supporting libraries that provide common data structures and logic.
+## 🛠️ The Compositional Paradigm
+Krnl is built on the principle of **Logic Bubbling**.
 
-| File | Purpose | Necessity | Ease of Use | Utility |
-| :--- | :--- | :---: | :---: | :---: |
-| `K_LIB_Krnl_Base_Concepts.js` | Defines the standard data payloads (`krnlData`), system-wide Enums, and the `createEnum` utility. Ensures data consistency. | 10 | 9 | **19** |
-| `K_LIB_Krnl_Error_Concepts.js` | Standardized error codes and exception handling. | 8 | 9 | **17** |
-| `K_LIB_Krnl_Entity_Compositional_Hierarchy.js` | Manages parent-child relationships and ownership, preventing memory leaks during disposal. | 9 | 8 | **17** |
-| `K_LIB_Krnl_Functionality_Types.js` | Defines `LocalFunctionality` and `RemoteFunctionality`. The core of the logic model, where each functionality owns its private state. | 10 | 9 | **19** |
-
----
-
-## 🧪 Exhibits & Demos
-Example implementations and testing scripts.
-
-| File | Purpose | Necessity | Ease of Use | Utility |
-| :--- | :--- | :---: | :---: | :---: |
-| `DummySystemA/B.js` | Reference implementations for testing networking. | 3 | 10 | **13** |
-| `exhibit1-7/script.js` | Visual/functional demos of specific library features. | 2 | 10 | **12** |
-
----
-
-## 🏆 Final Verdict
-The **Functionality Model** and **Base Concepts** are the true heart of this library. They provide the "uniform syntax" the project requires. The **Entity Base** classes successfully abstract the complexity of distributed state and logic.
+1.  **Private Logic**: Keep it internal to organize a component.
+2.  **Public Logic**: Automatically promotes to the owner's interface.
+3.  **Scoped State**: State is owned by functionality, never shared globally.
+4.  **Multi-State**: A single functionality can maintain isolated states for different callers (e.g., a "Profile" logic serving 100 different users).
