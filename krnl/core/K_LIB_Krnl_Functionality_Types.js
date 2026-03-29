@@ -1,210 +1,208 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file K_LIB_Krnl_Functionality_Types.js
- * @description vNext Local/Remote functionality model for Krnl entities.
+ * @description Defines Local and Remote functionalities with visibility and state management.
  */
 
 import { krnlEmitter, krnlCollector } from "./K_LIB_Krnl_Messaging_Concepts.js";
 
-function cloneMap(source = {}) {
-  if (source instanceof Map) return new Map(source);
-  return new Map(Object.entries(source));
+/**
+ * Helper to clone state objects to ensure isolation.
+ */
+function cloneState(source) {
+  // Simple JSON clone for state objects; can be replaced with structuredClone if available.
+  return JSON.parse(JSON.stringify(source));
 }
 
-function resolveTargetEntityInstance(targetEntityRef, opts = {}) {
-  if (targetEntityRef?.__krnlEntityInstance === true) return targetEntityRef;
-
-  if (typeof targetEntityRef === "function") {
-    // Factory/class path.
-    return targetEntityRef(opts.instance_id);
-  }
-
-  if (targetEntityRef && typeof targetEntityRef.createInstance === "function") {
-    return targetEntityRef.createInstance(opts.instance_id);
-  }
-
-  if (targetEntityRef && typeof targetEntityRef.instantiate === "function") {
-    return targetEntityRef.instantiate(opts.instance_id);
-  }
-
-  throw new Error("Remote target entity cannot be instantiated.");
-}
-
+/**
+ * KRNL LOCAL FUNCTIONALITY
+ * A self-contained logic block that lives within an entity.
+ */
 export class krnlLocalFunctionality {
+  /**
+   * @param {object} config - Configuration for the functionality.
+   */
   constructor(config = {}) {
+    // 1. Destructure config with defaults for the new paradigm.
     const {
-      id,
-      state = {},
-      api = (input) => input,
-      helpers = {},
-      emitters = {},
-      collectors = [],
-      lifecycle = {},
+      id,                               // Unique ID for this functionality.
+      visibility = 'public',            // 'public' (visible to owner/peers) or 'private' (internal only).
+      stateModel = 'single',            // 'single' (one state) or 'multi' (state per caller).
+      initialState = {},                // The starting template for state.
+      api = (input) => input,           // The actual logic function.
+      helpers = {},                     // Internal helper functions.
+      emitters = {},                    // Event streams this functionality emits.
+      lifecycle = {},                   // Hook points (onInit, onCall, etc).
     } = config;
 
+    // 2. Validate essential identity.
     if (!id) throw new Error("LocalFunctionality requires an id.");
 
-    this.id = id;
-    this.isLocal = true;
-    this.state = state;
-    this.api = api;
-    this.helpers = cloneMap(helpers);
-    this.emitters = new Map();
-    this.collectors = new Set(collectors);
-    this.lifecycle = {
-      onInit: lifecycle.onInit,
-      onCall: lifecycle.onCall,
-      onComplete: lifecycle.onComplete,
-      onError: lifecycle.onError,
-    };
-
-    const emitterEntries = emitters instanceof Map ? emitters.entries() : Object.entries(emitters);
-    for (const [emitterId, emitter] of emitterEntries) {
-      this.emitters.set(emitterId, emitter instanceof krnlEmitter ? emitter : new krnlEmitter());
+    // 3. Assign core properties.
+    this.id = id;                       // Store the unique ID.
+    this.visibility = visibility;       // Set visibility: public or private.
+    this.stateModel = stateModel;       // Set state model: single or multi.
+    this.initialState = initialState;   // Keep the template for new state instances.
+    this.api = api;                     // Bind the logic.
+    this.isLocal = true;                // Flag identifying this as a local block.
+    
+    // 4. Initialize State Containers based on the selected model.
+    if (this.stateModel === 'multi') {
+      this.states = new Map();          // Map of CallerName -> StateObject.
+    } else {
+      this.state = cloneState(initialState); // Single shared state object.
     }
+
+    // 5. Initialize Emitters and Helpers.
+    this.helpers = new Map(Object.entries(helpers)); // Convert helpers to a Map.
+    this.emitters = new Map();                       // Internal emitters map.
+    this.lifecycle = lifecycle;                      // Store lifecycle hooks.
+
+    // 6. Register initial emitters from config.
+    Object.entries(emitters).forEach(([eid, e]) => {
+      this.emitters.set(eid, e instanceof krnlEmitter ? e : new krnlEmitter());
+    });
   }
 
+  /**
+   * Binds this functionality to a host entity and handles auto-registration.
+   * @param {object} entity - The krnlEntityBase instance.
+   */
   bindToEntity(entity) {
-    this.hostEntity = entity;
+    this.hostEntity = entity; // Establish the parent link.
 
-    // 1. Register main API as a collector in the entity interface
-    // This allows the functionality to be called via the messaging system
-    const mainCollector = entity.interface.createCollector(this.id);
-    mainCollector._directHandler = async (msg) => {
-      // The direct handler triggers the execution of the API
-      return await this.execute(msg.data);
-    };
+    // 1. Register logic in the Entity's interface ONLY if it is public.
+    if (this.visibility === 'public') {
+      // Create a collector on the entity interface named after this functionality.
+      const mainCollector = entity.interface.createCollector(this.id);
+      // Link the collector's handler to this functionality's execution.
+      mainCollector._directHandler = async (msg) => {
+        // Extract caller from message metadata or default to 'anonymous'.
+        const caller = msg.metadata?.caller || 'anonymous';
+        return await this.execute(msg.data, { caller });
+      };
 
-    // 2. Register all internal emitters in the entity interface
-    // Convention: "functionalityId:emitterId"
-    this.emitters.forEach((emitter, emitterId) => {
-      const interfaceEmitter = entity.interface.createEmitter(`${this.id}:${emitterId}`);
-      
-      // Mirror internal emitter pushes to the interface emitter
-      emitter.subscribe((msg) => {
-        interfaceEmitter.pushDataStreamToEmitter(msg.data, msg.time);
+      // 2. Register Emitters in the Entity's interface.
+      this.emitters.forEach((emitter, eid) => {
+        // Name convention: "FunctionalityID:EmitterID".
+        const interfaceEmitter = entity.interface.createEmitter(`${this.id}:${eid}`);
+        // Pipe internal events to the public interface.
+        emitter.subscribe((msg) => interfaceEmitter.pushDataStreamToEmitter(msg.data, msg.time));
       });
-    });
+    }
 
+    // 3. Trigger initialization lifecycle hook.
     if (typeof this.lifecycle.onInit === "function") {
       this.lifecycle.onInit({ entity, functionality: this });
     }
     return this;
   }
 
+  /**
+   * Executes the API logic, selecting the correct state based on the caller.
+   * @param {any} input - Arguments passed to the API.
+   * @param {object} opts - Options including the 'caller' name.
+   */
   async execute(input, opts = {}) {
+    const caller = opts.caller || 'default'; // Identify who is making the call.
+    let activeState; // Variable to hold the state for this specific execution.
+
+    // 1. Resolve the correct state object based on the stateModel.
+    if (this.stateModel === 'multi') {
+      // If no state exists for this caller, create one from the template.
+      if (!this.states.has(caller)) {
+        this.states.set(caller, cloneState(this.initialState));
+      }
+      activeState = this.states.get(caller); // Retrieve the caller-specific state.
+    } else {
+      activeState = this.state; // Use the single shared state.
+    }
+
+    // 2. Execute the actual logic.
     try {
       if (typeof this.lifecycle.onCall === "function") {
-        this.lifecycle.onCall({ input, opts, functionality: this, entity: this.hostEntity });
+        this.lifecycle.onCall({ input, opts, state: activeState, entity: this.hostEntity });
       }
 
-      const output = await this.api(input, {
-        ...opts,
-        state: this.state,
-        helpers: this.helpers,
-        emitters: this.emitters,
-        collectors: this.collectors,
-        entity: this.hostEntity,
-        functionality: this,
+      // Call the API with the resolved state and context.
+      const result = await this.api(input, {
+        state: activeState,      // The caller-specific or single state.
+        emitters: this.emitters, // Access to events.
+        helpers: this.helpers,   // Access to internal tools.
+        entity: this.hostEntity, // Reference to the host.
+        caller: caller           // Name of the entity/system calling this.
       });
 
-      if (typeof this.lifecycle.onComplete === "function") {
-        this.lifecycle.onComplete({ input, output, opts, functionality: this, entity: this.hostEntity });
-      }
-
-      return output;
+      return result;
     } catch (error) {
       if (typeof this.lifecycle.onError === "function") {
-        this.lifecycle.onError({ input, error, opts, functionality: this, entity: this.hostEntity });
+        this.lifecycle.onError({ error, input, caller });
       }
       throw error;
     }
   }
+
+  /**
+   * Disposes of a specific caller's state in a multi-state model.
+   * @param {string} caller - The name of the caller whose state to wipe.
+   */
+  disposeState(caller) {
+    if (this.stateModel === 'multi') {
+      this.states.delete(caller); // Remove only the specific state entry.
+    }
+  }
 }
 
+/**
+ * KRNL REMOTE FUNCTIONALITY
+ * A proxy that "borrows" a functionality from an external, non-component entity.
+ */
 export class krnlRemoteFunctionality {
+  /**
+   * @param {object} config - Target entity and functionality name.
+   */
   constructor(config = {}) {
-    const { id, target, proxy_api = null, collectors = [] } = config;
-    if (!id) throw new Error("RemoteFunctionality requires an id.");
-    if (!target?.entity || !target?.functionality) {
-      throw new Error("RemoteFunctionality target requires { entity, functionality }.");
+    const { 
+      id,               // The ID this proxy will use locally.
+      targetEntity,     // The actual entity instance to call.
+      targetFunction,   // The ID of the functionality on that target.
+      visibility = 'public' // Usually public to allow owner to use it.
+    } = config;
+
+    if (!id || !targetEntity || !targetFunction) {
+      throw new Error("RemoteFunctionality requires id, targetEntity, and targetFunction.");
     }
 
-    this.id = id;
-    this.isLocal = false;
-    this.target = target;
-    this.collectors = new Set(collectors);
-    this.proxy_api = proxy_api;
+    this.id = id;                       // Local alias for the remote logic.
+    this.targetEntity = targetEntity;   // Reference to the external entity.
+    this.targetFunction = targetFunction; // Name of the logic on the external entity.
+    this.visibility = visibility;       // Visibility on the CURRENT host.
+    this.isLocal = false;               // Identify as a proxy.
   }
 
+  /**
+   * Binds the proxy to a host and registers it in the local interface.
+   */
   bindToEntity(entity) {
-    this.hostEntity = entity;
+    this.hostEntity = entity; // Link to current host.
 
-    // 1. Register an emitter to call this remote functionality via interface
-    const remoteEmitter = entity.interface.createEmitter(this.id);
-    remoteEmitter.subscribe(async (msg) => {
-      return await this.execute(msg.data);
-    });
-
-    // 2. Automatically discover and mirror emitters from the target
-    // Note: This requires the target to be resolvable at bind time for full automation,
-    // otherwise it can be done lazily in resolveTarget or manually via bindEvents.
-    try {
-      const { targetFunctionality } = this.resolveTarget({});
-      targetFunctionality.emitters.forEach((emitter, emitterId) => {
-        const localMirror = entity.interface.createCollector(`${this.id}:${emitterId}`);
-        localMirror.subscribeTo(emitter, (msg) => {
-          // You could add global remote event handlers here
-        });
-        this.collectors.add(localMirror);
+    // If public, register as an emitter in the local interface to allow local calls.
+    if (this.visibility === 'public') {
+      const proxyEmitter = entity.interface.createEmitter(this.id);
+      // When the local interface receives a call, forward it to the target entity.
+      proxyEmitter.subscribe(async (msg) => {
+        return await this.execute(msg.data);
       });
-    } catch (e) {
-      // If target is not resolvable yet (e.g. dynamic loading), 
-      // the user must call bindEvents or we handle it lazily.
-      console.warn(`[RemoteFunctionality:${this.id}] Could not auto-bind events: ${e.message}`);
     }
-
-    return this;
   }
 
-  resolveTarget(opts = {}) {
-    const targetEntityInstance = resolveTargetEntityInstance(this.target.entity, opts);
-    const targetFunctionality = targetEntityInstance.getLocal(this.target.functionality);
-    if (!targetFunctionality) {
-      throw new Error(`Remote target functionality '${this.target.functionality}' not found.`);
-    }
-    return { targetEntityInstance, targetFunctionality };
-  }
-
+  /**
+   * Forwards the call to the remote target entity.
+   */
   async execute(input, opts = {}) {
-    if (typeof this.proxy_api === "function") {
-      return this.proxy_api(input, opts, this);
-    }
-
-    const { targetFunctionality } = this.resolveTarget(opts);
-    return targetFunctionality.execute(input, opts);
-  }
-
-  bindEvents(bindings = []) {
-    for (const binding of bindings) {
-      const { targetEmitterId, collectorHandler } = binding;
-      const { targetFunctionality } = this.resolveTarget({});
-      const emitter = targetFunctionality.emitters.get(targetEmitterId);
-      if (!emitter) continue;
-
-      const collector = new krnlCollector();
-      collector.subscribeTo(emitter, (msg) => {
-        if (typeof collectorHandler === "function") {
-          collectorHandler(msg, { remote: this, targetFunctionality });
-        }
-      });
-      this.collectors.add(collector);
-    }
-
-    return this;
-  }
-
-  get state() {
-    return undefined;
+    // Inject the host name as the caller for state tracking on the target.
+    const forwardOpts = { ...opts, caller: this.hostEntity.entityName };
+    // Trigger the actual call on the target entity instance.
+    return await this.targetEntity.call(this.targetFunction, input, forwardOpts);
   }
 }

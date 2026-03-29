@@ -1,86 +1,75 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file K_LIB_Krnl_Entity_Compositional_Hierarchy.js
- * @description Manages the parent-child relationships and component entities of an Krnl entity.
+ * @description Manages parent-child relationships and component unique instantiation.
  */
 
-import { rFind } from "../extensions/K_LIB_Krnl_Core_Function_Atoms.js";
-import { krnlError, krnlErrorCodes } from "./K_LIB_Krnl_Error_Concepts.js";
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA //////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////// KRNL ENTITY COMPOSITIONAL HIERARCHY DATA ////////////////////////////////////////
-export class krnlEntityCompositionalHierarchyData {
-  ownerEntity = null;
-  ownedEntities = []; // array of krnlEntityBase type
-}
-
-//////////////////////////////////////// KRNL ENTITY COMPOSITIONAL HIERARCHY MANAGER ////////////////////////////////////////
+/**
+ * KRNL ENTITY COMPOSITIONAL HIERARCHY MANAGER
+ * Responsible for the "skeleton" of the system.
+ */
 export class krnlEntityCompositionalHierarchyManager {
-  constructor(thisEntity, ownerEntity, EntityClass) {
-    this.thisEntity = thisEntity;
-    this.EntityClass = EntityClass;
-
-    this.entityCompHierarchyData = new krnlEntityCompositionalHierarchyData();
-    this.entityCompHierarchyData.ownerEntity = ownerEntity;
-  }
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////// HIERARCHY MANAGEMENT /////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  createComponentEntity(name, componentArgs = []) {
-    const newCompEntity = new this.EntityClass(
-      name,
-      this.thisEntity,
-      ...componentArgs
-    );
-    this.entityCompHierarchyData.ownedEntities.push(newCompEntity);
-    return newCompEntity;
-  }
-
   /**
-   * Gets a component entity by name.
-   * @param {string} compEntityName - Name of the component entity.
-   * @returns {object} The component entity.
-   * @throws {krnlError} ENTITY_NOT_FOUND if no entity matches.
+   * @param {object} self - The entity this manager belongs to.
+   * @param {object|null} owner - The parent entity (if any).
+   * @param {function} EntityClass - Reference to the Entity base class for instantiation.
    */
-  getComponentEntity(compEntityName) {
-    const entity = rFind(
-      this.entityCompHierarchyData.ownedEntities,
-      (e) => e.entityName === compEntityName
-    );
-    if (entity === null) {
-      throw new krnlError(krnlErrorCodes.ENTITY_NOT_FOUND);
-    }
-    return entity;
+  constructor(self, owner, EntityClass) {
+    this.self = self;                  // The entity instance we are managing.
+    this.owner = owner;                // The parent entity.
+    this.EntityClass = EntityClass;    // Class used to spawn sub-entities.
+    this.ownedComponents = new Map();  // Map of Name -> EntityInstance.
   }
-
-  getAllOwnedComponentEntities() {
-    return this.entityCompHierarchyData.ownedEntities;
-  }
-
-  getOwnerEntity() {
-    return this.entityCompHierarchyData.ownerEntity;
-  }
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////// DISPOSAL /////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /**
-   * Recursively disposes all owned component entities.
+   * Spawns a unique component entity within this host.
+   * Multi-instantiation is removed; if name exists, it returns existing or throws.
+   * @param {string} name - The name of the component.
+   */
+  createComponentEntity(name) {
+    // 1. Enforce unique instantiation.
+    if (this.ownedComponents.has(name)) {
+      console.warn(`[Hierarchy] Component '${name}' already exists. Returning existing.`);
+      return this.ownedComponents.get(name);
+    }
+
+    // 2. Create the new entity instance.
+    // Note: We pass 'this.self' as the owner to the new entity's constructor.
+    const newEntity = new this.EntityClass(name, this.self);
+
+    // 3. Register the component locally.
+    this.ownedComponents.set(name, newEntity);
+
+    // 4. Notify the host entity that a new component has arrived.
+    // This is crucial for the automatic interface promotion logic.
+    if (this.self._onComponentAdded) {
+      this.self._onComponentAdded(newEntity);
+    }
+
+    return newEntity;
+  }
+
+  /**
+   * Returns a list of all component entities owned by this host.
+   */
+  getAllOwnedComponentEntities() {
+    return Array.from(this.ownedComponents.values());
+  }
+
+  /**
+   * Returns the parent entity.
+   */
+  getOwnerEntity() {
+    return this.owner;
+  }
+
+  /**
+   * Recursively disposes of all owned components.
    */
   dispose() {
-    for (let i = 0; i < this.entityCompHierarchyData.ownedEntities.length; i++) {
-      const entity = this.entityCompHierarchyData.ownedEntities[i];
-      if (entity && typeof entity.dispose === "function") {
-        entity.dispose();
-      }
-    }
-    this.entityCompHierarchyData.ownedEntities = [];
-    this.entityCompHierarchyData.ownerEntity = null;
+    this.ownedComponents.forEach((entity) => {
+      if (entity.dispose) entity.dispose(); // Kill children first.
+    });
+    this.ownedComponents.clear(); // Clear the registry.
   }
 }

@@ -1,128 +1,146 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file K_ENT_Krnl_Entity_Base.js
- * @description Defines the core base class for all Krnl entities.
- * 
- * An Entity is the foundational "Software Block" in the Krnl ecosystem. 
- * It is a container for logic (Functionalities) and provides the necessary 
- * infrastructure for communication and lifecycle management.
+ * @description The core Entity class, supporting automatic interface promotion and scoped state.
  */
 
 import { krnlInterface } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { krnlEntityCompositionalHierarchyManager } from "./K_LIB_Krnl_Entity_Compositional_Hierarchy.js";
 import { krnlLocalFunctionality, krnlRemoteFunctionality } from "./K_LIB_Krnl_Functionality_Types.js";
 
+/**
+ * KRNL ENTITY BASE
+ * The building block of the Krnl ecosystem.
+ */
 export class krnlEntityBase {
   /**
-   * @param {string} name - The unique name/id of the entity.
-   * @param {object} [owner=null] - Optional parent entity.
+   * @param {string} name - The unique identity of the entity.
+   * @param {object|null} owner - The parent entity (if any).
    */
   constructor(name, owner = null) {
-    this.__krnlEntityInstance = true;
-    this.id = name || "UnnamedEntity";
-    this.entityName = this.id;
+    // 1. Core Identification.
+    this.__krnlEntityInstance = true; // Marker for type checking.
+    this.id = name || "UnnamedEntity"; // Unique ID.
+    this.entityName = this.id;         // Alias for the name.
 
-    /**
-     * THE INTERFACE (The Circulatory System / IO Hub)
-     * -------------------------------------------------------------------------
-     * Why it's needed: Logic (Functionalities) should never talk to the network 
-     * or other entities directly. The Interface provides "ports" (Emitters/Collectors).
-     * 
-     * Roles:
-     * 1. Registry: Stores all named inputs and outputs for this entity.
-     * 2. Decoupling: Allows logic to emit data without knowing who is listening.
-     * 3. Wiring Target: The point where the CommComponent plugs in remote connections.
-     */
+    // 2. Messaging Infrastructure (The IO Hub).
     this.interface = new krnlInterface(this);
 
-    /**
-     * LOCAL FUNCTIONALITIES (The Brain / Logic Blocks)
-     * -------------------------------------------------------------------------
-     * Why it's needed: Every entity needs specific logic to perform its task.
-     * Each block here owns its own private state, making data usage crystal clear.
-     */
-    this.localFunctionalities = new Map();
+    // 3. Logic Storage (The Brain).
+    this.localFunctionalities = new Map();  // Logic that is MINE.
+    this.remoteFunctionalities = new Map(); // Proxies for borrowing logic from others.
+    this.collectors = new Set();            // Tracks listeners for cleanup.
 
-    /**
-     * REMOTE FUNCTIONALITIES (The Proxies / Virtual Arms)
-     * -------------------------------------------------------------------------
-     * Why it's needed: Allows this entity to "call" functions on another entity
-     * as if they were local, abstracting the network/location complexity.
-     */
-    this.remoteFunctionalities = new Map();
-
-    /**
-     * COLLECTORS (The Inbound Pipes)
-     * -------------------------------------------------------------------------
-     * Why it's needed: Tracks active listeners so they can be properly 
-     * disconnected during disposal, preventing memory leaks.
-     */
-    this.collectors = new Set();
-
-    /**
-     * HIERARCHY MANAGER (The Skeleton / Lifecycle Hub)
-     * -------------------------------------------------------------------------
-     * Why it's needed: Logic blocks don't live in a vacuum; they belong to a system.
-     * 
-     * Roles:
-     * 1. Ownership: Tracks parent-child relationships (e.g., System owns Sub-System).
-     * 2. Component Spawning: Provides a standard way to create sub-entities.
-     * 3. Recursive Disposal: When this entity dies, the manager ensures all children
-     *    and their resources are also wiped from memory (The "Clean Death").
-     */
+    // 4. Hierarchy Management (The Skeleton).
     this.hierarchyManager = new krnlEntityCompositionalHierarchyManager(
-      this,
-      owner,
-      krnlEntityBase
+      this,          // Host.
+      owner,         // Parent.
+      krnlEntityBase // Base class for nesting.
     );
   }
 
   /**
-   * Registers a logic block owned by this entity.
+   * Registers a local logic block.
+   * If the functionality is 'public', it is automatically added to the interface.
    * @param {object|krnlLocalFunctionality} localFunctionality 
    */
   addLocal(localFunctionality) {
+    // 1. Ensure we have an instance of LocalFunctionality.
     const functionality = localFunctionality instanceof krnlLocalFunctionality
       ? localFunctionality
       : new krnlLocalFunctionality(localFunctionality);
 
+    // 2. Bind it to THIS entity. This step triggers the auto-interface registration.
     functionality.bindToEntity(this);
+
+    // 3. Save it to our local logic map.
     this.localFunctionalities.set(functionality.id, functionality);
+
+    // 4. Notify our owner (if we have one) to promote this logic.
+    // This allows component functionalities to bubble up to the owner's interface.
+    const owner = this.hierarchyManager.getOwnerEntity();
+    if (owner && owner._onComponentFunctionalityAdded) {
+      owner._onComponentFunctionalityAdded(this, functionality);
+    }
+
     return functionality;
   }
 
   /**
-   * Registers a proxy to a functionality on another entity.
+   * Registers a proxy for an external, non-component entity.
    * @param {object|krnlRemoteFunctionality} remoteFunctionality 
    */
   addRemote(remoteFunctionality) {
+    // 1. Ensure we have an instance of RemoteFunctionality.
     const functionality = remoteFunctionality instanceof krnlRemoteFunctionality
       ? remoteFunctionality
       : new krnlRemoteFunctionality(remoteFunctionality);
 
+    // 2. Bind it to THIS entity. Registers it as an emitter on our interface.
     functionality.bindToEntity(this);
+
+    // 3. Store the proxy.
     this.remoteFunctionalities.set(functionality.id, functionality);
+
     return functionality;
   }
 
-  getLocal(fid) {
-    return this.localFunctionalities.get(fid);
-  }
+  /**
+   * INTERFACE PROMOTION: INTERNAL HANDLERS
+   * These methods handle the automatic bubbling of component logic to the owner.
+   */
 
-  getRemote(fid) {
-    return this.remoteFunctionalities.get(fid);
+  /**
+   * Called by the HierarchyManager when a child component is spawned.
+   * Registers all existing public functionalities of the child.
+   */
+  _onComponentAdded(componentEntity) {
+    componentEntity.localFunctionalities.forEach((func) => {
+      this._onComponentFunctionalityAdded(componentEntity, func);
+    });
   }
 
   /**
-   * Executes a functionality.
-   * @param {string} fid - Functionality ID.
-   * @param {any} input - Arguments for the API.
+   * Called when a component adds a NEW functionality.
+   * Maps the component's public logic directly into the owner's interface.
+   */
+  _onComponentFunctionalityAdded(component, functionality) {
+    // 1. Only promote 'public' functionalities.
+    if (functionality.visibility !== 'public') return;
+
+    // 2. Register the component's functionality on the owner's interface.
+    // The owner's interface collector will now directly trigger the component's logic.
+    const promotedCollector = this.interface.createCollector(functionality.id);
+    promotedCollector._directHandler = async (msg) => {
+      // Forward the call to the component, passing 'this' name as the caller metadata.
+      const caller = msg.metadata?.caller || this.entityName;
+      return await component.call(functionality.id, msg.data, { caller });
+    };
+
+    // 3. Register the component's emitters on the owner's interface.
+    functionality.emitters.forEach((_, eid) => {
+      // Convention: same ID or "componentId:functionalityId:emitterId".
+      const promotedEmitter = this.interface.createEmitter(`${functionality.id}:${eid}`);
+      // Locate the actual emitter on the component's interface.
+      const componentEmitter = component.interface.getEmitter(`${functionality.id}:${eid}`);
+      // Mirror the component's events on the owner.
+      componentEmitter.subscribe((msg) => promotedEmitter.pushDataStreamToEmitter(msg.data, msg.time));
+    });
+
+    console.log(`[${this.entityName}] Promoted component functionality: ${functionality.id}`);
+  }
+
+  /**
+   * Executes a functionality by ID.
+   * Prioritizes local, then remote logic.
    */
   async call(fid, input, opts = {}) {
+    // 1. Try Local logic.
     if (this.localFunctionalities.has(fid)) {
       return this.localFunctionalities.get(fid).execute(input, opts);
     }
 
+    // 2. Try Remote proxy logic.
     if (this.remoteFunctionalities.has(fid)) {
       return this.remoteFunctionalities.get(fid).execute(input, opts);
     }
@@ -131,24 +149,22 @@ export class krnlEntityBase {
   }
 
   /**
-   * Performs a complete teardown of the entity.
-   * Ensures the hierarchy is dissolved and all IO ports are closed.
+   * Retrieves logic by ID.
+   */
+  getLocal(fid) { return this.localFunctionalities.get(fid); }
+  getRemote(fid) { return this.remoteFunctionalities.get(fid); }
+
+  /**
+   * Performs a clean disposal of all resources.
    */
   dispose() {
-    console.log(`[${this.entityName}] Initiating disposal...`);
-    
-    // 1. Trigger recursive hierarchy disposal (Skeleton)
+    // 1. Banish all component entities recursively.
     if (this.hierarchyManager) this.hierarchyManager.dispose();
     
-    // 2. Tear down the IO Hub (Interface)
+    // 2. Dissolve the interface.
     if (this.interface) this.interface.dispose();
 
-    // 3. Close any remaining inbound pipes
-    for (const collector of this.collectors) {
-      if (collector?.disconnectCollector) collector.disconnectCollector();
-    }
-
-    this.collectors.clear();
+    // 3. Clear all internal logic maps.
     this.localFunctionalities.clear();
     this.remoteFunctionalities.clear();
   }
