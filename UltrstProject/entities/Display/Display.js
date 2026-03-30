@@ -1,7 +1,8 @@
 // UltrstProject/entities/Display/Display.js
-// The Entity Descriptor: Explicitly describes the interface.
+// The Entity Descriptor: Pure assembly, no direct logic.
 
 import { krnlEntityBase } from "../../../krnl/core/index.js";
+import { showAtom } from "./functionalities/show/show.js";
 
 export class DisplayEntity extends krnlEntityBase {
     constructor(name, owner) {
@@ -13,13 +14,6 @@ export class DisplayEntity extends krnlEntityBase {
          * Inputs:
          * - 'show': Displays string data to the console.
          */
-        this.addLocal({
-            id: "show",
-            visibility: "public",
-            api: (data) => {
-                console.log(`[DISPLAY]: ${data}`);
-                return true;
-            }
-        });
+        this.addLocal(showAtom);
     }
 }

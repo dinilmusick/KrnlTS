@@ -2,29 +2,36 @@
 
 By **Dinil Palackal**
 
-## 🏗️ The Philosophy: Atomic Composition (Revised)
-Krnl is a physical code management system designed for a node-based IDE.
+## 🏗️ The Philosophy: Atomic Scaffolding
+Krnl projects follow a strict physical directory hierarchy. No loose code is allowed inside entity descriptors.
 
-1.  **Project Root Libraries**: The `/libraries/` folder exists ONLY at the project root. Files are named `<subject>Concepts.js`. No local library folders allowed.
-2.  **Surgical Imports**: Code files (Helpers, Main Functions) import only the specific library atoms they need. No indiscriminate importing.
-3.  **The Master Descriptor**: The Entity file (`Entity.js`) is a **Descriptor**. It explicitly describes the IO (Interface) using comments so any coder can instantly understand the "ports" of the software block.
-4.  **The Root Server**: The main entity at the root of a project is always a persistent process (e.g., HTTP or WebSocket server).
-5.  **Functionality Atoms**: Logic is physically separated into `main_function/`, `helper_functions/`, and `events/`. Helpers and Events are imported only by the Main Function.
+### 1. Mandatory Scaffolding
+Every entity folder (root or component) MUST contain:
+- **`entities/`**: For sub-component entities.
+- **`functionalities/`**: For logic atoms.
+- **`Entity.js`**: The pure assembly descriptor.
+
+The root entity of a project adds:
+- **`libraries/`**: For project-wide concept definitions.
+
+### 2. No Spare Functions
+Logic never lives inside the `Entity.js` file. It must always be atomized into a functionality folder and registered via `addLocal()`.
+
+### 3. The Root Server
+The top-level entity MUST extend `krnlSystemEntityBase`. This class provides the built-in server infrastructure (WebSocket/CommComponent) required for exposing the app's functionalities to the network.
 
 ---
 
-## 🏗️ Core Classes
+## 🏗️ Core Base Classes
 
-| Class | Role | Ultrst Responsibility |
+| Class | Root/Comp | Role |
 | :--- | :--- | :--- |
-| `krnlEntityBase` | **Interface Descriptor** | Explicitly defines the public API and assembles child atoms. |
-| `krnlLocalFunctionality` | **Assembly Container** | A minimal wrapper for the self-contained Logic Atom. |
-| `krnlInterface` | **IO Hub** | The registry for the explicit ports defined in the Entity. |
+| `krnlSystemEntityBase` | **Root Only** | Top-level server. Exposes functionalities to the system. |
+| `krnlEntityBase` | **Components** | Internal logic blocks. Promotes public logic to the owner. |
 
 ---
 
-## 📡 The Modular Flow
-1. **Atoms** (Logic/Events/Helpers) live in folders.
-2. **Main Function** surgically imports Helpers and Events.
-3. **Entity** imports the Main Function and explicitly declares it in the Interface.
-4. **Root Entity** boots as a persistent server.
+## 📡 Atomic Import Flow
+1. **Logic Atoms** surgically import root libraries.
+2. **Entity Descriptors** assemble logic atoms into a cohesive block.
+3. **System Entities** boot the server and handle inter-system wiring.

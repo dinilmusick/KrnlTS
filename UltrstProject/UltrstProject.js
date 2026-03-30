@@ -1,57 +1,47 @@
 // UltrstProject/UltrstProject.js
-// The Master Descriptor: Root Persistent Process (HTTP/WS Server).
+// The Root Master Descriptor: Extending krnlSystemEntityBase.
 
-import { krnlEntityBase } from "../krnl/core/index.js";
+import { krnlSystemEntityBase } from "../krnl/core/index.js";
 
 // Import Atoms
 import { CalculatorAtom } from "./functionalities/Calculator/Calculator.js";
 import { DisplayEntity } from "./entities/Display/Display.js";
 
-export class UltrstProject extends krnlEntityBase {
-    constructor(name = "UltrstServer") {
-        super(name);
+export class UltrstProject extends krnlSystemEntityBase {
+    /**
+     * @param {string} name - Root folder name.
+     * @param {number} port - Server port.
+     */
+    constructor(name = "UltrstServer", port = 10091) {
+        // Root entities use SystemEntityBase to boot the built-in server logic.
+        super(name, null, port);
 
         /**
          * INTERFACE DESCRIPTION
          * ---------------------------------------------------------
          * Inputs (API):
-         * - 'Calculator': Performs basic math operations.
-         * - 'show': Promoted from Display component.
+         * - 'Calculator': Atomic math logic.
+         * - 'show': Atomic display logic (Bubbled from Display component).
          * 
          * Outputs (Events):
-         * - 'Calculator:onCalculated': Broadcasts math results.
+         * - 'Calculator:onCalculated': Broadcasts calculation data.
          */
 
-        // --- Logic Assembly ---
+        // 1. Logic Assembly
         this.addLocal(CalculatorAtom);
 
-        // --- Component Assembly ---
+        // 2. Hierarchy Assembly
         this.hierarchyManager.createComponentEntity("Display", DisplayEntity);
 
-        this._startServer();
-    }
-
-    _startServer() {
-        console.log(`[${this.entityName}] Server active. Waiting for requests...`);
-        // Simulating persistent process
-        setInterval(() => {
-            // Heartbeat or Background logic
-        }, 10000);
-    }
-
-    /**
-     * Entry point for IDE or Runtime execution.
-     */
-    async handleRequest(operation, data) {
-        console.log(`[Server] Received request: ${operation}`);
-        return await this.call(operation, data);
+        console.log(`[${this.entityName}] Ultrst Server manifested on port ${port}.`);
     }
 }
 
 // --- Bootstrap ---
 const server = new UltrstProject();
 
-// Manual test call to verify functioning
-server.handleRequest("Calculator", { a: 100, b: 50, op: "sub" }).then(res => {
-    server.handleRequest("show", `The server result was ${res}`);
-});
+// Manual test sequence using the standard library 'call' mechanism.
+(async () => {
+    const res = await server.call("Calculator", { a: 50, b: 25, op: "add" });
+    await server.call("show", `Manifested Result: ${res}`);
+})();

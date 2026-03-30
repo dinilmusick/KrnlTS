@@ -1,59 +1,53 @@
-# Ultrst Architecture: Surgical Logic Assembly
+# Ultrst Architecture: Mandatory Scaffolding
 
-The **Ultrst Philosophy** (by Dinil Palackal) emphasizes physical code separation and explicit interface descriptions. 
+The **Ultrst Philosophy** (by Dinil Palackal) enforces a strict physical separation of descriptors and logic atoms.
 
-## 1. Project-Wide Library Structure
-Libraries exist **ONLY** at the project root. They are named by subject (e.g., `LogicConcepts.js`, `MathConcepts.js`).
+## 1. Directory Blueprint
+Every entity, from the root server to the smallest component, follows the same folder structure.
 
 ```
-/my-project/
-  /libraries/
-    ProjectConcepts.js
+/my-root-server/ (Extends krnlSystemEntityBase)
+  /libraries/ (Root only)
   /entities/
-    MainServer.js
+    /Display/ (Extends krnlEntityBase)
+      /entities/
+      /functionalities/
+        /show/
+      Display.js (Descriptor)
+  /functionalities/
+    /Calculator/
+  UltrstServer.js (Assembler & Bootstrapper)
 ```
 
-## 2. The Surgical Import Model
-Functionality code files (Helpers, Main Functions) import only the specific library atoms they need directly from the root `/libraries/` folder.
+## 2. Rules of Engagement
 
-### Logic Atom (`main_function/logic.js`)
+### Pure Descriptors
+The `Display.js` or `UltrstServer.js` files must NOT contain logic. They only import atoms and describe the interface.
+
+**Incorrect:**
 ```javascript
-// Surgical import: Only what is needed for this specific logic
-import { format } from "../helper_functions/formatter.js";
-import { ProjectConcepts } from "../../../libraries/ProjectConcepts.js";
-
-export const main = async (input, { emitters }) => {
-    const result = format(input);
-    console.log(`[${ProjectConcepts.PHILOSOPHY}] result: ${result}`);
-    return result;
-};
+this.addLocal({ id: "show", api: (d) => console.log(d) }); // ❌ NO loose logic
 ```
 
-## 3. The Entity as a Descriptor
-The Entity file is where you explicitly describe the IO (Inputs/Outputs) using comments. This makes the software block instantly recognizable to other coders.
-
-### Entity Root (`MyEntity.js`)
+**Correct:**
 ```javascript
-import { krnlEntityBase } from "krnl/core";
-import { MyLogicAtom } from "./functionalities/MyLogic/MyLogic.js";
+import { showAtom } from "./functionalities/show/show.js";
+this.addLocal(showAtom); // ✅ Atomized Logic
+```
 
-export class MyEntity extends krnlEntityBase {
-    constructor(name) {
-        super(name);
+### Root System Base
+The project entry point always inherits from `krnlSystemEntityBase` to enable network-wide functionality exposure.
 
-        /**
-         * INTERFACE DESCRIPTION
-         * ---------------------------------------------------------
-         * Inputs:
-         * - 'MyLogic': Processes incoming signals.
-         * 
-         * Outputs:
-         * - 'MyLogic:onComplete': Fires when processing is done.
-         */
-        this.addLocal(MyLogicAtom);
+```javascript
+import { krnlSystemEntityBase } from "krnl/core";
+
+export class MyProjectServer extends krnlSystemEntityBase {
+    constructor(port) {
+        super("MyServer", null, port);
+        // Assembly logic here...
     }
 }
 ```
 
-## 4. The Root Entity (The Server)
-The main entity at the root of the project always acts as a persistent process, typically an HTTP or WebSocket server, serving as the entry point for the entire system.
+## 3. Atomic Nesting
+Because every entity has an `entities/` folder, the structure can nest infinitely, with each layer maintaining its own isolated logic atoms and component descriptors.
