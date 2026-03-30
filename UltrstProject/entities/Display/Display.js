@@ -1,5 +1,5 @@
 // UltrstProject/entities/Display/Display.js
-// A "Component Entity" Atom.
+// The Entity Descriptor: Explicitly describes the interface.
 
 import { krnlEntityBase } from "../../../krnl/core/index.js";
 
@@ -7,7 +7,12 @@ export class DisplayEntity extends krnlEntityBase {
     constructor(name, owner) {
         super(name, owner);
         
-        // Add component-specific logic
+        /**
+         * INTERFACE DESCRIPTION
+         * ---------------------------------------------------------
+         * Inputs:
+         * - 'show': Displays string data to the console.
+         */
         this.addLocal({
             id: "show",
             visibility: "public",

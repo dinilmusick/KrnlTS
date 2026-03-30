@@ -23,21 +23,22 @@ export class krnlEntityCompositionalHierarchyManager {
 
   /**
    * Spawns a unique component entity within this host.
-   * Multi-instantiation is removed; if name exists, it returns existing or throws.
    * @param {string} name - The name of the component.
+   * @param {function} [CustomClass=null] - Optional specific class to instantiate.
    */
-  createComponentEntity(name) {
+  createComponentEntity(name, CustomClass = null) {
     // 1. Enforce unique instantiation.
     if (this.ownedComponents.has(name)) {
-      console.warn(`[Hierarchy] Component '${name}' already exists. Returning existing.`);
       return this.ownedComponents.get(name);
     }
 
-    // 2. Create the new entity instance.
-    // Note: We pass 'this.self' as the owner to the new entity's constructor.
-    const newEntity = new this.EntityClass(name, this.self);
+    // 2. Determine which class to use (Default or Custom).
+    const ClassToUse = CustomClass || this.EntityClass;
 
-    // 3. Register the component locally.
+    // 3. Create the new entity instance.
+    const newEntity = new ClassToUse(name, this.self);
+
+    // 4. Register the component locally.
     this.ownedComponents.set(name, newEntity);
 
     // 4. Notify the host entity that a new component has arrived.

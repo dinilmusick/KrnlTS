@@ -1,57 +1,59 @@
-# Ultrst Philosophy: Atomic Architecture
+# Ultrst Architecture: Surgical Logic Assembly
 
-The **Ultrst Philosophy** (by Dinil Palackal) dictates a strict physical separation of code. Every Entity and Functionality is a directory, not just a file.
+The **Ultrst Philosophy** (by Dinil Palackal) emphasizes physical code separation and explicit interface descriptions. 
 
-## 1. Directory Structure
+## 1. Project-Wide Library Structure
+Libraries exist **ONLY** at the project root. They are named by subject (e.g., `LogicConcepts.js`, `MathConcepts.js`).
 
-### Entity Folder (`/Calculator/`)
-- `Calculator.js` (The Assembler)
-- `doc.md` (Documentation)
-- `entities/` (Child component entities)
-- `functionalities/` (Logic atoms)
-- `libraries/` (Shared data/utils)
+```
+/my-project/
+  /libraries/
+    ProjectConcepts.js
+  /entities/
+    MainServer.js
+```
 
-### Functionality Folder (`/functionalities/add/`)
-- `add.js` (The Atom root)
-- `main_function/` (The primary logic file)
-- `helper_functions/` (Modular logic pieces)
-- `events/` (beginning.js, during.js, end.js, failure.js)
+## 2. The Surgical Import Model
+Functionality code files (Helpers, Main Functions) import only the specific library atoms they need directly from the root `/libraries/` folder.
 
----
-
-## 2. Assembly Example
-
-### Functionality Root (`add.js`)
-We import the separate "Atoms" and assemble them into a `krnlLocalFunctionality`.
-
+### Logic Atom (`main_function/logic.js`)
 ```javascript
-import { main } from "./main_function/logic.js";
-import { helpers } from "./helper_functions/index.js";
-import { events } from "./events/index.js";
+// Surgical import: Only what is needed for this specific logic
+import { format } from "../helper_functions/formatter.js";
+import { ProjectConcepts } from "../../../libraries/ProjectConcepts.js";
 
-export const addAtom = {
-  id: "add",
-  visibility: "public",
-  api: main,
-  helpers: helpers,
-  events: events // beginning, during, end, failure
+export const main = async (input, { emitters }) => {
+    const result = format(input);
+    console.log(`[${ProjectConcepts.PHILOSOPHY}] result: ${result}`);
+    return result;
 };
 ```
 
-### Entity Root (`Calculator.js`)
-The Entity imports its functionality atoms and library atoms.
+## 3. The Entity as a Descriptor
+The Entity file is where you explicitly describe the IO (Inputs/Outputs) using comments. This makes the software block instantly recognizable to other coders.
 
+### Entity Root (`MyEntity.js`)
 ```javascript
 import { krnlEntityBase } from "krnl/core";
-import { addAtom } from "./functionalities/add/add.js";
+import { MyLogicAtom } from "./functionalities/MyLogic/MyLogic.js";
 
-const Calc = new krnlEntityBase("Calculator");
+export class MyEntity extends krnlEntityBase {
+    constructor(name) {
+        super(name);
 
-// Assembly
-Calc.addLocal(addAtom);
+        /**
+         * INTERFACE DESCRIPTION
+         * ---------------------------------------------------------
+         * Inputs:
+         * - 'MyLogic': Processes incoming signals.
+         * 
+         * Outputs:
+         * - 'MyLogic:onComplete': Fires when processing is done.
+         */
+        this.addLocal(MyLogicAtom);
+    }
+}
 ```
 
----
-
-## 3. The Power of Bubbling
-When `Calculator` is added to an owner, its `public` logic (like `add`) automatically "bubbles up" to the owner's interface, maintaining atomic separation in the file system but a unified API in the runtime.
+## 4. The Root Entity (The Server)
+The main entity at the root of the project always acts as a persistent process, typically an HTTP or WebSocket server, serving as the entry point for the entire system.

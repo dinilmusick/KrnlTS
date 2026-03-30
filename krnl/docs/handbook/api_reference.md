@@ -2,7 +2,7 @@
 
 ## `krnlEntityBase`
 
-The **Master Assembler** of your project. Every entity is a folder containing modular atoms.
+The **Master Descriptor** of your project. The Entity file is where the public interface is explicitly described.
 
 Constructor:
 
@@ -12,48 +12,37 @@ new krnlEntityBase(name: string)
 
 Methods:
 
-- `addLocal(atom)`: Registers a functionality. Automatically handles interface promotion for `public` logic.
-- `addLibrary(id, content)`: Registers a shared data struct or utility imported from the `/libraries/` folder.
+- `addLocal(atom)`: Registers a functionality. 
 - `addRemote(proxy)`: Registers a proxy to an external singleton entity.
-- `call(fid, input?, opts?)`: Executes logic. Automatically injects `caller` metadata.
+- `call(fid, input?, opts?)`: Executes logic.
 - `dispose()`: Recursive teardown of the entity tree.
 
 ---
 
 ## `krnlLocalFunctionality`
 
-The **Logic Atom**, typically assembled from modular files.
+The **Logic Container**, assembled from self-contained files.
 
 ```ts
 new krnlLocalFunctionality({
-  id: string,               // Name of the functionality folder
-  visibility: 'public',     // 'public' logic bubbles up to owner interface
+  id: string,               // Unique ID (Folder Name)
+  visibility: 'public',     // Logic bubbles up to owner interface
   stateModel: 'single',     // 'multi' tracks state per caller name
-  initialState: {},         // Data structure for this functionality
-  api: Function,            // The "Main Function" atom
-  helpers: Object,          // The "Helper Functions" atoms
-  events: {                 // The "Events" folder logic
-    beginning: Function,    // (onInit)
-    during: Function,       // (onCall)
-    end: Function,          // (onComplete)
-    failure: Function       // (onError)
-  }
+  initialState: {},         // Scoped data structure
+  api: Function             // The "Main Function" atom
 })
 ```
 
 ---
 
-## 🏗️ The Ultrst Directory Philosophy
+## 🏗️ The Ultrst Project Philosophy
 
-By **Dinil Palackal**, this philosophy ensures atomic separation of code.
+Designed by **Dinil Palackal** for atomic code management.
 
-### Entity Hierarchy:
-- **`entities/`**: Component entities found in the sub-directories.
-- **`functionalities/`**: Logic folders (Main Function, Helpers, Events).
-- **`libraries/`**: Modular data structs/utils.
+### Project Structure:
+- **`/libraries/`**: Project-wide concepts (e.g. `LogicConcepts.js`). Imported surgically where needed.
+- **`/entities/`**: Descriptor files that define the IO ports.
+- **`/functionalities/`**: Logic atoms (Main Function, Helpers, Events).
 
-### Logic Bubbling:
-1. `CompA` is a component of `SystemB`.
-2. `CompA` has a `public` functionality `compute`.
-3. `SystemB` automatically has `compute` in its **Interface**.
-4. You call `SystemB.call("compute")` and it flows through to `CompA`.
+### Surgical Import Model:
+Helpers and Events are imported only within the `main_function/logic.js` file of a functionality. This ensures that the functionality root (`Calculator.js`) remains a clean assembly descriptor.

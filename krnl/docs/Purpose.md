@@ -2,13 +2,14 @@
 
 By **Dinil Palackal**
 
-## 🏗️ The Philosophy: Atomic Composition
-Krnl is not just a library; it is a physical code management system.
+## 🏗️ The Philosophy: Atomic Composition (Revised)
+Krnl is a physical code management system designed for a node-based IDE.
 
-1.  **Strict Modularization**: Code is divided into Entities, Functionalities, and Libraries folders.
-2.  **Functionality Atoms**: Every logic block consists of a **Main Function**, **Helpers**, and **Events** (beginning, during, end, failure).
-3.  **Automatic Bubbling**: Public logic from component entities automatically promotes to the owner's interface.
-4.  **Scoped State**: State is localized to the functionality atom, either as a single shared object or unique states for every unique caller (multi-state).
+1.  **Project Root Libraries**: The `/libraries/` folder exists ONLY at the project root. Files are named `<subject>Concepts.js`. No local library folders allowed.
+2.  **Surgical Imports**: Code files (Helpers, Main Functions) import only the specific library atoms they need. No indiscriminate importing.
+3.  **The Master Descriptor**: The Entity file (`Entity.js`) is a **Descriptor**. It explicitly describes the IO (Interface) using comments so any coder can instantly understand the "ports" of the software block.
+4.  **The Root Server**: The main entity at the root of a project is always a persistent process (e.g., HTTP or WebSocket server).
+5.  **Functionality Atoms**: Logic is physically separated into `main_function/`, `helper_functions/`, and `events/`. Helpers and Events are imported only by the Main Function.
 
 ---
 
@@ -16,11 +17,14 @@ Krnl is not just a library; it is a physical code management system.
 
 | Class | Role | Ultrst Responsibility |
 | :--- | :--- | :--- |
-| `krnlEntityBase` | **Master Assembler** | Imports and registers functionalities and libraries from its folder. |
-| `krnlLocalFunctionality` | **Logic Atom** | Assembles modular code into a callable functionality. |
-| `krnlInterface` | **IO Hub** | Manages the promoted ports for the Entity. |
+| `krnlEntityBase` | **Interface Descriptor** | Explicitly defines the public API and assembles child atoms. |
+| `krnlLocalFunctionality` | **Assembly Container** | A minimal wrapper for the self-contained Logic Atom. |
+| `krnlInterface` | **IO Hub** | The registry for the explicit ports defined in the Entity. |
 
 ---
 
 ## 📡 The Modular Flow
-The code flows from the smallest **Helper Atom** into the **Functionality Atom**, which is then registered in the **Entity**, and ultimately bubbles up to the **System Orchestrator**.
+1. **Atoms** (Logic/Events/Helpers) live in folders.
+2. **Main Function** surgically imports Helpers and Events.
+3. **Entity** imports the Main Function and explicitly declares it in the Interface.
+4. **Root Entity** boots as a persistent server.

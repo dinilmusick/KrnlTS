@@ -1,11 +1,11 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file K_ENT_Krnl_Entity_Base.js
- * @description The "Master Assembler" in the Ultrst Philosophy (by Dinil Palackal).
+ * @description The "Master Descriptor" in the Ultrst Philosophy (by Dinil Palackal).
  * 
- * In this paradigm, the Entity code file is the final point where 
- * Functionalities (from folders) and Libraries (from folders) are imported 
- * and registered into a singular logic block.
+ * The Entity file is where the IO (Interface) is explicitly described. 
+ * Logic is imported as atoms, but the Entity file serves as the documentation 
+ * for the ports and components of the software block.
  */
 
 import { krnlInterface } from "./K_LIB_Krnl_Messaging_Concepts.js";
@@ -15,22 +15,21 @@ import { krnlLocalFunctionality, krnlRemoteFunctionality } from "./K_LIB_Krnl_Fu
 export class krnlEntityBase {
   /**
    * @param {string} name - The folder name of the entity.
-   * @param {object|null} owner - The parent entity (from the higher directory).
+   * @param {object|null} owner - The parent entity.
    */
   constructor(name, owner = null) {
     this.__krnlEntityInstance = true;
     this.id = name || "UnnamedEntity";
     this.entityName = this.id;
 
-    // 1. IO HUB: Manages the promoted ports.
+    // 1. IO HUB: Explicitly described in the extending class.
     this.interface = new krnlInterface(this);
 
-    // 2. ATOMIC REGISTRIES: Store the modular pieces.
-    this.localFunctionalities = new Map();  // Assembled from /functionalities/
-    this.remoteFunctionalities = new Map(); // Proxies for external singletons.
-    this.libraries = new Map();             // Assembled from /libraries/
+    // 2. LOGIC REGISTRIES: Atomic logic assembly.
+    this.localFunctionalities = new Map();
+    this.remoteFunctionalities = new Map();
 
-    // 3. HIERARCHY: Manages components in the /entities/ folder.
+    // 3. HIERARCHY: Managed components.
     this.hierarchyManager = new krnlEntityCompositionalHierarchyManager(
       this,
       owner,
@@ -39,9 +38,7 @@ export class krnlEntityBase {
   }
 
   /**
-   * Registers a Functionality Atom.
-   * Typically used in the entity root file after importing the functionality folder.
-   * @param {object|krnlLocalFunctionality} localFunctionality 
+   * Registers a Functionality.
    */
   addLocal(localFunctionality) {
     const functionality = localFunctionality instanceof krnlLocalFunctionality
@@ -60,15 +57,7 @@ export class krnlEntityBase {
   }
 
   /**
-   * Registers a library (data struct or utility) from the /libraries/ folder.
-   */
-  addLibrary(libId, libContent) {
-    this.libraries.set(libId, libContent);
-    return libContent;
-  }
-
-  /**
-   * Registers a proxy for an external singleton.
+   * Registers a proxy for an external entity.
    */
   addRemote(remoteFunctionality) {
     const functionality = remoteFunctionality instanceof krnlRemoteFunctionality
@@ -81,7 +70,7 @@ export class krnlEntityBase {
   }
 
   /**
-   * BUBBLING: Component logic promotion to the owner's interface.
+   * BUBBLING: Interface promotion.
    */
   _onComponentFunctionalityAdded(component, functionality) {
     if (functionality.visibility !== 'public') return;
@@ -100,7 +89,7 @@ export class krnlEntityBase {
   }
 
   /**
-   * CALL: Executes functionality logic by ID.
+   * CALL: Direct logic invocation.
    */
   async call(fid, input, opts = {}) {
     if (this.localFunctionalities.has(fid)) {
@@ -117,6 +106,5 @@ export class krnlEntityBase {
     this.interface.dispose();
     this.localFunctionalities.clear();
     this.remoteFunctionalities.clear();
-    this.libraries.clear();
   }
 }

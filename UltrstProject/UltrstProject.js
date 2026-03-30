@@ -1,46 +1,57 @@
 // UltrstProject/UltrstProject.js
-// The Master Assembler: The top-level Entity file.
+// The Master Descriptor: Root Persistent Process (HTTP/WS Server).
 
 import { krnlEntityBase } from "../krnl/core/index.js";
 
-// 1. Import Functionality Atoms
+// Import Atoms
 import { CalculatorAtom } from "./functionalities/Calculator/Calculator.js";
-
-// 2. Import Library Atoms
-import { ProjectConstants } from "./libraries/ProjectConstants.js";
-
-// 3. Import Component Classes (If they need special classes)
-// Note: We can also let HierarchyManager spawn generic ones.
+import { DisplayEntity } from "./entities/Display/Display.js";
 
 export class UltrstProject extends krnlEntityBase {
-    constructor(name = "MyUltrstApp") {
+    constructor(name = "UltrstServer") {
         super(name);
+
+        /**
+         * INTERFACE DESCRIPTION
+         * ---------------------------------------------------------
+         * Inputs (API):
+         * - 'Calculator': Performs basic math operations.
+         * - 'show': Promoted from Display component.
+         * 
+         * Outputs (Events):
+         * - 'Calculator:onCalculated': Broadcasts math results.
+         */
 
         // --- Logic Assembly ---
         this.addLocal(CalculatorAtom);
 
-        // --- Library Registration ---
-        this.addLibrary("Constants", ProjectConstants);
+        // --- Component Assembly ---
+        this.hierarchyManager.createComponentEntity("Display", DisplayEntity);
 
-        // --- Hierarchy Assembly ---
-        // Spawn component from folder /entities/Display/
-        this.hierarchyManager.createComponentEntity("Display");
+        this._startServer();
+    }
 
-        console.log(`[${this.entityName}] Assembled successfully (v${ProjectConstants.VERSION})`);
+    _startServer() {
+        console.log(`[${this.entityName}] Server active. Waiting for requests...`);
+        // Simulating persistent process
+        setInterval(() => {
+            // Heartbeat or Background logic
+        }, 10000);
     }
 
     /**
-     * Run a test sequence.
+     * Entry point for IDE or Runtime execution.
      */
-    async runDemo() {
-        // 1. Call local functionality
-        const res = await this.call("Calculator", { a: 10, b: 5, op: "add" });
-
-        // 2. Call promoted component functionality (Display:show)
-        await this.call("show", `The result was ${res}`);
+    async handleRequest(operation, data) {
+        console.log(`[Server] Received request: ${operation}`);
+        return await this.call(operation, data);
     }
 }
 
 // --- Bootstrap ---
-const app = new UltrstProject();
-app.runDemo();
+const server = new UltrstProject();
+
+// Manual test call to verify functioning
+server.handleRequest("Calculator", { a: 100, b: 50, op: "sub" }).then(res => {
+    server.handleRequest("show", `The server result was ${res}`);
+});
