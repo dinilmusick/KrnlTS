@@ -1,19 +1,26 @@
 // UltrstProject/UltrstProject.js
-// The Root Master Descriptor: Extending krnlSystemEntityBase.
+// The Root Master Descriptor: Pure Assembly & Server Boot.
 
 import { krnlSystemEntityBase } from "../krnl/core/index.js";
 
-// Import Atoms
+// 1. Import Logic Atoms
 import { CalculatorAtom } from "./functionalities/Calculator/Calculator.js";
+
+// 2. Import Component Descriptors
 import { DisplayEntity } from "./entities/Display/Display.js";
 
+/**
+ * ULTRST SERVER ENTITY
+ * This is the project root. It extends krnlSystemEntityBase to inherit
+ * built-in WebSocket server logic, UDP discovery, and peer-to-peer wiring.
+ */
 export class UltrstProject extends krnlSystemEntityBase {
     /**
      * @param {string} name - Root folder name.
-     * @param {number} port - Server port.
+     * @param {number} port - Port for the built-in WebSocket server.
      */
     constructor(name = "UltrstServer", port = 10091) {
-        // Root entities use SystemEntityBase to boot the built-in server logic.
+        // The super() call boots the CommComponent server automatically.
         super(name, null, port);
 
         /**
@@ -27,21 +34,22 @@ export class UltrstProject extends krnlSystemEntityBase {
          * - 'Calculator:onCalculated': Broadcasts calculation data.
          */
 
-        // 1. Logic Assembly
+        // --- Logic Assembly ---
         this.addLocal(CalculatorAtom);
 
-        // 2. Hierarchy Assembly
+        // --- Hierarchy Assembly ---
         this.hierarchyManager.createComponentEntity("Display", DisplayEntity);
 
-        console.log(`[${this.entityName}] Ultrst Server manifested on port ${port}.`);
+        // --- System Initialization ---
+        // We use the inherited 'startDiscovery' to make this server
+        // visible to other Krnl systems on the local network.
+        this.startDiscovery().then(() => {
+            console.log(`[${this.entityName}] Discovery active. Peer-to-Peer ready.`);
+        });
     }
 }
 
 // --- Bootstrap ---
-const server = new UltrstProject();
-
-// Manual test sequence using the standard library 'call' mechanism.
-(async () => {
-    const res = await server.call("Calculator", { a: 50, b: 25, op: "add" });
-    await server.call("show", `Manifested Result: ${res}`);
-})();
+// Instantiating the class is the ONLY action allowed in the root file.
+// All logic is now contained within functionalities or inherited system methods.
+new UltrstProject();
