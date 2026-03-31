@@ -2,27 +2,37 @@
 import { krnlSystemEntityBase } from "../krnl/core/index.js";
 import { CalculatorAtom } from "./functionalities/Calculator/Calculator.js";
 import { DisplayEntity } from "./entities/Display/Display.js";
+import { LoggerEntity } from "./entities/Logger/Logger.js";
 
-/**
- * CALCULATOR SYSTEM (The Backend Logic)
- * Listens on port 10091. Exposes math logic to the network.
- */
 export class CalculatorSystem extends krnlSystemEntityBase {
     constructor(port = 10091) {
         super("CalculatorSystem", null, port);
 
-        // 1. Assemble Logic
+        // 1. Logic Assembly
         this.addLocal(CalculatorAtom);
 
-        // 2. Assemble Components
-        this.hierarchyManager.createComponentEntity("Display", DisplayEntity);
+        // 2. Component Assembly
+        const display = this.hierarchyManager.createComponentEntity("Display", DisplayEntity);
+        const logger = this.hierarchyManager.createComponentEntity("Logger", LoggerEntity);
 
-        // 3. System Initialization
+        // 3. LOCAL WIRING (Same System)
+        // Here, multiple entities subscribe to the same output
+        const calcEmitter = this.interface.getEmitter("Calculator:onCalculated");
+        
+        // Wire Display component
+        display.interface.getCollector("show").subscribeTo(calcEmitter, (msg) => {
+            if (msg.data.status === "complete") {
+                display.call("show", msg.data.formatted);
+            }
+        });
+
+        // Wire Logger component
+        logger.interface.getCollector("calculation-log").subscribeTo(calcEmitter);
+
         this.startDiscovery().then(() => {
-            console.log(`[CalculatorSystem] Backend logic ready on port ${port}.`);
+            console.log(`[CalculatorSystem] Ready. Local components (Display, Logger) wired.`);
         });
     }
 }
 
-// Bootstrap
 new CalculatorSystem();

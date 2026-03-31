@@ -1,33 +1,37 @@
-// UltrstProject/functionalities/Calculator/main_function/logic.js
-
-// 1. SURGICAL IMPORTS: Helpers and Events are imported here, not the functionality root.
+// CalculatorSystem/functionalities/Calculator/main_function/logic.js
 import { format } from "../helper_functions/formatter.js";
 import { beginning } from "../events/beginning.js";
 import { end } from "../events/end.js";
 
-// 2. LIBRARY IMPORT: Surgical import from the project root libraries.
-import { ProjectConcepts } from "../../../libraries/ProjectConcepts.js";
-
+/**
+ * MAIN LOGIC ATOM
+ * Demonstrates surgical imports and event triggering.
+ */
 export const main = async (input, { state, emitters, functionality }) => {
-    // Execute 'Beginning' event atom manually if needed or let lifecycle handle it.
+    // 1. Trigger 'beginning' event
     beginning({ functionality });
 
     const { a, b, op } = input;
-    let result = 0;
+    
+    // 2. Trigger 'during' event (processing signal)
+    emitters.get('onCalculated').pushDataStreamToEmitter({ status: "processing", op });
 
+    let result = 0;
     if (op === 'add') result = a + b;
     else if (op === 'sub') result = a - b;
 
-    // Use the surgical helper
+    // 3. Use helper for formatting
     const formatted = format(result);
     
-    // Log using library concepts
-    console.log(`[${ProjectConcepts.PHILOSOPHY}] Logic executing...`);
+    // 4. Trigger 'onCalculated' event with final data
+    emitters.get('onCalculated').pushDataStreamToEmitter({ 
+        status: "complete", 
+        result, 
+        formatted,
+        timestamp: Date.now() 
+    });
 
-    // Push to events
-    emitters.get('onCalculated').pushDataStreamToEmitter({ result, formatted });
-
-    // Execute 'End' event atom
+    // 5. Trigger 'end' event
     end({ output: result });
 
     return result;
