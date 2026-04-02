@@ -27,7 +27,7 @@ export class CalculatorSystem extends krnlSystemEntityBase {
         });
 
         // Wire Logger component
-        logger.interface.getCollector("calculation-log").subscribeTo(calcEmitter);
+        logger.interface.getCollector("Audit").subscribeTo(calcEmitter);
 
         this.startDiscovery().then(() => {
             console.log(`[CalculatorSystem] Ready. Local components (Display, Logger) wired.`);
