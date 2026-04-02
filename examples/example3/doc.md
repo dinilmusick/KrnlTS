@@ -1,23 +1,32 @@
-# Example 3: Event Emission and Subscription
+# Exhibit 3: Events & Inter-Component Communication
 
-This example demonstrates how to create, emit, and subscribe to events across different entities in Krnl.
+This example demonstrates how logic atoms communicate using event streams and how different entities can subscribe to those streams.
 
-## Structure
-- **`EventSystem`** (Root System)
-  - **`ProducerEntity`** (Emitter)
-    - **`Ping`** (Logic Atom that emits `ping-emitted` events)
-  - **`ConsumerEntity`** (Subscriber)
-    - **`Logger`** (Logic Atom that collects and logs events)
+## The Concept: "Event Atoms"
+Instead of a functionality just returning a value (Request-Response), it can also broadcast signals (Events).
 
-## Key Concepts
-- **`emitters`**: Defined in the functionality descriptor. Used to push data streams.
-- **`collectors`**: Automatic interfaces created for each functionality. They can subscribe to emitters.
-- **Event Bubbling**: Events emitted deep inside a component's functionality are promoted to the component's interface.
-- **Wiring**: The root system (`EventSystem`) acts as the orchestrator, connecting the `Producer`'s output to the `Consumer`'s input.
+1.  **ProducerEntity** has a functionality called `Ping`.
+2.  `Ping` defines an emitter: `ping-emitted`.
+3.  Every time `Ping` logic is called, it pushes data into that emitter.
 
-## How to run
-Run the root system file:
-```bash
-node examples/example3/EventSystem/EventSystem.js
+## The Wiring: "Sacred Subscription"
+The **Owner Entity** (the System) is responsible for patching these ports together. 
+
+```javascript
+// Get the output port
+const source = producer.interface.getEmitter("Ping:ping-emitted");
+
+// Get the input port
+const sink = consumer.interface.getCollector("Logger");
+
+// Patch them
+sink.subscribeTo(source);
 ```
-The system will trigger the `Producer`'s logic multiple times, and you will see the `Consumer` logging the received events.
+
+## Atomic Scaffolding
+- `ProducerEntity.js`: Descriptor that assembles the `Ping` logic atom.
+- `ConsumerEntity.js`: Descriptor that assembles the `Logger` logic atom.
+- `EventSystem.js`: The root server that summons both and performs the wiring.
+
+## Rationale
+This approach allows the Producer and Consumer to remain completely unaware of each other. The Producer just "shouts" and the Consumer just "listens". The System orchestrates the connection, making the code highly modular and reusable.

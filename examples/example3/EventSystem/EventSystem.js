@@ -1,29 +1,70 @@
+// examples/example3/EventSystem/EventSystem.js
+
 import { krnlSystemEntityBase } from "../../../krnl/core/index.js";
 import { ProducerEntity } from "./entities/ProducerEntity/ProducerEntity.js";
 import { ConsumerEntity } from "./entities/ConsumerEntity/ConsumerEntity.js";
 import { RunScenarioAtom } from "./functionalities/RunScenario/RunScenario.js";
 
+/**
+ * DESCRIPTOR: EventSystem
+ * -------------------------------------------------------------------------
+ * This system demonstrates the inter-component event wiring.
+ * Producer: Generates 'ping' signals.
+ * Consumer: Listens and logs those signals.
+ */
 export class EventSystem extends krnlSystemEntityBase {
+    /**
+     * @param {number} port - Network listen port for the system server.
+     */
     constructor(port = 10093) {
+        // Initialize the base system with a name and port.
         super("EventSystem", null, port);
         
-        // 1. Register logic
+        /**
+         * REGISTER CONTROL LOGIC
+         * We add a private functionality atom to orchestrate the test scenario.
+         * 
+         * ALTERNATIVE:
+         * this.addLocal({ id: "Init", api: () => console.log("System Up") });
+         */
         this.addLocal(RunScenarioAtom);
 
-        // 2. Assemble components
+        /**
+         * SUMMON COMPONENTS
+         * We create the Producer and Consumer from their specific descriptors.
+         */
         const producer = this.hierarchyManager.createComponentEntity("Producer", ProducerEntity);
         const consumer = this.hierarchyManager.createComponentEntity("Consumer", ConsumerEntity);
         
-        // 3. Wire Events
+        /**
+         * INTER-COMPONENT WIRING
+         * ---------------------------------------------------------------------
+         * We take the output emitter from the Producer and pipe it into the
+         * input collector of the Consumer.
+         */
+        
+        // 1. Get the emitter from the Producer's interface.
+        // It was promoted as "FunctionalityID:EmitterID".
         const pingEmitter = producer.interface.getEmitter("Ping:ping-emitted");
+        
+        // 2. Get the collector (The Logger functionality itself) from the Consumer.
         const logCollector = consumer.interface.getCollector("Logger");
+        
+        // 3. Sacred Wiring: Link the source to the listener.
         logCollector.subscribeTo(pingEmitter);
         
-        console.log("[EventSystem] Event example ready.");
+        /**
+         * ALTERNATIVE WIRING:
+         * We could wire the producer directly to a system-level collector:
+         * this.interface.createCollector("system-log").subscribeTo(pingEmitter);
+         */
         
-        // Call the functionality instead of a loose function
+        console.log("[EventSystem] Event example ready. Wiring complete.");
+        
+        // Trigger the scenario atom.
         this.call("RunScenario");
     }
 }
 
+// Bootstrap the server.
 new EventSystem();

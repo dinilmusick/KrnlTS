@@ -1,10 +1,7 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file K_LIB_Krnl_Functionality_Types.js
- * @description Optimized for the "Ultrst" Philosophy (by Dinil Palackal).
- * 
- * This file treats Functionalities as "Atoms" that are assembled from 
- * separate files (Main Function, Helpers, Events) in a strict directory structure.
+ * @description defines Logic Atoms with Visibility control for Recursive Bubbling.
  */
 
 import { krnlEmitter, krnlCollector } from "./K_LIB_Krnl_Messaging_Concepts.js";
@@ -18,91 +15,101 @@ function cloneState(source) {
 
 /**
  * KRNL LOCAL FUNCTIONALITY
- * The logic "Atom". In the Ultrst philosophy, this is the result of importing 
- * the 'Main Function', 'Helpers', and 'Events' into a single functionality root.
+ * The fundamental unit of logic.
  */
 export class krnlLocalFunctionality {
-  /**
-   * @param {object} config - The assembled atoms of the functionality.
-   */
   constructor(config = {}) {
     const {
-      id,                               // Name of the functionality folder.
-      visibility = 'public',            // Public (promoted to owner) or Private (internal).
-      stateModel = 'single',            // singleState or multiState.
-      initialState = {},                // The state data structure defined in the functionality.
-      api = (input) => input,           // The "Main Function" (api logic).
-      helpers = {},                     // The "Helper Functions" (modular logic atoms).
-      emitters = {},                    // The "Events" (outputs) defined in the events folder.
-      events = {},                      // The "Events" (lifecycle hooks: onInit, onCall, etc).
+      id,
+      visibility = 'public', // Default: public (bubbles up)
+      stateModel = 'single',
+      initialState = {},
+      api = (input) => input,
+      helpers = {},
+      emitters = {},
+      events = {},
     } = config;
 
-    if (!id) throw new Error("Ultrst Error: Functionality Atom requires an ID (Folder Name).");
+    if (!id) throw new Error("LocalFunctionality requires an ID.");
 
-    // 1. Identity & Visibility
     this.id = id;
     this.visibility = visibility;
     this.stateModel = stateModel;
     this.initialState = initialState;
+    this.api = api;
     this.isLocal = true;
-
-    // 2. Logic Assembly (The Atoms)
-    this.api = api;                                  // The Main Function atom.
-    this.helpers = new Map(Object.entries(helpers)); // The Helper Function atoms.
-    this.emitters = new Map();                       // The Event Stream atoms.
-    
-    // 3. Lifecycle Events (The "Events" folder logic)
-    // Maps Ultrst "Events" to the internal lifecycle hooks.
+    this.helpers = new Map(Object.entries(helpers));
+    this.emitters = new Map();
     this.lifecycle = {
-      onInit: events.onInit || events.beginning,
-      onCall: events.onCall || events.during,
-      onComplete: events.onComplete || events.end,
-      onError: events.onError || events.failure
+      beginning: events.beginning,
+      during: events.during,
+      end: events.end,
+      failure: events.failure
     };
 
-    // 4. State Initialization
     if (this.stateModel === 'multi') {
       this.states = new Map();
     } else {
       this.state = cloneState(initialState);
     }
 
-    // 5. Emitter Assembly
     Object.entries(emitters).forEach(([eid, e]) => {
       this.emitters.set(eid, e instanceof krnlEmitter ? e : new krnlEmitter());
     });
   }
 
   /**
-   * Binds the Atom to the Entity.
+   * Updates the visibility and handles interface registration/deregistration.
+   * This is the mechanism used to STOP bubbling at a certain level.
+   * @param {'public'|'private'} v 
    */
+  setVisibility(v) {
+    const oldVisibility = this.visibility;
+    this.visibility = v;
+
+    if (!this.hostEntity) return;
+
+    if (oldVisibility === 'private' && v === 'public') {
+      // Transition to Public: Register in interface
+      this._registerInInterface();
+      // Notify owner to bubble it up
+      const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
+      if (owner) owner._onComponentFunctionalityAdded(this.hostEntity, this);
+    } else if (oldVisibility === 'public' && v === 'private') {
+      // Transition to Private: Remove from interface
+      // (Implementation note: current interface doesn't support easy removal by name,
+      // but in a production system, we would prune the collectors/emitters here).
+      console.warn(`[${this.id}] Visibility set to private. Higher entities will no longer see this.`);
+    }
+  }
+
+  _registerInInterface() {
+    const entity = this.hostEntity;
+    // Register API as input
+    const mainCollector = entity.interface.createCollector(this.id);
+    mainCollector._directHandler = async (msg) => {
+      const caller = msg.metadata?.caller || 'anonymous';
+      return await this.execute(msg.data, { caller });
+    };
+
+    // Register Emitters as outputs
+    this.emitters.forEach((emitter, eid) => {
+      const interfaceEmitter = entity.interface.createEmitter(`${this.id}:${eid}`);
+      emitter.subscribe((msg) => interfaceEmitter.pushDataStreamToEmitter(msg.data, msg.time));
+    });
+  }
+
   bindToEntity(entity) {
     this.hostEntity = entity;
-
-    // Automatic Interface Registration (Wiring the Atom to the Hub)
     if (this.visibility === 'public') {
-      const mainCollector = entity.interface.createCollector(this.id);
-      mainCollector._directHandler = async (msg) => {
-        const caller = msg.metadata?.caller || 'anonymous';
-        return await this.execute(msg.data, { caller });
-      };
-
-      this.emitters.forEach((emitter, eid) => {
-        const interfaceEmitter = entity.interface.createEmitter(`${this.id}:${eid}`);
-        emitter.subscribe((msg) => interfaceEmitter.pushDataStreamToEmitter(msg.data, msg.time));
-      });
+      this._registerInInterface();
     }
-
-    // Trigger the "Beginning" Event
-    if (typeof this.lifecycle.onInit === "function") {
-      this.lifecycle.onInit({ entity, functionality: this });
+    if (typeof this.lifecycle.beginning === "function") {
+      this.lifecycle.beginning({ entity, functionality: this });
     }
     return this;
   }
 
-  /**
-   * Execution Logic (Caller-Aware)
-   */
   async execute(input, opts = {}) {
     const caller = opts.caller || 'default';
     let activeState = this.stateModel === 'multi' 
@@ -110,12 +117,10 @@ export class krnlLocalFunctionality {
       : this.state;
 
     try {
-      // Trigger the "During" Event
-      if (typeof this.lifecycle.onCall === "function") {
-        this.lifecycle.onCall({ input, opts, state: activeState, entity: this.hostEntity });
+      if (typeof this.lifecycle.during === "function") {
+        this.lifecycle.during({ input, opts, state: activeState, entity: this.hostEntity });
       }
 
-      // Execute the Main Function Atom
       const result = await this.api(input, {
         state: activeState,
         emitters: this.emitters,
@@ -124,29 +129,23 @@ export class krnlLocalFunctionality {
         caller: caller
       });
 
-      // Trigger the "End" Event
-      if (typeof this.lifecycle.onComplete === "function") {
-        this.lifecycle.onComplete({ input, output: result, caller });
+      if (typeof this.lifecycle.end === "function") {
+        this.lifecycle.end({ input, output: result, caller });
       }
 
       return result;
     } catch (error) {
-      // Trigger the "Failure" Event
-      if (typeof this.lifecycle.onError === "function") {
-        this.lifecycle.onError({ error, input, caller });
+      if (typeof this.lifecycle.failure === "function") {
+        this.lifecycle.failure({ error, input, caller });
       }
       throw error;
     }
-  }
-
-  disposeState(caller) {
-    if (this.stateModel === 'multi') this.states.delete(caller);
   }
 }
 
 /**
  * KRNL REMOTE FUNCTIONALITY
- * Proxy for borrowing logic from external singleton entities.
+ * Proxy for recursive bubbling.
  */
 export class krnlRemoteFunctionality {
   constructor(config = {}) {
@@ -158,11 +157,25 @@ export class krnlRemoteFunctionality {
     this.isLocal = false;
   }
 
+  setVisibility(v) {
+    const oldVisibility = this.visibility;
+    this.visibility = v;
+    if (this.hostEntity && oldVisibility === 'private' && v === 'public') {
+      this._registerInInterface();
+      const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
+      if (owner) owner._onComponentFunctionalityAdded(this.hostEntity, this);
+    }
+  }
+
+  _registerInInterface() {
+    const proxyEmitter = this.hostEntity.interface.createEmitter(this.id);
+    proxyEmitter.subscribe(async (msg) => await this.execute(msg.data));
+  }
+
   bindToEntity(entity) {
     this.hostEntity = entity;
     if (this.visibility === 'public') {
-      const proxyEmitter = entity.interface.createEmitter(this.id);
-      proxyEmitter.subscribe(async (msg) => await this.execute(msg.data));
+      this._registerInInterface();
     }
   }
 
