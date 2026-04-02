@@ -1,5 +1,5 @@
 // WebInterfaceSystem/WebInterfaceSystem.js
-import { krnlSystemEntityBase } from "../krnl/core/index.js";
+import { krnlSystemEntityBase } from "../../../krnl/core/index.js";
 import { UIPanelAtom } from "./functionalities/UIPanel/UIPanel.js";
 
 export class WebInterfaceSystem extends krnlSystemEntityBase {

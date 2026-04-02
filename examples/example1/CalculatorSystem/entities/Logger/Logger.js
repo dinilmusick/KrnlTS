@@ -1,5 +1,5 @@
 // CalculatorSystem/entities/Logger/Logger.js
-import { krnlEntityBase } from "../../../krnl/core/index.js";
+import { krnlEntityBase } from "../../../../../krnl/core/index.js";
 
 export class LoggerEntity extends krnlEntityBase {
     constructor(name, owner) {

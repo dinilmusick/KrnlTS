@@ -1,5 +1,5 @@
 // CalculatorSystem/CalculatorSystem.js
-import { krnlSystemEntityBase } from "../krnl/core/index.js";
+import { krnlSystemEntityBase } from "../../../krnl/core/index.js";
 import { CalculatorAtom } from "./functionalities/Calculator/Calculator.js";
 import { DisplayEntity } from "./entities/Display/Display.js";
 import { LoggerEntity } from "./entities/Logger/Logger.js";

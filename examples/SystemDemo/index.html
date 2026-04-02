@@ -69,7 +69,7 @@
             } catch (e) {
                 // If servers aren't running, we show the failure
                 const entry = document.createElement('div');
-                entry.innerHTML = `<span style="color:#ff0055">[ERROR]</span> System Offline. Run 'node CalculatorSystem/CalculatorSystem.js' and 'node WebInterfaceSystem/WebInterfaceSystem.js' first!`;
+                entry.innerHTML = `<span style="color:#ff0055">[ERROR]</span> System Offline. Run 'node examples/example1/CalculatorSystem/CalculatorSystem.js' and 'node examples/example1/WebInterfaceSystem/WebInterfaceSystem.js' first!`;
                 log.prepend(entry);
                 status.innerText = "> Connection Failed.";
             }
