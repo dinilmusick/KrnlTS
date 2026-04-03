@@ -4,7 +4,7 @@
  * @description defines Logic Atoms with Visibility control for Recursive Bubbling.
  */
 
-import { krnlEmitter, krnlCollector } from "./K_LIB_Krnl_Messaging_Concepts.js";
+import { krnlEmitter } from "./K_LIB_Krnl_Messaging_Concepts.js";
 
 /**
  * Helper to ensure state isolation.
@@ -22,7 +22,6 @@ export class krnlLocalFunctionality {
     const {
       id,
       visibility = 'public', // Default: public (bubbles up)
-      stateModel = 'single',
       initialState = {},
       api = (input) => input,
       helpers = {},
@@ -34,7 +33,6 @@ export class krnlLocalFunctionality {
 
     this.id = id;
     this.visibility = visibility;
-    this.stateModel = stateModel;
     this.initialState = initialState;
     this.api = api;
     this.isLocal = true;
@@ -47,11 +45,7 @@ export class krnlLocalFunctionality {
       failure: events.failure
     };
 
-    if (this.stateModel === 'multi') {
-      this.states = new Map();
-    } else {
-      this.state = cloneState(initialState);
-    }
+    this.state = cloneState(initialState);
 
     Object.entries(emitters).forEach(([eid, e]) => {
       this.emitters.set(eid, e instanceof krnlEmitter ? e : new krnlEmitter());
@@ -76,10 +70,10 @@ export class krnlLocalFunctionality {
       const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
       if (owner) owner._onComponentFunctionalityAdded(this.hostEntity, this);
     } else if (oldVisibility === 'public' && v === 'private') {
-      // Transition to Private: Remove from interface
-      // (Implementation note: current interface doesn't support easy removal by name,
-      // but in a production system, we would prune the collectors/emitters here).
-      console.warn(`[${this.id}] Visibility set to private. Higher entities will no longer see this.`);
+      const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
+      if (owner && owner._onComponentFunctionalityRemoved) {
+        owner._onComponentFunctionalityRemoved(this.hostEntity, this.id);
+      }
     }
   }
 
@@ -112,9 +106,7 @@ export class krnlLocalFunctionality {
 
   async execute(input, opts = {}) {
     const caller = opts.caller || 'default';
-    let activeState = this.stateModel === 'multi' 
-      ? (this.states.get(caller) || this.states.set(caller, cloneState(this.initialState)).get(caller))
-      : this.state;
+    const activeState = this.state;
 
     try {
       if (typeof this.lifecycle.during === "function") {
@@ -164,12 +156,20 @@ export class krnlRemoteFunctionality {
       this._registerInInterface();
       const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
       if (owner) owner._onComponentFunctionalityAdded(this.hostEntity, this);
+    } else if (this.hostEntity && oldVisibility === 'public' && v === 'private') {
+      const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
+      if (owner && owner._onComponentFunctionalityRemoved) {
+        owner._onComponentFunctionalityRemoved(this.hostEntity, this.id);
+      }
     }
   }
 
   _registerInInterface() {
-    const proxyEmitter = this.hostEntity.interface.createEmitter(this.id);
-    proxyEmitter.subscribe(async (msg) => await this.execute(msg.data));
+    const mainCollector = this.hostEntity.interface.createCollector(this.id);
+    mainCollector._directHandler = async (msg) => {
+      const caller = msg.metadata?.caller || 'anonymous';
+      return await this.execute(msg.data, { caller });
+    };
   }
 
   bindToEntity(entity) {

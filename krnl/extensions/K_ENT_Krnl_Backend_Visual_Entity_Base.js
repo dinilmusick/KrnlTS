@@ -5,6 +5,13 @@
  */
 
 import { krnlEntityBase } from "../core/K_ENT_Krnl_Entity_Base.js";
+import {
+  getVisualSnapshotApi,
+  setBrndaComponentApi,
+  setVisualCoreApi,
+  setWeprComponentApi,
+  syncAllFrontendsApi,
+} from "./K_LIB_Krnl_Backend_Visual_Functionality_APIs.js";
 
 export class krnlBackendVisualEntityBase extends krnlEntityBase {
   constructor(name, owner = null) {
@@ -23,47 +30,27 @@ export class krnlBackendVisualEntityBase extends krnlEntityBase {
   _setupVisualFunctionalities() {
     this.addLocal({
       id: 'setBrndaComponent',
-      api: (config = {}) => {
-        this.brndaConfig = { ...this.brndaConfig, ...config };
-        console.log(`[${this.entityName}] Brnda config updated:`, this.brndaConfig);
-        return this.brndaConfig;
-      }
+      api: setBrndaComponentApi(this)
     });
 
     this.addLocal({
       id: 'setWeprComponent',
-      api: (config = {}) => {
-        this.weprConfig = { ...this.weprConfig, ...config };
-        console.log(`[${this.entityName}] Wepr config updated:`, this.weprConfig);
-        return this.weprConfig;
-      }
+      api: setWeprComponentApi(this)
     });
 
     this.addLocal({
       id: 'setVisualCore',
-      api: (patch = {}) => {
-        this.visualCore = {
-          ...this.visualCore,
-          ...patch,
-          position: { ...this.visualCore.position, ...patch.position },
-          rotation: { ...this.visualCore.rotation, ...patch.rotation },
-          scale: { ...this.visualCore.scale, ...patch.scale },
-        };
-        return this.visualCore;
-      }
+      api: setVisualCoreApi(this)
     });
 
     this.addLocal({
       id: 'getVisualSnapshot',
-      api: () => this.visualCore
+      api: getVisualSnapshotApi(this)
     });
 
     this.addLocal({
       id: 'syncAllFrontends',
-      api: async () => {
-        console.log(`[${this.entityName}] Syncing all frontends...`);
-        return { status: 'synced', timestamp: Date.now() };
-      }
+      api: syncAllFrontendsApi(this)
     });
   }
 

@@ -5,6 +5,7 @@ import { krnlEntityBase } from "../../../../../krnl/core/index.js";
 import { showAtom } from "./functionalities/show/show.js";
 
 export class DisplayEntity extends krnlEntityBase {
+    static Singleton = true;
     constructor(name, owner) {
         super(name, owner);
         

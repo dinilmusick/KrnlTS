@@ -13,7 +13,9 @@ By **Dinil Palackal**
 
 1.  **Atomic Separation**: Code is split into Main Function, Helpers, and Events folders.
 2.  **Interface Promotion**: Public logic "bubbles up" to owner entities automatically.
-3.  **State Scoping**: Functionalities own their state (Single vs. Multi-state).
+3.  **Single-State Functionalities**: Each functionality has one state per entity instance (no multi-state functionality model).
+4.  **Entity Instance Policy**: Entities expose `Singleton` to control whether multiple instances are allowed under an owner.
+5.  **Descriptor Purity Policy**: Entity files and functionality descriptor files are assembly-only. Runtime logic belongs only in logic/library atoms, and state data belongs only in `state_data` or library atoms.
 
 ---
 

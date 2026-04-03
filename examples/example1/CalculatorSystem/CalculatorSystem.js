@@ -5,6 +5,7 @@ import { DisplayEntity } from "./entities/Display/Display.js";
 import { LoggerEntity } from "./entities/Logger/Logger.js";
 
 export class CalculatorSystem extends krnlSystemEntityBase {
+    static Singleton = true;
     constructor(port = 10091) {
         super("CalculatorSystem", null, port);
 

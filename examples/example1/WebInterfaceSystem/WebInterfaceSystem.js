@@ -5,6 +5,7 @@ import { SetupCommsAtom } from "./functionalities/SetupComms/SetupComms.js";
 import { MonitorAtom } from "./functionalities/Monitor/Monitor.js";
 
 export class WebInterfaceSystem extends krnlSystemEntityBase {
+    static Singleton = true;
     constructor(port = 10092) {
         super("WebInterfaceSystem", null, port);
 

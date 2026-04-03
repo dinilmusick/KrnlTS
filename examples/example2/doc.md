@@ -29,3 +29,8 @@ The directory structure reflects the logical nesting:
 
 ## Rationale
 This prevents "Interface Pollution" at the system level. You only bubble up what the root server actually needs to expose to the network or the user interface.
+
+## Policy Alignment
+- Entity and functionality descriptor files stay assembly-only.
+- Runtime logic stays in `main_function/`, helper/event atoms, or library files.
+- Runtime state data belongs in `state_data/` atoms or library files.

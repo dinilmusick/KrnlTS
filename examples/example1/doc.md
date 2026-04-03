@@ -17,6 +17,8 @@ import { format } from "../helper_functions/formatter.js";
 import { ProjectConcepts } from "../../../libraries/ProjectConcepts.js";
 ```
 
+Policy reminder: descriptor files (`Entity.js`, `MyFunctionality.js`) remain assembly-only; logic and data atoms stay in `main_function/`, `helper_functions/`, `events/`, and `state_data/`.
+
 ## The Logic: "Remote Proxies"
 The WebInterface borrows logic from the Calculator using a proxy:
 

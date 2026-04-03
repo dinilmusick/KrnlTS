@@ -13,6 +13,7 @@ import { RunScenarioAtom } from "./functionalities/RunScenario/RunScenario.js";
  * Consumer: Listens and logs those signals.
  */
 export class EventSystem extends krnlSystemEntityBase {
+    static Singleton = true;
     /**
      * @param {number} port - Network listen port for the system server.
      */
@@ -23,9 +24,6 @@ export class EventSystem extends krnlSystemEntityBase {
         /**
          * REGISTER CONTROL LOGIC
          * We add a private functionality atom to orchestrate the test scenario.
-         * 
-         * ALTERNATIVE:
-         * this.addLocal({ id: "Init", api: () => console.log("System Up") });
          */
         this.addLocal(RunScenarioAtom);
 
