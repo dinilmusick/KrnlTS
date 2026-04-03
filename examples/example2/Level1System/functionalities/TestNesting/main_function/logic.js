@@ -10,7 +10,8 @@ export const main = async (input, { entity }) => {
         console.log("[Level1System] Result:", result);
         return result;
     } catch (e) {
-        console.error("[Level1System] Call failed:", e.message);
-        throw e;
+        const message = "[Level1System] DeepLogic is private at Level2, so bubbling correctly stops there.";
+        console.log(message);
+        return { status: "blocked-by-visibility", details: e.message };
     }
 };

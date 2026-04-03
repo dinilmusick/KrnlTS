@@ -10,6 +10,7 @@ import { DeepLogic } from "./functionalities/DeepLogic/DeepLogic.js";
  * It adds a public functionality that will be promoted to its owner.
  */
 export class Level3Entity extends krnlEntityBase {
+    static Singleton = true;
     constructor(name, owner) {
         // Pass identification up to the base class.
         super(name, owner);

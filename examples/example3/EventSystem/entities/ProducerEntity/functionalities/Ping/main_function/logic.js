@@ -3,7 +3,7 @@ export const logic = (input, ctx) => {
     ctx.state.seq = data.seq;
     
     // Emit the event through the functionality's emitter
-    ctx.emitters["ping-emitted"].push(data);
+    ctx.emitters.get("ping-emitted").pushDataStreamToEmitter(data);
     
     return data;
 };

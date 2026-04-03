@@ -19,6 +19,14 @@ Illustrates the event-driven nature of Krnl, with producers and consumers.
 ### 4. [System Demo (Visualized)](./SystemDemo/index.html)
 An interactive HTML demo showing the visual aspect of Krnl systems.
 
+### 5. [Mechanism Changes Showcase](./example4/doc.md)
+Focused walkthrough of new bubbling, visibility-stop, streaming collector, and one-shot collector behavior.
+- **Concepts**: `mode: "once"`, `collectNext`, deep bubbling, and private boundary stop.
+
+### 6. [Entity Singleton vs Multi-Instance](./example5/doc.md)
+Demonstrates singleton entities, multi-instance entities, and disposal of unused instances.
+- **Concepts**: `Singleton` policy, instance naming, and lifecycle cleanup.
+
 ---
 
 ## How to explore

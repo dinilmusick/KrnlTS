@@ -11,6 +11,7 @@ import { Level3Entity } from "./entities/Level3Entity/Level3Entity.js";
  * the Level 1 System above it.
  */
 export class Level2Entity extends krnlEntityBase {
+    static Singleton = true;
     constructor(name, owner) {
         // Initialize the base entity.
         super(name, owner);

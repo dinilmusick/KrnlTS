@@ -11,6 +11,7 @@ import { TestNestingAtom } from "./functionalities/TestNesting/TestNesting.js";
  * from its deep components to verify what bubbled up and what didn't.
  */
 export class Level1System extends krnlSystemEntityBase {
+    static Singleton = true;
     constructor(port = 10092) {
         // Initialize the network-enabled system base.
         super("Level1System", null, port);

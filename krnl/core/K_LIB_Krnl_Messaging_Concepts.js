@@ -100,10 +100,25 @@ export class krnlEmitter {
    */
   subscribe(handler) {
     this.subscribers.push(handler);
-    const index = this.subscribers.length - 1;
     return () => {
-      this.subscribers.splice(index, 1);
+      const idx = this.subscribers.indexOf(handler);
+      if (idx >= 0) this.subscribers.splice(idx, 1);
     };
+  }
+
+  /**
+   * Subscribes once and auto-unsubscribes after first message.
+   * @param {function(krnlMessage): void} handler
+   * @returns {function(): void}
+   */
+  subscribeOnce(handler) {
+    let unsubscribe = null;
+    const wrapped = (msg) => {
+      if (unsubscribe) unsubscribe();
+      handler(msg);
+    };
+    unsubscribe = this.subscribe(wrapped);
+    return unsubscribe;
   }
 
   /**
@@ -128,12 +143,52 @@ export class krnlCollector {
    * @param {function(krnlMessage): void} handler - Callback for each message.
    * @returns {function(): void} Unsubscribe function.
    */
-  subscribeTo(emitter, handler) {
+  subscribeTo(emitter, handler = null, options = {}) {
+    const { mode = "stream" } = options;
+    const resolvedHandler = typeof handler === "function"
+      ? handler
+      : (msg) => {
+          if (typeof this._directHandler === "function") {
+            return this._directHandler(msg);
+          }
+          return msg;
+        };
+
     // Disconnect from any previous emitter
     this.disconnectCollector();
     this.emitter = emitter;
-    this.unsubscribe = emitter.subscribe(handler);
+    this.unsubscribe = mode === "once"
+      ? emitter.subscribeOnce(resolvedHandler)
+      : emitter.subscribe(resolvedHandler);
     return this.unsubscribe;
+  }
+
+  /**
+   * Collects a single message from the emitter and auto-disconnects.
+   * @param {krnlEmitter} emitter
+   * @param {number|null} timeoutMs
+   * @returns {Promise<krnlMessage>}
+   */
+  collectNext(emitter, timeoutMs = null) {
+    return new Promise((resolve, reject) => {
+      let timeout = null;
+      const cleanup = () => {
+        if (timeout) clearTimeout(timeout);
+        this.disconnectCollector();
+      };
+
+      this.subscribeTo(emitter, (msg) => {
+        cleanup();
+        resolve(msg);
+      }, { mode: "once" });
+
+      if (typeof timeoutMs === "number" && timeoutMs > 0) {
+        timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error(`Collector timeout after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }
+    });
   }
 
   /**

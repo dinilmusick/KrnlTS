@@ -19,6 +19,8 @@ export class krnlEntityCompositionalHierarchyManager {
     this.owner = owner;                // The parent entity.
     this.EntityClass = EntityClass;    // Class used to spawn sub-entities.
     this.ownedComponents = new Map();  // Map of Name -> EntityInstance.
+    this.componentBaseNames = new Map(); // Map of BaseName -> [EntityInstance]
+    this.componentInstanceCounters = new Map(); // BaseName -> number of created instances
   }
 
   /**
@@ -26,22 +28,36 @@ export class krnlEntityCompositionalHierarchyManager {
    * @param {string} name - The name of the component.
    * @param {function} [CustomClass=null] - Optional specific class to instantiate.
    */
-  createComponentEntity(name, CustomClass = null) {
-    // 1. Enforce unique instantiation.
-    if (this.ownedComponents.has(name)) {
+  createComponentEntity(name, CustomClass = null, options = {}) {
+    // 1. Determine which class to use (Default or Custom).
+    const ClassToUse = CustomClass || this.EntityClass;
+    const shouldBeSingleton = options.Singleton ?? ClassToUse.Singleton ?? true;
+
+    // 2. Enforce unique instantiation for singleton components.
+    if (shouldBeSingleton && this.ownedComponents.has(name)) {
       return this.ownedComponents.get(name);
     }
 
-    // 2. Determine which class to use (Default or Custom).
-    const ClassToUse = CustomClass || this.EntityClass;
+    // 3. Resolve instance identity.
+    const currentCount = this.componentInstanceCounters.get(name) || 0;
+    const nextCount = currentCount + 1;
+    this.componentInstanceCounters.set(name, nextCount);
+    const resolvedName = shouldBeSingleton ? name : `${name}#${nextCount}`;
 
-    // 3. Create the new entity instance.
-    const newEntity = new ClassToUse(name, this.self);
+    // 4. Create the new entity instance.
+    const newEntity = new ClassToUse(resolvedName, this.self, {
+      Singleton: shouldBeSingleton,
+      baseName: name,
+      instanceNumber: nextCount,
+    });
 
-    // 4. Register the component locally.
-    this.ownedComponents.set(name, newEntity);
+    // 5. Register the component locally.
+    this.ownedComponents.set(resolvedName, newEntity);
+    const group = this.componentBaseNames.get(name) || [];
+    group.push(newEntity);
+    this.componentBaseNames.set(name, group);
 
-    // 4. Notify the host entity that a new component has arrived.
+    // 6. Notify the host entity that a new component has arrived.
     // This is crucial for the automatic interface promotion logic.
     if (this.self._onComponentAdded) {
       this.self._onComponentAdded(newEntity);
@@ -55,6 +71,13 @@ export class krnlEntityCompositionalHierarchyManager {
    */
   getAllOwnedComponentEntities() {
     return Array.from(this.ownedComponents.values());
+  }
+
+  /**
+   * Returns all component entity instances created from the same base component name.
+   */
+  getOwnedComponentEntitiesByName(name) {
+    return [...(this.componentBaseNames.get(name) || [])];
   }
 
   /**
@@ -72,5 +95,25 @@ export class krnlEntityCompositionalHierarchyManager {
       if (entity.dispose) entity.dispose(); // Kill children first.
     });
     this.ownedComponents.clear(); // Clear the registry.
+    this.componentBaseNames.clear();
+    this.componentInstanceCounters.clear();
+  }
+
+  /**
+   * Disposes a specific component instance by ID/name.
+   * @param {string} entityId
+   * @returns {boolean}
+   */
+  disposeComponentEntity(entityId) {
+    const entity = this.ownedComponents.get(entityId);
+    if (!entity) return false;
+
+    if (entity.dispose) entity.dispose();
+    this.ownedComponents.delete(entityId);
+
+    const base = entity.baseName || entity.entityName;
+    const group = this.componentBaseNames.get(base) || [];
+    this.componentBaseNames.set(base, group.filter((e) => e !== entity));
+    return true;
   }
 }

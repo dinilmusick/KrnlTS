@@ -51,6 +51,7 @@ Every entity must follow this strict scaffolding to ensure logic isolation:
 ├── functionalities/   <-- Logic atoms
 │   └── MyLogic/
 │       ├── main_function/logic.js <-- Surgical Imports happen here
+│       ├── state_data/state.js     <-- State data atoms live here
 │       ├── helper_functions/      <-- Modular logic atoms
 │       ├── events/                <-- beginning, during, end atoms
 │       └── MyLogic.js             <-- The Assembly Descriptor
@@ -62,8 +63,10 @@ Every entity must follow this strict scaffolding to ensure logic isolation:
 ## 4. Surgical Import Model
 
 To prevent dependency bloat, we use **Surgical Imports**.
-*   **Entity Descriptors** and **Functionality Roots** do NOT import libraries.
-*   Only the **Main Function**, **Helpers**, and **Events** import specific library atoms from the root `/libraries/` folder.
+*   **Entity Descriptors** and **Functionality Roots** are assembly-only. They do not define runtime logic.
+*   Runtime logic is allowed only in **Main Functions**, **Helpers**, **Events**, and **Library files**.
+*   Runtime data models are allowed only in **`state_data/` atoms** and **Library files**.
+*   Only logic/data atom files should import project libraries from `/libraries/`.
 
 ---
 
@@ -81,3 +84,77 @@ await myServer.wire("RemoteCalculator", {
     localInput: "UIPanel"
 });
 ```
+
+---
+
+## 6. Recursive Bubbling Rules (Nested Entities)
+
+Krnl promotes **public functionalities** from child entities to their owner as remote proxies, and this repeats recursively until the top entity.
+
+### Default behavior
+1. `Entity2` adds local functionality `X` with `visibility: "public"`.
+2. `Entity1` auto-creates a remote proxy `X` targeting `Entity2`.
+3. `Entity0` auto-creates a remote proxy `X` targeting `Entity1`.
+4. Calling `Entity0.call("X", input)` forwards down the proxy chain to `Entity2`'s local logic.
+
+### Stopping bubbling intentionally
+Set any promoted functionality instance to `visibility: "private"` at the level where bubbling should stop.  
+That level can still use it locally, but owners above it will not receive new promotions for that functionality.
+
+---
+
+## 7. Entity Instancing Policy (`Singleton`)
+
+Entities now define a `Singleton` boolean policy:
+
+- `Singleton: true` (default): one instance per owner/base-name.
+- `Singleton: false`: multiple instances are allowed (`Name#1`, `Name#2`, ...).
+
+`krnlSystemEntityBase` is always singleton.
+
+Create component entities as usual:
+
+```js
+const a = owner.hierarchyManager.createComponentEntity("Worker", WorkerEntity);
+const b = owner.hierarchyManager.createComponentEntity("Worker", WorkerEntity);
+```
+
+If `WorkerEntity.Singleton = false`, `a !== b`.  
+If `WorkerEntity.Singleton = true`, `a === b`.
+
+To prevent unused instances from ballooning:
+
+```js
+owner.disposeOwnedComponent("Worker#1");
+```
+
+Functionalities are always **single-instance, single-state** per entity instance.  
+For parallel independent states, instantiate multiple entities instead of using multi-state functionality.
+
+---
+
+## 8. Streaming vs One-Shot Collection
+
+Krnl now supports two collector subscription modes:
+
+- **Streaming (default)**: receives every future message.
+- **One-shot**: receives only the next message, then auto-unsubscribes.
+
+### API
+
+```js
+// Streaming (default)
+collector.subscribeTo(emitter, (msg) => { ... });
+
+// Explicit one-shot mode
+collector.subscribeTo(emitter, (msg) => { ... }, { mode: "once" });
+
+// Promise-style one-shot helper
+const msg = await collector.collectNext(emitter, 5000); // optional timeout
+```
+
+### When to use which
+- Use **streaming** for telemetry, logs, progress, or continuous updates.
+- Use **one-shot** for request/response style event waits (e.g., wait for next `ready` event).
+
+There is no extra "streaming emitter type" needed. Emitters are always stream-capable; the collector mode controls whether you consume continuously or once.

@@ -7,6 +7,7 @@
 import { krnlInterface } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { krnlEntityCompositionalHierarchyManager } from "./K_LIB_Krnl_Entity_Compositional_Hierarchy.js";
 import { krnlLocalFunctionality, krnlRemoteFunctionality } from "./K_LIB_Krnl_Functionality_Types.js";
+import { krnlError, krnlErrorCodes } from "./K_LIB_Krnl_Error_Concepts.js";
 
 /**
  * KRNL ENTITY BASE
@@ -17,11 +18,14 @@ export class krnlEntityBase {
    * @param {string} name - The unique identity of the entity.
    * @param {object|null} owner - The parent entity (if any).
    */
-  constructor(name, owner = null) {
+  constructor(name, owner = null, options = {}) {
     // 1. Core Identification.
     this.__krnlEntityInstance = true; // Marker for type checking.
     this.id = name || "UnnamedEntity"; // Unique ID.
     this.entityName = this.id;         // Alias for the name.
+    this.Singleton = options.Singleton ?? this.constructor.Singleton ?? true;
+    this.baseName = options.baseName || this.entityName;
+    this.instanceNumber = options.instanceNumber || 1;
 
     // 2. Messaging Infrastructure (The IO Hub).
     this.interface = new krnlInterface(this);
@@ -97,6 +101,13 @@ export class krnlEntityBase {
     // 1. Only promote 'public' functionalities from the component.
     if (functionality.visibility !== 'public') return;
 
+    const existing = this.remoteFunctionalities.get(functionality.id);
+    if (existing) {
+      existing.targetEntity = component;
+      existing.targetFunction = functionality.id;
+      return;
+    }
+
     // 2. Register the component's functionality as a REMOTE proxy on this owner.
     // By default, promoted proxies are 'public' so they keep bubbling up,
     // but the owner can intercept this or re-configure the proxy to be 'private'.
@@ -111,6 +122,24 @@ export class krnlEntityBase {
   }
 
   /**
+   * Removes a promoted remote functionality and recursively propagates removal upward.
+   * @param {object} component
+   * @param {string} functionalityId
+   */
+  _onComponentFunctionalityRemoved(component, functionalityId) {
+    const existing = this.remoteFunctionalities.get(functionalityId);
+    if (!existing) return;
+    if (existing.targetEntity !== component) return;
+
+    this.remoteFunctionalities.delete(functionalityId);
+
+    const owner = this.hierarchyManager.getOwnerEntity();
+    if (owner && owner._onComponentFunctionalityRemoved) {
+      owner._onComponentFunctionalityRemoved(this, functionalityId);
+    }
+  }
+
+  /**
    * Executes a functionality by ID.
    */
   async call(fid, input, opts = {}) {
@@ -120,11 +149,14 @@ export class krnlEntityBase {
     if (this.remoteFunctionalities.has(fid)) {
       return this.remoteFunctionalities.get(fid).execute(input, opts);
     }
-    throw new Error(`Logic '${fid}' not found on entity '${this.id}'.`);
+    throw new krnlError(krnlErrorCodes.FUNCTIONALITY_NOT_DEFINED);
   }
 
   getLocal(fid) { return this.localFunctionalities.get(fid); }
   getRemote(fid) { return this.remoteFunctionalities.get(fid); }
+  disposeOwnedComponent(entityId) {
+    return this.hierarchyManager.disposeComponentEntity(entityId);
+  }
 
   dispose() {
     if (this.hierarchyManager) this.hierarchyManager.dispose();

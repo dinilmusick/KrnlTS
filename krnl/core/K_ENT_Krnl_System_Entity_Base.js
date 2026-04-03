@@ -6,6 +6,14 @@
 
 import { krnlEntityBase } from "./K_ENT_Krnl_Entity_Base.js";
 import { krnlSystemCommComponent } from "./K_LIB_Krnl_System_Comm_Component.js";
+import {
+  adminCommandApi,
+  discoverPeersApi,
+  heartbeatApi,
+  manifestApi,
+  systemCommandsCollectorHandler,
+  telemetryApi,
+} from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////// MAIN API FUNCTIONS AND DATA ////////////////////////////////////////
@@ -19,7 +27,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    * @param {number} [commPort=10099] - WS listen port for the commComponent.
    */
   constructor(name, owner = null, commPort = 10099) {
-    super(name, owner);
+    super(name, owner, { Singleton: true });
     this.systemType = 'SystemOrchestrator';
     this.peers = new Map(); // id -> { address, lastSeen }
 
@@ -172,57 +180,37 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   _setupBaseFunctionalities() {
-    // Heartbeat functionality
     this.addLocal({
       id: 'heartbeat',
-      api: () => ({
-        name: this.entityName,
-        type: this.systemType,
-        timestamp: new Date().toISOString()
-      }),
-      emitters: { 'status': {} }
+      api: heartbeatApi(this),
+      emitters: { status: {} }
     });
 
-    // Telemetry functionality
     this.addLocal({
       id: 'getTelemetry',
-      api: () => ({
-        entityName: this.entityName,
-        systemType: this.systemType,
-        owner: this.hierarchyManager.getOwnerEntity()?.entityName || null,
-        ownedEntities: this.hierarchyManager.getAllOwnedComponentEntities().map(e => e.entityName),
-        activeRoutes: this.commComponent.listRoutes(),
-        uptime: typeof process !== 'undefined' && process.uptime ? process.uptime() : null,
-      })
+      api: telemetryApi(this)
     });
 
-    // Admin command executor
     this.addLocal({
       id: 'adminCommand',
-      api: async ({ command, args }) => {
-        console.log(`[${this.entityName}] Admin command: ${command}`, args);
-        return { status: 'acknowledged', command };
-      }
+      api: adminCommandApi(this)
     });
 
-    // Discovery helper functionalities
     this.addLocal({
       id: 'discoverPeers',
-      api: () => this.listPeers()
+      api: discoverPeersApi(this)
     });
 
     this.addLocal({
       id: 'getManifest',
-      api: () => this.getManifest()
+      api: manifestApi(this)
     });
   }
 
   _setupBaseInterface() {
     this.interface.createEmitter('system-events');
     this.interface.createCollector('system-commands');
-    this._attachCollectorHandler('system-commands', (msg) => {
-      console.log(`[${this.entityName}] system-commands received:`, JSON.stringify(msg.data));
-    });
+    this._attachCollectorHandler('system-commands', systemCommandsCollectorHandler(this));
   }
 
   _attachCollectorHandler(collectorName, handler) {
