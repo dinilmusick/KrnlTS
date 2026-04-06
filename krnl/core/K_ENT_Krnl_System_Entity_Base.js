@@ -25,19 +25,49 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    * @param {string} name
    * @param {object|null} owner
    * @param {number} [commPort=10099] - WS listen port for the commComponent.
+   * @param {string} [host='0.0.0.0'] - Interface to bind to.
    */
-  constructor(name, owner = null, commPort = 10099) {
+  constructor(name, owner = null, commPort = 10099, host = '0.0.0.0') {
     super(name, owner, { Singleton: true });
     this.systemType = 'SystemOrchestrator';
     this.peers = new Map(); // id -> { address, lastSeen }
 
     // ── Uniform P2P communication bridge ──────────────────────────────
     this.commPort = commPort;
-    this.commComponent = new krnlSystemCommComponent(this, commPort);
+    this.host = host;
+    this.commComponent = new krnlSystemCommComponent(this, commPort, host);
 
     this._setupBaseFunctionalities();
     this._setupBaseInterface();
     this._setupRpcHandlers();
+
+    // ── Startup Diagnostics ──────────────────────────────
+    this._emitStartupDiagnostics();
+  }
+
+  /**
+   * Returns true if UDP discovery is available in the current environment.
+   */
+  isDiscoveryAvailable() {
+    return typeof window === 'undefined';
+  }
+
+  /**
+   * Emits structured startup diagnostics.
+   * Useful for wrapper services (like Wepr) to monitor active subsystems.
+   */
+  _emitStartupDiagnostics() {
+    const diagnostics = {
+      event: 'KRNL_STARTUP',
+      entity: this.entityName,
+      timestamp: Date.now(),
+      subsystems: {
+        comm: { status: 'active', port: this.commPort },
+        discovery: { status: this.isDiscoveryAvailable() ? 'available' : 'unavailable' }
+      },
+      environment: typeof window === 'undefined' ? 'node' : 'browser'
+    };
+    console.log(`[KRNL_DIAGNOSTICS] ${JSON.stringify(diagnostics)}`);
   }
 
   /**
@@ -75,10 +105,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   /**
    * Starts discovery: advertises presence and listens for other peers.
    * @param {number} [discoveryPort=10101]
+   * @param {string} [discoveryHost='255.255.255.255'] - Broadcast address.
    */
-  async startDiscovery(discoveryPort = 10101) {
-    if (typeof window !== 'undefined') {
-      console.warn(`[${this.entityName}] Discovery: UDP not supported in browser.`);
+  async startDiscovery(discoveryPort = 10101, discoveryHost = '255.255.255.255') {
+    if (!this.isDiscoveryAvailable()) {
+      console.warn(`[${this.entityName}] Discovery: UDP not supported in current environment.`);
       return;
     }
 
@@ -90,6 +121,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
         const data = JSON.parse(msg.toString());
         if (data.type === 'KRNL_BEACON' && data.id !== this.entityName) {
           this.peers.set(data.id, {
+            id: data.id,
             name: data.id,
             address: `${rinfo.address}:${data.port}`,
             lastSeen: Date.now()
@@ -98,9 +130,9 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       } catch (e) { }
     });
 
-    this.discoverySocket.bind(discoveryPort, () => {
+    this.discoverySocket.bind(discoveryPort, this.host, () => {
       this.discoverySocket.setBroadcast(true);
-      console.log(`[${this.entityName}] Discovery active on port ${discoveryPort}`);
+      console.log(`[${this.entityName}] Discovery active on ${this.host}:${discoveryPort} (broadcast to ${discoveryHost})`);
       
       // Advertise presence periodically
       this.beaconInterval = setInterval(() => {
@@ -109,7 +141,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
           id: this.entityName,
           port: this.commPort
         });
-        this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, '255.255.255.255');
+        this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, discoveryHost);
       }, 5000);
     });
 
@@ -155,7 +187,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       await this.commComponent.callWsRpc(peer.address, 'wire-output-to-me', {
         remoteOutput: remoteOutput,
         localInput: localInput,
-        myAddress: `localhost:${this.commPort}`, // Simplification for same-machine/LAN
+        myAddress: `${this.host}:${this.commPort}`,
         myName: this.entityName
       });
     }

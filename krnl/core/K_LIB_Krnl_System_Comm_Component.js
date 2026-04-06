@@ -66,10 +66,12 @@ export class krnlSystemCommComponent {
     /**
      * @param {import("../../../entities/krnlEntityBase/K_ENT_Krnl_Entity_Base.js").krnlEntityBase} ownerEntity
      * @param {number} [listenPort=10099] - WS server port (only used in "ws" mode).
+     * @param {string} [host='0.0.0.0'] - Interface to bind to.
      */
-    constructor(ownerEntity, listenPort = 10099) {
+    constructor(ownerEntity, listenPort = 10099, host = '0.0.0.0') {
         this.ownerEntity = ownerEntity;
         this.listenPort = listenPort;
+        this.host = host;
         this.routes = new Map();   // routeId → KrnlRoute
         this._routeSeq = 0;
         this._wsServer = null;        // WebSocketServer instance (if ws mode is active)
@@ -137,7 +139,7 @@ export class krnlSystemCommComponent {
     async startWsServer() {
         if (this._wsServer) return; // Already running
         const { WebSocketServer } = await _loadWs();
-        this._wsServer = new WebSocketServer({ port: this.listenPort });
+        this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
 
         this._wsServer.on('connection', (ws) => {
             ws.on('message', (raw) => {

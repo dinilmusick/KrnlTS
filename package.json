@@ -1,6 +1,6 @@
 {
-  "name": "krnl-js",
-  "version": "1.0.0",
+  "name": "@ultrst/krnl-js",
+  "version": "1.1.0",
   "description": "The core library for the Krnl ecosystem, providing a uniform syntax and API across JavaScript projects.",
   "type": "module",
   "main": "index.js",
@@ -22,6 +22,6 @@
     "entities",
     "orchestrator"
   ],
-  "author": "",
+  "author": "Dinil Palackal",
   "license": "MIT"
 }
