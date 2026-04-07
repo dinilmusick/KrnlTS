@@ -50,6 +50,14 @@ export class EventSystem extends krnlSystemEntityBase {
         
         // 3. Sacred Wiring: Link the source to the listener.
         logCollector.subscribeTo(pingEmitter);
+
+        // 4. IMPLICIT REACTIVITY (New in v1.2.0)
+        // Subscribe to the state:changed emitter of the Ping functionality.
+        // Whenever logic.js mutates 'state.seq', this will fire.
+        const pingStateEmitter = producer.interface.getEmitter("Ping:state:changed");
+        pingStateEmitter.subscribe((msg) => {
+            console.log(`[STATE_OBSERVER] Producer seq updated to: ${msg.data.value}`);
+        });
         
         /**
          * ALTERNATIVE WIRING:

@@ -30,10 +30,16 @@ export class CalculatorSystem extends krnlSystemEntityBase {
         // Wire Logger component
         logger.interface.getCollector("Audit").subscribeTo(calcEmitter);
 
+        // 4. DEMONSTRATE PROXIED STATE OBSERVABILITY
+        // Whenever 'state.lastResult' is changed in Calculator logic, 
+        // a 'state:changed' event is automatically emitted.
+        const stateEmitter = this.interface.getEmitter("Calculator:state:changed");
+        stateEmitter.subscribe((msg) => {
+            console.log(`[STATE_OBSERVER] Property '${msg.data.prop}' changed to: ${msg.data.value}`);
+        });
+
         this.startDiscovery().then(() => {
             console.log(`[CalculatorSystem] Ready. Local components (Display, Logger) wired.`);
         });
     }
 }
-
-new CalculatorSystem();

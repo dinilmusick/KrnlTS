@@ -1,4 +1,6 @@
 // examples/example1/WebInterfaceSystem/functionalities/SetupComms/main_function/logic.js
+import { WebSocketTransportAdapter } from "../../../../../krnl/core/K_LIB_Krnl_System_Comm_Component.js";
+
 export const main = async (input, { entity }) => {
     // Wait for discovery to find peers
     await new Promise(r => setTimeout(r, 3000));
@@ -9,10 +11,10 @@ export const main = async (input, { entity }) => {
     if (calcPeer) {
         console.log("[WebInterfaceSystem] INTER-SYSTEM: Subscribing to CalculatorSystem...");
 
-        // 1. Setup Remote Proxy for calls
+        // 1. Setup Remote Proxy for calls using the new WebSocketTransportAdapter
         entity.addRemote({
             id: "RemoteCalc",
-            targetEntity: { call: (fid, data) => entity.commComponent.callWsRpc(calcPeer.address, 'call', { fid, data }) },
+            transport: new WebSocketTransportAdapter(entity.commComponent, calcPeer.address),
             targetFunction: "Calculator"
         });
 

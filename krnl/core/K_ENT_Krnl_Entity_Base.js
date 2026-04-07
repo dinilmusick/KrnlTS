@@ -161,6 +161,14 @@ export class krnlEntityBase {
   dispose() {
     if (this.hierarchyManager) this.hierarchyManager.dispose();
     if (this.interface) this.interface.dispose();
+
+    // 1. Teardown all local functionalities to release resources.
+    this.localFunctionalities.forEach(func => {
+      if (typeof func.teardown === 'function') {
+        func.teardown();
+      }
+    });
+
     this.localFunctionalities.clear();
     this.remoteFunctionalities.clear();
   }

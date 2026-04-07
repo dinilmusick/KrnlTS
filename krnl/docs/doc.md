@@ -16,6 +16,40 @@ By **Dinil Palackal**
 3.  **Single-State Functionalities**: Each functionality has one state per entity instance (no multi-state functionality model).
 4.  **Entity Instance Policy**: Entities expose `Singleton` to control whether multiple instances are allowed under an owner.
 5.  **Descriptor Purity Policy**: Entity files and functionality descriptor files are assembly-only. Runtime logic belongs only in logic/library atoms, and state data belongs only in `state_data` or library atoms.
+6.  **Transport Agnostic Logic**: Functionalities can be local or remote, and remote calls are abstracted through transport adapters.
+7.  **Implicit Reactivity**: State mutations are automatically tracked and broadcasted via Proxies.
+
+---
+
+# Architectural Enhancements (v1.2.0)
+
+### 1. Transport-Agnostic `RemoteFunctionality`
+`krnlRemoteFunctionality` no longer requires a direct memory reference. It uses a `TransportAdapter` interface.
+- `MemoryTransportAdapter`: (Default) for in-process entity communication.
+- `WebSocketTransportAdapter`: For distributed systems.
+
+```javascript
+entity.addRemote({
+  id: "mathRemote",
+  transport: new WebSocketTransportAdapter(entity.commComponent, "localhost:10091"),
+  targetFunction: "multiply"
+});
+```
+
+### 2. Proxied State Observability
+All `LocalFunctionality` state objects are wrapped in a Javascript `Proxy`. 
+- **Automatic Emission**: Mutating `state.value = x` automatically fires a `state:changed` event.
+- **Subscription**: Entities can listen to state changes via `entity.interface.getEmitter("FuncID:state:changed").subscribe(...)`.
+
+### 3. Standardized Lifecycle Hooks
+Functionalities now support `onMount` and `onTeardown` hooks in their descriptors.
+- `onMount`: Called when the functionality is bound to an entity. Useful for initializing resources (DB pools, sockets).
+- `onTeardown`: Called when the entity is disposed. Useful for cleanup.
+
+### 4. Built-In Schema Validation
+Functionalities can define an optional `schema` for input validation.
+- Supports **Zod** objects (`schema: { input: zodSchema }`) or **Custom functions** (`schema: { input: (data) => boolean }`).
+- Throws `KrnlSchemaError` before the logic atom is even executed if validation fails.
 
 ---
 

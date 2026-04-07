@@ -32,6 +32,27 @@
  */
 
 import { krnlEmitter, krnlCollector } from "./K_LIB_Krnl_Messaging_Concepts.js";
+import { krnlTransportAdapter } from "./K_LIB_Krnl_Functionality_Types.js";
+
+/**
+ * WEBSOCKET TRANSPORT ADAPTER
+ * For remote inter-system communication.
+ */
+export class WebSocketTransportAdapter extends krnlTransportAdapter {
+    /**
+     * @param {krnlSystemCommComponent} commComponent - The local system's comm component.
+     * @param {string} remoteAddress - "host:port" of the remote system.
+     */
+    constructor(commComponent, remoteAddress) {
+        super();
+        this.commComponent = commComponent;
+        this.remoteAddress = remoteAddress;
+    }
+
+    async call(targetFunction, input, opts) {
+        return await this.commComponent.callWsRpc(this.remoteAddress, 'call', { fid: targetFunction, data: input }, opts.timeout);
+    }
+}
 
 // ws is loaded lazily so the CommComponent can be imported in environments where
 // the `ws` package is not installed — as long as only 'direct' wiring is used.

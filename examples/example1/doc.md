@@ -19,16 +19,20 @@ import { ProjectConcepts } from "../../../libraries/ProjectConcepts.js";
 
 Policy reminder: descriptor files (`Entity.js`, `MyFunctionality.js`) remain assembly-only; logic and data atoms stay in `main_function/`, `helper_functions/`, `events/`, and `state_data/`.
 
-## The Logic: "Remote Proxies"
-The WebInterface borrows logic from the Calculator using a proxy:
+## The Logic: "Remote Proxies" (v1.2.0)
+The WebInterface borrows logic from the Calculator using a proxy and a transport adapter:
 
 ```javascript
+import { WebSocketTransportAdapter } from "../../../krnl/core/K_LIB_Krnl_System_Comm_Component.js";
+
 this.addRemote({
     id: "RemoteCalc",
-    targetEntity: { ... },
+    transport: new WebSocketTransportAdapter(this.commComponent, calcPeer.address),
     targetFunction: "Calculator"
 });
 ```
+
+By abstracting the transport, the `WebInterfaceSystem` logic remains completely agnostic to how the network call is executed.
 
 ## Rationale
 By extending `krnlSystemEntityBase`, these two apps become independent software blocks. They can find each other via UDP discovery and share logic as if they were running in the same process, while maintaining strict atomic separation in the file system.

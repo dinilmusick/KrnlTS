@@ -7,6 +7,7 @@ This directory contains a set of interactive examples demonstrating the features
 ### 1. [Full System Orchestration](./example1/doc.md)
 Demonstrates a multi-system architecture with a `CalculatorSystem` (logic) and `WebInterfaceSystem` (UI).
 - **Concepts**: Systems, Components, Libraries, WebSocket Networking.
+- **New v1.2.0**: `WebSocketTransportAdapter`, `onMount`/`onTeardown` Lifecycles, and `schema` Validation.
 
 ### 2. [Deep Entity Nesting (3 Levels)](./example2/doc.md)
 Shows how entities can be nested and how logic automatically "bubbles up" to the root system.
@@ -15,6 +16,7 @@ Shows how entities can be nested and how logic automatically "bubbles up" to the
 ### 3. [Event Emission and Subscription](./example3/doc.md)
 Illustrates the event-driven nature of Krnl, with producers and consumers.
 - **Concepts**: Emitters, Collectors, Event Wiring, Bubbling.
+- **New v1.2.0**: `state:changed` Implicit Reactivity.
 
 ### 4. [System Demo (Visualized)](./SystemDemo/index.html)
 An interactive HTML demo showing the visual aspect of Krnl systems.

@@ -14,6 +14,33 @@ function cloneState(source) {
 }
 
 /**
+ * TRANSPORT ADAPTER INTERFACE
+ */
+export class krnlTransportAdapter {
+  async call(targetFunction, input, opts) {
+    throw new Error("TransportAdapter.call() not implemented.");
+  }
+}
+
+/**
+ * MEMORY TRANSPORT ADAPTER
+ * Default adapter for in-memory entity communication.
+ */
+export class MemoryTransportAdapter extends krnlTransportAdapter {
+  constructor(targetEntity) {
+    super();
+    this.targetEntity = targetEntity;
+  }
+
+  async call(targetFunction, input, opts) {
+    if (!this.targetEntity || typeof this.targetEntity.call !== 'function') {
+      throw new Error("MemoryTransportAdapter: Invalid target entity.");
+    }
+    return await this.targetEntity.call(targetFunction, input, opts);
+  }
+}
+
+/**
  * KRNL LOCAL FUNCTIONALITY
  * The fundamental unit of logic.
  */
@@ -27,6 +54,9 @@ export class krnlLocalFunctionality {
       helpers = {},
       emitters = {},
       events = {},
+      schema = null,
+      onMount = null,
+      onTeardown = null,
     } = config;
 
     if (!id) throw new Error("LocalFunctionality requires an ID.");
@@ -38,18 +68,66 @@ export class krnlLocalFunctionality {
     this.isLocal = true;
     this.helpers = new Map(Object.entries(helpers));
     this.emitters = new Map();
+    this.schema = schema;
+
     this.lifecycle = {
-      beginning: events.beginning,
+      beginning: onMount || events.beginning,
       during: events.during,
       end: events.end,
-      failure: events.failure
+      failure: events.failure,
+      teardown: onTeardown || events.teardown
     };
 
-    this.state = cloneState(initialState);
+    // Ensure state:changed emitter exists if not provided
+    if (!emitters['state:changed']) {
+      this.emitters.set('state:changed', new krnlEmitter());
+    }
 
     Object.entries(emitters).forEach(([eid, e]) => {
       this.emitters.set(eid, e instanceof krnlEmitter ? e : new krnlEmitter());
     });
+
+    this.state = this._createObservedState(cloneState(initialState));
+  }
+
+  _createObservedState(initialState) {
+    const self = this;
+    const handler = {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        if (typeof value === 'object' && value !== null) {
+          return new Proxy(value, handler);
+        }
+        return value;
+      },
+      set(target, prop, value, receiver) {
+        const result = Reflect.set(target, prop, value, receiver);
+        if (result) {
+          self._notifyStateChanged(prop, value);
+        }
+        return result;
+      },
+      deleteProperty(target, prop) {
+        const result = Reflect.deleteProperty(target, prop);
+        if (result) {
+          self._notifyStateChanged(prop, undefined);
+        }
+        return result;
+      }
+    };
+    return new Proxy(initialState, handler);
+  }
+
+  _notifyStateChanged(prop, value) {
+    const stateEmitter = this.emitters.get('state:changed');
+    if (stateEmitter) {
+      stateEmitter.pushDataStreamToEmitter({
+        prop,
+        value,
+        state: this.state, // This is the proxied state
+        functionalityId: this.id
+      });
+    }
   }
 
   /**
@@ -99,14 +177,45 @@ export class krnlLocalFunctionality {
       this._registerInInterface();
     }
     if (typeof this.lifecycle.beginning === "function") {
-      this.lifecycle.beginning({ entity, functionality: this });
+      this.lifecycle.beginning({
+        state: this.state,
+        emitters: this.emitters,
+        helpers: this.helpers,
+        entity: this.hostEntity,
+        functionality: this
+      });
     }
     return this;
+  }
+
+  teardown() {
+    if (typeof this.lifecycle.teardown === "function") {
+      this.lifecycle.teardown({
+        state: this.state,
+        emitters: this.emitters,
+        helpers: this.helpers,
+        entity: this.hostEntity,
+        functionality: this
+      });
+    }
   }
 
   async execute(input, opts = {}) {
     const caller = opts.caller || 'default';
     const activeState = this.state;
+
+    // Schema Validation
+    if (this.schema && this.schema.input) {
+      if (typeof this.schema.input.parse === 'function') {
+        // Zod-like
+        input = this.schema.input.parse(input);
+      } else if (typeof this.schema.input === 'function') {
+        // Custom validator function
+        if (!this.schema.input(input)) {
+          throw new Error(`[KrnlSchemaError] Input validation failed for functionality: ${this.id}`);
+        }
+      }
+    }
 
     try {
       if (typeof this.lifecycle.during === "function") {
@@ -118,6 +227,7 @@ export class krnlLocalFunctionality {
         emitters: this.emitters,
         helpers: this.helpers,
         entity: this.hostEntity,
+        functionality: this, // Added
         caller: caller
       });
 
@@ -141,12 +251,19 @@ export class krnlLocalFunctionality {
  */
 export class krnlRemoteFunctionality {
   constructor(config = {}) {
-    const { id, targetEntity, targetFunction, visibility = 'public' } = config;
+    const { id, targetEntity, targetFunction, transport, visibility = 'public' } = config;
     this.id = id;
-    this.targetEntity = targetEntity;
-    this.targetFunction = targetFunction;
+    this.targetFunction = targetFunction || id;
     this.visibility = visibility;
     this.isLocal = false;
+
+    if (transport) {
+      this.transport = transport;
+    } else if (targetEntity) {
+      this.transport = new MemoryTransportAdapter(targetEntity);
+    } else {
+      throw new Error("RemoteFunctionality requires either a transport or a targetEntity.");
+    }
   }
 
   setVisibility(v) {
@@ -180,6 +297,6 @@ export class krnlRemoteFunctionality {
   }
 
   async execute(input, opts = {}) {
-    return await this.targetEntity.call(this.targetFunction, input, { ...opts, caller: this.hostEntity.entityName });
+    return await this.transport.call(this.targetFunction, input, { ...opts, caller: this.hostEntity.entityName });
   }
 }

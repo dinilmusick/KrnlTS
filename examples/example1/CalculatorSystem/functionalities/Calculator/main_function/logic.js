@@ -16,9 +16,12 @@ export const main = async (input, { state, emitters, functionality }) => {
     // 2. Trigger 'during' event (processing signal)
     emitters.get('onCalculated').pushDataStreamToEmitter({ status: "processing", op });
 
+    // 3. Perform calculation and update state (triggers Proxy)
     let result = 0;
     if (op === 'add') result = a + b;
     else if (op === 'sub') result = a - b;
+
+    state.lastResult = result; // Triggers 'state:changed' emitter
 
     // 3. Use helper for formatting
     const formatted = format(result);
