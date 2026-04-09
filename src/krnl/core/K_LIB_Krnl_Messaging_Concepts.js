@@ -305,6 +305,32 @@ export class krnlInterface {
   }
 
   /**
+   * Removes an emitter by name.
+   * @param {string} name 
+   */
+  removeEmitter(name) {
+    const idx = this.emitterNames.indexOf(name);
+    if (idx >= 0) {
+      this.emitters[idx].disconnectEmitter();
+      this.emitters.splice(idx, 1);
+      this.emitterNames.splice(idx, 1);
+    }
+  }
+
+  /**
+   * Removes a collector by name.
+   * @param {string} name 
+   */
+  removeCollector(name) {
+    const idx = this.collectorNames.indexOf(name);
+    if (idx >= 0) {
+      this.collectors[idx].disconnectCollector();
+      this.collectors.splice(idx, 1);
+      this.collectorNames.splice(idx, 1);
+    }
+  }
+
+  /**
    * Gets all emitters in scope (self + owner + siblings).
    * @returns {krnlEmitter[]} Array of in-scope emitters.
    */

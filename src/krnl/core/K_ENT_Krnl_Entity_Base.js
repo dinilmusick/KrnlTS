@@ -101,6 +101,8 @@ export class krnlEntityBase {
     // 1. Only promote 'public' functionalities from the component.
     if (functionality.visibility !== 'public') return;
 
+    console.log(`[${this.entityName}] Attempting to promote ${functionality.id} from ${component.entityName}`);
+
     const existing = this.remoteFunctionalities.get(functionality.id);
     if (existing) {
       existing.targetEntity = component;
@@ -127,9 +129,16 @@ export class krnlEntityBase {
    * @param {string} functionalityId
    */
   _onComponentFunctionalityRemoved(component, functionalityId) {
+    console.log(`[${this.entityName}] Removing component logic: ${functionalityId} from ${component.entityName}`);
     const existing = this.remoteFunctionalities.get(functionalityId);
-    if (!existing) return;
-    if (existing.targetEntity !== component) return;
+    if (!existing) {
+      console.log(`[${this.entityName}] Logic ${functionalityId} not found in remoteFunctionalities.`);
+      return;
+    }
+    if (existing.targetEntity !== component) {
+      console.log(`[${this.entityName}] Logic ${functionalityId} targetEntity mismatch.`);
+      return;
+    }
 
     this.remoteFunctionalities.delete(functionalityId);
 

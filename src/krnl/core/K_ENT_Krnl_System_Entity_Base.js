@@ -209,6 +209,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       console.log(`[${this.entityName}] Remote ${myName} requested wiring: ${remoteOutput} -> ${localInput}`);
       return await this.commComponent.wireViaWs(remoteOutput, myAddress, localInput, myName);
     });
+
+    // Allows others to call functionalities on this system
+    this.commComponent.defineRpc('call', async ({ fid, data }) => {
+      return await this.call(fid, data);
+    });
   }
 
   _setupBaseFunctionalities() {

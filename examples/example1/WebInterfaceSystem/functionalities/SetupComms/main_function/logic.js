@@ -1,5 +1,5 @@
 // examples/example1/WebInterfaceSystem/functionalities/SetupComms/main_function/logic.js
-import { WebSocketTransportAdapter } from "../../../../../krnl/core/K_LIB_Krnl_System_Comm_Component.js";
+import { WebSocketTransportAdapter } from "../../../../../../krnl/core/index.js";
 
 export const main = async (input, { entity }) => {
     // Wait for discovery to find peers

@@ -148,11 +148,21 @@ export class krnlLocalFunctionality {
       const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
       if (owner) owner._onComponentFunctionalityAdded(this.hostEntity, this);
     } else if (oldVisibility === 'public' && v === 'private') {
+      this._unregisterFromInterface();
       const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
       if (owner && owner._onComponentFunctionalityRemoved) {
         owner._onComponentFunctionalityRemoved(this.hostEntity, this.id);
       }
     }
+  }
+
+  _unregisterFromInterface() {
+    const entity = this.hostEntity;
+    if (!entity) return;
+    entity.interface.removeCollector(this.id);
+    this.emitters.forEach((_, eid) => {
+      entity.interface.removeEmitter(`${this.id}:${eid}`);
+    });
   }
 
   _registerInInterface() {
@@ -254,6 +264,7 @@ export class krnlRemoteFunctionality {
     const { id, targetEntity, targetFunction, transport, visibility = 'public' } = config;
     this.id = id;
     this.targetFunction = targetFunction || id;
+    this.targetEntity = targetEntity; // Store the target entity for identification
     this.visibility = visibility;
     this.isLocal = false;
 
@@ -274,11 +285,17 @@ export class krnlRemoteFunctionality {
       const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
       if (owner) owner._onComponentFunctionalityAdded(this.hostEntity, this);
     } else if (this.hostEntity && oldVisibility === 'public' && v === 'private') {
+      this._unregisterFromInterface();
       const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
       if (owner && owner._onComponentFunctionalityRemoved) {
         owner._onComponentFunctionalityRemoved(this.hostEntity, this.id);
       }
     }
+  }
+
+  _unregisterFromInterface() {
+    if (!this.hostEntity) return;
+    this.hostEntity.interface.removeCollector(this.id);
   }
 
   _registerInInterface() {

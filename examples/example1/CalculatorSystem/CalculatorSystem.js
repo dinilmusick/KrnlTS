@@ -43,3 +43,6 @@ export class CalculatorSystem extends krnlSystemEntityBase {
         });
     }
 }
+
+new CalculatorSystem();
+

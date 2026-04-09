@@ -1,19 +1,22 @@
 {
-  "name": "@ultrst/krnl-js",
-  "version": "1.1.0",
+  "name": "krnljs",
+  "version": "0.1.0",
   "description": "The core library for the Krnl ecosystem, providing a uniform syntax and API across JavaScript projects.",
   "type": "module",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./index.js",
-    "./core": "./krnl/core/index.js",
-    "./extensions": "./krnl/extensions/index.js"
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --dts --format esm,cjs --external ws",
+    "sync": "pnpm install"
   },
   "files": [
-    "krnl/core",
-    "krnl/extensions",
-    "index.js",
-    "README.md"
+    "dist"
   ],
   "keywords": [
     "krnl",
@@ -23,5 +26,12 @@
     "orchestrator"
   ],
   "author": "Dinil Palackal",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3"
+  }
 }
