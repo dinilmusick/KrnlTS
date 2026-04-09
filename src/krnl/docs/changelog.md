@@ -32,7 +32,7 @@ entity.addRemote({
 Update to use the new `WebSocketTransportAdapter`:
 ```javascript
 // New (v1.2.0)
-import { WebSocketTransportAdapter } from "krnl/core/K_LIB_Krnl_System_Comm_Component.js";
+import { WebSocketTransportAdapter } from "krnl/core";
 
 entity.addRemote({
   id: "RemoteFunc",

@@ -1,72 +1,71 @@
-# Krnl JS Core Library (vNext)
+# KrnlJS Core Library (v1.2.0)
 
-Krnl now supports a **locality-first entity model**:
+KrnlJS is a senior-level orchestration library for building reactive, distributed JavaScript systems using an **Atomic Entity Model**. It treats software components like physical hardware with isolated logic, state, and messaging ports.
 
-- `LocalFunctionality` owns state, helpers, API logic, emitters, lifecycle hooks.
-- `RemoteFunctionality` is a **pure proxy** that forwards calls to a target entity's local functionality.
-- `Entity` composes `{ localFunctionalities ∪ remoteFunctionalities }`.
+## 🏗️ Core Principles
 
-## Descriptor Purity Policy
+- **Atomic Scaffolding**: Strict directory-based logic isolation.
+- **Descriptor Purity**: Assembly-only descriptors; no loose runtime logic.
+- **Implicit Reactivity**: Proxy-based state observability with automatic change events.
+- **Transport Agnosticism**: Distributed RPC via `TransportAdapters` (WS, Memory, etc.).
+- **Recursive Bubbling**: Component logic automatically promotes to owner interfaces.
 
-- Entity files and functionality descriptor files are **assembly-only**.
-- Runtime logic must live only in:
-  - `main_function/`
-  - `helper_functions/`
-  - `events/`
-  - library files
-- Runtime data/state definitions must live only in:
-  - `state_data/`
-  - library files
-- Each functionality has one state per entity instance (no multi-state functionality mode).
-- Entity classes define `Singleton` (`true` default) to control whether an owner can create multiple instances.
+## 🚀 Quick Start
 
-## Install
+### Installation
 
 ```bash
-npm install git+https://github.com/Krnl-JS/KrnlJS.git
+npm install git+https://github.com/dinilmusick/KrnlJS.git
 ```
 
-## Quick start
+### Basic Entity Usage
 
-```js
-import {
-  krnlEntityBase,
-  krnlRemoteFunctionality,
-} from "krnl-js";
-import { timesTwoAtom } from "./functionalities/timesTwo/timesTwo.js"; // descriptor-only file
+```javascript
+import { krnlEntityBase, krnlRemoteFunctionality } from "krnljs";
+import { mathAtom } from "./functionalities/Math/Math.js";
 
-const mathEntityFactory = () => {
-  const entity = new krnlEntityBase("MathEntity");
-  entity.addLocal(timesTwoAtom);
-  return entity;
-};
+// 1. Local Logic
+const calc = new krnlEntityBase("Calculator");
+calc.addLocal(mathAtom);
 
-const mathEntity = mathEntityFactory();
-const gateway = new krnlEntityBase("GatewayEntity");
-gateway.addRemote(new krnlRemoteFunctionality({
-  id: "timesTwoRemote",
-  targetEntity: mathEntity,
-  targetFunction: "timesTwo",
-}));
+// 2. Remote Proxy (In-Memory)
+const gateway = new krnlEntityBase("Gateway");
+gateway.addRemote({
+  id: "CalcProxy",
+  targetEntity: calc,
+  targetFunction: "Math"
+});
 
-const result = await gateway.call("timesTwoRemote", 21);
-console.log(result); // 42
+// 3. Trigger Logic
+const result = await gateway.call("CalcProxy", { a: 10, b: 5, op: "add" });
+console.log(result); // 15
 ```
 
-## Storybook + exhibits
+## 📖 Documentation
 
-The examples are designed to run from an HTTP server (module imports will fail on raw `file://` URLs).
+For detailed guides on architectural patterns, networking, and advanced features, see:
 
-```bash
-python -m http.server 4173
-# then open http://localhost:4173/krnl/examples/storybook/index.html
+- [**Main Guide**](src/krnl/docs/Guide.md): The canonical manual for building with KrnlJS.
+- [**Changelog**](src/krnl/docs/changelog.md): Version history and migration guides.
+- [**Examples & Storybook**](examples/doc.md): Interactive grimoire of runnable exhibits.
+
+## 🛠️ Multi-System Discovery (P2P)
+
+To create a networked system:
+
+```javascript
+import { krnlSystemEntityBase } from "krnljs";
+
+export class MySystem extends krnlSystemEntityBase {
+    constructor(port = 10091) {
+        super("MySystem", null, port);
+        
+        this.startDiscovery().then(() => {
+            console.log("System discovered on the network.");
+        });
+    }
+}
 ```
 
-The storybook now acts as the entry point for all exhibits and embeds each exhibit as a live runnable page.
-
-## Docs
-
-- `krnl/docs/Guide.md`
-- `krnl/docs/doc.md`
-- `krnl/docs/example_architecture.md`
-- `examples/doc.md`
+## 📜 License
+MIT

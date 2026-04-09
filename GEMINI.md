@@ -1,9 +1,10 @@
 // ULTRST FRAMEWORK CONVENTIONS : Project structure conventions for all projects with KrnlJS Library.
-// RULES_VERSION: 1.1.0
+// RULES_VERSION: 1.2.0
 // KrnlJS = Core Library -> Ultrst Framework Projects
 
 [STRUCTURE]
 ROOT/
+├── src/ -> Canonical Source
 ├── libraries/ -> External dependencies (submodules)
 ├── entities/ -> Child entities (recursive)
 ├── functionalities/ -> Logic atoms (recursive)
@@ -18,13 +19,17 @@ RULE: PATHS -> Use relative paths for internal atoms; absolute/alias for librari
 FILE: ./functionalities/MyFunc/MyFunc.js
 -----------------------------------------
 import { main } from "./main_function/logic.js";
+import { onMount, onTeardown } from "./main_function/lifecycle.js";
 import { initialState } from "./state_data/state.js";
 
 export const MyFuncAtom = {
     id: "MyFunc",
     initialState,
     api: main,
-    emitters: { ... }
+    onMount,
+    onTeardown,
+    emitters: { ... },
+    schema: { input: (data) => true }
 };
 
 [LOGIC_ATOM_IMPORT]
@@ -34,7 +39,7 @@ import { myHelper } from "../helper_functions/myHelper.js";
 import { myEvent } from "../events/myEvent.js";
 import { ExternalLib } from "../../../libraries/ExternalLib.js"; // Libraries ONLY here
 
-export const main = async (input, { state, emitters }) => { ... };
+export const main = async (input, { state, emitters, functionality }) => { ... };
 
 [ENTITY_ASSEMBLER_IMPORT]
 FILE: ./entities/MyEntity/MyEntity.js
@@ -55,9 +60,9 @@ RULE: Assemblers == CONFIG_ONLY (Imports of descriptors/atoms ONLY)
 PROHIBITED: import { someLib } from "../../libraries/Lib.js" inside Entity.js or Func.js
 
 [ATOMIC_API_SIGNATURE]
-FUNCTION: (input, { state, emitters, functionality }) => {
+FUNCTION: (input, { state, emitters, functionality, caller }) => {
     TRANSFORM(input);
-    UPDATE(state);
+    UPDATE(state); // Automatic Proxy Reactivity
     EMIT(emitters.get('name'), data);
     RETURN(result);
 }
@@ -65,3 +70,9 @@ FUNCTION: (input, { state, emitters, functionality }) => {
 [STATE_MANAGEMENT]
 RULE: State defined as literal in state_data/state.js.
 RULE: Exported as 'initialState' or 'state'.
+RULE: Mutations to 'state' automatically fire 'state:changed' events.
+
+[DISTRIBUTED_RPC]
+RULE: Use 'WebSocketTransportAdapter' for remote systems.
+RULE: System orchestrators must extend 'krnlSystemEntityBase'.
+
