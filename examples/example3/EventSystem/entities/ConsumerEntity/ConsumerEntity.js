@@ -1,4 +1,4 @@
-import { krnlEntityBase } from "../../../../../krnl/core/index.js";
+import { krnlEntityBase } from "../../../../../src/krnl/core/index.js";
 import { LoggerAtom } from "./functionalities/Logger/Logger.js";
 
 export class ConsumerEntity extends krnlEntityBase {

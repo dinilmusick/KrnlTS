@@ -1,4 +1,4 @@
-import { krnlSystemEntityBase } from "../../../krnl/core/index.js";
+import { krnlSystemEntityBase } from "../../../src/krnl/core/index.js";
 import { RunInstanceDemoAtom } from "./functionalities/RunInstanceDemo/RunInstanceDemo.js";
 
 export class InstanceSystem extends krnlSystemEntityBase {

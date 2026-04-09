@@ -1,4 +1,4 @@
-import { krnlSystemEntityBase } from "../../../krnl/core/index.js";
+import { krnlSystemEntityBase } from "../../../src/krnl/core/index.js";
 import { MidEntity } from "./entities/MidEntity/MidEntity.js";
 import { RunMechanismDemoAtom } from "./functionalities/RunMechanismDemo/RunMechanismDemo.js";
 

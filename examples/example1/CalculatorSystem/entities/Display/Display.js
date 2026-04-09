@@ -1,7 +1,7 @@
 // UltrstProject/entities/Display/Display.js
 // The Entity Descriptor: Pure assembly, no direct logic.
 
-import { krnlEntityBase } from "../../../../../krnl/core/index.js";
+import { krnlEntityBase } from "../../../../../src/krnl/core/index.js";
 import { showAtom } from "./functionalities/show/show.js";
 
 export class DisplayEntity extends krnlEntityBase {

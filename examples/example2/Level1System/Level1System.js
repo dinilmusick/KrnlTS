@@ -1,6 +1,6 @@
 // examples/example2/Level1System/Level1System.js
 
-import { krnlSystemEntityBase } from "../../../krnl/core/index.js";
+import { krnlSystemEntityBase } from "../../../src/krnl/core/index.js";
 import { Level2Entity } from "./entities/Level2Entity/Level2Entity.js";
 import { TestNestingAtom } from "./functionalities/TestNesting/TestNesting.js";
 

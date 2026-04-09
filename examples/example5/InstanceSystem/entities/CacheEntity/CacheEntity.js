@@ -1,4 +1,4 @@
-import { krnlEntityBase } from "../../../../../krnl/core/index.js";
+import { krnlEntityBase } from "../../../../../src/krnl/core/index.js";
 import { ReadAtom } from "./functionalities/Read/Read.js";
 
 export class CacheEntity extends krnlEntityBase {

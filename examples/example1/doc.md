@@ -23,7 +23,7 @@ Policy reminder: descriptor files (`Entity.js`, `MyFunctionality.js`) remain ass
 The WebInterface borrows logic from the Calculator using a proxy and a transport adapter:
 
 ```javascript
-import { WebSocketTransportAdapter } from "../../../krnl/core/K_LIB_Krnl_System_Comm_Component.js";
+import { WebSocketTransportAdapter } from "../../../src/krnl/core/K_LIB_Krnl_System_Comm_Component.js";
 
 this.addRemote({
     id: "RemoteCalc",

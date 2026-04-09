@@ -1,6 +1,6 @@
 // examples/example2/Level1System/entities/Level2Entity/entities/Level3Entity/Level3Entity.js
 
-import { krnlEntityBase } from "../../../../../../../krnl/core/index.js";
+import { krnlEntityBase } from "../../../../../../../src/krnl/core/index.js";
 import { DeepLogic } from "./functionalities/DeepLogic/DeepLogic.js";
 
 /**
