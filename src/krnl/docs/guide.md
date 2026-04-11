@@ -37,6 +37,7 @@ Entity and Functionality descriptor files are **assembly-only**. They must NOT d
 | :--- | :--- |
 | `krnlEntityBase` | Fundamental building block. Supports recursive interface promotion. |
 | `krnlSystemEntityBase` | Root-level server (always a Singleton). Adds WebSocket/P2P Discovery features. |
+| `krnlNetworkOrchestratorEntityBase` | Specialized system entity for peer inspection + orchestrated inter-system route management. |
 
 ---
 
@@ -116,8 +117,70 @@ Public functionalities automatically "bubble up" to their owners as remote proxi
 
 ---
 
-## 🔄 7. Entity Instance Policy
+## 📶 7. System Availability & Discoverability
+
+`krnlSystemEntityBase` includes built-in flags for network visibility and access reservation.
+
+### Flags
+- `discoverable` — if `false`, the system stops broadcasting discovery beacons.
+- `busy` — indicates the system has been reserved and should reject external access.
+- `reservedBy` — service name that currently owns the reservation.
+- `reservedAt` — timestamp of when the reservation was set.
+
+### APIs
+```javascript
+system.setDiscoverable(false);
+system.reserveFor("SupervisorSystem");
+console.log(system.getSystemFlags());
+// { discoverable: false, busy: true, reservedBy: "SupervisorSystem", reservedAt: ... }
+
+system.releaseReservation("SupervisorSystem");
+system.setDiscoverable(true);
+```
+
+### Discovery behavior
+- Beacons now include `discoverable`, `busy`, and `reservedBy`.
+- `listPeers()` only returns currently visible peers and prunes stale peers by TTL (`peerTtlMs`).
+- `discoverPeers({ includeBusy: false })` filters out reserved peers.
+
+### Access control behavior
+- Incoming network wiring/calls are guarded when a system is reserved.
+- Outgoing `wire(...)` calls also reject when the target peer is marked busy.
+
+---
+
+## 🔄 8. Entity Instance Policy
 
 - **Singleton**: `true` (default) means only one instance per owner/base-name.
 - **Multi-Instance**: Set `Singleton = false` to allow multiple instances (`Name#1`, `Name#2`).
 - Dispose of unused instances via `owner.disposeOwnedComponent("Entity#ID")`.
+
+---
+
+## 🧭 9. Network Orchestrator Pattern
+
+Use an orchestrator when you need a **third-party control plane** that can inspect and wire systems at runtime.
+
+### Core orchestrator methods
+- `getPeerManifest(peerId)`
+- `listPeerRoutes(peerId)`
+- `connectSystems(sourcePeerId, targetPeerId, options)`
+- `disconnectPeerRoute(peerId, routeId, { force })`
+
+### Managed vs immutable routes
+When creating routes through the orchestrator, set:
+- `externallyMutable: true` → other orchestrators may disconnect (policy permitting).
+- `externallyMutable: false` → only the managing orchestrator can disconnect (unless forced internally by owner disposal).
+
+### Minimal flow
+```javascript
+const route = await orchestrator.connectSystems("SourceSystem", "TargetSystem", {
+  sourceEmitter: "Pulse:pulse",
+  targetCollector: "system-commands",
+  externallyMutable: false,
+});
+
+await orchestrator.disconnectPeerRoute("SourceSystem", route.id);
+```
+
+See runnable reference: `examples/example7/OrchestratorSystem/OrchestratorSystem.js`.

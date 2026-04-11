@@ -67,5 +67,49 @@ export class MySystem extends krnlSystemEntityBase {
 }
 ```
 
+## 🔐 System Availability Controls
+
+`krnlSystemEntityBase` now supports runtime availability flags:
+
+- `setDiscoverable(boolean)`: controls whether a system broadcasts itself on discovery.
+- `reserveFor(serviceName)`: marks a system as busy/reserved for a specific supervisor.
+- `releaseReservation(serviceName?)`: unlocks the reservation.
+- `getSystemFlags()`: returns `{ discoverable, busy, reservedBy, reservedAt }`.
+
+```javascript
+system.reserveFor("SupervisorSystem");
+system.setDiscoverable(false); // hide from discovery beacons
+
+const flags = system.getSystemFlags();
+// { discoverable: false, busy: true, reservedBy: "SupervisorSystem", ... }
+
+system.setDiscoverable(true);
+system.releaseReservation("SupervisorSystem");
+```
+
+For a full runnable walkthrough, see: `examples/example6/AvailabilitySystem/AvailabilitySystem.js`.
+
+## 🧭 Network Orchestrator Entity
+
+Use `krnlNetworkOrchestratorEntityBase` when you need a third-party manager service to:
+- inspect active peers and their manifests/routes,
+- connect one system emitter to another system collector,
+- disconnect managed routes while honoring immutable route policy.
+
+```javascript
+import { krnlNetworkOrchestratorEntityBase } from "krnljs";
+
+class MyOrchestrator extends krnlNetworkOrchestratorEntityBase {}
+const orchestrator = new MyOrchestrator("MyOrchestrator", null, 10123);
+
+// orchestrator.connectSystems("SourceSystem", "TargetSystem", {
+//   sourceEmitter: "Pulse:pulse",
+//   targetCollector: "system-commands",
+//   externallyMutable: false
+// });
+```
+
+Runnable example: `examples/example7/OrchestratorSystem/OrchestratorSystem.js`.
+
 ## 📜 License
 MIT

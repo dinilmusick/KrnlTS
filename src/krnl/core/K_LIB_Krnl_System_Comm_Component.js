@@ -213,10 +213,15 @@ export class krnlSystemCommComponent {
      * @param {string} remoteSystemName - Name of the remote system.
      * @returns {Promise<KrnlRoute>}
      */
-    async wireViaWs(localEmitterName, remoteAddress, remoteCollectorName, remoteSystemName) {
+    async wireViaWs(localEmitterName, remoteAddress, remoteCollectorName, remoteSystemName, options = {}) {
         const { WebSocket } = await _loadWs();
         const emitter = this.ownerEntity.interface.getEmitter(localEmitterName);
         const ws = new WebSocket(`ws://${remoteAddress}`);
+        const {
+            managedBy = this.ownerEntity.entityName,
+            externallyMutable = true,
+            metadata = {},
+        } = options;
 
         await new Promise((resolve, reject) => {
             ws.once('open', resolve);
@@ -248,6 +253,9 @@ export class krnlSystemCommComponent {
             targetSystem: remoteSystemName,
             targetCollector: remoteCollectorName,
             mode: "ws",
+            managedBy,
+            externallyMutable,
+            metadata,
             disconnect: () => {
                 unsubscribe();
                 ws.close();
@@ -388,6 +396,9 @@ export class krnlSystemCommComponent {
             targetSystem: r.targetSystem,
             targetCollector: r.targetCollector,
             mode: r.mode,
+            managedBy: r.managedBy || null,
+            externallyMutable: r.externallyMutable !== false,
+            metadata: r.metadata || {},
         }));
     }
 
@@ -395,9 +406,18 @@ export class krnlSystemCommComponent {
      * Tears down a route by id.
      * @param {string} routeId
      */
-    disconnectRoute(routeId) {
+    disconnectRoute(routeId, options = {}) {
+        const { requester = null, force = false } = options;
         const route = this.routes.get(routeId);
         if (!route) throw new Error(`[CommComponent] Route not found: ${routeId}`);
+        if (!force && route.externallyMutable === false) {
+            const manager = route.managedBy || this.ownerEntity.entityName;
+            if (requester && requester !== manager) {
+                throw new Error(
+                    `[CommComponent:${this.ownerEntity.entityName}] Route ${routeId} is immutable for requester ${requester}. Managed by ${manager}.`
+                );
+            }
+        }
         if (route.disconnect) route.disconnect();
         this.routes.delete(routeId);
         console.log(`[CommComponent:${this.ownerEntity.entityName}] Route ${routeId} disconnected.`);
@@ -408,7 +428,7 @@ export class krnlSystemCommComponent {
      */
     dispose() {
         for (const [id] of this.routes) {
-            try { this.disconnectRoute(id); } catch (_) { }
+            try { this.disconnectRoute(id, { force: true }); } catch (_) { }
         }
         if (this._wsServer) {
             this._wsServer.close();
