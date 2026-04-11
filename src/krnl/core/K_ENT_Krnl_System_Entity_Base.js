@@ -31,6 +31,13 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     super(name, owner, { Singleton: true });
     this.systemType = 'SystemOrchestrator';
     this.peers = new Map(); // id -> { address, lastSeen }
+    this.discoverable = true;
+    this.reservation = {
+      busy: false,
+      reservedBy: null,
+      reservedAt: null,
+    };
+    this.peerTtlMs = 15000;
 
     // ── Uniform P2P communication bridge ──────────────────────────────
     this.commPort = commPort;
@@ -65,9 +72,54 @@ export class krnlSystemEntityBase extends krnlEntityBase {
         comm: { status: 'active', port: this.commPort },
         discovery: { status: this.isDiscoveryAvailable() ? 'available' : 'unavailable' }
       },
+      flags: this.getSystemFlags(),
       environment: typeof window === 'undefined' ? 'node' : 'browser'
     };
     console.log(`[KRNL_DIAGNOSTICS] ${JSON.stringify(diagnostics)}`);
+  }
+
+  getSystemFlags() {
+    return {
+      discoverable: this.discoverable,
+      busy: this.reservation.busy,
+      reservedBy: this.reservation.reservedBy,
+      reservedAt: this.reservation.reservedAt,
+    };
+  }
+
+  setDiscoverable(value) {
+    this.discoverable = Boolean(value);
+    return this.getSystemFlags();
+  }
+
+  reserveFor(serviceName = 'unknown') {
+    this.reservation = {
+      busy: true,
+      reservedBy: serviceName,
+      reservedAt: Date.now(),
+    };
+    return this.getSystemFlags();
+  }
+
+  releaseReservation(serviceName = null) {
+    if (serviceName && this.reservation.reservedBy && this.reservation.reservedBy !== serviceName) {
+      throw new Error(
+        `[${this.entityName}] Reservation owned by ${this.reservation.reservedBy}; cannot release as ${serviceName}.`
+      );
+    }
+    this.reservation = {
+      busy: false,
+      reservedBy: null,
+      reservedAt: null,
+    };
+    return this.getSystemFlags();
+  }
+
+  _assertAvailableForRemoteAccess(requester = null) {
+    if (!this.reservation.busy) return;
+    if (requester && requester === this.reservation.reservedBy) return;
+    const by = this.reservation.reservedBy || 'another service';
+    throw new Error(`[${this.entityName}] Entity is busy/reserved by ${by}.`);
   }
 
   /**
@@ -87,6 +139,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     return {
       entityName: this.entityName,
       systemType: this.systemType,
+      flags: this.getSystemFlags(),
       inputs: {
         collectors: this.interface.collectorNames,
         api: apiNames,
@@ -120,10 +173,17 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       try {
         const data = JSON.parse(msg.toString());
         if (data.type === 'KRNL_BEACON' && data.id !== this.entityName) {
+          if (data.discoverable === false) {
+            this.peers.delete(data.id);
+            return;
+          }
           this.peers.set(data.id, {
             id: data.id,
             name: data.id,
             address: `${rinfo.address}:${data.port}`,
+            busy: Boolean(data.busy),
+            reservedBy: data.reservedBy || null,
+            discoverable: data.discoverable !== false,
             lastSeen: Date.now()
           });
         }
@@ -136,10 +196,14 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       
       // Advertise presence periodically
       this.beaconInterval = setInterval(() => {
+        if (!this.discoverable) return;
         const beacon = JSON.stringify({
           type: 'KRNL_BEACON',
           id: this.entityName,
-          port: this.commPort
+          port: this.commPort,
+          discoverable: this.discoverable,
+          busy: this.reservation.busy,
+          reservedBy: this.reservation.reservedBy
         });
         this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, discoveryHost);
       }, 5000);
@@ -153,7 +217,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    * Returns a list of all discovered peers.
    */
   listPeers() {
-    return Array.from(this.peers.values());
+    const now = Date.now();
+    for (const [id, peer] of this.peers.entries()) {
+      if (now - peer.lastSeen > this.peerTtlMs) this.peers.delete(id);
+    }
+    return Array.from(this.peers.values()).filter((peer) => peer.discoverable !== false);
   }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -173,12 +241,17 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   async wire(peerId, options) {
     const peer = this.peers.get(peerId);
     if (!peer) throw new Error(`Peer ${peerId} not discovered.`);
+    if (peer.busy) throw new Error(`Peer ${peerId} is reserved by ${peer.reservedBy || 'another service'}.`);
 
-    const { localOutput, remoteInput, remoteOutput, localInput } = options;
+    const { localOutput, remoteInput, remoteOutput, localInput, connectionPolicy = {} } = options;
 
     // Case 1: Local Output -> Remote Input
     if (localOutput && remoteInput) {
-      await this.commComponent.wireViaWs(localOutput, peer.address, remoteInput, peer.name);
+      await this.commComponent.wireViaWs(localOutput, peer.address, remoteInput, peer.name, {
+        managedBy: connectionPolicy.managedBy || this.entityName,
+        externallyMutable: connectionPolicy.externallyMutable !== false,
+        metadata: connectionPolicy.metadata || {},
+      });
     }
 
     // Case 2: Remote Output -> Local Input
@@ -188,7 +261,8 @@ export class krnlSystemEntityBase extends krnlEntityBase {
         remoteOutput: remoteOutput,
         localInput: localInput,
         myAddress: `${this.host}:${this.commPort}`,
-        myName: this.entityName
+        myName: this.entityName,
+        connectionPolicy,
       });
     }
   }
@@ -205,14 +279,49 @@ export class krnlSystemEntityBase extends krnlEntityBase {
 
     // Allows others to request we wire an output to them
     this.commComponent.defineRpc('wire-output-to-me', async (params) => {
-      const { remoteOutput, localInput, myAddress, myName } = params;
+      const { remoteOutput, localInput, myAddress, myName, connectionPolicy = {} } = params;
+      this._assertAvailableForRemoteAccess(myName);
       console.log(`[${this.entityName}] Remote ${myName} requested wiring: ${remoteOutput} -> ${localInput}`);
-      return await this.commComponent.wireViaWs(remoteOutput, myAddress, localInput, myName);
+      return await this.commComponent.wireViaWs(remoteOutput, myAddress, localInput, myName, {
+        managedBy: connectionPolicy.managedBy || myName,
+        externallyMutable: connectionPolicy.externallyMutable !== false,
+        metadata: connectionPolicy.metadata || {},
+      });
     });
 
     // Allows others to call functionalities on this system
     this.commComponent.defineRpc('call', async ({ fid, data }) => {
+      this._assertAvailableForRemoteAccess(data?.meta?.requester || null);
       return await this.call(fid, data);
+    });
+
+    this.commComponent.defineRpc('set-entity-flags', async ({ discoverable, busy, reservedBy, requester }) => {
+      this._assertAvailableForRemoteAccess(requester || null);
+      if (typeof discoverable === 'boolean') this.setDiscoverable(discoverable);
+      if (typeof busy === 'boolean') {
+        if (busy) this.reserveFor(reservedBy || requester || 'unknown');
+        else this.releaseReservation(requester || null);
+      }
+      return this.getSystemFlags();
+    });
+
+    this.commComponent.defineRpc('list-routes', async () => {
+      return this.commComponent.listRoutes();
+    });
+
+    this.commComponent.defineRpc('disconnect-route', async ({ routeId, requester, force = false }) => {
+      this._assertAvailableForRemoteAccess(requester || null);
+      this.commComponent.disconnectRoute(routeId, { requester, force });
+      return { ok: true, routeId };
+    });
+
+    this.commComponent.defineRpc('connect-to-target', async ({ sourceEmitter, targetAddress, targetCollector, targetName, requester, connectionPolicy = {} }) => {
+      this._assertAvailableForRemoteAccess(requester || null);
+      return await this.commComponent.wireViaWs(sourceEmitter, targetAddress, targetCollector, targetName, {
+        managedBy: connectionPolicy.managedBy || requester || this.entityName,
+        externallyMutable: connectionPolicy.externallyMutable !== false,
+        metadata: connectionPolicy.metadata || {},
+      });
     });
   }
 

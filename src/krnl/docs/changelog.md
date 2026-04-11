@@ -2,6 +2,60 @@
 
 This document outlines the major architectural changes introduced in v1.2.0. If you are updating a legacy project, please follow the "Migration Steps" section below.
 
+## [1.2.2] - 2026-04-11
+
+### Added
+- New `krnlNetworkOrchestratorEntityBase` for network-level orchestration:
+  - inspect peer manifests (`getPeerManifest`)
+  - inspect peer routes (`listPeerRoutes`)
+  - create inter-system routes (`connectSystems`)
+  - disconnect managed routes (`disconnectPeerRoute`)
+- New orchestration RPCs on system entities:
+  - `list-routes`
+  - `disconnect-route`
+  - `connect-to-target`
+- New example:
+  - `examples/example7/OrchestratorSystem/OrchestratorSystem.js`
+
+### Changed
+- WS routes now carry management policy metadata:
+  - `managedBy`
+  - `externallyMutable`
+  - `metadata`
+- Route disconnection now enforces immutable-route policy for external requesters.
+- `wire(...)` and `wire-output-to-me` now accept a `connectionPolicy` object to define route mutability/manager.
+
+## [1.2.1] - 2026-04-10
+
+### Added
+- **System availability flags** on `krnlSystemEntityBase`:
+  - `discoverable`
+  - `busy`
+  - `reservedBy`
+  - `reservedAt`
+- **Availability APIs**:
+  - `setDiscoverable(value)`
+  - `reserveFor(serviceName)`
+  - `releaseReservation(serviceName?)`
+  - `getSystemFlags()`
+- **Example 6** showing discoverability toggling + reservation workflow:
+  - `examples/example6/AvailabilitySystem/AvailabilitySystem.js`
+
+### Changed
+- Discovery beacons now include availability metadata (`discoverable`, `busy`, `reservedBy`).
+- Discovery broadcasting is suppressed when `discoverable` is `false`.
+- `listPeers()` now prunes stale peers by TTL and returns discoverable peers.
+- `getManifest` and telemetry now include system flags for observability.
+- `discoverPeers` now supports filtering out busy peers (`discoverPeers({ includeBusy: false })`).
+- `adminCommand` now supports:
+  - `set-discoverable`
+  - `reserve`
+  - `release-reservation`
+
+### Security / Access Control
+- Incoming RPC calls and remote wiring requests are rejected when a system is reserved by another service.
+- Outgoing `wire(...)` attempts now fail fast when the target peer is marked busy.
+
 ## [1.2.0] - 2026-04-07
 
 ### Added

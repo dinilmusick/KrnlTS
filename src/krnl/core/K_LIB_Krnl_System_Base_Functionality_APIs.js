@@ -16,6 +16,7 @@ export function telemetryApi(entity) {
   return () => ({
     entityName: entity.entityName,
     systemType: entity.systemType,
+    flags: entity.getSystemFlags(),
     owner: entity.hierarchyManager.getOwnerEntity()?.entityName || null,
     ownedEntities: entity.hierarchyManager.getAllOwnedComponentEntities().map((e) => e.entityName),
     activeRoutes: entity.commComponent.listRoutes(),
@@ -26,12 +27,37 @@ export function telemetryApi(entity) {
 export function adminCommandApi(entity) {
   return async ({ command, args }) => {
     console.log(`[${entity.entityName}] Admin command: ${command}`, args);
-    return { status: 'acknowledged', command };
+    if (command === 'set-discoverable') {
+      return {
+        status: 'acknowledged',
+        command,
+        flags: entity.setDiscoverable(Boolean(args?.value)),
+      };
+    }
+    if (command === 'reserve') {
+      return {
+        status: 'acknowledged',
+        command,
+        flags: entity.reserveFor(args?.serviceName || 'unknown'),
+      };
+    }
+    if (command === 'release-reservation') {
+      return {
+        status: 'acknowledged',
+        command,
+        flags: entity.releaseReservation(args?.serviceName || null),
+      };
+    }
+    return { status: 'acknowledged', command, flags: entity.getSystemFlags() };
   };
 }
 
 export function discoverPeersApi(entity) {
-  return () => entity.listPeers();
+  return ({ includeBusy = true } = {}) => {
+    const peers = entity.listPeers();
+    if (includeBusy) return peers;
+    return peers.filter((peer) => !peer.busy);
+  };
 }
 
 export function manifestApi(entity) {

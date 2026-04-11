@@ -29,6 +29,14 @@ Focused walkthrough of new bubbling, visibility-stop, streaming collector, and o
 Demonstrates singleton entities, multi-instance entities, and disposal of unused instances.
 - **Concepts**: `Singleton` policy, instance naming, and lifecycle cleanup.
 
+### 7. [System Availability Flags](./example6/doc.md)
+Demonstrates reserving a system (`busy` state) and toggling system discoverability at runtime.
+- **Concepts**: `reserveFor`, `releaseReservation`, `setDiscoverable`, stale peer cleanup (`peerTtlMs`).
+
+### 8. [Network Orchestrator Entity](./example7/doc.md)
+Demonstrates orchestrator-driven inter-system wiring and managed/immutable connection policies.
+- **Concepts**: `krnlNetworkOrchestratorEntityBase`, `connectSystems`, `disconnectPeerRoute`, `externallyMutable`.
+
 ---
 
 ## How to explore
