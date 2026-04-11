@@ -4,11 +4,40 @@
 
 [STRUCTURE]
 ROOT/
+├── doc.md -> Root Documentation (Links to all assets)
 ├── src/ -> Canonical Source
 ├── libraries/ -> External dependencies (submodules)
+│   └── MyLib/
+│       ├── MyLib.js
+│       └── doc.md
 ├── entities/ -> Child entities (recursive)
+│   └── MyEntity/
+│       ├── doc.md
+│       ├── entities/
+│       ├── functionalities/
+│       └── MyEntity.js
 ├── functionalities/ -> Logic atoms (recursive)
+│   └── MyFunc/
+│       ├── doc.md
+│       ├── main_function/
+│       └── MyFunc.js
 └── <project-name>.js -> System Assembler (Entry Point)
+
+[DOCUMENTATION_POLICY]
+RULE: Every asset (Library, Entity, Functionality, Exhibit) MUST have a 'doc.md'.
+RULE: 'doc.md' MUST contain: Name, Description, API List (Signatures + Descriptions + 2 Examples).
+RULE: Parent 'doc.md' MUST link to child 'doc.md' files.
+RULE: Root 'doc.md' MUST link to all top-level asset 'doc.md' files.
+RULE: Every System MUST provide a '/guide' endpoint that returns a hierarchical JSON guide.
+RULE: The '/guide' endpoint MUST support a 'section' parameter for recursive navigation.
+
+[LIBRARY_STRUCTURE]
+RULE: Each library MUST reside in its own folder named after the library.
+RULE: The folder MUST contain the library JS file and a 'doc.md'.
+
+[VISIBILITY_&_BUBBLING]
+RULE: Functionalities are 'public' by default and bubble up to the system level.
+RULE: Set visibility to 'private' in the descriptor to stop bubbling at the current entity.
 
 [IMPORT_RESTRICTIONS]
 RULE: DESCRIPTOR_FILES (Entity.js, Functionality.js) -> NO library imports, NO logic.
