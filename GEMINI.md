@@ -1,4 +1,4 @@
-// ULTRST FRAMEWORK CONVENTIONS : Project structure conventions for all projects with KrnlJS Library.
+    // ULTRST FRAMEWORK CONVENTIONS : Project structure conventions for all projects with KrnlJS Library.
 // RULES_VERSION: 1.2.0
 // KrnlJS = Core Library -> Ultrst Framework Projects
 
@@ -6,22 +6,71 @@
 ROOT/
 ├── doc.md -> Root Documentation (Links to all assets)
 ├── src/ -> Canonical Source
-├── libraries/ -> External dependencies (submodules)
+├── libraries/ -> External dependencies (submodules) <- project-local shared modules (NOT npm packages)
 │   └── MyLib/
 │       ├── MyLib.js
 │       └── doc.md
 ├── entities/ -> Child entities (recursive)
-│   └── MyEntity/
+│   └── MySubSystemEntity/ <-  should be krnlSubSystemOrchestratorBase for major domains that divide the system/app into major subsystems
 │       ├── doc.md
-│       ├── entities/
+│       ├── entities/ <- component entities (recursive, owned by parent)
+│       │   └── MyEntity <- should be krnlEntityBase like normal entities
+│       │       ├── doc.md
+│       │       ├── entities/ 
+│       │       ├── functionalities/ -> Logic atoms (recursive)
+│       │       │    └── MyFunc/
+│       │       │       ├── doc.md
+│       │       │       ├── main_function/
+│       │       │       └── MyFunc.js
+│       │       └── MyEntity.js
 │       ├── functionalities/
-│       └── MyEntity.js
-├── functionalities/ -> Logic atoms (recursive)
+│       │   └── MyFunc/
+│       │       ├── doc.md
+│       │       ├── main_function/
+│       │       └── MyFunc.js
+│       └── MySubSystemEntity.js
+├── functionalities/ <- project-root-level logic atoms
 │   └── MyFunc/
 │       ├── doc.md
 │       ├── main_function/
 │       └── MyFunc.js
-└── <project-name>.js -> System Assembler (Entry Point)
+└── <project-name>.js <- system assembler (krnlSystemEntityBase)
+
+[SUBSYSTEM_PATTERN]
+USE krnlSubSystemOrchestratorBase when a system is large enough to split into
+named major domains that still run in the same process.
+
+RULE: Subsystems extend krnlSubSystemOrchestratorBase, not krnlSystemEntityBase.
+RULE: Subsystems MUST be owned by a parent entity (enforced by constructor).
+RULE: Subsystem functionalities bubble to the system root like any component's.
+RULE: No network ports, no WS server, no discovery on subsystems.
+RULE: Subsystems live inside entities/ — they are a semantic label, not a new folder type.
+
+EXAMPLE:
+  MySystem (krnlSystemEntityBase, port 10099)
+    └── AuthSubSystem (krnlSubSystemOrchestratorBase, owner = MySystem)
+          └── UserEntity (krnlEntityBase, owner = AuthSubSystem)
+
+AuthSubSystem's and UserEntity's public functionalities bubble up to MySystem automatically.
+MySystem.call('login', ...) works without any manual wiring.
+
+[REMOTE_FUNCTIONALITY_POLICY]
+krnlRemoteFunctionality has two valid creation paths:
+
+PATH A (auto, framework-generated): When a component has a public local functionality,
+  the framework creates a RemoteFunctionality proxy on the owner automatically.
+  Developer writes nothing. MemoryTransportAdapter is used internally.
+
+PATH B (manual, cross-process only): When a entity needs to call a functionality
+  in a SEPARATE PROCESS (different Node instance, different port), use:
+  addRemote({ transport: new WebSocketTransportAdapter(commComponent, addr), ... })
+
+RULE: Do NOT manually call addRemote() with MemoryTransportAdapter.
+RULE: Do NOT manually call addRemote() to point at a sibling/cousin entity in the same process.
+RULE: If you feel the need to addRemote() within a single process, the architecture needs
+      refactoring — the entities should share a common owner so bubbling handles it.
+RULE: krnlRemoteFunctionality across a process boundary is an advanced use case.
+      Default to subsystems and bubbling first.
 
 [DOCUMENTATION_POLICY]
 RULE: Every asset (Library, Entity, Functionality, Exhibit) MUST have a 'doc.md'.
@@ -42,7 +91,9 @@ RULE: Set visibility to 'private' in the descriptor to stop bubbling at the curr
 [IMPORT_RESTRICTIONS]
 RULE: DESCRIPTOR_FILES (Entity.js, Functionality.js) -> NO library imports, NO logic.
 RULE: LOGIC_FILES (logic.js, helpers.js) -> YES library imports, YES helper imports.
-RULE: PATHS -> Use relative paths for internal atoms; absolute/alias for libraries.
+RULE: PATHS (npm packages) -> import { krnlEntityBase } from 'krnljs'
+RULE: PATHS (internal)     -> Use relative paths for atoms within the same project.
+RULE: libraries/ folder    -> Project-local shared modules ONLY. Not for npm packages.
 
 [FUNCTIONALITY_DESCRIPTOR_IMPORT]
 FILE: ./functionalities/MyFunc/MyFunc.js
@@ -85,7 +136,7 @@ export class MyEntity extends krnlEntityBase {
 }
 
 [PURE_DESCRIPTOR_POLICY]
-RULE: Assemblers == CONFIG_ONLY (Imports of descriptors/atoms ONLY)
+RULE: Assemblers == CONFIG_ONLY (Imports of descriptors/atoms/baseClasses(KnrlJS Library) ONLY)
 PROHIBITED: import { someLib } from "../../libraries/Lib.js" inside Entity.js or Func.js
 
 [ATOMIC_API_SIGNATURE]
