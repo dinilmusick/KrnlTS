@@ -2,11 +2,15 @@
 import { WebSocketTransportAdapter } from "../../../../../../src/krnl/core/index.js";
 
 export const main = async (input, { entity }) => {
-    // Wait for discovery to find peers
-    await new Promise(r => setTimeout(r, 3000));
-    
-    const peers = entity.listPeers();
-    const calcPeer = peers.find(p => p.name === "CalculatorSystem");
+    // Wait for discovery to find peers (with retries)
+    let calcPeer = null;
+    for (let i = 0; i < 5; i++) {
+        console.log(`[WebInterfaceSystem] Discovery attempt ${i + 1}...`);
+        await new Promise(r => setTimeout(r, 2000));
+        const peers = entity.listPeers();
+        calcPeer = peers.find(p => p.name === "CalculatorSystem");
+        if (calcPeer) break;
+    }
 
     if (calcPeer) {
         console.log("[WebInterfaceSystem] INTER-SYSTEM: Subscribing to CalculatorSystem...");

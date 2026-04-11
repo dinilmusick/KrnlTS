@@ -3,6 +3,6 @@ import { main } from "./main_function/logic.js";
 
 export const MonitorAtom = {
     id: "Monitor",
-    visibility: "private",
+    visibility: "public",
     api: main
 };

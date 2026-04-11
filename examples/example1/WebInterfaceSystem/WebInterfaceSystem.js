@@ -13,9 +13,15 @@ export class WebInterfaceSystem extends krnlSystemEntityBase {
         this.addLocal(SetupCommsAtom);
         this.addLocal(MonitorAtom);
         
-        this.startDiscovery().then(() => {
+        this.startDiscovery().then(async () => {
             console.log(`[WebInterfaceSystem] Frontend ready on port ${port}.`);
-            this.call("SetupComms");
+            const status = await this.call("SetupComms");
+            console.log(`[WebInterfaceSystem] Setup status: ${status}`);
+            if (status === "Wiring complete.") {
+                console.log("[WebInterfaceSystem] Triggering demo calculation...");
+                const res = await this.call("UIPanel", { a: 10, b: 5, op: "add" });
+                console.log("[WebInterfaceSystem] Result from UIPanel:", res);
+            }
         });
     }
 }
