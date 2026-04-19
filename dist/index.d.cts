@@ -1669,13 +1669,26 @@ class krnlSystemCommComponent {
                 result,
             }));
         } catch (e) {
+            // Safely extract a human-readable error string.
+            // String(e) on a plain object yields "[object Object]" — always use
+            // message if available, otherwise JSON.stringify so callers see real details.
+            let errorMsg;
+            if (typeof e === 'string') {
+                errorMsg = e;
+            } else if (e instanceof Error) {
+                errorMsg = e.message;
+            } else if (e && typeof e === 'object') {
+                errorMsg = e.message || JSON.stringify(e, null, 2);
+            } else {
+                errorMsg = String(e);
+            }
             ws.send(JSON.stringify({
                 kind: 'rpc-response',
                 requestId,
                 ok: false,
-                error: e?.message || String(e),
+                error: errorMsg,
                 // If the entity provides extra error metadata (e.g. docs), include it
-                ...(e.metadata || {})
+                ...(e && typeof e === 'object' ? (e.metadata || {}) : {})
             }));
         }
     }

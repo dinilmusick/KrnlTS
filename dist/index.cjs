@@ -1347,13 +1347,23 @@ var krnlSystemCommComponent = class {
         result
       }));
     } catch (e) {
+      let errorMsg;
+      if (typeof e === "string") {
+        errorMsg = e;
+      } else if (e instanceof Error) {
+        errorMsg = e.message;
+      } else if (e && typeof e === "object") {
+        errorMsg = e.message || JSON.stringify(e, null, 2);
+      } else {
+        errorMsg = String(e);
+      }
       ws.send(JSON.stringify({
         kind: "rpc-response",
         requestId,
         ok: false,
-        error: (e == null ? void 0 : e.message) || String(e),
+        error: errorMsg,
         // If the entity provides extra error metadata (e.g. docs), include it
-        ...e.metadata || {}
+        ...e && typeof e === "object" ? e.metadata || {} : {}
       }));
     }
   }
