@@ -1379,6 +1379,7 @@ class krnlSystemCommComponent {
         this._wsIngress = new Map();   // routeId → unsubscribe fn
         this._wsPendingRpc = new Map(); // requestId → { resolve, reject, timeoutId }
         this._wsRpcHandlers = new Map(); // method → handler
+        this._introspectionProvider = null; // fn → { methods: [], schemas: {} }
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1475,9 +1476,21 @@ class krnlSystemCommComponent {
 
                     if (msg.kind === 'rpc-response') {
                         this._handleRpcResponse(msg);
+                        return;
+                    }
+
+                    if (msg.kind === 'introspect') {
+                        this._handleIntrospect(ws, msg);
+                        return;
                     }
                 } catch (e) {
-                    console.error(`[CommComponent:${this.ownerEntity.entityName}] WS parse error:`, e.message);
+                    console.error(`[CommComponent:${this.ownerEntity.entityName}] WS message error:`, e.message);
+                    try {
+                        ws.send(JSON.stringify({
+                            kind: 'error',
+                            message: `Invalid request: ${e.message}. Ensure payload is valid JSON and follows Krnl protocol.`
+                        }));
+                    } catch (_) { }
                 }
             });
         });
@@ -1591,6 +1604,10 @@ class krnlSystemCommComponent {
         this._wsRpcHandlers.set(methodName, handler);
     }
 
+    setIntrospectionProvider(providerFn) {
+        this._introspectionProvider = providerFn;
+    }
+
     async callWsRpc(remoteAddress, method, params = {}, timeoutMs = 5000) {
         const { WebSocket } = await _loadWs();
         const requestId = `rpc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -1657,7 +1674,28 @@ class krnlSystemCommComponent {
                 requestId,
                 ok: false,
                 error: e?.message || String(e),
+                // If the entity provides extra error metadata (e.g. docs), include it
+                ...(e.metadata || {})
             }));
+        }
+    }
+
+    async _handleIntrospect(ws, msg) {
+        const baseInfo = {
+            entity: this.ownerEntity.entityName,
+            kind: 'introspect-response',
+            methods: Array.from(this._wsRpcHandlers.keys())
+        };
+
+        if (this._introspectionProvider) {
+            try {
+                const extra = await this._introspectionProvider();
+                ws.send(JSON.stringify({ ...baseInfo, ...extra }));
+            } catch (e) {
+                ws.send(JSON.stringify({ ...baseInfo, error: `Introspection provider failed: ${e.message}` }));
+            }
+        } else {
+            ws.send(JSON.stringify(baseInfo));
         }
     }
 
