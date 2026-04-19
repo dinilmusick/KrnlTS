@@ -163,6 +163,10 @@ export class krnlSystemCommComponent {
         this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
 
         this._wsServer.on('connection', (ws) => {
+            ws.on('error', (err) => {
+                console.error(`[CommComponent:${this.ownerEntity.entityName}] Incoming WS error:`, err.message);
+            });
+
             ws.on('message', (raw) => {
                 try {
                     const msg = JSON.parse(raw.toString());
@@ -226,6 +230,10 @@ export class krnlSystemCommComponent {
         await new Promise((resolve, reject) => {
             ws.once('open', resolve);
             ws.once('error', reject);
+        });
+
+        ws.on('error', (err) => {
+            console.error(`[CommComponent:${this.ownerEntity.entityName}] Outgoing WS error to ${remoteSystemName}:`, err.message);
         });
 
         this._wsClients.set(remoteSystemName, ws);
@@ -312,6 +320,10 @@ export class krnlSystemCommComponent {
         await new Promise((resolve, reject) => {
             ws.once('open', resolve);
             ws.once('error', reject);
+        });
+
+        ws.on('error', (err) => {
+            console.error(`[CommComponent:${this.ownerEntity.entityName}] RPC WS error to ${remoteAddress}:`, err.message);
         });
 
         return new Promise((resolve, reject) => {

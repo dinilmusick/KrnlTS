@@ -1087,6 +1087,9 @@ var krnlSystemCommComponent = class {
     const { WebSocketServer } = await _loadWs();
     this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
     this._wsServer.on("connection", (ws) => {
+      ws.on("error", (err) => {
+        console.error(`[CommComponent:${this.ownerEntity.entityName}] Incoming WS error:`, err.message);
+      });
       ws.on("message", (raw) => {
         try {
           const msg = JSON.parse(raw.toString());
@@ -1141,6 +1144,9 @@ var krnlSystemCommComponent = class {
     await new Promise((resolve, reject) => {
       ws.once("open", resolve);
       ws.once("error", reject);
+    });
+    ws.on("error", (err) => {
+      console.error(`[CommComponent:${this.ownerEntity.entityName}] Outgoing WS error to ${remoteSystemName}:`, err.message);
     });
     this._wsClients.set(remoteSystemName, ws);
     const routeId = `ws_route_${this._routeSeq++}`;
@@ -1216,6 +1222,9 @@ var krnlSystemCommComponent = class {
     await new Promise((resolve, reject) => {
       ws.once("open", resolve);
       ws.once("error", reject);
+    });
+    ws.on("error", (err) => {
+      console.error(`[CommComponent:${this.ownerEntity.entityName}] RPC WS error to ${remoteAddress}:`, err.message);
     });
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
