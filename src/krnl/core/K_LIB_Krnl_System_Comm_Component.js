@@ -50,7 +50,8 @@ export class WebSocketTransportAdapter extends krnlTransportAdapter {
     }
 
     async call(targetFunction, input, opts) {
-        return await this.commComponent.callWsRpc(this.remoteAddress, 'call', { fid: targetFunction, data: input }, opts.timeout);
+        const timeout = opts.timeout || opts.timeoutMs;
+        return await this.commComponent.callWsRpc(this.remoteAddress, 'call', { fid: targetFunction, data: input }, timeout);
     }
 }
 
