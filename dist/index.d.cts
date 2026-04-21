@@ -1,3 +1,5 @@
+import http from 'http';
+
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file K_LIB_Krnl_Base_Concepts.js
@@ -41,6 +43,15 @@ function createEnum(typeNames) {
 const krnlSystemTypes = Object.freeze(
   createEnum(["qwnsr", "brnda", "symba", "mosy"])
 );
+
+//////////////////////////////////////// KRNL SERVICE SUITES ////////////////////////////////////////
+const krnlServiceSuites = Object.freeze(
+  createEnum(["UNIFIED_HTTP"])
+);
+
+const krnlServiceSuitePorts = Object.freeze({
+  UNIFIED_HTTP: 1
+});
 
 //////////////////////////////////////// KRNL PRIMITIVE DATA TYPES ////////////////////////////////////////
 const krnlPrimitiveDataTypes = Object.freeze(
@@ -1438,10 +1449,15 @@ class krnlSystemCommComponent {
     /**
      * Starts a WebSocket server so that remote systems can push data into local collectors.
      */
-    async startWsServer() {
+    async startWsServer(externalServer = null) {
         if (this._wsServer) return; // Already running
         const { WebSocketServer } = await _loadWs();
-        this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
+        
+        if (externalServer) {
+            this._wsServer = new WebSocketServer({ server: externalServer });
+        } else {
+            this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
+        }
 
         this._wsServer.on('connection', (ws) => {
             ws.on('error', (err) => {
@@ -1862,6 +1878,384 @@ function systemCommandsCollectorHandler(entity) {
   };
 }
 
+/**
+ * @file K_LIB_Krnl_Protocol_MCP.js
+ * @description Helper for Model Context Protocol (MCP) integration.
+ */
+
+class KrnlMcpProtocol {
+    /**
+     * @param {import("./K_ENT_Krnl_System_Entity_Base.js").krnlSystemEntityBase} system
+     */
+    constructor(system) {
+        this.system = system;
+    }
+
+    /**
+     * Returns the MCP Tools list based on system functionalities.
+     */
+    async listTools() {
+        const manifest = this.system.getManifest();
+        const tools = manifest.inputs.api.map(fid => {
+            // Try to find the functionality to get schema if available
+            const functionality = this.system.localFunctionalities.get(fid);
+            const description = functionality?.description || `Execute ${fid} on ${this.system.entityName}`;
+            
+            // Basic schema mapping
+            let inputSchema = { type: "object", properties: {} };
+            if (functionality?.schema?.input) {
+                // If it's a simple function/validator, we can't easily introspect it into JSON Schema
+                // but we can provide a generic 'data' property.
+                inputSchema.properties = {
+                    data: { type: "object", description: "Input data for the functionality" }
+                };
+            }
+
+            return {
+                name: fid,
+                description: description,
+                inputSchema: inputSchema
+            };
+        });
+
+        return { tools };
+    }
+
+    /**
+     * Handles an MCP JSON-RPC request.
+     */
+    async handleRequest(rpc) {
+        const { method, params, id } = rpc;
+
+        if (method === 'tools/list') {
+            const result = await this.listTools();
+            return { jsonrpc: "2.0", id, result };
+        }
+
+        if (method === 'tools/call') {
+            const { name, arguments: args } = params;
+            try {
+                // MCP 'arguments' usually maps to our 'data' input
+                const result = await this.system.call(name, args);
+                return {
+                    jsonrpc: "2.0",
+                    id,
+                    result: {
+                        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+                    }
+                };
+            } catch (error) {
+                return {
+                    jsonrpc: "2.0",
+                    id,
+                    error: { code: -32e3, message: error.message }
+                };
+            }
+        }
+
+        if (method === 'initialize') {
+            return {
+                jsonrpc: "2.0",
+                id,
+                result: {
+                    protocolVersion: "2024-11-05", // Standard MCP version
+                    capabilities: {
+                        tools: { listChanged: false }
+                    },
+                    serverInfo: {
+                        name: this.system.entityName,
+                        version: "1.0.0"
+                    }
+                }
+            };
+        }
+
+        return {
+            jsonrpc: "2.0",
+            id,
+            error: { code: -32601, message: "Method not found" }
+        };
+    }
+}
+
+/**
+ * @file K_LIB_Krnl_Protocol_ACP.js
+ * @description Helper for Agent Communication Protocol (ACP) integration.
+ * Enables agent-to-agent interoperability.
+ */
+
+class KrnlAcpProtocol {
+    /**
+     * @param {import("./K_ENT_Krnl_System_Entity_Base.js").krnlSystemEntityBase} system
+     */
+    constructor(system) {
+        this.system = system;
+    }
+
+    /**
+     * ACP Information endpoint.
+     */
+    getInfo() {
+        const manifest = this.system.getManifest();
+        return {
+            agentId: this.system.entityName,
+            type: manifest.systemType,
+            version: "1.0.0",
+            protocols: ["ACP", "MCP", "KrnlWS"],
+            description: `Krnl System Entity: ${this.system.entityName}`
+        };
+    }
+
+    /**
+     * ACP Capabilities endpoint.
+     */
+    getCapabilities() {
+        const manifest = this.system.getManifest();
+        return {
+            services: manifest.inputs.api.map(fid => ({
+                id: fid,
+                name: fid,
+                type: "functionality"
+            })),
+            events: manifest.outputs.events.map(eid => ({
+                id: eid,
+                type: "event"
+            }))
+        };
+    }
+
+    /**
+     * ACP Message endpoint handler.
+     * Maps incoming ACP messages to Krnl calls.
+     */
+    async handleMessage(payload) {
+        const { target, action, data, metadata = {} } = payload;
+        
+        // In ACP, the 'action' is usually the tool/functionality name
+        try {
+            const result = await this.system.call(action, data);
+            return {
+                status: "success",
+                result,
+                metadata: {
+                    processedBy: this.system.entityName,
+                    timestamp: Date.now()
+                }
+            };
+        } catch (error) {
+            return {
+                status: "error",
+                error: error.message,
+                metadata: {
+                    processedBy: this.system.entityName,
+                    timestamp: Date.now()
+                }
+            };
+        }
+    }
+}
+
+/**
+ * @file K_LIB_Krnl_System_Unified_Http_Adapter.js
+ * @description Unified HTTP adapter that exposes REST, SSE, MCP, and ACP protocols.
+ * Supports sharing a single port/server with WebSocket.
+ */
+
+
+class krnlUnifiedHttpAdapter {
+    /**
+     * @param {import("./K_ENT_Krnl_System_Entity_Base.js").krnlSystemEntityBase} system
+     * @param {number} port
+     * @param {string} host
+     */
+    constructor(system, port, host = '0.0.0.0') {
+        this.system = system;
+        this.port = port;
+        this.host = host;
+        this.server = null;
+        this._isExternalServer = false;
+
+        this.mcp = new KrnlMcpProtocol(system);
+        this.acp = new KrnlAcpProtocol(system);
+    }
+
+    /**
+     * Starts the adapter. If an external server is provided, it attaches its handler to it.
+     * @param {http.Server} [externalServer] 
+     */
+    async start(externalServer = null) {
+        if (this.server) return;
+
+        if (externalServer) {
+            this.server = externalServer;
+            this._isExternalServer = true;
+            // Intercept requests on the external server
+            this.server.on('request', (req, res) => {
+                this._handleRequest(req, res);
+            });
+        } else {
+            this.server = http.createServer((req, res) => {
+                this._handleRequest(req, res);
+            });
+
+            return new Promise((resolve, reject) => {
+                this.server.listen(this.port, this.host, () => {
+                    console.log(`[${this.system.entityName}] Unified HTTP Adapter active on http://${this.host}:${this.port}`);
+                    resolve();
+                });
+                this.server.on('error', reject);
+            });
+        }
+    }
+
+    stop() {
+        if (this.server && !this._isExternalServer) {
+            this.server.close();
+            console.log(`[${this.system.entityName}] Unified HTTP Adapter stopped.`);
+        }
+        this.server = null;
+    }
+
+    async _handleRequest(req, res) {
+        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const path = url.pathname;
+
+        // Common routes
+        const isKrnlRoute = path.startsWith('/call/') || 
+                           path.startsWith('/sse/') || 
+                           path.startsWith('/mcp') || 
+                           path.startsWith('/acp') || 
+                           path === '/manifest';
+
+        if (!isKrnlRoute) {
+            // If this is an external server, we might want to ignore non-Krnl routes
+            // but for now we'll just handle them if we are the primary server.
+            if (this._isExternalServer) return; 
+        }
+
+        // Enable CORS
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Mcp-Session-Id');
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204);
+            res.end();
+            return;
+        }
+
+        try {
+            // ── REST: /call/:fid ───────────────────────────────────
+            if (path.startsWith('/call/')) {
+                const fid = path.split('/')[2];
+                const body = await this._readJsonBody(req);
+                const result = await this.system.call(fid, body);
+                this._sendJson(res, 200, result);
+                return;
+            }
+
+            // ── SSE: /sse/:fid ────────────────────────────────────
+            if (path.startsWith('/sse/')) {
+                const fid = path.split('/')[2];
+                this._handleSse(req, res, fid);
+                return;
+            }
+
+            // ── MCP: /mcp (Unified / Streamable) ───────────────────
+            if (path === '/mcp') {
+                const body = await this._readJsonBody(req);
+                const result = await this.mcp.handleRequest(body);
+                this._sendJson(res, 200, result);
+                return;
+            }
+
+            // ── ACP: /acp/* ───────────────────────────────────────
+            if (path.startsWith('/acp')) {
+                if (path === '/acp/info' || path === '/acp') {
+                    this._sendJson(res, 200, this.acp.getInfo());
+                } else if (path === '/acp/capabilities') {
+                    this._sendJson(res, 200, this.acp.getCapabilities());
+                } else if (path === '/acp/messages' && req.method === 'POST') {
+                    const body = await this._readJsonBody(req);
+                    const result = await this.acp.handleMessage(body);
+                    this._sendJson(res, 200, result);
+                } else {
+                    this._sendJson(res, 404, { error: "ACP route not found" });
+                }
+                return;
+            }
+
+            // ── MANIFEST: /manifest ───────────────────────────────
+            if (path === '/manifest') {
+                this._sendJson(res, 200, this.system.getManifest());
+                return;
+            }
+
+            if (!this._isExternalServer) {
+                this._sendJson(res, 404, { error: "Not found" });
+            }
+
+        } catch (error) {
+            console.error(`[HttpAdapter] Error handling ${path}:`, error);
+            this._sendJson(res, 500, { error: error.message });
+        }
+    }
+
+    _handleSse(req, res, fid) {
+        res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+        });
+
+        const functionality = this.system.localFunctionalities.get(fid);
+        if (!functionality) {
+            res.write(`data: ${JSON.stringify({ error: "Functionality not found" })}\n\n`);
+            res.end();
+            return;
+        }
+
+        const stateEmitter = functionality.emitters.get('state:changed');
+        const unsubscribe = stateEmitter?.subscribe((msg) => {
+            res.write(`data: ${JSON.stringify(msg.data)}\n\n`);
+        });
+
+        req.on('close', () => {
+            if (unsubscribe) unsubscribe();
+            res.end();
+        });
+
+        // Heartbeat
+        const interval = setInterval(() => {
+            if (res.writable) {
+                res.write(': keepalive\n\n');
+            }
+        }, 15000);
+
+        req.on('close', () => clearInterval(interval));
+    }
+
+    _sendJson(res, status, data) {
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(data));
+    }
+
+    _readJsonBody(req) {
+        return new Promise((resolve, reject) => {
+            let body = '';
+            req.on('data', chunk => { body += chunk.toString(); });
+            req.on('end', () => {
+                if (!body) return resolve({});
+                try {
+                    resolve(JSON.parse(body));
+                } catch (e) {
+                    reject(new Error("Invalid JSON body"));
+                }
+            });
+        });
+    }
+}
+
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file K_ENT_System_Entity_Base.js
@@ -1901,6 +2295,11 @@ class krnlSystemEntityBase extends krnlEntityBase {
     this._setupBaseFunctionalities();
     this._setupBaseInterface();
     this._setupRpcHandlers();
+    
+    this._sharedServer = null;
+    this.serviceSuites = new Map(); // suiteName -> adapterInstance
+    // Pre-initialize the unified HTTP adapter (always-on)
+    this.unifiedHttpAdapter = new krnlUnifiedHttpAdapter(this, commPort, host);
 
     // ── Startup Diagnostics ──────────────────────────────
     this._emitStartupDiagnostics();
@@ -2015,6 +2414,8 @@ class krnlSystemEntityBase extends krnlEntityBase {
    * @param {string} [discoveryHost='255.255.255.255'] - Broadcast address.
    */
   async startDiscovery(discoveryPort = 10101, discoveryHost = '255.255.255.255') {
+    if (this.discoverySocket) return; // Already started
+    
     if (!this.isDiscoveryAvailable()) {
       console.warn(`[${this.entityName}] Discovery: UDP not supported in current environment.`);
       return;
@@ -2047,24 +2448,61 @@ class krnlSystemEntityBase extends krnlEntityBase {
     this.discoverySocket.bind(discoveryPort, this.host, () => {
       this.discoverySocket.setBroadcast(true);
       console.log(`[${this.entityName}] Discovery active on ${this.host}:${discoveryPort} (broadcast to ${discoveryHost})`);
-      
-      // Advertise presence periodically
-      this.beaconInterval = setInterval(() => {
-        if (!this.discoverable) return;
-        const beacon = JSON.stringify({
-          type: 'KRNL_BEACON',
-          id: this.entityName,
-          port: this.commPort,
-          discoverable: this.discoverable,
-          busy: this.reservation.busy,
-          reservedBy: this.reservation.reservedBy
-        });
-        this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, discoveryHost);
-      }, 5000);
     });
 
-    // Start WS server for incoming connections
-    await this.commComponent.startWsServer();
+    // Start Discovery UDP beacon
+    this.beaconInterval = setInterval(() => {
+      if (!this.discoverable) return;
+      const beacon = JSON.stringify({
+        type: 'KRNL_BEACON',
+        id: this.entityName,
+        port: this.commPort,
+        discoverable: this.discoverable,
+        busy: this.reservation.busy,
+        reservedBy: this.reservation.reservedBy
+      });
+      this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, discoveryHost);
+    }, 5000);
+
+    // Initialise and start the shared HTTP/WS server
+    await this._startSharedServer();
+  }
+
+  /**
+   * Internal helper to start the shared server for WS and HTTP protocols.
+   * Ensures everything runs on this.commPort.
+   */
+  async _startSharedServer() {
+    if (this._sharedServer) return;
+
+    // Create the primary HTTP server
+    this._sharedServer = http.createServer();
+
+    // 1. Start the Unified HTTP Adapter (Routes: /call, /mcp, /acp, /sse, /manifest)
+    await this.unifiedHttpAdapter.start(this._sharedServer);
+    this.serviceSuites.set("UNIFIED_HTTP", this.unifiedHttpAdapter);
+
+    // 2. Start the WebSocket server using the SAME HTTP server
+    await this.commComponent.startWsServer(this._sharedServer);
+
+    // 3. Listen on the unified port
+    return new Promise((resolve, reject) => {
+      this._sharedServer.listen(this.commPort, this.host, () => {
+        console.log(`[${this.entityName}] Unified port active on http://${this.host}:${this.commPort} (WS + REST + MCP + ACP)`);
+        resolve();
+      });
+      this._sharedServer.on('error', (err) => {
+        console.error(`[${this.entityName}] Failed to start unified server:`, err.message);
+        reject(err);
+      });
+    });
+  }
+
+  /**
+   * Backward compatible activation method. Now simply ensures the shared server is running.
+   */
+  async activateServiceSuite(suiteName = "UNIFIED_HTTP") {
+    return this._startSharedServer();
   }
 
   /**
@@ -2221,6 +2659,18 @@ class krnlSystemEntityBase extends krnlEntityBase {
   dispose() {
     if (this.beaconInterval) clearInterval(this.beaconInterval);
     if (this.discoverySocket) this.discoverySocket.close();
+    
+    // Stop all service suites
+    for (const [name, suite] of this.serviceSuites) {
+      suite.stop();
+    }
+    this.serviceSuites.clear();
+
+    if (this._sharedServer) {
+        this._sharedServer.close();
+        this._sharedServer = null;
+    }
+
     this.commComponent.dispose();
     super.dispose();
   }
@@ -2525,4 +2975,4 @@ class DasyJS {
   }
 }
 
-export { DasyJS, MemoryTransportAdapter, WebSocketTransportAdapter, createEnum, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter };
+export { DasyJS, KrnlAcpProtocol, KrnlMcpProtocol, MemoryTransportAdapter, WebSocketTransportAdapter, createEnum, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter };
