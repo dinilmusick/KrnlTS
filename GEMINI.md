@@ -156,3 +156,15 @@ RULE: Mutations to 'state' automatically fire 'state:changed' events.
 RULE: Use 'WebSocketTransportAdapter' for remote systems.
 RULE: System orchestrators must extend 'krnlSystemEntityBase'.
 
+[UNIFIED_SERVICE_SUITE]
+RULE: Every krnlSystemEntityBase automatically hosts a Unified HTTP Service on 'commPort'.
+RULE: The suite is "Always-On" and provides the following endpoints:
+    - /call/:fid     -> REST (POST) execute functionality.
+    - /sse/:fid      -> SSE (GET) stream state updates.
+    - /mcp           -> MCP (POST/GET) Streamable HTTP protocol.
+    - /acp           -> ACP (GET/POST) Agent Communication Protocol.
+    - /manifest      -> System manifest & tool list.
+
+RULE: Access these endpoints using standard HTTP clients (fetch, curl) or AI Agent SDKs.
+RULE: WebSocket sharing is automatic; no port offsets are required unless explicitly configured.
+

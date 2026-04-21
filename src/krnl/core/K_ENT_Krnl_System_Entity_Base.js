@@ -14,6 +14,9 @@ import {
   systemCommandsCollectorHandler,
   telemetryApi,
 } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
+import { krnlServiceSuites, krnlServiceSuitePorts } from "./K_LIB_Krnl_Base_Concepts.js";
+import { krnlUnifiedHttpAdapter } from "./K_LIB_Krnl_System_Unified_Http_Adapter.js";
+import http from 'http';
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////// MAIN API FUNCTIONS AND DATA ////////////////////////////////////////
@@ -47,6 +50,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this._setupBaseFunctionalities();
     this._setupBaseInterface();
     this._setupRpcHandlers();
+    
+    this._sharedServer = null;
+    this.serviceSuites = new Map(); // suiteName -> adapterInstance
+    // Pre-initialize the unified HTTP adapter (always-on)
+    this.unifiedHttpAdapter = new krnlUnifiedHttpAdapter(this, commPort, host);
 
     // ── Startup Diagnostics ──────────────────────────────
     this._emitStartupDiagnostics();
@@ -193,24 +201,61 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this.discoverySocket.bind(discoveryPort, this.host, () => {
       this.discoverySocket.setBroadcast(true);
       console.log(`[${this.entityName}] Discovery active on ${this.host}:${discoveryPort} (broadcast to ${discoveryHost})`);
-      
-      // Advertise presence periodically
-      this.beaconInterval = setInterval(() => {
-        if (!this.discoverable) return;
-        const beacon = JSON.stringify({
-          type: 'KRNL_BEACON',
-          id: this.entityName,
-          port: this.commPort,
-          discoverable: this.discoverable,
-          busy: this.reservation.busy,
-          reservedBy: this.reservation.reservedBy
-        });
-        this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, discoveryHost);
-      }, 5000);
     });
 
-    // Start WS server for incoming connections
-    await this.commComponent.startWsServer();
+    // Start Discovery UDP beacon
+    this.beaconInterval = setInterval(() => {
+      if (!this.discoverable) return;
+      const beacon = JSON.stringify({
+        type: 'KRNL_BEACON',
+        id: this.entityName,
+        port: this.commPort,
+        discoverable: this.discoverable,
+        busy: this.reservation.busy,
+        reservedBy: this.reservation.reservedBy
+      });
+      this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, discoveryHost);
+    }, 5000);
+
+    // Initialise and start the shared HTTP/WS server
+    await this._startSharedServer();
+  }
+
+  /**
+   * Internal helper to start the shared server for WS and HTTP protocols.
+   * Ensures everything runs on this.commPort.
+   */
+  async _startSharedServer() {
+    if (this._sharedServer) return;
+
+    // Create the primary HTTP server
+    this._sharedServer = http.createServer();
+
+    // 1. Start the Unified HTTP Adapter (Routes: /call, /mcp, /acp, /sse, /manifest)
+    await this.unifiedHttpAdapter.start(this._sharedServer);
+    this.serviceSuites.set("UNIFIED_HTTP", this.unifiedHttpAdapter);
+
+    // 2. Start the WebSocket server using the SAME HTTP server
+    await this.commComponent.startWsServer(this._sharedServer);
+
+    // 3. Listen on the unified port
+    return new Promise((resolve, reject) => {
+      this._sharedServer.listen(this.commPort, this.host, () => {
+        console.log(`[${this.entityName}] Unified port active on http://${this.host}:${this.commPort} (WS + REST + MCP + ACP)`);
+        resolve();
+      });
+      this._sharedServer.on('error', (err) => {
+        console.error(`[${this.entityName}] Failed to start unified server:`, err.message);
+        reject(err);
+      });
+    });
+  }
+
+  /**
+   * Backward compatible activation method. Now simply ensures the shared server is running.
+   */
+  async activateServiceSuite(suiteName = "UNIFIED_HTTP") {
+    return this._startSharedServer();
   }
 
   /**
@@ -367,6 +412,18 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   dispose() {
     if (this.beaconInterval) clearInterval(this.beaconInterval);
     if (this.discoverySocket) this.discoverySocket.close();
+    
+    // Stop all service suites
+    for (const [name, suite] of this.serviceSuites) {
+      suite.stop();
+    }
+    this.serviceSuites.clear();
+
+    if (this._sharedServer) {
+        this._sharedServer.close();
+        this._sharedServer = null;
+    }
+
     this.commComponent.dispose();
     super.dispose();
   }

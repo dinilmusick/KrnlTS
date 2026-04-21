@@ -159,10 +159,15 @@ export class krnlSystemCommComponent {
     /**
      * Starts a WebSocket server so that remote systems can push data into local collectors.
      */
-    async startWsServer() {
+    async startWsServer(externalServer = null) {
         if (this._wsServer) return; // Already running
         const { WebSocketServer } = await _loadWs();
-        this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
+        
+        if (externalServer) {
+            this._wsServer = new WebSocketServer({ server: externalServer });
+        } else {
+            this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
+        }
 
         this._wsServer.on('connection', (ws) => {
             ws.on('error', (err) => {

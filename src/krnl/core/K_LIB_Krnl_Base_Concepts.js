@@ -42,6 +42,15 @@ export const krnlSystemTypes = Object.freeze(
   createEnum(["qwnsr", "brnda", "symba", "mosy"])
 );
 
+//////////////////////////////////////// KRNL SERVICE SUITES ////////////////////////////////////////
+export const krnlServiceSuites = Object.freeze(
+  createEnum(["UNIFIED_HTTP"])
+);
+
+export const krnlServiceSuitePorts = Object.freeze({
+  UNIFIED_HTTP: 1
+});
+
 //////////////////////////////////////// KRNL PRIMITIVE DATA TYPES ////////////////////////////////////////
 export const krnlPrimitiveDataTypes = Object.freeze(
   createEnum(["audio", "control-signal", "video", "MIDI", "OSC", "text", "trigger"])

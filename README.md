@@ -1,4 +1,4 @@
-# KrnlJS Core Library (v1.2.0)
+# KrnlJS Core Library (v1.3.0)
 
 KrnlJS is a senior-level orchestration library for building reactive, distributed JavaScript systems using an **Atomic Entity Model**. It treats software components like physical hardware with isolated logic, state, and messaging ports.
 
@@ -88,6 +88,26 @@ system.releaseReservation("SupervisorSystem");
 ```
 
 For a full runnable walkthrough, see: `examples/example6/AvailabilitySystem/AvailabilitySystem.js`.
+
+## 🤖 AI-Ready Unified Service Suite
+
+KrnlJS systems now automatically host a **Unified HTTP Service** on the same port as their WebSocket server (`commPort`). This suite provides an "Always-On" bridge for AI agents and external HTTP clients.
+
+### Industry-Standard Protocols
+-   **MCP (Model Context Protocol)**: Direct integration with AI Agent toolkits via `/mcp`. Supports modern Streamable HTTP.
+-   **ACP (Agent Communication Protocol)**: Standardized agent-to-agent REST interoperability via `/acp`.
+-   **REST execution**: Invoke any system functionality via `POST /call/:id`.
+-   **Real-time SSE**: Stream state changes and events via `GET /sse/:id`.
+-   **System Manifest**: Inspect available endpoints and tools at `/manifest`.
+
+### Zero-Config Activation
+The service suite is enabled by default. Existing systems built with `krnlSystemEntityBase` require **zero code changes** to gain these features.
+
+```javascript
+// Existing code works exactly as before, with new HTTP endpoints enabled on :10099
+const system = new krnlSystemEntityBase("MySystem", null, 10099);
+await system.startDiscovery();
+```
 
 ## 🧭 Network Orchestrator Entity
 

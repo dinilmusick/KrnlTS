@@ -8,3 +8,6 @@ export * from "./K_LIB_Krnl_Error_Concepts.js";
 export * from "./K_LIB_Krnl_Messaging_Concepts.js";
 export * from "./K_LIB_Krnl_System_Comm_Component.js";
 export * from "./K_LIB_Krnl_Functionality_Types.js";
+export * from "./K_LIB_Krnl_System_Unified_Http_Adapter.js";
+export * from "./K_LIB_Krnl_Protocol_MCP.js";
+export * from "./K_LIB_Krnl_Protocol_ACP.js";
