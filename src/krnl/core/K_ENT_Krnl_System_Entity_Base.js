@@ -169,6 +169,8 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    * @param {string} [discoveryHost='255.255.255.255'] - Broadcast address.
    */
   async startDiscovery(discoveryPort = 10101, discoveryHost = '255.255.255.255') {
+    if (this.discoverySocket) return; // Already started
+    
     if (!this.isDiscoveryAvailable()) {
       console.warn(`[${this.entityName}] Discovery: UDP not supported in current environment.`);
       return;

@@ -45,4 +45,4 @@ export class Level1System extends krnlSystemEntityBase {
 }
 
 // Bootstrap the system process.
-new Level1System();
+// new Level1System();

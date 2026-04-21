@@ -38,11 +38,11 @@ export class CalculatorSystem extends krnlSystemEntityBase {
             console.log(`[STATE_OBSERVER] Property '${msg.data.prop}' changed to: ${msg.data.value}`);
         });
 
-        this.startDiscovery().then(() => {
-            console.log(`[CalculatorSystem] Ready. Local components (Display, Logger) wired.`);
-        });
+        // this.startDiscovery().then(() => {
+        //     console.log(`[CalculatorSystem] Ready. Local components (Display, Logger) wired.`);
+        // });
     }
 }
 
-new CalculatorSystem();
+// new CalculatorSystem();
 

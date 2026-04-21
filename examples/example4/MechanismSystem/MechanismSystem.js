@@ -12,6 +12,6 @@ export class MechanismSystem extends krnlSystemEntityBase {
     }
 }
 
-const system = new MechanismSystem();
-const result = await system.call("RunMechanismDemo");
-console.log("[MechanismSystem] Demo result:", result);
+// const system = new MechanismSystem();
+// const result = await system.call("RunMechanismDemo");
+// console.log("[MechanismSystem] Demo result:", result);

@@ -10,6 +10,6 @@ export class InstanceSystem extends krnlSystemEntityBase {
     }
 }
 
-const system = new InstanceSystem();
-const result = await system.call("RunInstanceDemo");
-console.log("[InstanceSystem] Demo result:", result);
+// const system = new InstanceSystem();
+// const result = await system.call("RunInstanceDemo");
+// console.log("[InstanceSystem] Demo result:", result);

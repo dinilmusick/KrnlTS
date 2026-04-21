@@ -73,4 +73,4 @@ export class EventSystem extends krnlSystemEntityBase {
 }
 
 // Bootstrap the server.
-new EventSystem();
+// new EventSystem();

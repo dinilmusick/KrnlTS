@@ -1,4 +1,4 @@
-import { krnlSystemEntityBase } from './src/krnl/core/K_ENT_Krnl_System_Entity_Base.js';
+import { krnlSystemEntityBase } from '../../../src/krnl/core/index.js';
 
 async function test() {
     const system = new krnlSystemEntityBase("TestSystem", null, 10099);
@@ -12,9 +12,9 @@ async function test() {
     });
 
     console.log("--- Starting Service Suite ---");
-    await system.activateServiceSuite("UNIFIED_HTTP");
+    await system.startDiscovery();
     
-    const baseUrl = "http://localhost:10100";
+    const baseUrl = "http://localhost:10099";
 
     try {
         // 1. Test REST
