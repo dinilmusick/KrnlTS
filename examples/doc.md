@@ -37,6 +37,10 @@ Demonstrates reserving a system (`busy` state) and toggling system discoverabili
 Demonstrates orchestrator-driven inter-system wiring and managed/immutable connection policies.
 - **Concepts**: `krnlNetworkOrchestratorEntityBase`, `connectSystems`, `disconnectPeerRoute`, `externallyMutable`.
 
+### 9. [AI-Ready Unified Service Suite](./example8/AIServerSystem/doc.md)
+Showcases the v1.3.0 single-port unified server hosting REST, MCP, and ACP protocols for AI agent interoperability.
+- **Concepts**: Unified Server, MCP Tool Mapping, ACP Agent Interop, Zero-Config Services.
+
 ---
 
 ## How to explore
