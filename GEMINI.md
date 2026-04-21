@@ -36,6 +36,11 @@ ROOT/
 │       └── MyFunc.js
 └── <project-name>.js <- system assembler (krnlSystemEntityBase)
 
+[ROOT_CLEANLINESS_POLICY]
+RULE: NEVER create test files or example scripts in the ROOT of the codebase.
+RULE: All tests, benchmarks, and functional demos MUST reside in the `examples/` folder.
+RULE: Each example MUST be a self-contained folder with its own `doc.md`.
+
 [SUBSYSTEM_PATTERN]
 USE krnlSubSystemOrchestratorBase when a system is large enough to split into
 named major domains that still run in the same process.

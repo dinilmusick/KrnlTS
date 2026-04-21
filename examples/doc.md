@@ -41,6 +41,14 @@ Demonstrates orchestrator-driven inter-system wiring and managed/immutable conne
 Showcases the v1.3.0 single-port unified server hosting REST, MCP, and ACP protocols for AI agent interoperability.
 - **Concepts**: Unified Server, MCP Tool Mapping, ACP Agent Interop, Zero-Config Services.
 
+### 10. [RPC Error Serialization Fix](./example10/RPCErrorFix/doc.md)
+Demonstrates the fix for detail-preservation when throwing plain objects or errors across RPC boundaries.
+- **Concepts**: RPC Error Propagation, JSON-RPC Error Formatting.
+
+### 11. [Service Suite Verification](./example11/ServiceSuiteVerification/doc.md)
+Automated verification scripts to ensure the Unified Service Suite stays stable and single-port connectivity remains robust.
+- **Concepts**: Single-Port Validation, Multi-Protocol Verification.
+
 ---
 
 ## How to explore
