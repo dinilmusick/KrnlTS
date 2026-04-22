@@ -48,6 +48,18 @@ export function adminCommandApi(entity) {
         flags: entity.releaseReservation(args?.serviceName || null),
       };
     }
+    if (command === 'shutdown') {
+      console.log(`[${entity.entityName}] Graceful shutdown initiated via admin command.`);
+      setTimeout(() => {
+        entity.dispose();
+        process.exit(0);
+      }, 500);
+      return {
+        status: 'acknowledged',
+        command,
+        message: 'System will shutdown in 500ms'
+      };
+    }
     return { status: 'acknowledged', command, flags: entity.getSystemFlags() };
   };
 }

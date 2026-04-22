@@ -1453,68 +1453,76 @@ class krnlSystemCommComponent {
         if (this._wsServer) return; // Already running
         const { WebSocketServer } = await _loadWs();
         
-        if (externalServer) {
-            this._wsServer = new WebSocketServer({ server: externalServer });
-        } else {
-            this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
-        }
+        return new Promise((resolve, reject) => {
+            if (externalServer) {
+                this._wsServer = new WebSocketServer({ server: externalServer });
+                resolve();
+            } else {
+                this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
+                this._wsServer.on('listening', () => {
+                    console.log(`[CommComponent:${this.ownerEntity.entityName}] WS server listening on :${this.listenPort}`);
+                    resolve();
+                });
+            }
 
-        this._wsServer.on('connection', (ws) => {
-            ws.on('error', (err) => {
-                console.error(`[CommComponent:${this.ownerEntity.entityName}] Incoming WS error:`, err.message);
+            this._wsServer.on('error', (err) => {
+                console.error(`[CommComponent:${this.ownerEntity.entityName}] WS server error:`, err.message);
+                reject(err);
             });
 
-            ws.on('message', (raw) => {
-                try {
-                    const msg = JSON.parse(raw.toString());
+            this._wsServer.on('connection', (ws) => {
+                ws.on('error', (err) => {
+                    console.error(`[CommComponent:${this.ownerEntity.entityName}] Incoming WS error:`, err.message);
+                });
 
-                    // Backward-compatible payload support
-                    if (msg.routeId && Object.prototype.hasOwnProperty.call(msg, 'data') && !msg.kind) {
-                        const handler = this._wsIngress.get(msg.routeId);
-                        if (handler) handler(msg.data);
-                        return;
-                    }
-
-                    if (msg.kind === 'register-ingress') {
-                        this.registerWsIngress(msg.routeId, msg.collectorName);
-                        return;
-                    }
-
-                    if (msg.kind === 'route-data') {
-                        const handler = this._wsIngress.get(msg.routeId);
-                        if (handler) handler(msg.data);
-                        return;
-                    }
-
-                    if (msg.kind === 'rpc-request') {
-                        this._handleRpcRequest(ws, msg);
-                        return;
-                    }
-
-                    if (msg.kind === 'rpc-response') {
-                        this._handleRpcResponse(msg);
-                        return;
-                    }
-
-                    if (msg.kind === 'introspect') {
-                        this._handleIntrospect(ws, msg);
-                        return;
-                    }
-                } catch (e) {
-                    console.error(`[CommComponent:${this.ownerEntity.entityName}] WS message error:`, e.message);
+                ws.on('message', (raw) => {
                     try {
-                        ws.send(JSON.stringify({
-                            kind: 'error',
-                            message: `Invalid request: ${e.message}. Ensure payload is valid JSON and follows Krnl protocol.`
-                        }));
-                    } catch (_) { }
-                }
+                        const msg = JSON.parse(raw.toString());
+
+                        // Backward-compatible payload support
+                        if (msg.routeId && Object.prototype.hasOwnProperty.call(msg, 'data') && !msg.kind) {
+                            const handler = this._wsIngress.get(msg.routeId);
+                            if (handler) handler(msg.data);
+                            return;
+                        }
+
+                        if (msg.kind === 'register-ingress') {
+                            this.registerWsIngress(msg.routeId, msg.collectorName);
+                            return;
+                        }
+
+                        if (msg.kind === 'route-data') {
+                            const handler = this._wsIngress.get(msg.routeId);
+                            if (handler) handler(msg.data);
+                            return;
+                        }
+
+                        if (msg.kind === 'rpc-request') {
+                            this._handleRpcRequest(ws, msg);
+                            return;
+                        }
+
+                        if (msg.kind === 'rpc-response') {
+                            this._handleRpcResponse(msg);
+                            return;
+                        }
+
+                        if (msg.kind === 'introspect') {
+                            this._handleIntrospect(ws, msg);
+                            return;
+                        }
+                    } catch (e) {
+                        console.error(`[CommComponent:${this.ownerEntity.entityName}] WS message error:`, e.message);
+                        try {
+                            ws.send(JSON.stringify({
+                                kind: 'error',
+                                message: `Invalid request: ${e.message}. Ensure payload is valid JSON and follows Krnl protocol.`
+                            }));
+                        } catch (_) { }
+                    }
+                });
             });
         });
-
-        console.log(
-            `[CommComponent:${this.ownerEntity.entityName}] WS server listening on :${this.listenPort}`
-        );
     }
 
     /**
@@ -1854,6 +1862,18 @@ function adminCommandApi(entity) {
         status: 'acknowledged',
         command,
         flags: entity.releaseReservation(args?.serviceName || null),
+      };
+    }
+    if (command === 'shutdown') {
+      console.log(`[${entity.entityName}] Graceful shutdown initiated via admin command.`);
+      setTimeout(() => {
+        entity.dispose();
+        process.exit(0);
+      }, 500);
+      return {
+        status: 'acknowledged',
+        command,
+        message: 'System will shutdown in 500ms'
       };
     }
     return { status: 'acknowledged', command, flags: entity.getSystemFlags() };
