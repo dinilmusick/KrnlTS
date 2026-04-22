@@ -2136,6 +2136,34 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     const collector = this.interface.getCollector(collectorName);
     collector._directHandler = handler;
   }
+  /**
+   * Binds Node.js process signals (SIGINT, SIGTERM) and unhandled errors 
+   * to the entity's dispose() method. Ensures graceful shutdown and 
+   * port release in Node.js environments.
+   */
+  bindProcessSignals() {
+    if (typeof process === "undefined" || !process.on) return;
+    const handleSignal = () => {
+      console.log(`
+[${this.entityName}] OS Signal received. Cleaning up...`);
+      this.dispose();
+      process.exit(0);
+    };
+    process.on("SIGINT", handleSignal);
+    process.on("SIGTERM", handleSignal);
+    process.on("uncaughtException", (err) => {
+      console.error(`
+[${this.entityName}] UNCAUGHT EXCEPTION:`, err);
+      this.dispose();
+      process.exit(1);
+    });
+    process.on("unhandledRejection", (reason) => {
+      console.error(`
+[${this.entityName}] UNHANDLED REJECTION:`, reason);
+      this.dispose();
+      process.exit(1);
+    });
+  }
   dispose() {
     if (this.beaconInterval) clearInterval(this.beaconInterval);
     if (this.discoverySocket) this.discoverySocket.close();
