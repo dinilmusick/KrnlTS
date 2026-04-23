@@ -67,6 +67,19 @@ export class krnlEntityCompositionalHierarchyManager {
   }
 
   /**
+   * Registers a pre-existing entity instance as a component of this host.
+   * Automatically triggers interface promotion for all its public functionalities.
+   * @param {object} instance - The entity instance to register.
+   */
+  addComponentEntityInstance(instance) {
+    this.ownedComponents.set(instance.id, instance);
+    instance.hierarchyManager.owner = this.self;
+    if (instance._promoteAllExistingFunctionalities) {
+      instance._promoteAllExistingFunctionalities();
+    }
+  }
+
+  /**
    * Returns a list of all component entities owned by this host.
    */
   getAllOwnedComponentEntities() {

@@ -90,7 +90,8 @@ export class krnlUnifiedHttpAdapter {
                            path.startsWith('/sse/') || 
                            path.startsWith('/mcp') || 
                            path.startsWith('/acp') || 
-                           path === '/manifest';
+                           path === '/manifest' ||
+                           path === '/health';
 
         if (!isKrnlRoute) {
             // ── FRIENDLY ROUTING: /:fid ───────────────────────────
@@ -141,6 +142,12 @@ export class krnlUnifiedHttpAdapter {
                 const body = await this._readJsonBody(req);
                 const result = await this.mcp.handleRequest(body);
                 this._sendJson(res, 200, result);
+                return;
+            }
+
+            // ── HEALTH: /health ────────────────────────────────────
+            if (path === '/health') {
+                this._sendJson(res, 200, { status: "ok", entity: this.system.entityName });
                 return;
             }
 

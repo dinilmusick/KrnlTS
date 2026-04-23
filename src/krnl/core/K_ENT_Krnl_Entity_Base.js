@@ -149,6 +149,22 @@ export class krnlEntityBase {
   }
 
   /**
+   * Internal helper to trigger promotion of all existing functionalities.
+   * Useful when an entity is assigned an owner AFTER its functionalities are created.
+   */
+  _promoteAllExistingFunctionalities() {
+    const owner = this.hierarchyManager.getOwnerEntity();
+    if (!owner || !owner._onComponentFunctionalityAdded) return;
+
+    this.localFunctionalities.forEach(f => {
+      owner._onComponentFunctionalityAdded(this, f);
+    });
+    this.remoteFunctionalities.forEach(f => {
+      owner._onComponentFunctionalityAdded(this, f);
+    });
+  }
+
+  /**
    * Executes a functionality by ID.
    */
   async call(fid, input, opts = {}) {

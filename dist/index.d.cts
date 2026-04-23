@@ -716,6 +716,19 @@ class krnlEntityCompositionalHierarchyManager {
   }
 
   /**
+   * Registers a pre-existing entity instance as a component of this host.
+   * Automatically triggers interface promotion for all its public functionalities.
+   * @param {object} instance - The entity instance to register.
+   */
+  addComponentEntityInstance(instance) {
+    this.ownedComponents.set(instance.id, instance);
+    instance.hierarchyManager.owner = this.self;
+    if (instance._promoteAllExistingFunctionalities) {
+      instance._promoteAllExistingFunctionalities();
+    }
+  }
+
+  /**
    * Returns a list of all component entities owned by this host.
    */
   getAllOwnedComponentEntities() {
@@ -1230,6 +1243,22 @@ class krnlEntityBase {
     if (owner && owner._onComponentFunctionalityRemoved) {
       owner._onComponentFunctionalityRemoved(this, functionalityId);
     }
+  }
+
+  /**
+   * Internal helper to trigger promotion of all existing functionalities.
+   * Useful when an entity is assigned an owner AFTER its functionalities are created.
+   */
+  _promoteAllExistingFunctionalities() {
+    const owner = this.hierarchyManager.getOwnerEntity();
+    if (!owner || !owner._onComponentFunctionalityAdded) return;
+
+    this.localFunctionalities.forEach(f => {
+      owner._onComponentFunctionalityAdded(this, f);
+    });
+    this.remoteFunctionalities.forEach(f => {
+      owner._onComponentFunctionalityAdded(this, f);
+    });
   }
 
   /**
@@ -2179,7 +2208,8 @@ class krnlUnifiedHttpAdapter {
                            path.startsWith('/sse/') || 
                            path.startsWith('/mcp') || 
                            path.startsWith('/acp') || 
-                           path === '/manifest';
+                           path === '/manifest' ||
+                           path === '/health';
 
         if (!isKrnlRoute) {
             // ── FRIENDLY ROUTING: /:fid ───────────────────────────
@@ -2230,6 +2260,12 @@ class krnlUnifiedHttpAdapter {
                 const body = await this._readJsonBody(req);
                 const result = await this.mcp.handleRequest(body);
                 this._sendJson(res, 200, result);
+                return;
+            }
+
+            // ── HEALTH: /health ────────────────────────────────────
+            if (path === '/health') {
+                this._sendJson(res, 200, { status: "ok", entity: this.system.entityName });
                 return;
             }
 
