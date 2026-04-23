@@ -23,6 +23,12 @@ export class krnlUnifiedHttpAdapter {
 
         this.mcp = new KrnlMcpProtocol(system);
         this.acp = new KrnlAcpProtocol(system);
+
+        /**
+         * If true, allows direct FID routes (e.g., POST /LoadProject) 
+         * and supports flat JSON payloads.
+         */
+        this.enableFriendlyRouting = false;
     }
 
     /**
@@ -87,7 +93,28 @@ export class krnlUnifiedHttpAdapter {
                            path === '/manifest';
 
         if (!isKrnlRoute) {
-            // If it's not a Krnl route, respond with 404 and end the request to avoid hanging.
+            // ── FRIENDLY ROUTING: /:fid ───────────────────────────
+            if (this.enableFriendlyRouting && req.method === 'POST') {
+                const fid = path.slice(1);
+                if (this.system.localFunctionalities.has(fid) || this.system.remoteFunctionalities.has(fid)) {
+                    try {
+                        const body = await this._readJsonBody(req);
+                        // Smart payload wrapping: if no "data" key but other keys exist, wrap it.
+                        // We exclude empty bodies or already-wrapped bodies.
+                        const data = (body && typeof body === 'object' && !('data' in body) && Object.keys(body).length > 0) 
+                                     ? { data: body } 
+                                     : body;
+                        
+                        const result = await this.system.call(fid, data.data || data);
+                        this._sendJson(res, 200, result);
+                    } catch (e) {
+                        this._sendJson(res, 400, { error: e.message });
+                    }
+                    return;
+                }
+            }
+
+            // If it's not a Krnl route and not a friendly route, respond with 404.
             this._sendJson(res, 404, { error: "Route not found" });
             return;
         }

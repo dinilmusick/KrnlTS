@@ -2097,11 +2097,17 @@ class krnlUnifiedHttpAdapter {
 
         this.mcp = new KrnlMcpProtocol(system);
         this.acp = new KrnlAcpProtocol(system);
+
+        /**
+         * If true, allows direct FID routes (e.g., POST /LoadProject) 
+         * and supports flat JSON payloads.
+         */
+        this.enableFriendlyRouting = false;
     }
 
     /**
      * Starts the adapter. If an external server is provided, it attaches its handler to it.
-     * @param {http.Server} [externalServer] 
+     * @param {http.Server} [externalServer]
      */
     async start(externalServer = null) {
         if (this.server) return;
@@ -2110,6 +2116,9 @@ class krnlUnifiedHttpAdapter {
             this.server = externalServer;
             this._isExternalServer = true;
             // Intercept requests on the external server
+            // Ensure we are the first handler if possible, or just add a listener.
+            // Note: Since node's http.Server executes listeners in order, 
+            // if this doesn't handle it, others might.
             this.server.on('request', (req, res) => {
                 this._handleRequest(req, res);
             });
@@ -2127,7 +2136,6 @@ class krnlUnifiedHttpAdapter {
             });
         }
     }
-
     stop() {
         if (this.server && !this._isExternalServer) {
             this.server.close();
@@ -2140,19 +2148,6 @@ class krnlUnifiedHttpAdapter {
         const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
         const path = url.pathname;
 
-        // Common routes
-        const isKrnlRoute = path.startsWith('/call/') || 
-                           path.startsWith('/sse/') || 
-                           path.startsWith('/mcp') || 
-                           path.startsWith('/acp') || 
-                           path === '/manifest';
-
-        if (!isKrnlRoute) {
-            // If this is an external server, we might want to ignore non-Krnl routes
-            // but for now we'll just handle them if we are the primary server.
-            if (this._isExternalServer) return; 
-        }
-
         // Enable CORS
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -2161,6 +2156,40 @@ class krnlUnifiedHttpAdapter {
         if (req.method === 'OPTIONS') {
             res.writeHead(204);
             res.end();
+            return;
+        }
+
+        // Common routes
+        const isKrnlRoute = path.startsWith('/call/') || 
+                           path.startsWith('/sse/') || 
+                           path.startsWith('/mcp') || 
+                           path.startsWith('/acp') || 
+                           path === '/manifest';
+
+        if (!isKrnlRoute) {
+            // ── FRIENDLY ROUTING: /:fid ───────────────────────────
+            if (this.enableFriendlyRouting && req.method === 'POST') {
+                const fid = path.slice(1);
+                if (this.system.localFunctionalities.has(fid) || this.system.remoteFunctionalities.has(fid)) {
+                    try {
+                        const body = await this._readJsonBody(req);
+                        // Smart payload wrapping: if no "data" key but other keys exist, wrap it.
+                        // We exclude empty bodies or already-wrapped bodies.
+                        const data = (body && typeof body === 'object' && !('data' in body) && Object.keys(body).length > 0) 
+                                     ? { data: body } 
+                                     : body;
+                        
+                        const result = await this.system.call(fid, data.data || data);
+                        this._sendJson(res, 200, result);
+                    } catch (e) {
+                        this._sendJson(res, 400, { error: e.message });
+                    }
+                    return;
+                }
+            }
+
+            // If it's not a Krnl route and not a friendly route, respond with 404.
+            this._sendJson(res, 404, { error: "Route not found" });
             return;
         }
 
@@ -2209,10 +2238,6 @@ class krnlUnifiedHttpAdapter {
             if (path === '/manifest') {
                 this._sendJson(res, 200, this.system.getManifest());
                 return;
-            }
-
-            if (!this._isExternalServer) {
-                this._sendJson(res, 404, { error: "Not found" });
             }
 
         } catch (error) {

@@ -1663,10 +1663,11 @@ var krnlUnifiedHttpAdapter = class {
     this._isExternalServer = false;
     this.mcp = new KrnlMcpProtocol(system);
     this.acp = new KrnlAcpProtocol(system);
+    this.enableFriendlyRouting = false;
   }
   /**
    * Starts the adapter. If an external server is provided, it attaches its handler to it.
-   * @param {http.Server} [externalServer] 
+   * @param {http.Server} [externalServer]
    */
   async start(externalServer = null) {
     if (this.server) return;
@@ -1699,16 +1700,31 @@ var krnlUnifiedHttpAdapter = class {
   async _handleRequest(req, res) {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const path = url.pathname;
-    const isKrnlRoute = path.startsWith("/call/") || path.startsWith("/sse/") || path.startsWith("/mcp") || path.startsWith("/acp") || path === "/manifest";
-    if (!isKrnlRoute) {
-      if (this._isExternalServer) return;
-    }
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id");
     if (req.method === "OPTIONS") {
       res.writeHead(204);
       res.end();
+      return;
+    }
+    const isKrnlRoute = path.startsWith("/call/") || path.startsWith("/sse/") || path.startsWith("/mcp") || path.startsWith("/acp") || path === "/manifest";
+    if (!isKrnlRoute) {
+      if (this.enableFriendlyRouting && req.method === "POST") {
+        const fid = path.slice(1);
+        if (this.system.localFunctionalities.has(fid) || this.system.remoteFunctionalities.has(fid)) {
+          try {
+            const body = await this._readJsonBody(req);
+            const data = body && typeof body === "object" && !("data" in body) && Object.keys(body).length > 0 ? { data: body } : body;
+            const result = await this.system.call(fid, data.data || data);
+            this._sendJson(res, 200, result);
+          } catch (e) {
+            this._sendJson(res, 400, { error: e.message });
+          }
+          return;
+        }
+      }
+      this._sendJson(res, 404, { error: "Route not found" });
       return;
     }
     try {
@@ -1747,9 +1763,6 @@ var krnlUnifiedHttpAdapter = class {
       if (path === "/manifest") {
         this._sendJson(res, 200, this.system.getManifest());
         return;
-      }
-      if (!this._isExternalServer) {
-        this._sendJson(res, 404, { error: "Not found" });
       }
     } catch (error) {
       console.error(`[HttpAdapter] Error handling ${path}:`, error);
