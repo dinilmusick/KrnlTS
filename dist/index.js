@@ -960,13 +960,25 @@ var krnlEntityBase = class _krnlEntityBase {
    * Executes a functionality by ID.
    */
   async call(fid, input, opts = {}) {
-    if (this.localFunctionalities.has(fid)) {
-      return this.localFunctionalities.get(fid).execute(input, opts);
+    try {
+      let result;
+      if (this.localFunctionalities.has(fid)) {
+        result = await this.localFunctionalities.get(fid).execute(input, opts);
+      } else if (this.remoteFunctionalities.has(fid)) {
+        result = await this.remoteFunctionalities.get(fid).execute(input, opts);
+      } else {
+        throw new krnlError(krnlErrorCodes.FUNCTIONALITY_NOT_DEFINED);
+      }
+      if (this._decorateResult) {
+        return await this._decorateResult(result, fid, input);
+      }
+      return result;
+    } catch (err) {
+      if (this._decorateError) {
+        return await this._decorateError(err, fid, input);
+      }
+      throw err;
     }
-    if (this.remoteFunctionalities.has(fid)) {
-      return this.remoteFunctionalities.get(fid).execute(input, opts);
-    }
-    throw new krnlError(krnlErrorCodes.FUNCTIONALITY_NOT_DEFINED);
   }
   getLocal(fid) {
     return this.localFunctionalities.get(fid);
@@ -1724,7 +1736,7 @@ var krnlUnifiedHttpAdapter = class {
           return;
         }
       }
-      this._sendJson(res, 404, { error: "Route not found" });
+      this._sendJson(res, 404, this.system.getNotFoundResponse(path));
       return;
     }
     try {
@@ -1851,7 +1863,66 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     this._sharedServer = null;
     this.serviceSuites = /* @__PURE__ */ new Map();
     this.unifiedHttpAdapter = new krnlUnifiedHttpAdapter(this, commPort, host);
+    this._documentationProvider = null;
     this._emitStartupDiagnostics();
+  }
+  /**
+   * Registers a documentation provider to enable automatic result decoration across all protocols.
+   * @param {Object} provider - Must implement getDocForEndpoint, getNextStepsDoc, and getDocsForLayer.
+   */
+  setDocumentationProvider(provider) {
+    this._documentationProvider = provider;
+  }
+  /**
+   * Universal Result Decorator: Automatically attaches documentation to successful results.
+   */
+  async _decorateResult(result, fid, input) {
+    if (this._documentationProvider && result && result.status !== "error" && result.error === void 0) {
+      if (typeof this._documentationProvider.getNextStepsDoc === "function") {
+        const nextSteps = this._documentationProvider.getNextStepsDoc(fid);
+        if (nextSteps && nextSteps.length > 0) {
+          result.preemptiveDocumentation = {
+            message: "Progressive Exploration: Recommended next steps.",
+            nextSteps
+          };
+        }
+      }
+    }
+    return result;
+  }
+  /**
+   * Universal Error Decorator: Automatically attaches documentation to error results.
+   */
+  async _decorateError(err, fid, input) {
+    const response = {
+      status: "error",
+      message: err.message,
+      ...err.metadata || {}
+    };
+    if (this._documentationProvider && typeof this._documentationProvider.getDocForEndpoint === "function") {
+      const usageDoc = this._documentationProvider.getDocForEndpoint(fid);
+      if (usageDoc) response.errorDocumentation = usageDoc;
+    }
+    return response;
+  }
+  /**
+   * Global 404 Handler: Provides entry-layer documentation for unknown routes.
+   */
+  getNotFoundResponse(path) {
+    const response = {
+      status: "error",
+      message: `Route '${path}' not found.`
+    };
+    if (this._documentationProvider && typeof this._documentationProvider.getDocsForLayer === "function") {
+      const entryPoints = this._documentationProvider.getDocsForLayer("LAYER_1_ENTRY");
+      if (entryPoints && entryPoints.length > 0) {
+        response.preemptiveDocumentation = {
+          message: "Welcome! Here is the entry-level documentation.",
+          entryPoints
+        };
+      }
+    }
+    return response;
   }
   /**
    * Returns true if UDP discovery is available in the current environment.

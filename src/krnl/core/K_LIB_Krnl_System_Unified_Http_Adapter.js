@@ -115,7 +115,7 @@ export class krnlUnifiedHttpAdapter {
             }
 
             // If it's not a Krnl route and not a friendly route, respond with 404.
-            this._sendJson(res, 404, { error: "Route not found" });
+            this._sendJson(res, 404, this.system.getNotFoundResponse(path));
             return;
         }
 

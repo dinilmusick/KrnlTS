@@ -56,8 +56,73 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     // Pre-initialize the unified HTTP adapter (always-on)
     this.unifiedHttpAdapter = new krnlUnifiedHttpAdapter(this, commPort, host);
 
+    // ── Protocol Unification & Decoration ──────────────────────────────
+    this._documentationProvider = null;
+
     // ── Startup Diagnostics ──────────────────────────────
     this._emitStartupDiagnostics();
+  }
+
+  /**
+   * Registers a documentation provider to enable automatic result decoration across all protocols.
+   * @param {Object} provider - Must implement getDocForEndpoint, getNextStepsDoc, and getDocsForLayer.
+   */
+  setDocumentationProvider(provider) {
+    this._documentationProvider = provider;
+  }
+
+  /**
+   * Universal Result Decorator: Automatically attaches documentation to successful results.
+   */
+  async _decorateResult(result, fid, input) {
+    if (this._documentationProvider && result && result.status !== "error" && result.error === undefined) {
+      if (typeof this._documentationProvider.getNextStepsDoc === 'function') {
+        const nextSteps = this._documentationProvider.getNextStepsDoc(fid);
+        if (nextSteps && nextSteps.length > 0) {
+          result.preemptiveDocumentation = {
+            message: "Progressive Exploration: Recommended next steps.",
+            nextSteps
+          };
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Universal Error Decorator: Automatically attaches documentation to error results.
+   */
+  async _decorateError(err, fid, input) {
+    const response = {
+      status: "error",
+      message: err.message,
+      ...(err.metadata || {})
+    };
+    if (this._documentationProvider && typeof this._documentationProvider.getDocForEndpoint === 'function') {
+      const usageDoc = this._documentationProvider.getDocForEndpoint(fid);
+      if (usageDoc) response.errorDocumentation = usageDoc;
+    }
+    return response;
+  }
+
+  /**
+   * Global 404 Handler: Provides entry-layer documentation for unknown routes.
+   */
+  getNotFoundResponse(path) {
+    const response = {
+      status: "error",
+      message: `Route '${path}' not found.`
+    };
+    if (this._documentationProvider && typeof this._documentationProvider.getDocsForLayer === 'function') {
+      const entryPoints = this._documentationProvider.getDocsForLayer("LAYER_1_ENTRY");
+      if (entryPoints && entryPoints.length > 0) {
+        response.preemptiveDocumentation = {
+          message: "Welcome! Here is the entry-level documentation.",
+          entryPoints
+        };
+      }
+    }
+    return response;
   }
 
   /**

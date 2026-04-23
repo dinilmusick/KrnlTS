@@ -152,13 +152,28 @@ export class krnlEntityBase {
    * Executes a functionality by ID.
    */
   async call(fid, input, opts = {}) {
-    if (this.localFunctionalities.has(fid)) {
-      return this.localFunctionalities.get(fid).execute(input, opts);
+    try {
+      let result;
+      if (this.localFunctionalities.has(fid)) {
+        result = await this.localFunctionalities.get(fid).execute(input, opts);
+      } else if (this.remoteFunctionalities.has(fid)) {
+        result = await this.remoteFunctionalities.get(fid).execute(input, opts);
+      } else {
+        throw new krnlError(krnlErrorCodes.FUNCTIONALITY_NOT_DEFINED);
+      }
+
+      // Universal result decoration hook
+      if (this._decorateResult) {
+        return await this._decorateResult(result, fid, input);
+      }
+      return result;
+    } catch (err) {
+      // Universal error decoration hook
+      if (this._decorateError) {
+        return await this._decorateError(err, fid, input);
+      }
+      throw err;
     }
-    if (this.remoteFunctionalities.has(fid)) {
-      return this.remoteFunctionalities.get(fid).execute(input, opts);
-    }
-    throw new krnlError(krnlErrorCodes.FUNCTIONALITY_NOT_DEFINED);
   }
 
   getLocal(fid) { return this.localFunctionalities.get(fid); }
