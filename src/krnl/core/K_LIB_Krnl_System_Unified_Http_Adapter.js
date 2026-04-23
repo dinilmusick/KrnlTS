@@ -27,7 +27,7 @@ export class krnlUnifiedHttpAdapter {
 
     /**
      * Starts the adapter. If an external server is provided, it attaches its handler to it.
-     * @param {http.Server} [externalServer] 
+     * @param {http.Server} [externalServer]
      */
     async start(externalServer = null) {
         if (this.server) return;
@@ -36,6 +36,9 @@ export class krnlUnifiedHttpAdapter {
             this.server = externalServer;
             this._isExternalServer = true;
             // Intercept requests on the external server
+            // Ensure we are the first handler if possible, or just add a listener.
+            // Note: Since node's http.Server executes listeners in order, 
+            // if this doesn't handle it, others might.
             this.server.on('request', (req, res) => {
                 this._handleRequest(req, res);
             });
@@ -53,7 +56,6 @@ export class krnlUnifiedHttpAdapter {
             });
         }
     }
-
     stop() {
         if (this.server && !this._isExternalServer) {
             this.server.close();
@@ -66,19 +68,6 @@ export class krnlUnifiedHttpAdapter {
         const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
         const path = url.pathname;
 
-        // Common routes
-        const isKrnlRoute = path.startsWith('/call/') || 
-                           path.startsWith('/sse/') || 
-                           path.startsWith('/mcp') || 
-                           path.startsWith('/acp') || 
-                           path === '/manifest';
-
-        if (!isKrnlRoute) {
-            // If this is an external server, we might want to ignore non-Krnl routes
-            // but for now we'll just handle them if we are the primary server.
-            if (this._isExternalServer) return; 
-        }
-
         // Enable CORS
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -87,6 +76,19 @@ export class krnlUnifiedHttpAdapter {
         if (req.method === 'OPTIONS') {
             res.writeHead(204);
             res.end();
+            return;
+        }
+
+        // Common routes
+        const isKrnlRoute = path.startsWith('/call/') || 
+                           path.startsWith('/sse/') || 
+                           path.startsWith('/mcp') || 
+                           path.startsWith('/acp') || 
+                           path === '/manifest';
+
+        if (!isKrnlRoute) {
+            // If it's not a Krnl route, respond with 404 and end the request to avoid hanging.
+            this._sendJson(res, 404, { error: "Route not found" });
             return;
         }
 
@@ -135,10 +137,6 @@ export class krnlUnifiedHttpAdapter {
             if (path === '/manifest') {
                 this._sendJson(res, 200, this.system.getManifest());
                 return;
-            }
-
-            if (!this._isExternalServer) {
-                this._sendJson(res, 404, { error: "Not found" });
             }
 
         } catch (error) {
