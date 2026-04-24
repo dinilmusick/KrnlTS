@@ -14,7 +14,7 @@ import {
   systemCommandsCollectorHandler,
   telemetryApi,
 } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
-import { krnlServiceSuites, krnlServiceSuitePorts } from "./K_LIB_Krnl_Base_Concepts.js";
+import { krnlServiceSuites, krnlServiceSuitePorts, Logger } from "./K_LIB_Krnl_Base_Concepts.js";
 import { krnlUnifiedHttpAdapter } from "./K_LIB_Krnl_System_Unified_Http_Adapter.js";
 import http from 'http';
 
@@ -149,6 +149,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       environment: typeof window === 'undefined' ? 'node' : 'browser'
     };
     console.log(`[KRNL_DIAGNOSTICS] ${JSON.stringify(diagnostics)}`);
+    Logger.log(`System ${this.entityName} starting diagnostics emitted.`);
   }
 
   getSystemFlags() {
@@ -494,13 +495,13 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     process.on('SIGTERM', handleSignal);
 
     process.on('uncaughtException', (err) => {
-      console.error(`\n[${this.entityName}] UNCAUGHT EXCEPTION:`, err);
+      Logger.error(`UNCAUGHT EXCEPTION:`, err);
       this.dispose();
       process.exit(1);
     });
 
     process.on('unhandledRejection', (reason) => {
-      console.error(`\n[${this.entityName}] UNHANDLED REJECTION:`, reason);
+      Logger.error(`UNHANDLED REJECTION:`, reason);
       this.dispose();
       process.exit(1);
     });

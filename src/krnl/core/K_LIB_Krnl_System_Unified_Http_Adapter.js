@@ -7,6 +7,7 @@
 import http from 'http';
 import { KrnlMcpProtocol } from './K_LIB_Krnl_Protocol_MCP.js';
 import { KrnlAcpProtocol } from './K_LIB_Krnl_Protocol_ACP.js';
+import { Logger } from './K_LIB_Krnl_Base_Concepts.js';
 
 export class krnlUnifiedHttpAdapter {
     /**
@@ -55,7 +56,7 @@ export class krnlUnifiedHttpAdapter {
 
             return new Promise((resolve, reject) => {
                 this.server.listen(this.port, this.host, () => {
-                    console.log(`[${this.system.entityName}] Unified HTTP Adapter active on http://${this.host}:${this.port}`);
+                    Logger.log(`[${this.system.entityName}] Unified HTTP Adapter active on http://${this.host}:${this.port}`);
                     resolve();
                 });
                 this.server.on('error', reject);
@@ -109,7 +110,8 @@ export class krnlUnifiedHttpAdapter {
                         const result = await this.system.call(fid, data.data || data);
                         this._sendJson(res, 200, result);
                     } catch (e) {
-                        this._sendJson(res, 400, { error: e.message });
+                        Logger.error(`[HttpAdapter] Friendly route error (${fid}):`, e.message);
+                        this._sendJson(res, 200, { status: "error", message: e.message });
                     }
                     return;
                 }
@@ -174,8 +176,8 @@ export class krnlUnifiedHttpAdapter {
             }
 
         } catch (error) {
-            console.error(`[HttpAdapter] Error handling ${path}:`, error);
-            this._sendJson(res, 500, { error: error.message });
+            Logger.error(`[HttpAdapter] Fatal handler error ${path}:`, error);
+            this._sendJson(res, 200, { status: "error", message: error.message });
         }
     }
 

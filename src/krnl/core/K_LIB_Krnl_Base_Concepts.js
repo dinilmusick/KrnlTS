@@ -1,8 +1,37 @@
+import fs from 'fs';
+
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file K_LIB_Krnl_Base_Concepts.js
  * @description These are building blocks for the basic structures that define the Krnl system.
  */
+
+//////////////////////////////////////// LOGGER UTILITY ////////////////////////////////////////
+/**
+ * Unified logger with support for synchronous flushing.
+ */
+export class Logger {
+  static log(...args) {
+    console.log(`[${new Date().toISOString()}]`, ...args);
+  }
+
+  static error(...args) {
+    console.error(`[${new Date().toISOString()}] ERROR:`, ...args);
+    this.flush();
+  }
+
+  static flush() {
+    if (typeof process !== 'undefined') {
+      try {
+        // Force synchronous flush of stdout and stderr
+        if (process.stdout && typeof process.stdout.fd === 'number') fs.fsyncSync(process.stdout.fd);
+        if (process.stderr && typeof process.stderr.fd === 'number') fs.fsyncSync(process.stderr.fd);
+      } catch (e) {
+        // Some environments don't support fsyncSync on stdout/stderr
+      }
+    }
+  }
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////// MAIN API FUNCTIONS AND DATA ////////////////////////////////////////

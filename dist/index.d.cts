@@ -1,3 +1,4 @@
+import fs from 'fs';
 import http from 'http';
 
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
@@ -5,6 +6,33 @@ import http from 'http';
  * @file K_LIB_Krnl_Base_Concepts.js
  * @description These are building blocks for the basic structures that define the Krnl system.
  */
+
+//////////////////////////////////////// LOGGER UTILITY ////////////////////////////////////////
+/**
+ * Unified logger with support for synchronous flushing.
+ */
+class Logger {
+  static log(...args) {
+    console.log(`[${new Date().toISOString()}]`, ...args);
+  }
+
+  static error(...args) {
+    console.error(`[${new Date().toISOString()}] ERROR:`, ...args);
+    this.flush();
+  }
+
+  static flush() {
+    if (typeof process !== 'undefined') {
+      try {
+        // Force synchronous flush of stdout and stderr
+        if (process.stdout && typeof process.stdout.fd === 'number') fs.fsyncSync(process.stdout.fd);
+        if (process.stderr && typeof process.stderr.fd === 'number') fs.fsyncSync(process.stderr.fd);
+      } catch (e) {
+        // Some environments don't support fsyncSync on stdout/stderr
+      }
+    }
+  }
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////// MAIN API FUNCTIONS AND DATA ////////////////////////////////////////
@@ -1479,7 +1507,7 @@ class krnlSystemCommComponent {
         };
         this.routes.set(routeId, route);
 
-        console.log(
+        Logger.log(
             `[CommComponent:${this.ownerEntity.entityName}] DIRECT route created: ` +
             `${localEmitterName} → ${route.targetSystem}.${remoteCollectorName}`
         );
@@ -1504,19 +1532,19 @@ class krnlSystemCommComponent {
             } else {
                 this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
                 this._wsServer.on('listening', () => {
-                    console.log(`[CommComponent:${this.ownerEntity.entityName}] WS server listening on :${this.listenPort}`);
+                    Logger.log(`[CommComponent:${this.ownerEntity.entityName}] WS server listening on :${this.listenPort}`);
                     resolve();
                 });
             }
 
             this._wsServer.on('error', (err) => {
-                console.error(`[CommComponent:${this.ownerEntity.entityName}] WS server error:`, err.message);
+                Logger.error(`[CommComponent:${this.ownerEntity.entityName}] WS server error:`, err.message);
                 reject(err);
             });
 
             this._wsServer.on('connection', (ws) => {
                 ws.on('error', (err) => {
-                    console.error(`[CommComponent:${this.ownerEntity.entityName}] Incoming WS error:`, err.message);
+                    Logger.error(`[CommComponent:${this.ownerEntity.entityName}] Incoming WS error:`, err.message);
                 });
 
                 ws.on('message', (raw) => {
@@ -1556,7 +1584,7 @@ class krnlSystemCommComponent {
                             return;
                         }
                     } catch (e) {
-                        console.error(`[CommComponent:${this.ownerEntity.entityName}] WS message error:`, e.message);
+                        Logger.error(`[CommComponent:${this.ownerEntity.entityName}] WS message error:`, e.message);
                         try {
                             ws.send(JSON.stringify({
                                 kind: 'error',
@@ -1594,7 +1622,7 @@ class krnlSystemCommComponent {
         });
 
         ws.on('error', (err) => {
-            console.error(`[CommComponent:${this.ownerEntity.entityName}] Outgoing WS error to ${remoteSystemName}:`, err.message);
+            Logger.error(`[CommComponent:${this.ownerEntity.entityName}] Outgoing WS error to ${remoteSystemName}:`, err.message);
         });
 
         this._wsClients.set(remoteSystemName, ws);
@@ -1633,7 +1661,7 @@ class krnlSystemCommComponent {
         };
         this.routes.set(routeId, route);
 
-        console.log(
+        Logger.log(
             `[CommComponent:${this.ownerEntity.entityName}] WS route created: ` +
             `${localEmitterName} → ${remoteSystemName}.${remoteCollectorName} @ ${remoteAddress}`
         );
@@ -1688,7 +1716,7 @@ class krnlSystemCommComponent {
         });
 
         ws.on('error', (err) => {
-            console.error(`[CommComponent:${this.ownerEntity.entityName}] RPC WS error to ${remoteAddress}:`, err.message);
+            Logger.error(`[CommComponent:${this.ownerEntity.entityName}] RPC WS error to ${remoteAddress}:`, err.message);
         });
 
         return new Promise((resolve, reject) => {
@@ -1854,7 +1882,7 @@ class krnlSystemCommComponent {
         }
         this._wsPendingRpc.clear();
         this._wsRpcHandlers.clear();
-        console.log(`[CommComponent:${this.ownerEntity.entityName}] CommComponent disposed.`);
+        Logger.log(`[CommComponent:${this.ownerEntity.entityName}] CommComponent disposed.`);
     }
 }
 
@@ -2173,7 +2201,7 @@ class krnlUnifiedHttpAdapter {
 
             return new Promise((resolve, reject) => {
                 this.server.listen(this.port, this.host, () => {
-                    console.log(`[${this.system.entityName}] Unified HTTP Adapter active on http://${this.host}:${this.port}`);
+                    Logger.log(`[${this.system.entityName}] Unified HTTP Adapter active on http://${this.host}:${this.port}`);
                     resolve();
                 });
                 this.server.on('error', reject);
@@ -2227,7 +2255,8 @@ class krnlUnifiedHttpAdapter {
                         const result = await this.system.call(fid, data.data || data);
                         this._sendJson(res, 200, result);
                     } catch (e) {
-                        this._sendJson(res, 400, { error: e.message });
+                        Logger.error(`[HttpAdapter] Friendly route error (${fid}):`, e.message);
+                        this._sendJson(res, 200, { status: "error", message: e.message });
                     }
                     return;
                 }
@@ -2292,8 +2321,8 @@ class krnlUnifiedHttpAdapter {
             }
 
         } catch (error) {
-            console.error(`[HttpAdapter] Error handling ${path}:`, error);
-            this._sendJson(res, 500, { error: error.message });
+            Logger.error(`[HttpAdapter] Fatal handler error ${path}:`, error);
+            this._sendJson(res, 200, { status: "error", message: error.message });
         }
     }
 
@@ -2490,6 +2519,7 @@ class krnlSystemEntityBase extends krnlEntityBase {
       environment: typeof window === 'undefined' ? 'node' : 'browser'
     };
     console.log(`[KRNL_DIAGNOSTICS] ${JSON.stringify(diagnostics)}`);
+    Logger.log(`System ${this.entityName} starting diagnostics emitted.`);
   }
 
   getSystemFlags() {
@@ -2835,13 +2865,13 @@ class krnlSystemEntityBase extends krnlEntityBase {
     process.on('SIGTERM', handleSignal);
 
     process.on('uncaughtException', (err) => {
-      console.error(`\n[${this.entityName}] UNCAUGHT EXCEPTION:`, err);
+      Logger.error(`UNCAUGHT EXCEPTION:`, err);
       this.dispose();
       process.exit(1);
     });
 
     process.on('unhandledRejection', (reason) => {
-      console.error(`\n[${this.entityName}] UNHANDLED REJECTION:`, reason);
+      Logger.error(`UNHANDLED REJECTION:`, reason);
       this.dispose();
       process.exit(1);
     });
@@ -3166,4 +3196,4 @@ class DasyJS {
   }
 }
 
-export { DasyJS, KrnlAcpProtocol, KrnlMcpProtocol, MemoryTransportAdapter, WebSocketTransportAdapter, createEnum, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter };
+export { DasyJS, KrnlAcpProtocol, KrnlMcpProtocol, Logger, MemoryTransportAdapter, WebSocketTransportAdapter, createEnum, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter };

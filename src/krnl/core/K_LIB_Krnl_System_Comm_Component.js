@@ -33,6 +33,7 @@
 
 import { krnlEmitter, krnlCollector } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { krnlTransportAdapter } from "./K_LIB_Krnl_Functionality_Types.js";
+import { Logger } from "./K_LIB_Krnl_Base_Concepts.js";
 
 /**
  * WEBSOCKET TRANSPORT ADAPTER
@@ -145,7 +146,7 @@ export class krnlSystemCommComponent {
         };
         this.routes.set(routeId, route);
 
-        console.log(
+        Logger.log(
             `[CommComponent:${this.ownerEntity.entityName}] DIRECT route created: ` +
             `${localEmitterName} → ${route.targetSystem}.${remoteCollectorName}`
         );
@@ -170,19 +171,19 @@ export class krnlSystemCommComponent {
             } else {
                 this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
                 this._wsServer.on('listening', () => {
-                    console.log(`[CommComponent:${this.ownerEntity.entityName}] WS server listening on :${this.listenPort}`);
+                    Logger.log(`[CommComponent:${this.ownerEntity.entityName}] WS server listening on :${this.listenPort}`);
                     resolve();
                 });
             }
 
             this._wsServer.on('error', (err) => {
-                console.error(`[CommComponent:${this.ownerEntity.entityName}] WS server error:`, err.message);
+                Logger.error(`[CommComponent:${this.ownerEntity.entityName}] WS server error:`, err.message);
                 reject(err);
             });
 
             this._wsServer.on('connection', (ws) => {
                 ws.on('error', (err) => {
-                    console.error(`[CommComponent:${this.ownerEntity.entityName}] Incoming WS error:`, err.message);
+                    Logger.error(`[CommComponent:${this.ownerEntity.entityName}] Incoming WS error:`, err.message);
                 });
 
                 ws.on('message', (raw) => {
@@ -222,7 +223,7 @@ export class krnlSystemCommComponent {
                             return;
                         }
                     } catch (e) {
-                        console.error(`[CommComponent:${this.ownerEntity.entityName}] WS message error:`, e.message);
+                        Logger.error(`[CommComponent:${this.ownerEntity.entityName}] WS message error:`, e.message);
                         try {
                             ws.send(JSON.stringify({
                                 kind: 'error',
@@ -260,7 +261,7 @@ export class krnlSystemCommComponent {
         });
 
         ws.on('error', (err) => {
-            console.error(`[CommComponent:${this.ownerEntity.entityName}] Outgoing WS error to ${remoteSystemName}:`, err.message);
+            Logger.error(`[CommComponent:${this.ownerEntity.entityName}] Outgoing WS error to ${remoteSystemName}:`, err.message);
         });
 
         this._wsClients.set(remoteSystemName, ws);
@@ -299,7 +300,7 @@ export class krnlSystemCommComponent {
         };
         this.routes.set(routeId, route);
 
-        console.log(
+        Logger.log(
             `[CommComponent:${this.ownerEntity.entityName}] WS route created: ` +
             `${localEmitterName} → ${remoteSystemName}.${remoteCollectorName} @ ${remoteAddress}`
         );
@@ -354,7 +355,7 @@ export class krnlSystemCommComponent {
         });
 
         ws.on('error', (err) => {
-            console.error(`[CommComponent:${this.ownerEntity.entityName}] RPC WS error to ${remoteAddress}:`, err.message);
+            Logger.error(`[CommComponent:${this.ownerEntity.entityName}] RPC WS error to ${remoteAddress}:`, err.message);
         });
 
         return new Promise((resolve, reject) => {
@@ -520,6 +521,6 @@ export class krnlSystemCommComponent {
         }
         this._wsPendingRpc.clear();
         this._wsRpcHandlers.clear();
-        console.log(`[CommComponent:${this.ownerEntity.entityName}] CommComponent disposed.`);
+        Logger.log(`[CommComponent:${this.ownerEntity.entityName}] CommComponent disposed.`);
     }
 }
