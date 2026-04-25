@@ -97,9 +97,12 @@ export class krnlUnifiedHttpAdapter {
         if (!isKrnlRoute) {
             // ── FRIENDLY ROUTING: /:fid ───────────────────────────
             if (this.enableFriendlyRouting && req.method === 'POST') {
-                const fid = path.slice(1);
+                let fid = path.slice(1);
+                if (fid.endsWith('/')) fid = fid.slice(0, -1); // Handle trailing slashes
+
                 if (this.system.localFunctionalities.has(fid) || this.system.remoteFunctionalities.has(fid)) {
                     try {
+                        Logger.log(`[HttpAdapter] Friendly route hit: ${fid}`);
                         const body = await this._readJsonBody(req);
                         // Smart payload wrapping: if no "data" key but other keys exist, wrap it.
                         // We exclude empty bodies or already-wrapped bodies.

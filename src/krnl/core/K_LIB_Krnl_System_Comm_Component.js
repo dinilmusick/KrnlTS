@@ -402,6 +402,8 @@ export class krnlSystemCommComponent {
                 kind: 'rpc-response',
                 requestId,
                 ok: true,
+                status: result?.status || "success",
+                payload: result?.payload !== undefined ? result.payload : result,
                 result,
             }));
         } catch (e) {
@@ -422,7 +424,10 @@ export class krnlSystemCommComponent {
                 kind: 'rpc-response',
                 requestId,
                 ok: false,
+                status: "error",
+                message: errorMsg,
                 error: errorMsg,
+                payload: null,
                 // If the entity provides extra error metadata (e.g. docs), include it
                 ...(e && typeof e === 'object' ? (e.metadata || {}) : {})
             }));

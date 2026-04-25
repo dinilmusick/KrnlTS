@@ -71,22 +71,29 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this._documentationProvider = provider;
   }
 
-  /**
-   * Universal Result Decorator: Automatically attaches documentation to successful results.
-   */
   async _decorateResult(result, fid, input) {
-    if (this._documentationProvider && result && result.status !== "error" && result.error === undefined) {
+    // 1. Standardize Transaction Wrapping
+    // If the result is already wrapped, we keep it. Otherwise, we wrap it.
+    let finalResult = (result && typeof result === 'object' && (result.status === "success" || result.status === "error") && result.payload !== undefined)
+      ? result
+      : { status: "success", payload: result };
+
+    // 2. Inject Preemptive Documentation
+    if (this._documentationProvider && finalResult.status === "success") {
       if (typeof this._documentationProvider.getNextStepsDoc === 'function') {
         const nextSteps = this._documentationProvider.getNextStepsDoc(fid);
         if (nextSteps && nextSteps.length > 0) {
-          result.preemptiveDocumentation = {
-            message: "Progressive Exploration: Recommended next steps.",
-            nextSteps
-          };
+          // If payload is an object, attach documentation
+          if (finalResult.payload && typeof finalResult.payload === 'object') {
+            finalResult.payload.preemptiveDocumentation = {
+              message: "Progressive Exploration: Recommended next steps.",
+              nextSteps
+            };
+          }
         }
       }
     }
-    return result;
+    return finalResult;
   }
 
   /**
@@ -95,7 +102,8 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   async _decorateError(err, fid, input) {
     const response = {
       status: "error",
-      message: err.message,
+      message: err.message || String(err),
+      payload: null,
       ...(err.metadata || {})
     };
     if (this._documentationProvider && typeof this._documentationProvider.getDocForEndpoint === 'function') {
@@ -208,6 +216,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this.localFunctionalities.forEach((f) => {
       apiNames.push(f.id);
       f.emitters.forEach((_, eid) => eventsNames.push(`${f.id}:${eid}`));
+    });
+
+    this.remoteFunctionalities.forEach((f) => {
+      if (!apiNames.includes(f.id)) apiNames.push(f.id);
     });
 
     return {

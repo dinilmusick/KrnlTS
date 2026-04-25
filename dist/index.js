@@ -1358,6 +1358,8 @@ var krnlSystemCommComponent = class {
         kind: "rpc-response",
         requestId,
         ok: true,
+        status: (result == null ? void 0 : result.status) || "success",
+        payload: (result == null ? void 0 : result.payload) !== void 0 ? result.payload : result,
         result
       }));
     } catch (e) {
@@ -1375,7 +1377,10 @@ var krnlSystemCommComponent = class {
         kind: "rpc-response",
         requestId,
         ok: false,
+        status: "error",
+        message: errorMsg,
         error: errorMsg,
+        payload: null,
         // If the entity provides extra error metadata (e.g. docs), include it
         ...e && typeof e === "object" ? e.metadata || {} : {}
       }));
@@ -1768,9 +1773,11 @@ var krnlUnifiedHttpAdapter = class {
     const isKrnlRoute = path.startsWith("/call/") || path.startsWith("/sse/") || path.startsWith("/mcp") || path.startsWith("/acp") || path === "/manifest" || path === "/health";
     if (!isKrnlRoute) {
       if (this.enableFriendlyRouting && req.method === "POST") {
-        const fid = path.slice(1);
+        let fid = path.slice(1);
+        if (fid.endsWith("/")) fid = fid.slice(0, -1);
         if (this.system.localFunctionalities.has(fid) || this.system.remoteFunctionalities.has(fid)) {
           try {
+            Logger.log(`[HttpAdapter] Friendly route hit: ${fid}`);
             const body = await this._readJsonBody(req);
             const data = body && typeof body === "object" && !("data" in body) && Object.keys(body).length > 0 ? { data: body } : body;
             const result = await this.system.call(fid, data.data || data);
@@ -1923,22 +1930,22 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
   setDocumentationProvider(provider) {
     this._documentationProvider = provider;
   }
-  /**
-   * Universal Result Decorator: Automatically attaches documentation to successful results.
-   */
   async _decorateResult(result, fid, input) {
-    if (this._documentationProvider && result && result.status !== "error" && result.error === void 0) {
+    let finalResult = result && typeof result === "object" && (result.status === "success" || result.status === "error") && result.payload !== void 0 ? result : { status: "success", payload: result };
+    if (this._documentationProvider && finalResult.status === "success") {
       if (typeof this._documentationProvider.getNextStepsDoc === "function") {
         const nextSteps = this._documentationProvider.getNextStepsDoc(fid);
         if (nextSteps && nextSteps.length > 0) {
-          result.preemptiveDocumentation = {
-            message: "Progressive Exploration: Recommended next steps.",
-            nextSteps
-          };
+          if (finalResult.payload && typeof finalResult.payload === "object") {
+            finalResult.payload.preemptiveDocumentation = {
+              message: "Progressive Exploration: Recommended next steps.",
+              nextSteps
+            };
+          }
         }
       }
     }
-    return result;
+    return finalResult;
   }
   /**
    * Universal Error Decorator: Automatically attaches documentation to error results.
@@ -1946,7 +1953,8 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
   async _decorateError(err, fid, input) {
     const response = {
       status: "error",
-      message: err.message,
+      message: err.message || String(err),
+      payload: null,
       ...err.metadata || {}
     };
     if (this._documentationProvider && typeof this._documentationProvider.getDocForEndpoint === "function") {
@@ -2049,6 +2057,9 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     this.localFunctionalities.forEach((f) => {
       apiNames.push(f.id);
       f.emitters.forEach((_, eid) => eventsNames.push(`${f.id}:${eid}`));
+    });
+    this.remoteFunctionalities.forEach((f) => {
+      if (!apiNames.includes(f.id)) apiNames.push(f.id);
     });
     return {
       entityName: this.entityName,
