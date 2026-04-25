@@ -74,7 +74,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   async _decorateResult(result, fid, input) {
     // 1. Standardize Transaction Wrapping
     // If the result is already wrapped, we keep it. Otherwise, we wrap it.
-    let finalResult = (result && typeof result === 'object' && (result.status === "success" || result.status === "error"))
+    let finalResult = (result && typeof result === 'object' && result.status)
       ? result
       : { status: "success", payload: result };
 

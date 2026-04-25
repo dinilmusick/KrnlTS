@@ -1929,7 +1929,7 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     this._documentationProvider = provider;
   }
   async _decorateResult(result, fid, input) {
-    let finalResult = result && typeof result === "object" && (result.status === "success" || result.status === "error") ? result : { status: "success", payload: result };
+    let finalResult = result && typeof result === "object" && result.status ? result : { status: "success", payload: result };
     if (this._documentationProvider && finalResult.status === "success") {
       if (typeof this._documentationProvider.getNextStepsDoc === "function") {
         const nextSteps = this._documentationProvider.getNextStepsDoc(fid);
