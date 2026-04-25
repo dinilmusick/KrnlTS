@@ -1763,9 +1763,7 @@ class krnlSystemCommComponent {
                 kind: 'rpc-response',
                 requestId,
                 ok: true,
-                status: result?.status || "success",
-                payload: result?.payload !== undefined ? result.payload : result,
-                result,
+                result
             }));
         } catch (e) {
             // Safely extract a human-readable error string.

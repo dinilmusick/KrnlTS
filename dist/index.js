@@ -1358,8 +1358,6 @@ var krnlSystemCommComponent = class {
         kind: "rpc-response",
         requestId,
         ok: true,
-        status: (result == null ? void 0 : result.status) || "success",
-        payload: (result == null ? void 0 : result.payload) !== void 0 ? result.payload : result,
         result
       }));
     } catch (e) {
