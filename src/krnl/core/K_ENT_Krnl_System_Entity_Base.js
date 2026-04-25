@@ -347,6 +347,21 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     return Array.from(this.peers.values()).filter((peer) => peer.discoverable !== false);
   }
 
+  /**
+   * Returns a proxy object for a remote entity by ID.
+   * @param {string} peerId 
+   * @returns {Object|null}
+   */
+  getRemoteEntity(peerId) {
+    const peer = this.peers.get(peerId);
+    if (!peer) return null;
+    return {
+      call: async (fid, data) => {
+        return await this.commComponent.callWsRpc(peer.address, 'call', { fid, data });
+      }
+    };
+  }
+
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////// WIRING ///////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -495,25 +510,32 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   bindProcessSignals() {
     if (typeof process === 'undefined' || !process.on) return;
 
-    const handleSignal = () => {
-      console.log(`\n[${this.entityName}] OS Signal received. Cleaning up...`);
+    const handleSignal = (signal) => {
+      console.log(`\n[${this.entityName}] OS Signal ${signal} received. Cleaning up...`);
       this.dispose();
       process.exit(0);
     };
 
-    process.on('SIGINT', handleSignal);
-    process.on('SIGTERM', handleSignal);
+    process.on('SIGINT', () => handleSignal('SIGINT'));
+    process.on('SIGTERM', () => handleSignal('SIGTERM'));
+    process.on('SIGHUP', () => {
+      console.log(`[${this.entityName}] SIGHUP received. Ignoring to maintain background persistence.`);
+    });
 
     process.on('uncaughtException', (err) => {
-      Logger.error(`UNCAUGHT EXCEPTION:`, err);
+      Logger.error(`UNCAUGHT EXCEPTION in ${this.entityName}:`, err);
       this.dispose();
       process.exit(1);
     });
 
     process.on('unhandledRejection', (reason) => {
-      Logger.error(`UNHANDLED REJECTION:`, reason);
+      Logger.error(`UNHANDLED REJECTION in ${this.entityName}:`, reason);
       this.dispose();
       process.exit(1);
+    });
+
+    process.on('exit', (code) => {
+      console.log(`[${this.entityName}] Process exiting with code: ${code}`);
     });
   }
 

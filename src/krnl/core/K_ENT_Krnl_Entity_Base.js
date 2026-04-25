@@ -194,6 +194,10 @@ export class krnlEntityBase {
 
   getLocal(fid) { return this.localFunctionalities.get(fid); }
   getRemote(fid) { return this.remoteFunctionalities.get(fid); }
+  addChild(instance) {
+    return this.hierarchyManager.addComponentEntityInstance(instance);
+  }
+
   disposeOwnedComponent(entityId) {
     return this.hierarchyManager.disposeComponentEntity(entityId);
   }
