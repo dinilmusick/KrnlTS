@@ -1999,17 +1999,15 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     this._documentationProvider = provider;
   }
   async _decorateResult(result, fid, input) {
-    let finalResult = result && typeof result === "object" && (result.status === "success" || result.status === "error") && result.payload !== void 0 ? result : { status: "success", payload: result };
+    let finalResult = result && typeof result === "object" && (result.status === "success" || result.status === "error") ? result : { status: "success", payload: result };
     if (this._documentationProvider && finalResult.status === "success") {
       if (typeof this._documentationProvider.getNextStepsDoc === "function") {
         const nextSteps = this._documentationProvider.getNextStepsDoc(fid);
         if (nextSteps && nextSteps.length > 0) {
-          if (finalResult.payload && typeof finalResult.payload === "object") {
-            finalResult.payload.preemptiveDocumentation = {
-              message: "Progressive Exploration: Recommended next steps.",
-              nextSteps
-            };
-          }
+          finalResult.preemptiveDocumentation = {
+            message: "Progressive Exploration: Recommended next steps.",
+            nextSteps
+          };
         }
       }
     }

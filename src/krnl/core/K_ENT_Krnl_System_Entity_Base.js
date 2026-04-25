@@ -74,7 +74,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   async _decorateResult(result, fid, input) {
     // 1. Standardize Transaction Wrapping
     // If the result is already wrapped, we keep it. Otherwise, we wrap it.
-    let finalResult = (result && typeof result === 'object' && (result.status === "success" || result.status === "error") && result.payload !== undefined)
+    let finalResult = (result && typeof result === 'object' && (result.status === "success" || result.status === "error"))
       ? result
       : { status: "success", payload: result };
 
@@ -84,12 +84,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
         const nextSteps = this._documentationProvider.getNextStepsDoc(fid);
         if (nextSteps && nextSteps.length > 0) {
           // If payload is an object, attach documentation
-          if (finalResult.payload && typeof finalResult.payload === 'object') {
-            finalResult.payload.preemptiveDocumentation = {
-              message: "Progressive Exploration: Recommended next steps.",
-              nextSteps
-            };
-          }
+        finalResult.preemptiveDocumentation = {
+          message: "Progressive Exploration: Recommended next steps.",
+          nextSteps
+        };
         }
       }
     }
