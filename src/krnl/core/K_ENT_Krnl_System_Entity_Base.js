@@ -40,7 +40,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       reservedBy: null,
       reservedAt: null,
     };
-    this.peerTtlMs = 15000;
+    this.peerTtlMs = 60000; // Increased to 60s for stability
 
     // ── Uniform P2P communication bridge ──────────────────────────────
     this.commPort = commPort;
