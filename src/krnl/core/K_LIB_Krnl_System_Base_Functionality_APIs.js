@@ -1,8 +1,4 @@
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
-/**
- * @file K_LIB_Krnl_System_Base_Functionality_APIs.js
- * @description Reusable API atoms for krnlSystemEntityBase default functionalities.
- */
+import { telemetry } from './K_LIB_Krnl_Telemetry.js';
 
 export function heartbeatApi(entity) {
   return () => ({
@@ -21,6 +17,7 @@ export function telemetryApi(entity) {
     ownedEntities: entity.hierarchyManager.getAllOwnedComponentEntities().map((e) => e.entityName),
     activeRoutes: entity.commComponent.listRoutes(),
     uptime: typeof process !== 'undefined' && process.uptime ? process.uptime() : null,
+    performance: telemetry.getSummary()
   });
 }
 

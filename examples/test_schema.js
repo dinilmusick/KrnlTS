@@ -46,19 +46,19 @@ async function run() {
     }
 
     console.log("\n[TEST 2] Calling with INVALID input (missing field)...");
-    const res2 = await system.call("calculate", { a: 10, op: "add" });
-    if (res2.status === "error") {
-        console.log("SUCCESS: Blocked invalid input as expected:", res2.message);
-    } else {
+    try {
+        const res2 = await system.call("calculate", { a: 10, op: "add" });
         console.error("FAILED: Should have blocked invalid input!");
+    } catch (err) {
+        console.log("SUCCESS: Blocked invalid input as expected:", err.message);
     }
 
     console.log("\n[TEST 3] Calling with INVALID input (wrong type)...");
-    const res3 = await system.call("calculate", { a: 10, b: "5", op: "add" });
-    if (res3.status === "error") {
-        console.log("SUCCESS: Blocked invalid input as expected:", res3.message);
-    } else {
+    try {
+        const res3 = await system.call("calculate", { a: 10, b: "5", op: "add" });
         console.error("FAILED: Should have blocked invalid input!");
+    } catch (err) {
+        console.log("SUCCESS: Blocked invalid input as expected:", err.message);
     }
 
     console.log("\n[TEST 4] Testing MANIFEST generation...");
