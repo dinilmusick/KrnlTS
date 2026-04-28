@@ -110,7 +110,7 @@ export class krnlUnifiedHttpAdapter {
                                      ? { data: body } 
                                      : body;
                         
-                        const result = await this.system.call(fid, data.data || data);
+                        const result = await this.system.call(fid, data.data || data, { unwrap: false });
                         this._sendJson(res, 200, result);
                     } catch (e) {
                         Logger.error(`[HttpAdapter] Friendly route error (${fid}):`, e.message);
@@ -130,7 +130,7 @@ export class krnlUnifiedHttpAdapter {
             if (path.startsWith('/call/')) {
                 const fid = path.split('/')[2];
                 const body = await this._readJsonBody(req);
-                const result = await this.system.call(fid, body);
+                const result = await this.system.call(fid, body, { unwrap: false });
                 this._sendJson(res, 200, result);
                 return;
             }

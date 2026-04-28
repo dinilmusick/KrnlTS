@@ -1091,6 +1091,7 @@ var krnlEntityBase = class _krnlEntityBase {
    * Executes a functionality by ID.
    */
   async call(fid, input, opts = {}) {
+    const unwrap = opts.unwrap !== false;
     try {
       let result;
       if (this.localFunctionalities.has(fid)) {
@@ -1101,14 +1102,26 @@ var krnlEntityBase = class _krnlEntityBase {
         throw new krnlError(krnlErrorCodes.FUNCTIONALITY_NOT_DEFINED);
       }
       if (this._decorateResult) {
-        return await this._decorateResult(result, fid, input);
+        result = await this._decorateResult(result, fid, input);
+      }
+      if (unwrap && result && typeof result === "object" && result.status === "success" && "payload" in result && !result.preemptiveDocumentation) {
+        return result.payload;
+      }
+      if (result && typeof result === "object" && result.status === "error") {
+        throw new krnlError(result.message || krnlErrorCodes.REMOTE_EXECUTION_FAILED);
       }
       return result;
     } catch (err) {
+      let finalErr = err;
       if (this._decorateError) {
-        return await this._decorateError(err, fid, input);
+        finalErr = await this._decorateError(err, fid, input);
       }
-      throw err;
+      if (finalErr && typeof finalErr === "object" && finalErr.status === "error") {
+        const wrapper = new krnlError(finalErr.message || krnlErrorCodes.REMOTE_EXECUTION_FAILED);
+        Object.assign(wrapper, finalErr);
+        throw wrapper;
+      }
+      throw finalErr;
     }
   }
   getLocal(fid) {
@@ -1867,7 +1880,7 @@ var krnlUnifiedHttpAdapter = class {
             Logger.log(`[HttpAdapter] Friendly route hit: ${fid}`);
             const body = await this._readJsonBody(req);
             const data = body && typeof body === "object" && !("data" in body) && Object.keys(body).length > 0 ? { data: body } : body;
-            const result = await this.system.call(fid, data.data || data);
+            const result = await this.system.call(fid, data.data || data, { unwrap: false });
             this._sendJson(res, 200, result);
           } catch (e) {
             Logger.error(`[HttpAdapter] Friendly route error (${fid}):`, e.message);
@@ -1883,7 +1896,7 @@ var krnlUnifiedHttpAdapter = class {
       if (path.startsWith("/call/")) {
         const fid = path.split("/")[2];
         const body = await this._readJsonBody(req);
-        const result = await this.system.call(fid, body);
+        const result = await this.system.call(fid, body, { unwrap: false });
         this._sendJson(res, 200, result);
         return;
       }

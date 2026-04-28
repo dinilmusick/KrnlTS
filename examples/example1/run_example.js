@@ -15,11 +15,17 @@ async function main() {
     // Simulate what the original constructor did
     setTimeout(async () => {
         try {
-            const status = await web.call("SetupComms");
+            let status = await web.call("SetupComms");
+            // Handle both raw string and wrapped status for backward compatibility in examples
+            if (status && typeof status === 'object' && status.status === 'success') {
+                status = status.payload;
+            }
+
             console.log(`[WebInterfaceSystem] Setup status: ${status}`);
             if (status === "Wiring complete.") {
                 console.log("[WebInterfaceSystem] Triggering demo calculation...");
-                const res = await web.call("UIPanel", { a: 10, b: 5, op: "add" });
+                let res = await web.call("UIPanel", { a: 10, b: 5, op: "add" });
+                if (res && typeof res === 'object' && res.status === 'success') res = res.payload;
                 console.log("[WebInterfaceSystem] Result from UIPanel:", res);
             }
         } catch (e) {

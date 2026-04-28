@@ -168,6 +168,7 @@ export class krnlEntityBase {
    * Executes a functionality by ID.
    */
   async call(fid, input, opts = {}) {
+    const unwrap = opts.unwrap !== false; // Default to true
     try {
       let result;
       if (this.localFunctionalities.has(fid)) {
@@ -180,15 +181,36 @@ export class krnlEntityBase {
 
       // Universal result decoration hook
       if (this._decorateResult) {
-        return await this._decorateResult(result, fid, input);
+        result = await this._decorateResult(result, fid, input);
       }
+
+      // Backward compatibility: If it's a standard Krnl success envelope, unwrap it.
+      // NOTE: We only unwrap if 'unwrap' is true AND there is NO preemptiveDocumentation
+      if (unwrap && result && typeof result === 'object' && result.status === 'success' && 'payload' in result && !result.preemptiveDocumentation) {
+        return result.payload;
+      }
+
+      // Backward compatibility: If it's a standard Krnl error envelope, throw it.
+      if (result && typeof result === 'object' && result.status === 'error') {
+        throw new krnlError(result.message || krnlErrorCodes.REMOTE_EXECUTION_FAILED);
+      }
+
       return result;
     } catch (err) {
+      let finalErr = err;
       // Universal error decoration hook
       if (this._decorateError) {
-        return await this._decorateError(err, fid, input);
+        finalErr = await this._decorateError(err, fid, input);
       }
-      throw err;
+      
+      // If the error was decorated into a Krnl error object, throw it so try/catch works locally
+      if (finalErr && typeof finalErr === 'object' && finalErr.status === 'error') {
+        const wrapper = new krnlError(finalErr.message || krnlErrorCodes.REMOTE_EXECUTION_FAILED);
+        Object.assign(wrapper, finalErr); // Preserve metadata/documentation
+        throw wrapper;
+      }
+
+      throw finalErr;
     }
   }
 
