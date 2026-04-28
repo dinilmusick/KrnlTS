@@ -11,6 +11,12 @@ importers:
       ws:
         specifier: ^8.18.0
         version: 8.20.0
+      zod:
+        specifier: ^3.24.1
+        version: 3.24.1
+      zod-to-json-schema:
+        specifier: ^3.24.1
+        version: 3.24.1(zod@3.24.1)
     devDependencies:
       tsup:
         specifier: ^8.4.0
@@ -543,6 +549,14 @@ packages:
       utf-8-validate:
         optional: true
 
+  zod-to-json-schema@3.24.1:
+    resolution: {integrity: sha512-3h08nf3Vw3Wl3PK+q3ow/lIil81IT2Oa7YpQyUUDsEWbXveMesdfK1xBd2RhCkynwZndAxixji/7SYJJowr62w==}
+    peerDependencies:
+      zod: ^3.24.1
+
+  zod@3.24.1:
+    resolution: {integrity: sha512-muH7gBL9sI1nciMZV67X5fTKKBLtwpZ5VBp1vsOQzj1MhrBZ4wlVCm3gedKZWLp0Oyel8sIGfeiz54Su+OVT+A==}
+
 snapshots:
 
   '@esbuild/aix-ppc64@0.27.7':
@@ -926,3 +940,9 @@ snapshots:
   ufo@1.6.3: {}
 
   ws@8.20.0: {}
+
+  zod-to-json-schema@3.24.1(zod@3.24.1):
+    dependencies:
+      zod: 3.24.1
+
+  zod@3.24.1: {}

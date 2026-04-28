@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --dts --format esm,cjs --external ws",
+    "build": "tsup src/index.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema",
     "sync": "pnpm install"
   },
   "files": [
@@ -28,7 +28,9 @@
   "author": "Dinil Palackal",
   "license": "MIT",
   "dependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.24.1"
   },
   "devDependencies": {
     "tsup": "^8.4.0",

@@ -17,6 +17,7 @@ import {
 import { krnlServiceSuites, krnlServiceSuitePorts, Logger } from "./K_LIB_Krnl_Base_Concepts.js";
 import { krnlUnifiedHttpAdapter } from "./K_LIB_Krnl_System_Unified_Http_Adapter.js";
 import http from 'http';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////// MAIN API FUNCTIONS AND DATA ////////////////////////////////////////
@@ -210,14 +211,44 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   getManifest() {
     const apiNames = [];
     const eventsNames = [];
+    const api = {};
 
     this.localFunctionalities.forEach((f) => {
+      const fManifest = { id: f.id, events: [] };
+      f.emitters.forEach((_, eid) => {
+        const eventId = `${f.id}:${eid}`;
+        fManifest.events.push(eventId);
+        eventsNames.push(eventId);
+      });
+
+      // Export Schemas if they exist
+      if (f.schema) {
+        fManifest.schema = {};
+        if (f.schema.input) {
+          try {
+            fManifest.schema.input = zodToJsonSchema(f.schema.input);
+          } catch (e) {
+             fManifest.schema.input = { type: "custom", message: "Non-Zod or complex schema" };
+          }
+        }
+        if (f.schema.output) {
+          try {
+            fManifest.schema.output = zodToJsonSchema(f.schema.output);
+          } catch (e) {
+            fManifest.schema.output = { type: "custom", message: "Non-Zod or complex schema" };
+          }
+        }
+      }
+
+      api[f.id] = fManifest;
       apiNames.push(f.id);
-      f.emitters.forEach((_, eid) => eventsNames.push(`${f.id}:${eid}`));
     });
 
     this.remoteFunctionalities.forEach((f) => {
-      if (!apiNames.includes(f.id)) apiNames.push(f.id);
+      if (!api[f.id]) {
+        api[f.id] = { id: f.id, type: 'remote' };
+        apiNames.push(f.id);
+      }
     });
 
     return {
@@ -226,7 +257,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       flags: this.getSystemFlags(),
       inputs: {
         collectors: this.interface.collectorNames,
-        api: apiNames,
+        api: api, // Detailed map instead of just names
       },
       outputs: {
         emitters: this.interface.emitterNames,

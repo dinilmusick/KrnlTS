@@ -1,5 +1,6 @@
 import fs from 'fs';
 import http from 'http';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
@@ -1023,16 +1024,21 @@ class krnlLocalFunctionality {
     const caller = opts.caller || 'default';
     const activeState = this.state;
 
-    // Schema Validation
+    // --- INPUT VALIDATION ---
     if (this.schema && this.schema.input) {
-      if (typeof this.schema.input.parse === 'function') {
-        // Zod-like
-        input = this.schema.input.parse(input);
-      } else if (typeof this.schema.input === 'function') {
-        // Custom validator function
-        if (!this.schema.input(input)) {
-          throw new Error(`[KrnlSchemaError] Input validation failed for functionality: ${this.id}`);
+      try {
+        if (typeof this.schema.input.parse === 'function') {
+          // Zod-like
+          input = this.schema.input.parse(input);
+        } else if (typeof this.schema.input === 'function') {
+          // Custom validator function
+          if (!this.schema.input(input)) {
+            throw new Error(`Input validation failed.`);
+          }
         }
+      } catch (err) {
+        const msg = err.errors ? JSON.stringify(err.errors) : err.message;
+        throw new Error(`[KrnlSchemaError] Input validation failed for "${this.id}": ${msg}`);
       }
     }
 
@@ -1041,14 +1047,30 @@ class krnlLocalFunctionality {
         this.lifecycle.during({ input, opts, state: activeState, entity: this.hostEntity });
       }
 
-      const result = await this.api(input, {
+      let result = await this.api(input, {
         state: activeState,
         emitters: this.emitters,
         helpers: this.helpers,
         entity: this.hostEntity,
-        functionality: this, // Added
+        functionality: this,
         caller: caller
       });
+
+      // --- OUTPUT VALIDATION ---
+      if (this.schema && this.schema.output) {
+        try {
+          if (typeof this.schema.output.parse === 'function') {
+            result = this.schema.output.parse(result);
+          } else if (typeof this.schema.output === 'function') {
+            if (!this.schema.output(result)) {
+              throw new Error(`Output validation failed.`);
+            }
+          }
+        } catch (err) {
+          const msg = err.errors ? JSON.stringify(err.errors) : err.message;
+          throw new Error(`[KrnlSchemaError] Output validation failed for "${this.id}": ${msg}`);
+        }
+      }
 
       if (typeof this.lifecycle.end === "function") {
         this.lifecycle.end({ input, output: result, caller });
@@ -2420,7 +2442,7 @@ class krnlSystemEntityBase extends krnlEntityBase {
       reservedBy: null,
       reservedAt: null,
     };
-    this.peerTtlMs = 15000;
+    this.peerTtlMs = 60000; // Increased to 60s for stability
 
     // ── Uniform P2P communication bridge ──────────────────────────────
     this.commPort = commPort;
@@ -2590,14 +2612,44 @@ class krnlSystemEntityBase extends krnlEntityBase {
   getManifest() {
     const apiNames = [];
     const eventsNames = [];
+    const api = {};
 
     this.localFunctionalities.forEach((f) => {
+      const fManifest = { id: f.id, events: [] };
+      f.emitters.forEach((_, eid) => {
+        const eventId = `${f.id}:${eid}`;
+        fManifest.events.push(eventId);
+        eventsNames.push(eventId);
+      });
+
+      // Export Schemas if they exist
+      if (f.schema) {
+        fManifest.schema = {};
+        if (f.schema.input) {
+          try {
+            fManifest.schema.input = zodToJsonSchema(f.schema.input);
+          } catch (e) {
+             fManifest.schema.input = { type: "custom", message: "Non-Zod or complex schema" };
+          }
+        }
+        if (f.schema.output) {
+          try {
+            fManifest.schema.output = zodToJsonSchema(f.schema.output);
+          } catch (e) {
+            fManifest.schema.output = { type: "custom", message: "Non-Zod or complex schema" };
+          }
+        }
+      }
+
+      api[f.id] = fManifest;
       apiNames.push(f.id);
-      f.emitters.forEach((_, eid) => eventsNames.push(`${f.id}:${eid}`));
     });
 
     this.remoteFunctionalities.forEach((f) => {
-      if (!apiNames.includes(f.id)) apiNames.push(f.id);
+      if (!api[f.id]) {
+        api[f.id] = { id: f.id, type: 'remote' };
+        apiNames.push(f.id);
+      }
     });
 
     return {
@@ -2606,7 +2658,7 @@ class krnlSystemEntityBase extends krnlEntityBase {
       flags: this.getSystemFlags(),
       inputs: {
         collectors: this.interface.collectorNames,
-        api: apiNames,
+        api: api, // Detailed map instead of just names
       },
       outputs: {
         emitters: this.interface.emitterNames,

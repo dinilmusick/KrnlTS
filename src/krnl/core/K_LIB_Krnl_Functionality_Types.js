@@ -214,16 +214,21 @@ export class krnlLocalFunctionality {
     const caller = opts.caller || 'default';
     const activeState = this.state;
 
-    // Schema Validation
+    // --- INPUT VALIDATION ---
     if (this.schema && this.schema.input) {
-      if (typeof this.schema.input.parse === 'function') {
-        // Zod-like
-        input = this.schema.input.parse(input);
-      } else if (typeof this.schema.input === 'function') {
-        // Custom validator function
-        if (!this.schema.input(input)) {
-          throw new Error(`[KrnlSchemaError] Input validation failed for functionality: ${this.id}`);
+      try {
+        if (typeof this.schema.input.parse === 'function') {
+          // Zod-like
+          input = this.schema.input.parse(input);
+        } else if (typeof this.schema.input === 'function') {
+          // Custom validator function
+          if (!this.schema.input(input)) {
+            throw new Error(`Input validation failed.`);
+          }
         }
+      } catch (err) {
+        const msg = err.errors ? JSON.stringify(err.errors) : err.message;
+        throw new Error(`[KrnlSchemaError] Input validation failed for "${this.id}": ${msg}`);
       }
     }
 
@@ -232,14 +237,30 @@ export class krnlLocalFunctionality {
         this.lifecycle.during({ input, opts, state: activeState, entity: this.hostEntity });
       }
 
-      const result = await this.api(input, {
+      let result = await this.api(input, {
         state: activeState,
         emitters: this.emitters,
         helpers: this.helpers,
         entity: this.hostEntity,
-        functionality: this, // Added
+        functionality: this,
         caller: caller
       });
+
+      // --- OUTPUT VALIDATION ---
+      if (this.schema && this.schema.output) {
+        try {
+          if (typeof this.schema.output.parse === 'function') {
+            result = this.schema.output.parse(result);
+          } else if (typeof this.schema.output === 'function') {
+            if (!this.schema.output(result)) {
+              throw new Error(`Output validation failed.`);
+            }
+          }
+        } catch (err) {
+          const msg = err.errors ? JSON.stringify(err.errors) : err.message;
+          throw new Error(`[KrnlSchemaError] Output validation failed for "${this.id}": ${msg}`);
+        }
+      }
 
       if (typeof this.lifecycle.end === "function") {
         this.lifecycle.end({ input, output: result, caller });

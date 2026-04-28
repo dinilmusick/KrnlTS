@@ -802,27 +802,45 @@ var krnlLocalFunctionality = class {
     const caller = opts.caller || "default";
     const activeState = this.state;
     if (this.schema && this.schema.input) {
-      if (typeof this.schema.input.parse === "function") {
-        input = this.schema.input.parse(input);
-      } else if (typeof this.schema.input === "function") {
-        if (!this.schema.input(input)) {
-          throw new Error(`[KrnlSchemaError] Input validation failed for functionality: ${this.id}`);
+      try {
+        if (typeof this.schema.input.parse === "function") {
+          input = this.schema.input.parse(input);
+        } else if (typeof this.schema.input === "function") {
+          if (!this.schema.input(input)) {
+            throw new Error(`Input validation failed.`);
+          }
         }
+      } catch (err) {
+        const msg = err.errors ? JSON.stringify(err.errors) : err.message;
+        throw new Error(`[KrnlSchemaError] Input validation failed for "${this.id}": ${msg}`);
       }
     }
     try {
       if (typeof this.lifecycle.during === "function") {
         this.lifecycle.during({ input, opts, state: activeState, entity: this.hostEntity });
       }
-      const result = await this.api(input, {
+      let result = await this.api(input, {
         state: activeState,
         emitters: this.emitters,
         helpers: this.helpers,
         entity: this.hostEntity,
         functionality: this,
-        // Added
         caller
       });
+      if (this.schema && this.schema.output) {
+        try {
+          if (typeof this.schema.output.parse === "function") {
+            result = this.schema.output.parse(result);
+          } else if (typeof this.schema.output === "function") {
+            if (!this.schema.output(result)) {
+              throw new Error(`Output validation failed.`);
+            }
+          }
+        } catch (err) {
+          const msg = err.errors ? JSON.stringify(err.errors) : err.message;
+          throw new Error(`[KrnlSchemaError] Output validation failed for "${this.id}": ${msg}`);
+        }
+      }
       if (typeof this.lifecycle.end === "function") {
         this.lifecycle.end({ input, output: result, caller });
       }
@@ -1894,6 +1912,7 @@ var krnlUnifiedHttpAdapter = class {
 
 // src/krnl/core/K_ENT_Krnl_System_Entity_Base.js
 import http2 from "http";
+import { zodToJsonSchema } from "zod-to-json-schema";
 var krnlSystemEntityBase = class extends krnlEntityBase {
   /**
    * @param {string} name
@@ -1911,7 +1930,7 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
       reservedBy: null,
       reservedAt: null
     };
-    this.peerTtlMs = 15e3;
+    this.peerTtlMs = 6e4;
     this.commPort = commPort;
     this.host = host;
     this.commComponent = new krnlSystemCommComponent(this, commPort, host);
@@ -2053,12 +2072,39 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
   getManifest() {
     const apiNames = [];
     const eventsNames = [];
+    const api = {};
     this.localFunctionalities.forEach((f) => {
+      const fManifest = { id: f.id, events: [] };
+      f.emitters.forEach((_, eid) => {
+        const eventId = `${f.id}:${eid}`;
+        fManifest.events.push(eventId);
+        eventsNames.push(eventId);
+      });
+      if (f.schema) {
+        fManifest.schema = {};
+        if (f.schema.input) {
+          try {
+            fManifest.schema.input = zodToJsonSchema(f.schema.input);
+          } catch (e) {
+            fManifest.schema.input = { type: "custom", message: "Non-Zod or complex schema" };
+          }
+        }
+        if (f.schema.output) {
+          try {
+            fManifest.schema.output = zodToJsonSchema(f.schema.output);
+          } catch (e) {
+            fManifest.schema.output = { type: "custom", message: "Non-Zod or complex schema" };
+          }
+        }
+      }
+      api[f.id] = fManifest;
       apiNames.push(f.id);
-      f.emitters.forEach((_, eid) => eventsNames.push(`${f.id}:${eid}`));
     });
     this.remoteFunctionalities.forEach((f) => {
-      if (!apiNames.includes(f.id)) apiNames.push(f.id);
+      if (!api[f.id]) {
+        api[f.id] = { id: f.id, type: "remote" };
+        apiNames.push(f.id);
+      }
     });
     return {
       entityName: this.entityName,
@@ -2066,7 +2112,8 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
       flags: this.getSystemFlags(),
       inputs: {
         collectors: this.interface.collectorNames,
-        api: apiNames
+        api
+        // Detailed map instead of just names
       },
       outputs: {
         emitters: this.interface.emitterNames,
