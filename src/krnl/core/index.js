@@ -11,3 +11,4 @@ export * from "./K_LIB_Krnl_Functionality_Types.js";
 export * from "./K_LIB_Krnl_System_Unified_Http_Adapter.js";
 export * from "./K_LIB_Krnl_Protocol_MCP.js";
 export * from "./K_LIB_Krnl_Protocol_ACP.js";
+export { telemetry } from "./K_LIB_Krnl_Telemetry.js";

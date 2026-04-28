@@ -1,9 +1,11 @@
 import { AIServerSystem } from "./AIServerSystem/AIServerSystem.js";
+import { telemetry } from "../../src/krnl/core/index.js";
 
 /**
  * Bootstrapper for the AI Server Example.
  */
 async function main() {
+    telemetry.enabled = true;
     const port = 10111;
     const system = new AIServerSystem(port);
 

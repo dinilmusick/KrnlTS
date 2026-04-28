@@ -1,10 +1,12 @@
 import { CalculatorSystem } from "./CalculatorSystem/CalculatorSystem.js";
 import { WebInterfaceSystem } from "./WebInterfaceSystem/WebInterfaceSystem.js";
+import { telemetry } from "../../src/krnl/core/index.js";
 
 async function main() {
+    telemetry.enabled = true;
     console.log("--- Starting Example 1 (Full P2P) ---");
-    const calc = new CalculatorSystem(10091);
-    const web = new WebInterfaceSystem(10092);
+    const calc = new CalculatorSystem(10091, { telemetryEnabled: true });
+    const web = new WebInterfaceSystem(10092, { telemetryEnabled: true });
 
     // Explicitly start discovery for both
     await calc.startDiscovery();
@@ -33,8 +35,16 @@ async function main() {
         }
     }, 2000);
 
+    // Enable Telemetry for observability
+    calc.telemetryEnabled = true;
+    web.telemetryEnabled = true;
+
     // Wait for discovery and wiring
     setTimeout(() => {
+        console.log("\n--- Telemetry Report ---");
+        console.log("[CalculatorSystem]", JSON.stringify(calc.getTelemetry(), null, 2));
+        console.log("[WebInterfaceSystem]", JSON.stringify(web.getTelemetry(), null, 2));
+        
         console.log("\nCleanup: Disposing systems...");
         calc.dispose();
         web.dispose();

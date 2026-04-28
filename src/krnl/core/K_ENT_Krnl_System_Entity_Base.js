@@ -30,9 +30,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    * @param {object|null} owner
    * @param {number} [commPort=10099] - WS listen port for the commComponent.
    * @param {string} [host='0.0.0.0'] - Interface to bind to.
+   * @param {object} [options={}] - Entity options.
    */
-  constructor(name, owner = null, commPort = 10099, host = '0.0.0.0') {
-    super(name, owner, { Singleton: true });
+  constructor(name, owner = null, commPort = 10099, host = '0.0.0.0', options = {}) {
+    super(name, owner, { ...options, Singleton: true });
     this.systemType = 'SystemOrchestrator';
     this.peers = new Map(); // id -> { address, lastSeen }
     this.discoverable = true;

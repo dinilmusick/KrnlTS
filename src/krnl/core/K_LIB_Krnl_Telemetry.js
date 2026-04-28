@@ -6,6 +6,7 @@
 export class KrnlTelemetry {
   constructor() {
     this.metrics = new Map();
+    this.enabled = false;
   }
 
   /**

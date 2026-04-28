@@ -6,8 +6,8 @@ import { MonitorAtom } from "./functionalities/Monitor/Monitor.js";
 
 export class WebInterfaceSystem extends krnlSystemEntityBase {
     static Singleton = true;
-    constructor(port = 10092) {
-        super("WebInterfaceSystem", null, port);
+    constructor(port = 10092, options = {}) {
+        super("WebInterfaceSystem", null, port, "0.0.0.0", options);
 
         this.addLocal(UIPanelAtom);
         this.addLocal(SetupCommsAtom);

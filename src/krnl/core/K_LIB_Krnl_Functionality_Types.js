@@ -214,7 +214,7 @@ export class krnlLocalFunctionality {
   async execute(input, opts = {}) {
     const caller = opts.caller || 'default';
     const activeState = this.state;
-    const trace = (this.hostEntity && this.hostEntity.telemetryEnabled) 
+    const trace = (telemetry.enabled) 
       ? telemetry.startTrace(this.id) 
       : null;
 

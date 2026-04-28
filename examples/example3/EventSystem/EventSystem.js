@@ -17,9 +17,9 @@ export class EventSystem extends krnlSystemEntityBase {
     /**
      * @param {number} port - Network listen port for the system server.
      */
-    constructor(port = 10093) {
+    constructor(port = 10093, options = {}) {
         // Initialize the base system with a name and port.
-        super("EventSystem", null, port);
+        super("EventSystem", null, port, "0.0.0.0", options);
         
         /**
          * REGISTER CONTROL LOGIC

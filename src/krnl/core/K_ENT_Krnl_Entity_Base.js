@@ -28,6 +28,7 @@ export class krnlEntityBase {
     this.Singleton = options.Singleton ?? this.constructor.Singleton ?? true;
     this.baseName = options.baseName || this.entityName;
     this.instanceNumber = options.instanceNumber || 1;
+    this.telemetryEnabled = options.telemetryEnabled || false;
 
     // 2. Messaging Infrastructure (The IO Hub).
     this.interface = new krnlInterface(this);

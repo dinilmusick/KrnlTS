@@ -12,9 +12,9 @@ import { TestNestingAtom } from "./functionalities/TestNesting/TestNesting.js";
  */
 export class Level1System extends krnlSystemEntityBase {
     static Singleton = true;
-    constructor(port = 10092) {
+    constructor(port = 10092, options = {}) {
         // Initialize the network-enabled system base.
-        super("Level1System", null, port);
+        super("Level1System", null, port, "0.0.0.0", options);
         
         /**
          * REGISTER TEST LOGIC

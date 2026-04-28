@@ -1,6 +1,8 @@
 import { AvailabilitySystem } from "./AvailabilitySystem/AvailabilitySystem.js";
+import { telemetry } from "../../src/krnl/core/index.js";
 
 async function main() {
+    telemetry.enabled = true;
     console.log("--- Starting Example 6 ---");
     const supervisor = new AvailabilitySystem("SupervisorSystem", null, 10097, "127.0.0.1");
     const subservice = new AvailabilitySystem("SubserviceSystem", null, 10098, "127.0.0.1");
@@ -43,6 +45,9 @@ async function main() {
     console.log("[Example6] After release + discoverable on:", subservice.getManifest().flags);
 
     setTimeout(() => {
+        console.log("\n--- Telemetry Report ---");
+        console.log("[SubserviceSystem]", JSON.stringify(subservice.getTelemetry(), null, 2));
+
         supervisor.dispose();
         subservice.dispose();
         process.exit(0);

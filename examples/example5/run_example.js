@@ -1,6 +1,8 @@
 import { InstanceSystem } from "./InstanceSystem/InstanceSystem.js";
+import { telemetry } from "../../src/krnl/core/index.js";
 
 async function main() {
+    telemetry.enabled = true;
     console.log("--- Starting Example 5 ---");
     const system = new InstanceSystem(10096);
     await system.startDiscovery();
@@ -10,6 +12,9 @@ async function main() {
     console.log("[InstanceSystem] Demo result:", result);
 
     setTimeout(() => {
+        console.log("\n--- Telemetry Report ---");
+        console.log("[InstanceSystem]", JSON.stringify(system.getTelemetry(), null, 2));
+
         system.dispose();
         process.exit(0);
     }, 5000);

@@ -1,6 +1,8 @@
 import { MechanismSystem } from "./MechanismSystem/MechanismSystem.js";
+import { telemetry } from "../../src/krnl/core/index.js";
 
 async function main() {
+    telemetry.enabled = true;
     console.log("--- Starting Example 4 ---");
     const system = new MechanismSystem(10095);
     await system.startDiscovery();
@@ -10,6 +12,9 @@ async function main() {
     console.log("[MechanismSystem] Demo result:", result);
 
     setTimeout(() => {
+        console.log("\n--- Telemetry Report ---");
+        console.log("[MechanismSystem]", JSON.stringify(system.getTelemetry(), null, 2));
+
         system.dispose();
         process.exit(0);
     }, 5000);
