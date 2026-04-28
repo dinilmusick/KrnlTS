@@ -255,6 +255,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       entityName: this.entityName,
       systemType: this.systemType,
       flags: this.getSystemFlags(),
+      telemetry: this.telemetryEnabled,
       inputs: {
         collectors: this.interface.collectorNames,
         api: api, // Detailed map instead of just names

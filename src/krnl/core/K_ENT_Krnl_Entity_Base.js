@@ -13,6 +13,8 @@ import { krnlError, krnlErrorCodes } from "./K_LIB_Krnl_Error_Concepts.js";
  * KRNL ENTITY BASE
  * The building block of the Krnl ecosystem.
  */
+import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
+
 export class krnlEntityBase {
   /**
    * @param {string} name - The unique identity of the entity.
@@ -34,6 +36,7 @@ export class krnlEntityBase {
     this.localFunctionalities = new Map();  // Logic that is MINE.
     this.remoteFunctionalities = new Map(); // Proxies for logic from components or external peers.
     this.collectors = new Set();            // Tracks listeners for cleanup.
+    this.telemetryEnabled = false;          // Default: Disabled for zero overhead
 
     // 4. Hierarchy Management (The Skeleton).
     this.hierarchyManager = new krnlEntityCompositionalHierarchyManager(
@@ -218,6 +221,14 @@ export class krnlEntityBase {
   getRemote(fid) { return this.remoteFunctionalities.get(fid); }
   addChild(instance) {
     return this.hierarchyManager.addComponentEntityInstance(instance);
+  }
+
+  getTelemetry() {
+    return {
+      entity: this.entityName,
+      timestamp: Date.now(),
+      metrics: telemetry.getSummary()
+    };
   }
 
   disposeOwnedComponent(entityId) {

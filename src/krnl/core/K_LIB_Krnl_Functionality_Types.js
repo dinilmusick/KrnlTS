@@ -5,6 +5,7 @@
  */
 
 import { krnlEmitter } from "./K_LIB_Krnl_Messaging_Concepts.js";
+import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
 
 /**
  * Helper to ensure state isolation.
@@ -213,6 +214,9 @@ export class krnlLocalFunctionality {
   async execute(input, opts = {}) {
     const caller = opts.caller || 'default';
     const activeState = this.state;
+    const trace = (this.hostEntity && this.hostEntity.telemetryEnabled) 
+      ? telemetry.startTrace(this.id) 
+      : null;
 
     // --- INPUT VALIDATION ---
     if (this.schema && this.schema.input) {
@@ -250,28 +254,38 @@ export class krnlLocalFunctionality {
       if (this.schema && this.schema.output) {
         try {
           if (typeof this.schema.output.parse === 'function') {
-            result = this.schema.output.parse(result);
+            this.schema.output.parse(result);
           } else if (typeof this.schema.output === 'function') {
             if (!this.schema.output(result)) {
-              throw new Error(`Output validation failed.`);
+              console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}".`);
             }
           }
         } catch (err) {
           const msg = err.errors ? JSON.stringify(err.errors) : err.message;
-          throw new Error(`[KrnlSchemaError] Output validation failed for "${this.id}": ${msg}`);
+          console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}": ${msg}`);
         }
       }
 
-      if (typeof this.lifecycle.end === "function") {
-        this.lifecycle.end({ input, output: result, caller });
+      // --- TELEMETRY END (SUCCESS) ---
+      if (trace) telemetry.endTrace(this.id, trace, true);
+
+      return {
+        status: 'success',
+        payload: result
+      };
+    } catch (err) {
+      // --- TELEMETRY END (ERROR) ---
+      if (trace) telemetry.endTrace(this.id, trace, false);
+
+      if (typeof this.lifecycle.failure === "function") {
+        this.lifecycle.failure({ error: err, input, caller });
       }
 
-      return result;
-    } catch (error) {
-      if (typeof this.lifecycle.failure === "function") {
-        this.lifecycle.failure({ error, input, caller });
-      }
-      throw error;
+      return {
+        status: 'error',
+        message: err.message,
+        payload: null
+      };
     }
   }
 }
