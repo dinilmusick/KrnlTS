@@ -10,7 +10,10 @@ export class CalculatorSystem extends krnlSystemEntityBase {
         super("CalculatorSystem", null, port, "0.0.0.0", options);
 
         // 1. Logic Assembly
-        this.addLocal(CalculatorAtom);
+        this.addLocal({ 
+            ...CalculatorAtom, 
+            sourcePath: "examples/example1/CalculatorSystem/functionalities/Calculator/Calculator.js" 
+        });
 
         // 2. Component Assembly
         const display = this.hierarchyManager.createComponentEntity("Display", DisplayEntity);

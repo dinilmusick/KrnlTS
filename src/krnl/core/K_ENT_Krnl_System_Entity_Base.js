@@ -215,7 +215,13 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     const api = {};
 
     this.localFunctionalities.forEach((f) => {
-      const fManifest = { id: f.id, events: [] };
+      const fManifest = {
+        id: f.id,
+        type: 'local',
+        visibility: f.visibility,
+        sourcePath: f.sourcePath, // Captured for Orchestrated Evolution
+        events: [] 
+      };
       f.emitters.forEach((_, eid) => {
         const eventId = `${f.id}:${eid}`;
         fManifest.events.push(eventId);

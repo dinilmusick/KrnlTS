@@ -58,6 +58,7 @@ export class krnlLocalFunctionality {
       schema = null,
       onMount = null,
       onTeardown = null,
+      sourcePath = null,
     } = config;
 
     if (!id) throw new Error("LocalFunctionality requires an ID.");
@@ -67,6 +68,7 @@ export class krnlLocalFunctionality {
     this.initialState = initialState;
     this.api = api;
     this.isLocal = true;
+    this.sourcePath = sourcePath;
     this.helpers = new Map(Object.entries(helpers));
     this.emitters = new Map();
     this.schema = schema;
