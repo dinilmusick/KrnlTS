@@ -809,6 +809,87 @@ class krnlEntityCompositionalHierarchyManager {
   }
 }
 
+/**
+ * K_LIB_Krnl_Telemetry
+ * A lightweight, high-precision telemetry engine for KrnlJS.
+ * Tracks latency, frequency, and resource usage per functionality ID.
+ */
+class KrnlTelemetry {
+  constructor() {
+    this.metrics = new Map();
+    this.enabled = false;
+  }
+
+  /**
+   * Starts a telemetry trace for a specific functionality.
+   * @param {string} fid 
+   * @returns {object} Trace data
+   */
+  startTrace(fid) {
+    return {
+      startTime: process.hrtime.bigint(),
+      startMemory: process.memoryUsage ? process.memoryUsage().heapUsed : 0
+    };
+  }
+
+  /**
+   * Ends a telemetry trace and updates aggregated metrics.
+   * @param {string} fid 
+   * @param {object} trace 
+   */
+  endTrace(fid, trace, success = true) {
+    const endTime = process.hrtime.bigint();
+    const endMemory = process.memoryUsage ? process.memoryUsage().heapUsed : 0;
+
+    const latencyNs = Number(endTime - trace.startTime);
+    const memoryDelta = endMemory - trace.startMemory;
+
+    let stats = this.metrics.get(fid);
+    if (!stats) {
+      stats = {
+        calls: 0,
+        errors: 0,
+        totalLatencyNs: 0,
+        avgLatencyMs: 0,
+        peakLatencyMs: 0,
+        totalMemoryDelta: 0,
+        avgMemoryDelta: 0,
+        lastUpdated: 0
+      };
+      this.metrics.set(fid, stats);
+    }
+
+    stats.calls++;
+    if (!success) stats.errors++;
+    stats.totalLatencyNs += latencyNs;
+    stats.totalMemoryDelta += memoryDelta;
+
+    const latencyMs = latencyNs / 1_000_000;
+    stats.avgLatencyMs = (stats.totalLatencyNs / stats.calls) / 1_000_000;
+    stats.avgMemoryDelta = stats.totalMemoryDelta / stats.calls;
+    
+    if (latencyMs > stats.peakLatencyMs) stats.peakLatencyMs = latencyMs;
+    stats.lastUpdated = Date.now();
+  }
+
+  /**
+   * Returns a snapshot of all metrics.
+   */
+  getSummary() {
+    return Object.fromEntries(this.metrics);
+  }
+
+  /**
+   * Clears all collected metrics.
+   */
+  reset() {
+    this.metrics.clear();
+  }
+}
+
+// Export a default shared instance for standard app usage
+const telemetry = new KrnlTelemetry();
+
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
  * @file K_LIB_Krnl_Functionality_Types.js
@@ -867,6 +948,7 @@ class krnlLocalFunctionality {
       schema = null,
       onMount = null,
       onTeardown = null,
+      sourcePath = null,
     } = config;
 
     if (!id) throw new Error("LocalFunctionality requires an ID.");
@@ -876,6 +958,7 @@ class krnlLocalFunctionality {
     this.initialState = initialState;
     this.api = api;
     this.isLocal = true;
+    this.sourcePath = sourcePath;
     this.helpers = new Map(Object.entries(helpers));
     this.emitters = new Map();
     this.schema = schema;
@@ -1023,6 +1106,9 @@ class krnlLocalFunctionality {
   async execute(input, opts = {}) {
     const caller = opts.caller || 'default';
     const activeState = this.state;
+    const trace = (telemetry.enabled) 
+      ? telemetry.startTrace(this.id) 
+      : null;
 
     // --- INPUT VALIDATION ---
     if (this.schema && this.schema.input) {
@@ -1060,28 +1146,38 @@ class krnlLocalFunctionality {
       if (this.schema && this.schema.output) {
         try {
           if (typeof this.schema.output.parse === 'function') {
-            result = this.schema.output.parse(result);
+            this.schema.output.parse(result);
           } else if (typeof this.schema.output === 'function') {
             if (!this.schema.output(result)) {
-              throw new Error(`Output validation failed.`);
+              console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}".`);
             }
           }
         } catch (err) {
           const msg = err.errors ? JSON.stringify(err.errors) : err.message;
-          throw new Error(`[KrnlSchemaError] Output validation failed for "${this.id}": ${msg}`);
+          console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}": ${msg}`);
         }
       }
 
-      if (typeof this.lifecycle.end === "function") {
-        this.lifecycle.end({ input, output: result, caller });
+      // --- TELEMETRY END (SUCCESS) ---
+      if (trace) telemetry.endTrace(this.id, trace, true);
+
+      return {
+        status: 'success',
+        payload: result
+      };
+    } catch (err) {
+      // --- TELEMETRY END (ERROR) ---
+      if (trace) telemetry.endTrace(this.id, trace, false);
+
+      if (typeof this.lifecycle.failure === "function") {
+        this.lifecycle.failure({ error: err, input, caller });
       }
 
-      return result;
-    } catch (error) {
-      if (typeof this.lifecycle.failure === "function") {
-        this.lifecycle.failure({ error, input, caller });
-      }
-      throw error;
+      return {
+        status: 'error',
+        message: err.message,
+        payload: null
+      };
     }
   }
 }
@@ -1156,10 +1252,6 @@ class krnlRemoteFunctionality {
  */
 
 
-/**
- * KRNL ENTITY BASE
- * The building block of the Krnl ecosystem.
- */
 class krnlEntityBase {
   /**
    * @param {string} name - The unique identity of the entity.
@@ -1173,6 +1265,7 @@ class krnlEntityBase {
     this.Singleton = options.Singleton ?? this.constructor.Singleton ?? true;
     this.baseName = options.baseName || this.entityName;
     this.instanceNumber = options.instanceNumber || 1;
+    this.telemetryEnabled = options.telemetryEnabled || false;
 
     // 2. Messaging Infrastructure (The IO Hub).
     this.interface = new krnlInterface(this);
@@ -1181,6 +1274,7 @@ class krnlEntityBase {
     this.localFunctionalities = new Map();  // Logic that is MINE.
     this.remoteFunctionalities = new Map(); // Proxies for logic from components or external peers.
     this.collectors = new Set();            // Tracks listeners for cleanup.
+    this.telemetryEnabled = false;          // Default: Disabled for zero overhead
 
     // 4. Hierarchy Management (The Skeleton).
     this.hierarchyManager = new krnlEntityCompositionalHierarchyManager(
@@ -1365,6 +1459,14 @@ class krnlEntityBase {
   getRemote(fid) { return this.remoteFunctionalities.get(fid); }
   addChild(instance) {
     return this.hierarchyManager.addComponentEntityInstance(instance);
+  }
+
+  getTelemetry() {
+    return {
+      entity: this.entityName,
+      timestamp: Date.now(),
+      metrics: telemetry.getSummary()
+    };
   }
 
   disposeOwnedComponent(entityId) {
@@ -1937,12 +2039,6 @@ class krnlSystemCommComponent {
     }
 }
 
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
-/**
- * @file K_LIB_Krnl_System_Base_Functionality_APIs.js
- * @description Reusable API atoms for krnlSystemEntityBase default functionalities.
- */
-
 function heartbeatApi(entity) {
   return () => ({
     name: entity.entityName,
@@ -1960,6 +2056,7 @@ function telemetryApi(entity) {
     ownedEntities: entity.hierarchyManager.getAllOwnedComponentEntities().map((e) => e.entityName),
     activeRoutes: entity.commComponent.listRoutes(),
     uptime: typeof process !== 'undefined' && process.uptime ? process.uptime() : null,
+    performance: telemetry.getSummary()
   });
 }
 
@@ -2453,9 +2550,10 @@ class krnlSystemEntityBase extends krnlEntityBase {
    * @param {object|null} owner
    * @param {number} [commPort=10099] - WS listen port for the commComponent.
    * @param {string} [host='0.0.0.0'] - Interface to bind to.
+   * @param {object} [options={}] - Entity options.
    */
-  constructor(name, owner = null, commPort = 10099, host = '0.0.0.0') {
-    super(name, owner, { Singleton: true });
+  constructor(name, owner = null, commPort = 10099, host = '0.0.0.0', options = {}) {
+    super(name, owner, { ...options, Singleton: true });
     this.systemType = 'SystemOrchestrator';
     this.peers = new Map(); // id -> { address, lastSeen }
     this.discoverable = true;
@@ -2637,7 +2735,13 @@ class krnlSystemEntityBase extends krnlEntityBase {
     const api = {};
 
     this.localFunctionalities.forEach((f) => {
-      const fManifest = { id: f.id, events: [] };
+      const fManifest = {
+        id: f.id,
+        type: 'local',
+        visibility: f.visibility,
+        sourcePath: f.sourcePath, // Captured for Orchestrated Evolution
+        events: [] 
+      };
       f.emitters.forEach((_, eid) => {
         const eventId = `${f.id}:${eid}`;
         fManifest.events.push(eventId);
@@ -2678,6 +2782,7 @@ class krnlSystemEntityBase extends krnlEntityBase {
       entityName: this.entityName,
       systemType: this.systemType,
       flags: this.getSystemFlags(),
+      telemetry: this.telemetryEnabled,
       inputs: {
         collectors: this.interface.collectorNames,
         api: api, // Detailed map instead of just names
@@ -3312,4 +3417,4 @@ class DasyJS {
   }
 }
 
-export { DasyJS, KrnlAcpProtocol, KrnlMcpProtocol, Logger, MemoryTransportAdapter, WebSocketTransportAdapter, createEnum, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter };
+export { DasyJS, KrnlAcpProtocol, KrnlMcpProtocol, Logger, MemoryTransportAdapter, WebSocketTransportAdapter, createEnum, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, telemetry };

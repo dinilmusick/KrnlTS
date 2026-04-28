@@ -630,6 +630,72 @@ var krnlEntityCompositionalHierarchyManager = class {
   }
 };
 
+// src/krnl/core/K_LIB_Krnl_Telemetry.js
+var KrnlTelemetry = class {
+  constructor() {
+    this.metrics = /* @__PURE__ */ new Map();
+    this.enabled = false;
+  }
+  /**
+   * Starts a telemetry trace for a specific functionality.
+   * @param {string} fid 
+   * @returns {object} Trace data
+   */
+  startTrace(fid) {
+    return {
+      startTime: process.hrtime.bigint(),
+      startMemory: process.memoryUsage ? process.memoryUsage().heapUsed : 0
+    };
+  }
+  /**
+   * Ends a telemetry trace and updates aggregated metrics.
+   * @param {string} fid 
+   * @param {object} trace 
+   */
+  endTrace(fid, trace, success = true) {
+    const endTime = process.hrtime.bigint();
+    const endMemory = process.memoryUsage ? process.memoryUsage().heapUsed : 0;
+    const latencyNs = Number(endTime - trace.startTime);
+    const memoryDelta = endMemory - trace.startMemory;
+    let stats = this.metrics.get(fid);
+    if (!stats) {
+      stats = {
+        calls: 0,
+        errors: 0,
+        totalLatencyNs: 0,
+        avgLatencyMs: 0,
+        peakLatencyMs: 0,
+        totalMemoryDelta: 0,
+        avgMemoryDelta: 0,
+        lastUpdated: 0
+      };
+      this.metrics.set(fid, stats);
+    }
+    stats.calls++;
+    if (!success) stats.errors++;
+    stats.totalLatencyNs += latencyNs;
+    stats.totalMemoryDelta += memoryDelta;
+    const latencyMs = latencyNs / 1e6;
+    stats.avgLatencyMs = stats.totalLatencyNs / stats.calls / 1e6;
+    stats.avgMemoryDelta = stats.totalMemoryDelta / stats.calls;
+    if (latencyMs > stats.peakLatencyMs) stats.peakLatencyMs = latencyMs;
+    stats.lastUpdated = Date.now();
+  }
+  /**
+   * Returns a snapshot of all metrics.
+   */
+  getSummary() {
+    return Object.fromEntries(this.metrics);
+  }
+  /**
+   * Clears all collected metrics.
+   */
+  reset() {
+    this.metrics.clear();
+  }
+};
+var telemetry = new KrnlTelemetry();
+
 // src/krnl/core/K_LIB_Krnl_Functionality_Types.js
 function cloneState(source) {
   return JSON.parse(JSON.stringify(source));
@@ -664,7 +730,8 @@ var krnlLocalFunctionality = class {
       events = {},
       schema = null,
       onMount = null,
-      onTeardown = null
+      onTeardown = null,
+      sourcePath = null
     } = config;
     if (!id) throw new Error("LocalFunctionality requires an ID.");
     this.id = id;
@@ -672,6 +739,7 @@ var krnlLocalFunctionality = class {
     this.initialState = initialState;
     this.api = api;
     this.isLocal = true;
+    this.sourcePath = sourcePath;
     this.helpers = new Map(Object.entries(helpers));
     this.emitters = /* @__PURE__ */ new Map();
     this.schema = schema;
@@ -801,6 +869,7 @@ var krnlLocalFunctionality = class {
   async execute(input, opts = {}) {
     const caller = opts.caller || "default";
     const activeState = this.state;
+    const trace = telemetry.enabled ? telemetry.startTrace(this.id) : null;
     if (this.schema && this.schema.input) {
       try {
         if (typeof this.schema.input.parse === "function") {
@@ -830,26 +899,32 @@ var krnlLocalFunctionality = class {
       if (this.schema && this.schema.output) {
         try {
           if (typeof this.schema.output.parse === "function") {
-            result = this.schema.output.parse(result);
+            this.schema.output.parse(result);
           } else if (typeof this.schema.output === "function") {
             if (!this.schema.output(result)) {
-              throw new Error(`Output validation failed.`);
+              console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}".`);
             }
           }
         } catch (err) {
           const msg = err.errors ? JSON.stringify(err.errors) : err.message;
-          throw new Error(`[KrnlSchemaError] Output validation failed for "${this.id}": ${msg}`);
+          console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}": ${msg}`);
         }
       }
-      if (typeof this.lifecycle.end === "function") {
-        this.lifecycle.end({ input, output: result, caller });
-      }
-      return result;
-    } catch (error) {
+      if (trace) telemetry.endTrace(this.id, trace, true);
+      return {
+        status: "success",
+        payload: result
+      };
+    } catch (err) {
+      if (trace) telemetry.endTrace(this.id, trace, false);
       if (typeof this.lifecycle.failure === "function") {
-        this.lifecycle.failure({ error, input, caller });
+        this.lifecycle.failure({ error: err, input, caller });
       }
-      throw error;
+      return {
+        status: "error",
+        message: err.message,
+        payload: null
+      };
     }
   }
 };
@@ -920,10 +995,12 @@ var krnlEntityBase = class _krnlEntityBase {
     this.Singleton = options.Singleton ?? this.constructor.Singleton ?? true;
     this.baseName = options.baseName || this.entityName;
     this.instanceNumber = options.instanceNumber || 1;
+    this.telemetryEnabled = options.telemetryEnabled || false;
     this.interface = new krnlInterface(this);
     this.localFunctionalities = /* @__PURE__ */ new Map();
     this.remoteFunctionalities = /* @__PURE__ */ new Map();
     this.collectors = /* @__PURE__ */ new Set();
+    this.telemetryEnabled = false;
     this.hierarchyManager = new krnlEntityCompositionalHierarchyManager(
       this,
       // Host.
@@ -1064,6 +1141,13 @@ var krnlEntityBase = class _krnlEntityBase {
   }
   addChild(instance) {
     return this.hierarchyManager.addComponentEntityInstance(instance);
+  }
+  getTelemetry() {
+    return {
+      entity: this.entityName,
+      timestamp: Date.now(),
+      metrics: telemetry.getSummary()
+    };
   }
   disposeOwnedComponent(entityId) {
     return this.hierarchyManager.disposeComponentEntity(entityId);
@@ -1529,7 +1613,8 @@ function telemetryApi(entity) {
       owner: ((_a = entity.hierarchyManager.getOwnerEntity()) == null ? void 0 : _a.entityName) || null,
       ownedEntities: entity.hierarchyManager.getAllOwnedComponentEntities().map((e) => e.entityName),
       activeRoutes: entity.commComponent.listRoutes(),
-      uptime: typeof process !== "undefined" && process.uptime ? process.uptime() : null
+      uptime: typeof process !== "undefined" && process.uptime ? process.uptime() : null,
+      performance: telemetry.getSummary()
     };
   };
 }
@@ -1932,9 +2017,10 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
    * @param {object|null} owner
    * @param {number} [commPort=10099] - WS listen port for the commComponent.
    * @param {string} [host='0.0.0.0'] - Interface to bind to.
+   * @param {object} [options={}] - Entity options.
    */
-  constructor(name, owner = null, commPort = 10099, host = "0.0.0.0") {
-    super(name, owner, { Singleton: true });
+  constructor(name, owner = null, commPort = 10099, host = "0.0.0.0", options = {}) {
+    super(name, owner, { ...options, Singleton: true });
     this.systemType = "SystemOrchestrator";
     this.peers = /* @__PURE__ */ new Map();
     this.discoverable = true;
@@ -2087,7 +2173,14 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     const eventsNames = [];
     const api = {};
     this.localFunctionalities.forEach((f) => {
-      const fManifest = { id: f.id, events: [] };
+      const fManifest = {
+        id: f.id,
+        type: "local",
+        visibility: f.visibility,
+        sourcePath: f.sourcePath,
+        // Captured for Orchestrated Evolution
+        events: []
+      };
       f.emitters.forEach((_, eid) => {
         const eventId = `${f.id}:${eid}`;
         fManifest.events.push(eventId);
@@ -2123,6 +2216,7 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
       entityName: this.entityName,
       systemType: this.systemType,
       flags: this.getSystemFlags(),
+      telemetry: this.telemetryEnabled,
       inputs: {
         collectors: this.interface.collectorNames,
         api
@@ -2668,5 +2762,6 @@ export {
   krnlSystemEntityBase,
   krnlSystemTypes,
   krnlTransportAdapter,
-  krnlUnifiedHttpAdapter
+  krnlUnifiedHttpAdapter,
+  telemetry
 };
