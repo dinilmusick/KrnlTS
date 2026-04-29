@@ -1,37 +1,11 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_LIB_Krnl_System_Comm_Component.js
+ * @file K_LIB_Krnl_System_Comm_Component.ts
  *
  * @description The uniform P2P communication bridge for all Krnl system orchestrators.
- * Every system (Brnda, Qwnsr, Wepr, DummyA, etc.) owns one of these.
- *
- * Responsibilities:
- *  1. Accept "wire" instructions from the Hub: connect one of this system's emitters to a
- *     remote system's collector via a WebSocket channel (or in-process direct binding in tests).
- *  2. Maintain a table of active routes so the Hub can inspect them.
- *
- * Architecture:
- *
- *   ┌─────────────────────────────────────────────┐
- *   │           SystemA                           │
- *   │  interface.emitter("A-Events")              │
- *   │          │                                  │
- *   │   CommComponent ──── ws ──► B.CommComponent │
- *   └─────────────────────────────────────────────┘
- *          ▼ injects into
- *   ┌──────────────────────────────────────────────┐
- *   │           SystemB                            │
- *   │  interface.collector("B-Commands")           │
- *   │          △                                  │
- *   │   CommComponent ─── receives & calls handler │
- *   └──────────────────────────────────────────────┘
- *
- * Two transport modes (both exposed via the same API):
- *   • "direct" — in-process reference wiring (testing / same-process demo).
- *   • "ws"     — WebSocket channel (multi-process / network).
  */
 
-import { krnlEmitter, krnlCollector } from "./K_LIB_Krnl_Messaging_Concepts.js";
+import { krnlEmitter } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { krnlTransportAdapter } from "./K_LIB_Krnl_Functionality_Types.js";
 import { Logger } from "./K_LIB_Krnl_Base_Concepts.js";
 
@@ -40,25 +14,27 @@ import { Logger } from "./K_LIB_Krnl_Base_Concepts.js";
  * For remote inter-system communication.
  */
 export class WebSocketTransportAdapter extends krnlTransportAdapter {
+    commComponent: krnlSystemCommComponent;
+    remoteAddress: string;
+
     /**
-     * @param {krnlSystemCommComponent} commComponent - The local system's comm component.
-     * @param {string} remoteAddress - "host:port" of the remote system.
+     * @param commComponent - The local system's comm component.
+     * @param remoteAddress - "host:port" of the remote system.
      */
-    constructor(commComponent, remoteAddress) {
+    constructor(commComponent: krnlSystemCommComponent, remoteAddress: string) {
         super();
         this.commComponent = commComponent;
         this.remoteAddress = remoteAddress;
     }
 
-    async call(targetFunction, input, opts) {
+    async call(targetFunction: string, input: any, opts: any): Promise<any> {
         const timeout = opts.timeout || opts.timeoutMs;
         return await this.commComponent.callWsRpc(this.remoteAddress, 'call', { fid: targetFunction, data: input }, timeout);
     }
 }
 
-// ws is loaded lazily so the CommComponent can be imported in environments where
-// the `ws` package is not installed — as long as only 'direct' wiring is used.
-let _WS, _WSServer;
+// ws is loaded lazily
+let _WS: any, _WSServer: any;
 async function _loadWs() {
     if (!_WS) {
         const mod = await import('ws');
@@ -69,67 +45,52 @@ async function _loadWs() {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA //////////////////////////////////////
+//////////////////////////////////////// KRNL SYSTEM COMM COMPONENT ////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//////////////////////////////////////// ROUTE ENTRY ////////////////////////////////////////
-/**
- * Describes one active route.
- * @typedef {Object} KrnlRoute
- * @property {string} id             - Unique route id.
- * @property {string} sourceEmitter  - Emitter name on the local interface.
- * @property {string} targetSystem   - Remote system name.
- * @property {string} targetCollector - Collector name on the remote interface.
- * @property {"direct"|"ws"} mode   - Transport mode.
- * @property {Function} [disconnect] - Call to tear down this route.
- */
-
-//////////////////////////////////////// KRNL SYSTEM COMM COMPONENT ////////////////////////////////////////
 export class krnlSystemCommComponent {
+    ownerEntity: any;
+    listenPort: number;
+    host: string;
+    routes: Map<string, any>;
+    _routeSeq: number;
+    _wsServer: any | null;
+    _wsClients: Map<string, any>;
+    _wsIngress: Map<string, (data: any) => void>;
+    _wsPendingRpc: Map<string, any>;
+    _wsRpcHandlers: Map<string, Function>;
+    _introspectionProvider: (() => Promise<any>) | null;
+
     /**
-     * @param {import("../../../entities/krnlEntityBase/K_ENT_Krnl_Entity_Base.js").krnlEntityBase} ownerEntity
-     * @param {number} [listenPort=10099] - WS server port (only used in "ws" mode).
-     * @param {string} [host='0.0.0.0'] - Interface to bind to.
+     * @param ownerEntity
+     * @param listenPort - WS server port (only used in "ws" mode).
+     * @param host - Interface to bind to.
      */
-    constructor(ownerEntity, listenPort = 10099, host = '0.0.0.0') {
+    constructor(ownerEntity: any, listenPort: number = 10099, host: string = '0.0.0.0') {
         this.ownerEntity = ownerEntity;
         this.listenPort = listenPort;
         this.host = host;
         this.routes = new Map();   // routeId → KrnlRoute
         this._routeSeq = 0;
-        this._wsServer = null;        // WebSocketServer instance (if ws mode is active)
-        this._wsClients = new Map();   // systemName → WebSocket (outgoing)
-        this._wsIngress = new Map();   // routeId → unsubscribe fn
-        this._wsPendingRpc = new Map(); // requestId → { resolve, reject, timeoutId }
-        this._wsRpcHandlers = new Map(); // method → handler
-        this._introspectionProvider = null; // fn → { methods: [], schemas: {} }
+        this._wsServer = null;        
+        this._wsClients = new Map();   
+        this._wsIngress = new Map();   
+        this._wsPendingRpc = new Map(); 
+        this._wsRpcHandlers = new Map(); 
+        this._introspectionProvider = null; 
     }
-
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////// DIRECT (IN-PROCESS) WIRING //////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     /**
      * Binds a local emitter directly to another in-process system's collector.
-     * This is the primary method used in same-process tests.
-     *
-     * @param {string} localEmitterName - Name of the emitter on this entity's interface.
-     * @param {object} remoteCommComponent - The target system's CommComponent instance.
-     * @param {string} remoteCollectorName - The collector name on the target system's interface.
-     * @returns {KrnlRoute} The created route.
      */
-    wireDirectly(localEmitterName, remoteCommComponent, remoteCollectorName) {
+    wireDirectly(localEmitterName: string, remoteCommComponent: krnlSystemCommComponent, remoteCollectorName: string): any {
         const emitter = this.ownerEntity.interface.getEmitter(localEmitterName);
         const remoteCollector = remoteCommComponent.ownerEntity.interface.getCollector(remoteCollectorName);
 
-        // Subscribe the remote collector handler to this emitter
-        const unsubscribe = emitter.subscribe((msg) => {
-            // Inject the data stream into the remote collector via its internally piped emitter
-            // If the collector has a subscriber registered by the remote system, it fires.
+        const unsubscribe = emitter.subscribe((msg: any) => {
             if (remoteCollector.emitter) {
                 remoteCollector.emitter.pushDataStreamToEmitter(msg.data);
             }
-            // Also call any handlers registered via subscribeTo
             if (remoteCollector._directHandler) {
                 remoteCollector._directHandler(msg);
             }
@@ -153,15 +114,11 @@ export class krnlSystemCommComponent {
         return route;
     }
 
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////// WEBSOCKET (NETWORK) WIRING ///////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
     /**
      * Starts a WebSocket server so that remote systems can push data into local collectors.
      */
-    async startWsServer(externalServer = null) {
-        if (this._wsServer) return; // Already running
+    async startWsServer(externalServer: any = null): Promise<void> {
+        if (this._wsServer) return; 
         const { WebSocketServer } = await _loadWs();
         
         return new Promise((resolve, reject) => {
@@ -176,21 +133,20 @@ export class krnlSystemCommComponent {
                 });
             }
 
-            this._wsServer.on('error', (err) => {
+            this._wsServer.on('error', (err: any) => {
                 Logger.error(`[CommComponent:${this.ownerEntity.entityName}] WS server error:`, err.message);
                 reject(err);
             });
 
-            this._wsServer.on('connection', (ws) => {
-                ws.on('error', (err) => {
+            this._wsServer.on('connection', (ws: any) => {
+                ws.on('error', (err: any) => {
                     Logger.error(`[CommComponent:${this.ownerEntity.entityName}] Incoming WS error:`, err.message);
                 });
 
-                ws.on('message', (raw) => {
+                ws.on('message', (raw: Buffer) => {
                     try {
                         const msg = JSON.parse(raw.toString());
 
-                        // Backward-compatible payload support
                         if (msg.routeId && Object.prototype.hasOwnProperty.call(msg, 'data') && !msg.kind) {
                             const handler = this._wsIngress.get(msg.routeId);
                             if (handler) handler(msg.data);
@@ -222,14 +178,8 @@ export class krnlSystemCommComponent {
                             this._handleIntrospect(ws, msg);
                             return;
                         }
-                    } catch (e) {
+                    } catch (e: any) {
                         Logger.error(`[CommComponent:${this.ownerEntity.entityName}] WS message error:`, e.message);
-                        try {
-                            ws.send(JSON.stringify({
-                                kind: 'error',
-                                message: `Invalid request: ${e.message}. Ensure payload is valid JSON and follows Krnl protocol.`
-                            }));
-                        } catch (_) { }
                     }
                 });
             });
@@ -238,14 +188,8 @@ export class krnlSystemCommComponent {
 
     /**
      * Connects to a remote system's CommComponent WS server.
-     *
-     * @param {string} localEmitterName - Local emitter to bridge out.
-     * @param {string} remoteAddress - "host:port" of the remote system.
-     * @param {string} remoteCollectorName - Collector name at the remote end.
-     * @param {string} remoteSystemName - Name of the remote system.
-     * @returns {Promise<KrnlRoute>}
      */
-    async wireViaWs(localEmitterName, remoteAddress, remoteCollectorName, remoteSystemName, options = {}) {
+    async wireViaWs(localEmitterName: string, remoteAddress: string, remoteCollectorName: string, remoteSystemName: string, options: any = {}): Promise<any> {
         const { WebSocket } = await _loadWs();
         const emitter = this.ownerEntity.interface.getEmitter(localEmitterName);
         const ws = new WebSocket(`ws://${remoteAddress}`);
@@ -260,7 +204,7 @@ export class krnlSystemCommComponent {
             ws.once('error', reject);
         });
 
-        ws.on('error', (err) => {
+        ws.on('error', (err: any) => {
             Logger.error(`[CommComponent:${this.ownerEntity.entityName}] Outgoing WS error to ${remoteSystemName}:`, err.message);
         });
 
@@ -273,8 +217,8 @@ export class krnlSystemCommComponent {
             collectorName: remoteCollectorName,
         }));
 
-        const unsubscribe = emitter.subscribe((msg) => {
-            if (ws.readyState === WebSocket.OPEN) {
+        const unsubscribe = emitter.subscribe((msg: any) => {
+            if (ws.readyState === _WS.OPEN) {
                 ws.send(JSON.stringify({
                     kind: 'route-data',
                     routeId,
@@ -308,14 +252,10 @@ export class krnlSystemCommComponent {
     }
 
     /**
-     * Registers a WS ingress handler: data arriving for a specific route is forwarded
-     * to a local collector.
-     *
-     * @param {string} routeId - The route identifier the remote end will include.
-     * @param {string} localCollectorName - Collector on this entity's interface.
+     * Registers a WS ingress handler.
      */
-    registerWsIngress(routeId, localCollectorName) {
-        this._wsIngress.set(routeId, (data) => {
+    registerWsIngress(routeId: string, localCollectorName: string): void {
+        this._wsIngress.set(routeId, (data: any) => {
             const collector = this.ownerEntity.interface.getCollector(localCollectorName);
             if (collector._directHandler) {
                 collector._directHandler({ data });
@@ -323,28 +263,15 @@ export class krnlSystemCommComponent {
         });
     }
 
-    /**
-     * Wires a remote system's emitter to a local collector.
-     * This is used when a remote system initiates the wiring.
-     * 
-     * @param {string} remoteAddress - "host:port" of the remote system.
-     * @param {string} remoteEmitterName - Emitter name at the remote end.
-     * @param {string} localCollectorName - Local collector name.
-     * @param {string} remoteSystemName - Name of the remote system.
-     */
-    async wireRemoteEmitterToLocal(remoteAddress, remoteEmitterName, localCollectorName, remoteSystemName) {
-        return this.wireViaWs(remoteEmitterName, remoteAddress, localCollectorName, remoteSystemName);
-    }
-
-    defineRpc(methodName, handler) {
+    defineRpc(methodName: string, handler: Function): void {
         this._wsRpcHandlers.set(methodName, handler);
     }
 
-    setIntrospectionProvider(providerFn) {
+    setIntrospectionProvider(providerFn: () => Promise<any>): void {
         this._introspectionProvider = providerFn;
     }
 
-    async callWsRpc(remoteAddress, method, params = {}, timeoutMs = 5000) {
+    async callWsRpc(remoteAddress: string, method: string, params: any = {}, timeoutMs: number = 5000): Promise<any> {
         const { WebSocket } = await _loadWs();
         const requestId = `rpc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
@@ -352,10 +279,6 @@ export class krnlSystemCommComponent {
         await new Promise((resolve, reject) => {
             ws.once('open', resolve);
             ws.once('error', reject);
-        });
-
-        ws.on('error', (err) => {
-            Logger.error(`[CommComponent:${this.ownerEntity.entityName}] RPC WS error to ${remoteAddress}:`, err.message);
         });
 
         return new Promise((resolve, reject) => {
@@ -367,7 +290,7 @@ export class krnlSystemCommComponent {
 
             this._wsPendingRpc.set(requestId, { resolve, reject, timeoutId, ws });
 
-            ws.on('message', (raw) => {
+            ws.on('message', (raw: Buffer) => {
                 try {
                     const msg = JSON.parse(raw.toString());
                     if (msg.kind === 'rpc-response') this._handleRpcResponse(msg);
@@ -383,7 +306,7 @@ export class krnlSystemCommComponent {
         });
     }
 
-    async _handleRpcRequest(ws, msg) {
+    async _handleRpcRequest(ws: any, msg: any): Promise<void> {
         const { requestId, method, params } = msg;
         const handler = this._wsRpcHandlers.get(method);
         if (!handler) {
@@ -404,20 +327,8 @@ export class krnlSystemCommComponent {
                 ok: true,
                 result
             }));
-        } catch (e) {
-            // Safely extract a human-readable error string.
-            // String(e) on a plain object yields "[object Object]" — always use
-            // message if available, otherwise JSON.stringify so callers see real details.
-            let errorMsg;
-            if (typeof e === 'string') {
-                errorMsg = e;
-            } else if (e instanceof Error) {
-                errorMsg = e.message;
-            } else if (e && typeof e === 'object') {
-                errorMsg = e.message || JSON.stringify(e, null, 2);
-            } else {
-                errorMsg = String(e);
-            }
+        } catch (e: any) {
+            let errorMsg = e.message || String(e);
             ws.send(JSON.stringify({
                 kind: 'rpc-response',
                 requestId,
@@ -426,13 +337,12 @@ export class krnlSystemCommComponent {
                 message: errorMsg,
                 error: errorMsg,
                 payload: null,
-                // If the entity provides extra error metadata (e.g. docs), include it
                 ...(e && typeof e === 'object' ? (e.metadata || {}) : {})
             }));
         }
     }
 
-    async _handleIntrospect(ws, msg) {
+    async _handleIntrospect(ws: any, msg: any): Promise<void> {
         const baseInfo = {
             entity: this.ownerEntity.entityName,
             kind: 'introspect-response',
@@ -443,7 +353,7 @@ export class krnlSystemCommComponent {
             try {
                 const extra = await this._introspectionProvider();
                 ws.send(JSON.stringify({ ...baseInfo, ...extra }));
-            } catch (e) {
+            } catch (e: any) {
                 ws.send(JSON.stringify({ ...baseInfo, error: `Introspection provider failed: ${e.message}` }));
             }
         } else {
@@ -451,7 +361,7 @@ export class krnlSystemCommComponent {
         }
     }
 
-    _handleRpcResponse(msg) {
+    _handleRpcResponse(msg: any): void {
         const pending = this._wsPendingRpc.get(msg.requestId);
         if (!pending) return;
         clearTimeout(pending.timeoutId);
@@ -462,15 +372,7 @@ export class krnlSystemCommComponent {
         else pending.reject(new Error(msg.error || 'RPC error'));
     }
 
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////// ROUTE MANAGEMENT ////////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    /**
-     * Returns an array of all active routes (safe serializable snapshot).
-     * @returns {KrnlRoute[]}
-     */
-    listRoutes() {
+    listRoutes(): any[] {
         return Array.from(this.routes.values()).map(r => ({
             id: r.id,
             sourceEmitter: r.sourceEmitter,
@@ -483,31 +385,21 @@ export class krnlSystemCommComponent {
         }));
     }
 
-    /**
-     * Tears down a route by id.
-     * @param {string} routeId
-     */
-    disconnectRoute(routeId, options = {}) {
+    disconnectRoute(routeId: string, options: any = {}): void {
         const { requester = null, force = false } = options;
         const route = this.routes.get(routeId);
         if (!route) throw new Error(`[CommComponent] Route not found: ${routeId}`);
         if (!force && route.externallyMutable === false) {
             const manager = route.managedBy || this.ownerEntity.entityName;
             if (requester && requester !== manager) {
-                throw new Error(
-                    `[CommComponent:${this.ownerEntity.entityName}] Route ${routeId} is immutable for requester ${requester}. Managed by ${manager}.`
-                );
+                throw new Error(`[CommComponent] Route ${routeId} is immutable for requester ${requester}.`);
             }
         }
         if (route.disconnect) route.disconnect();
         this.routes.delete(routeId);
-        console.log(`[CommComponent:${this.ownerEntity.entityName}] Route ${routeId} disconnected.`);
     }
 
-    /**
-     * Tears down all routes and closes any WS connections.
-     */
-    dispose() {
+    dispose(): void {
         for (const [id] of this.routes) {
             try { this.disconnectRoute(id, { force: true }); } catch (_) { }
         }
@@ -520,10 +412,10 @@ export class krnlSystemCommComponent {
         this._wsIngress.clear();
         for (const pending of this._wsPendingRpc.values()) {
             clearTimeout(pending.timeoutId);
-            pending.reject(new Error('CommComponent disposed before RPC response'));
+            pending.reject(new Error('CommComponent disposed'));
         }
         this._wsPendingRpc.clear();
         this._wsRpcHandlers.clear();
-        Logger.log(`[CommComponent:${this.ownerEntity.entityName}] CommComponent disposed.`);
+        Logger.log(`[CommComponent:${this.ownerEntity.entityName}] Disposed.`);
     }
 }

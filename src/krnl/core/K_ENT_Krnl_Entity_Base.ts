@@ -1,6 +1,6 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_ENT_Krnl_Entity_Base.js
+ * @file K_ENT_Krnl_Entity_Base.ts
  * @description The core Entity class, supporting recursive interface promotion and visibility control.
  */
 
@@ -8,24 +8,51 @@ import { krnlInterface } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { krnlEntityCompositionalHierarchyManager } from "./K_LIB_Krnl_Entity_Compositional_Hierarchy.js";
 import { krnlLocalFunctionality, krnlRemoteFunctionality } from "./K_LIB_Krnl_Functionality_Types.js";
 import { krnlError, krnlErrorCodes } from "./K_LIB_Krnl_Error_Concepts.js";
+import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
 
 /**
  * KRNL ENTITY BASE
  * The building block of the Krnl ecosystem.
  */
-import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
-
 export class krnlEntityBase {
+  __krnlEntityInstance: boolean;
+  id: string;
+  entityName: string;
+  Singleton: boolean;
+  baseName: string;
+  instanceNumber: number;
+  _telemetryEnabled: boolean = false;
+  get telemetryEnabled(): boolean { return this._telemetryEnabled; }
+  set telemetryEnabled(val: boolean) {
+    this._telemetryEnabled = val;
+    telemetry.enabled = val; 
+  }
+  systemType: string = "BaseEntity";
+
+  interface: krnlInterface;
+  localFunctionalities: Map<string, krnlLocalFunctionality>;
+  remoteFunctionalities: Map<string, krnlRemoteFunctionality>;
+  collectors: Set<any>;
+  hierarchyManager: krnlEntityCompositionalHierarchyManager;
+
+  // Extension points for decorators/middleware
+  async _decorateResult(result: any, fid: string, input: any): Promise<any> {
+    return result;
+  }
+  async _decorateError(error: any, fid: string, input: any): Promise<any> {
+    return error;
+  }
+
   /**
-   * @param {string} name - The unique identity of the entity.
-   * @param {object|null} owner - The parent entity (if any).
+   * @param name - The unique identity of the entity.
+   * @param owner - The parent entity (if any).
    */
-  constructor(name, owner = null, options = {}) {
+  constructor(name: string, owner: krnlEntityBase | null = null, options: any = {}) {
     // 1. Core Identification.
     this.__krnlEntityInstance = true; // Marker for type checking.
     this.id = name || "UnnamedEntity"; // Unique ID.
     this.entityName = this.id;         // Alias for the name.
-    this.Singleton = options.Singleton ?? this.constructor.Singleton ?? true;
+    this.Singleton = options.Singleton ?? (this.constructor as any).Singleton ?? true;
     this.baseName = options.baseName || this.entityName;
     this.instanceNumber = options.instanceNumber || 1;
     this.telemetryEnabled = options.telemetryEnabled || false;
@@ -37,13 +64,12 @@ export class krnlEntityBase {
     this.localFunctionalities = new Map();  // Logic that is MINE.
     this.remoteFunctionalities = new Map(); // Proxies for logic from components or external peers.
     this.collectors = new Set();            // Tracks listeners for cleanup.
-    this.telemetryEnabled = false;          // Default: Disabled for zero overhead
 
     // 4. Hierarchy Management (The Skeleton).
     this.hierarchyManager = new krnlEntityCompositionalHierarchyManager(
       this,          // Host.
       owner,         // Parent.
-      krnlEntityBase // Base class for nesting.
+      krnlEntityBase as any // Base class for nesting.
     );
   }
 
@@ -51,7 +77,7 @@ export class krnlEntityBase {
    * Registers a local logic block.
    * If the functionality is 'public', it is automatically promoted to the owner.
    */
-  addLocal(localFunctionality) {
+  addLocal(localFunctionality: any): krnlLocalFunctionality {
     // 1. Ensure we have an instance of LocalFunctionality.
     const functionality = localFunctionality instanceof krnlLocalFunctionality
       ? localFunctionality
@@ -65,8 +91,8 @@ export class krnlEntityBase {
 
     // 4. Notify our owner to promote this logic.
     const owner = this.hierarchyManager.getOwnerEntity();
-    if (owner && owner._onComponentFunctionalityAdded) {
-      owner._onComponentFunctionalityAdded(this, functionality);
+    if (owner && (owner as any)._onComponentFunctionalityAdded) {
+      (owner as any)._onComponentFunctionalityAdded(this, functionality);
     }
 
     return functionality;
@@ -76,7 +102,7 @@ export class krnlEntityBase {
    * Registers a proxy for a functionality on another entity.
    * If the proxy is 'public', it is promoted to the owner (Recursive Bubbling).
    */
-  addRemote(remoteFunctionality) {
+  addRemote(remoteFunctionality: any): krnlRemoteFunctionality {
     // 1. Ensure we have an instance of RemoteFunctionality.
     const functionality = remoteFunctionality instanceof krnlRemoteFunctionality
       ? remoteFunctionality
@@ -90,8 +116,8 @@ export class krnlEntityBase {
 
     // 4. BUBBLING: Notify our owner to promote this proxy if it is public.
     const owner = this.hierarchyManager.getOwnerEntity();
-    if (owner && owner._onComponentFunctionalityAdded) {
-      owner._onComponentFunctionalityAdded(this, functionality);
+    if (owner && (owner as any)._onComponentFunctionalityAdded) {
+      (owner as any)._onComponentFunctionalityAdded(this, functionality);
     }
 
     return functionality;
@@ -101,11 +127,9 @@ export class krnlEntityBase {
    * INTERFACE PROMOTION
    * Handles the automatic bubbling of component logic to the owner.
    */
-  _onComponentFunctionalityAdded(component, functionality) {
+  _onComponentFunctionalityAdded(component: krnlEntityBase, functionality: any): void {
     // 1. Only promote 'public' functionalities from the component.
     if (functionality.visibility !== 'public') return;
-
-    console.log(`[${this.entityName}] Attempting to promote ${functionality.id} from ${component.entityName}`);
 
     const existing = this.remoteFunctionalities.get(functionality.id);
     if (existing) {
@@ -115,81 +139,64 @@ export class krnlEntityBase {
     }
 
     // 2. Register the component's functionality as a REMOTE proxy on this owner.
-    // By default, promoted proxies are 'public' so they keep bubbling up,
-    // but the owner can intercept this or re-configure the proxy to be 'private'.
     this.addRemote({
       id: functionality.id,
       targetEntity: component,
       targetFunction: functionality.id,
       visibility: 'public' // Bubbles up further by default.
     });
-
-    console.log(`[${this.entityName}] Promoted component logic: ${functionality.id}`);
   }
 
   /**
    * Removes a promoted remote functionality and recursively propagates removal upward.
-   * @param {object} component
-   * @param {string} functionalityId
    */
-  _onComponentFunctionalityRemoved(component, functionalityId) {
-    console.log(`[${this.entityName}] Removing component logic: ${functionalityId} from ${component.entityName}`);
+  _onComponentFunctionalityRemoved(component: krnlEntityBase, functionalityId: string): void {
     const existing = this.remoteFunctionalities.get(functionalityId);
-    if (!existing) {
-      console.log(`[${this.entityName}] Logic ${functionalityId} not found in remoteFunctionalities.`);
-      return;
-    }
-    if (existing.targetEntity !== component) {
-      console.log(`[${this.entityName}] Logic ${functionalityId} targetEntity mismatch.`);
-      return;
-    }
+    if (!existing) return;
+    if (existing.targetEntity !== component) return;
 
     this.remoteFunctionalities.delete(functionalityId);
 
     const owner = this.hierarchyManager.getOwnerEntity();
-    if (owner && owner._onComponentFunctionalityRemoved) {
-      owner._onComponentFunctionalityRemoved(this, functionalityId);
+    if (owner && (owner as any)._onComponentFunctionalityRemoved) {
+      (owner as any)._onComponentFunctionalityRemoved(this, functionalityId);
     }
   }
 
   /**
    * Internal helper to trigger promotion of all existing functionalities.
-   * Useful when an entity is assigned an owner AFTER its functionalities are created.
    */
-  _promoteAllExistingFunctionalities() {
+  _promoteAllExistingFunctionalities(): void {
     const owner = this.hierarchyManager.getOwnerEntity();
-    if (!owner || !owner._onComponentFunctionalityAdded) return;
+    if (!owner || !(owner as any)._onComponentFunctionalityAdded) return;
 
     this.localFunctionalities.forEach(f => {
-      owner._onComponentFunctionalityAdded(this, f);
+      (owner as any)._onComponentFunctionalityAdded(this, f);
     });
     this.remoteFunctionalities.forEach(f => {
-      owner._onComponentFunctionalityAdded(this, f);
+      (owner as any)._onComponentFunctionalityAdded(this, f);
     });
   }
 
   /**
    * Executes a functionality by ID.
    */
-  async call(fid, input, opts = {}) {
+  async call(fid: string, input: any, opts: any = {}): Promise<any> {
     const unwrap = opts.unwrap !== false; // Default to true
     try {
-      let result;
+      let result: any;
       if (this.localFunctionalities.has(fid)) {
-        result = await this.localFunctionalities.get(fid).execute(input, opts);
+        result = await this.localFunctionalities.get(fid)!.execute(input, opts);
       } else if (this.remoteFunctionalities.has(fid)) {
-        result = await this.remoteFunctionalities.get(fid).execute(input, opts);
+        result = await this.remoteFunctionalities.get(fid)!.execute(input, opts);
       } else {
         throw new krnlError(krnlErrorCodes.FUNCTIONALITY_NOT_DEFINED);
       }
 
       // Universal result decoration hook
-      if (this._decorateResult) {
-        result = await this._decorateResult(result, fid, input);
-      }
+      result = await this._decorateResult(result, fid, input);
 
       // Backward compatibility: If it's a standard Krnl success envelope, unwrap it.
-      // NOTE: We only unwrap if 'unwrap' is true AND there is NO preemptiveDocumentation
       if (unwrap && result && typeof result === 'object' && result.status === 'success' && 'payload' in result && !result.preemptiveDocumentation) {
         return result.payload;
       }
@@ -200,14 +207,11 @@ export class krnlEntityBase {
       }
 
       return result;
-    } catch (err) {
+    } catch (err: any) {
       let finalErr = err;
       // Universal error decoration hook
-      if (this._decorateError) {
-        finalErr = await this._decorateError(err, fid, input);
-      }
+      finalErr = await this._decorateError(err, fid, input);
       
-      // If the error was decorated into a Krnl error object, throw it so try/catch works locally
       if (finalErr && typeof finalErr === 'object' && finalErr.status === 'error') {
         const wrapper = new krnlError(finalErr.message || krnlErrorCodes.REMOTE_EXECUTION_FAILED);
         Object.assign(wrapper, finalErr); // Preserve metadata/documentation
@@ -218,9 +222,9 @@ export class krnlEntityBase {
     }
   }
 
-  getLocal(fid) { return this.localFunctionalities.get(fid); }
-  getRemote(fid) { return this.remoteFunctionalities.get(fid); }
-  addChild(instance) {
+  getLocal(fid: string) { return this.localFunctionalities.get(fid); }
+  getRemote(fid: string) { return this.remoteFunctionalities.get(fid); }
+  addChild(instance: krnlEntityBase) {
     return this.hierarchyManager.addComponentEntityInstance(instance);
   }
 
@@ -232,7 +236,7 @@ export class krnlEntityBase {
     };
   }
 
-  disposeOwnedComponent(entityId) {
+  disposeOwnedComponent(entityId: string) {
     return this.hierarchyManager.disposeComponentEntity(entityId);
   }
 
@@ -242,8 +246,8 @@ export class krnlEntityBase {
 
     // 1. Teardown all local functionalities to release resources.
     this.localFunctionalities.forEach(func => {
-      if (typeof func.teardown === 'function') {
-        func.teardown();
+      if (typeof (func as any).teardown === 'function') {
+        (func as any).teardown();
       }
     });
 

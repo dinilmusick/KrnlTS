@@ -3,32 +3,52 @@
  * A lightweight, high-precision telemetry engine for KrnlJS.
  * Tracks latency, frequency, and resource usage per functionality ID.
  */
+
+export interface TelemetryStats {
+    calls: number;
+    errors: number;
+    totalLatencyNs: number;
+    avgLatencyMs: number;
+    peakLatencyMs: number;
+    totalMemoryDelta: number;
+    avgMemoryDelta: number;
+    lastUpdated: number;
+}
+
+export interface TelemetryTrace {
+    startTime: bigint;
+    startMemory: number;
+}
+
 export class KrnlTelemetry {
+  metrics: Map<string, TelemetryStats>;
+  enabled: boolean;
+
   constructor() {
-    this.metrics = new Map();
+    this.metrics = new Map<string, TelemetryStats>();
     this.enabled = false;
   }
 
   /**
    * Starts a telemetry trace for a specific functionality.
-   * @param {string} fid 
-   * @returns {object} Trace data
+   * @param fid 
+   * @returns Trace data
    */
-  startTrace(fid) {
+  startTrace(fid: string): TelemetryTrace {
     return {
       startTime: process.hrtime.bigint(),
-      startMemory: process.memoryUsage ? process.memoryUsage().heapUsed : 0
+      startMemory: (process as any).memoryUsage ? (process as any).memoryUsage().heapUsed : 0
     };
   }
 
   /**
    * Ends a telemetry trace and updates aggregated metrics.
-   * @param {string} fid 
-   * @param {object} trace 
+   * @param fid 
+   * @param trace 
    */
-  endTrace(fid, trace, success = true) {
+  endTrace(fid: string, trace: TelemetryTrace, success: boolean = true): void {
     const endTime = process.hrtime.bigint();
-    const endMemory = process.memoryUsage ? process.memoryUsage().heapUsed : 0;
+    const endMemory = (process as any).memoryUsage ? (process as any).memoryUsage().heapUsed : 0;
 
     const latencyNs = Number(endTime - trace.startTime);
     const memoryDelta = endMemory - trace.startMemory;
@@ -64,14 +84,14 @@ export class KrnlTelemetry {
   /**
    * Returns a snapshot of all metrics.
    */
-  getSummary() {
+  getSummary(): Record<string, TelemetryStats> {
     return Object.fromEntries(this.metrics);
   }
 
   /**
    * Clears all collected metrics.
    */
-  reset() {
+  reset(): void {
     this.metrics.clear();
   }
 }

@@ -1,37 +1,38 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_ENT_Krnl_Network_Orchestrator_Entity_Base.js
+ * @file K_ENT_Krnl_Network_Orchestrator_Entity_Base.ts
  * @description Network-level orchestrator for discovering systems and managing inter-system routes.
  */
 
 import { krnlSystemEntityBase } from "./K_ENT_Krnl_System_Entity_Base.js";
 
 export class krnlNetworkOrchestratorEntityBase extends krnlSystemEntityBase {
-  constructor(name = "KrnlNetworkOrchestrator", owner = null, commPort = 10110, host = "0.0.0.0") {
+  constructor(name: string = "KrnlNetworkOrchestrator", owner: any = null, commPort: number = 10110, host: string = "0.0.0.0") {
     super(name, owner, commPort, host);
     this.systemType = "NetworkOrchestrator";
   }
 
-  async getPeerManifest(peerId) {
+  async getPeerManifest(peerId: string): Promise<any> {
     const peer = this.peers.get(peerId);
     if (!peer) throw new Error(`Peer ${peerId} not discovered.`);
-    return await this.commComponent.callWsRpc(peer.address, "get-manifest", {});
+    return await (this.commComponent as any).callWsRpc(peer.address, "get-manifest", {});
   }
 
-  async listPeerRoutes(peerId) {
+  async listPeerRoutes(peerId: string): Promise<any> {
     const peer = this.peers.get(peerId);
     if (!peer) throw new Error(`Peer ${peerId} not discovered.`);
-    return await this.commComponent.callWsRpc(peer.address, "list-routes", {});
+    return await (this.commComponent as any).callWsRpc(peer.address, "list-routes", {});
   }
 
   /**
    * Connects source system emitter -> target system collector.
    */
-  async connectSystems(sourcePeerId, targetPeerId, options) {
+  async connectSystems(sourcePeerId: string, targetPeerId: string, options: any): Promise<any> {
     const source = this.peers.get(sourcePeerId);
     const target = this.peers.get(targetPeerId);
     if (!source) throw new Error(`Source peer ${sourcePeerId} not discovered.`);
     if (!target) throw new Error(`Target peer ${targetPeerId} not discovered.`);
+    
     if (source.busy && source.reservedBy !== this.entityName) {
       throw new Error(`Source peer ${sourcePeerId} is reserved by ${source.reservedBy || "another service"}.`);
     }
@@ -46,7 +47,7 @@ export class krnlNetworkOrchestratorEntityBase extends krnlSystemEntityBase {
       metadata = {},
     } = options;
 
-    return await this.commComponent.callWsRpc(source.address, "connect-to-target", {
+    return await (this.commComponent as any).callWsRpc(source.address, "connect-to-target", {
       sourceEmitter,
       targetAddress: target.address,
       targetCollector,
@@ -60,15 +61,14 @@ export class krnlNetworkOrchestratorEntityBase extends krnlSystemEntityBase {
     });
   }
 
-  async disconnectPeerRoute(peerId, routeId, options = {}) {
+  async disconnectPeerRoute(peerId: string, routeId: string, options: any = {}): Promise<any> {
     const peer = this.peers.get(peerId);
     if (!peer) throw new Error(`Peer ${peerId} not discovered.`);
     const { force = false } = options;
-    return await this.commComponent.callWsRpc(peer.address, "disconnect-route", {
+    return await (this.commComponent as any).callWsRpc(peer.address, "disconnect-route", {
       routeId,
       force,
       requester: this.entityName,
     });
   }
 }
-

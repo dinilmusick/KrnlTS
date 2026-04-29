@@ -1,5 +1,5 @@
 {
-  "name": "krnljs",
+  "name": "krnlts",
   "version": "0.1.0",
   "description": "The core library for the Krnl ecosystem, providing a uniform syntax and API across JavaScript projects.",
   "type": "module",
@@ -33,6 +33,8 @@
     "zod-to-json-schema": "^3.24.1"
   },
   "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/ws": "^8.18.1",
     "tsup": "^8.4.0",
     "typescript": "^5.7.3"
   }

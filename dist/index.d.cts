@@ -1,3420 +1,845 @@
-import fs from 'fs';
 import http from 'http';
-import { zodToJsonSchema } from 'zod-to-json-schema';
-
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
-/**
- * @file K_LIB_Krnl_Base_Concepts.js
- * @description These are building blocks for the basic structures that define the Krnl system.
- */
-
-//////////////////////////////////////// LOGGER UTILITY ////////////////////////////////////////
-/**
- * Unified logger with support for synchronous flushing.
- */
-class Logger {
-  static log(...args) {
-    console.log(`[${new Date().toISOString()}]`, ...args);
-  }
-
-  static error(...args) {
-    console.error(`[${new Date().toISOString()}] ERROR:`, ...args);
-    this.flush();
-  }
-
-  static flush() {
-    if (typeof process !== 'undefined') {
-      try {
-        // Force synchronous flush of stdout and stderr
-        if (process.stdout && typeof process.stdout.fd === 'number') fs.fsyncSync(process.stdout.fd);
-        if (process.stderr && typeof process.stderr.fd === 'number') fs.fsyncSync(process.stderr.fd);
-      } catch (e) {
-        // Some environments don't support fsyncSync on stdout/stderr
-      }
-    }
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA ////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////// CREATE ENUM ////////////////////////////////////////
-/**
- * Enum Template Object :
- * Template enum "class"
- */
-const EnumTemplate = {
-  types: [],
-  listTypes() {
-    return Object.freeze([...this.types]);
-  },
-  getTypeID(typeName) {
-    return this[typeName] !== undefined ? this[typeName] : -1;
-  },
-};
-
-/**
- * Creates an immutable enum object from a list of type names.
- * @param {string[]} typeNames - An array of strings representing the enum type names.
- * @returns {Readonly<object>} An immutable enum object.
- */
-function createEnum(typeNames) {
-  const enumObj = Object.create(EnumTemplate);
-  enumObj.types = typeNames;
-  typeNames.forEach((name, index) => {
-    enumObj[name] = index;
-  });
-  return Object.freeze(enumObj);
-}
-
-//////////////////////////////////////// KRNL SYSTEM TYPES ////////////////////////////////////////
-const krnlSystemTypes = Object.freeze(
-  createEnum(["qwnsr", "brnda", "symba", "mosy"])
-);
-
-//////////////////////////////////////// KRNL SERVICE SUITES ////////////////////////////////////////
-const krnlServiceSuites = Object.freeze(
-  createEnum(["UNIFIED_HTTP"])
-);
-
-const krnlServiceSuitePorts = Object.freeze({
-  UNIFIED_HTTP: 1
-});
-
-//////////////////////////////////////// KRNL PRIMITIVE DATA TYPES ////////////////////////////////////////
-const krnlPrimitiveDataTypes = Object.freeze(
-  createEnum(["audio", "control-signal", "video", "MIDI", "OSC", "text", "trigger"])
-);
-
-//////////////////////////////////////// KRNL DATA ////////////////////////////////////////
-class krnlData {
-  // --- Transport semantics ---
-  isSignal = false; // boolean: stream-like vs discrete
-  dataType = 0; // enum index: ["audio","control-signal","video","MIDI","OSC","text","trigger",...]
-  transportKind = "single"; // "single" | "blob" | "stream"
-
-  // --- Cross-cutting metadata ---
-  timestamp = 0; // logical time
-  correlationId = null; // string | number | null
-  sourceId = null; // string | number | null
-  tags = null; // optional string[] (can stay null on MCUs)
-
-  // --- Type-specific payload ---
-  data = null; // payload object / buffer / frame
-}
-//////////////////////////////////////// KRNL DATA FACTORY ////////////////////////////////////////
-class krnlDataFactory {
-  static audio(opts) {
-    const {
-      isSignal = true,
-      transportKind = "stream",
-      codec = "pcm16",
-      sampleRate = 44100,
-      channels = 2,
-      frameIndex = 0,
-      buffer,
-      extra = {}
-    } = opts;
-
-    const d = new krnlData();
-    d.isSignal = isSignal;
-    d.transportKind = transportKind;
-    d.dataType = krnlPrimitiveDataTypes.getTypeID("audio");
-    d.data = {
-      codec,
-      sampleRate,
-      channels,
-      frameIndex,
-      length: buffer?.length ?? 0,
-      buffer,
-      ...extra
-    };
-    return d;
-  }
-
-  static control(opts) {
-    const {
-      name,
-      value,
-      unit = null,
-      curve = "linear",
-      transportKind = "single",
-      isSignal = false,
-      extra = {}
-    } = opts;
-
-    const d = new krnlData();
-    d.isSignal = isSignal;
-    d.transportKind = transportKind;
-    d.dataType = krnlPrimitiveDataTypes.getTypeID("control-signal");
-    d.data = { name, value, unit, curve, ...extra };
-    return d;
-  }
-
-  static midi(opts) {
-    const {
-      status, data1, data2,
-      channel = 0,
-      raw = null,
-      transportKind = "single",
-      isSignal = false,
-      extra = {}
-    } = opts;
-
-    const d = new krnlData();
-    d.isSignal = isSignal;
-    d.transportKind = transportKind;
-    d.dataType = krnlPrimitiveDataTypes.getTypeID("MIDI");
-    d.data = { status, data1, data2, channel, raw, ...extra };
-    return d;
-  }
-
-  static text(opts) {
-    const {
-      text,
-      encoding = "utf-8",
-      language = "en",
-      contentType = "plain",
-      transportKind = "single",
-      isSignal = false,
-      extra = {}
-    } = opts;
-
-    const d = new krnlData();
-    d.isSignal = isSignal;
-    d.transportKind = transportKind;
-    d.dataType = krnlPrimitiveDataTypes.getTypeID("text");
-    d.data = { text, encoding, language, contentType, ...extra };
-    return d;
-  }
-
-  static trigger(opts) {
-    const {
-      name,
-      value = 1,
-      transportKind = "single",
-      isSignal = false,
-      extra = {}
-    } = opts;
-
-    const d = new krnlData();
-    d.isSignal = isSignal;
-    d.transportKind = transportKind;
-    d.dataType = krnlPrimitiveDataTypes.getTypeID("trigger");
-    d.data = { name, value, ...extra };
-    return d;
-  }
-}
-
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
-/**
- * @file K_LIB_Krnl_Error_Concepts.js
- * @description Defines the system-wide error codes, messages, and typed error class for the Krnl ecosystem.
- * This file does not have dependencies.
- */
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA //////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////// ERROR CODES ////////////////////////////////////////
-/**
- * Krnl System Error Codes.
- * Integer-based for cross-platform portability (Go, C++, Rust).
- */
-const krnlErrorCodes = Object.freeze({
-  // Enum errors (0-99)
-  ENUM_ID_NOT_FOUND: -1,
-
-  // State errors (100-199)
-  STATE_NOT_FOUND: 100,
-  STATE_DUPLICATE_NAME: 101,
-  STATE_INDEX_OUT_OF_RANGE: 102,
-
-  // Functionality errors (200-299)
-  FUNCTIONALITY_NOT_DEFINED: 200,
-  FUNCTIONALITY_ALREADY_DEFINED: 201,
-  FUNCTIONALITY_INSTANCE_NOT_FOUND: 202,
-
-  // Interface errors (300-399)
-  EMITTER_NOT_FOUND: 300,
-  COLLECTOR_NOT_FOUND: 301,
-  COLLECTOR_NOT_SUBSCRIBED: 302,
-
-  // Hierarchy errors (400-499)
-  ENTITY_NOT_FOUND: 400,
-});
-
-//////////////////////////////////////// ERROR MESSAGES ////////////////////////////////////////
-/**
- * Map of Error Codes to human-readable messages.
- */
-const krnlErrorMessages = Object.freeze({
-  // Enum
-  [krnlErrorCodes.ENUM_ID_NOT_FOUND]:
-    "Enum: ID not found. The requested enum type is not defined.",
-
-  // State
-  [krnlErrorCodes.STATE_NOT_FOUND]:
-    "State: No state found with the given name.",
-  [krnlErrorCodes.STATE_DUPLICATE_NAME]:
-    "State: A state with this name already exists.",
-  [krnlErrorCodes.STATE_INDEX_OUT_OF_RANGE]:
-    "State: Index is out of range of the states array.",
-
-  // Functionality
-  [krnlErrorCodes.FUNCTIONALITY_NOT_DEFINED]:
-    "Functionality: The requested functionality is not defined.",
-  [krnlErrorCodes.FUNCTIONALITY_ALREADY_DEFINED]:
-    "Functionality: A functionality with this name is already defined.",
-  [krnlErrorCodes.FUNCTIONALITY_INSTANCE_NOT_FOUND]:
-    "Functionality: The requested functionality instance was not found.",
-
-  // Interface
-  [krnlErrorCodes.EMITTER_NOT_FOUND]:
-    "Interface: No emitter found with the given name.",
-  [krnlErrorCodes.COLLECTOR_NOT_FOUND]:
-    "Interface: No collector found with the given name.",
-  [krnlErrorCodes.COLLECTOR_NOT_SUBSCRIBED]:
-    "Interface: Collector is not subscribed to any emitter.",
-
-  // Hierarchy
-  [krnlErrorCodes.ENTITY_NOT_FOUND]:
-    "Hierarchy: No entity found with the given name.",
-});
-
-//////////////////////////////////////// KRNL ERROR ////////////////////////////////////////
-/**
- * Typed error class for the Krnl system.
- * Always carries an integer error code for programmatic handling.
- */
-class krnlError extends Error {
-  constructor(code) {
-    super(krnlErrorMessages[code] ?? `Unknown error (code: ${code})`);
-    this.code = code;
-    this.errorMessage = this.message;
-  }
-}
-
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
-/**
- * @file K_LIB_Krnl_Messaging_Concepts.js
- * @description Core classes for messaging and communication between entities in the Krnl system.
- */
-
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA ////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////// KRNL GLOBAL EMITTER ADDRESS ////////////////////////////////////////
-class krnlGlobalEmitterAddress {
-  systemID = 0; // ["qwnsr", "brnda", "symba", "mosy"]
-  subSystemID = 0; // ["qwnsrControl", "qwnsrBlocks"], other options for other systems.
-  entityAddress = []; // nesting of type => entity36{entity45{entity67}} = [36,45,67]
-  emitterID = 0;
-}
-
-//////////////////////////////////////// KRNL LOCAL EMITTER ADDRESS ////////////////////////////////////////
-class krnlLocalEmitterAddress {
-  isOwnerEntity = true; // simply an address to the owner of the current entity if true. else address directed to sibling
-  siblingID = 0;
-  emitterID = 0;
-}
-
-//////////////////////////////////////// KRNL MESSAGE ////////////////////////////////////////
-class krnlMessage {
-  data = null;
-  time = { day: 0, hour: 0, minute: 0, seconds: 0, millisecond: 0 };
-}
-
-//////////////////////////////////////// KRNL MESSAGE STREAM ////////////////////////////////////////
-class krnlMessageStream {
-  #queue = [];
-  #waiters = [];
-
-  push(message) {
-    if (this.#waiters.length > 0) {
-      const resolve = this.#waiters.shift();
-      resolve(message);
-    } else {
-      this.#queue.push(message);
-    }
-  }
-
-  async next() {
-    if (this.#queue.length > 0) {
-      return this.#queue.shift();
-    }
-    return new Promise((resolve) => this.#waiters.push(resolve));
-  }
-
-  async *[Symbol.asyncIterator]() {
-    while (true) {
-      yield await this.next();
-    }
-  }
-}
-
-//////////////////////////////////////// KRNL EMITTER ////////////////////////////////////////
-class krnlEmitter {
-  constructor() {
-    this.stream = new krnlMessageStream();
-    this.subscribers = [];
-    this.localAddress = null;
-  }
-
-  /**
-   * Pushes data into the emitter's stream and notifies all subscribers.
-   * @param {*} data - The data payload.
-   * @param {object} [time={}] - Optional time metadata.
-   * @param {function} [transform=(msg)=>msg] - Optional message transform.
-   */
-  pushDataStreamToEmitter(data, time = {}, transform = (msg) => msg) {
-    const msg = new krnlMessage();
-    msg.data = data;
-    Object.assign(msg.time, time);
-    const transformed = transform(msg);
-    this.stream.push(transformed);
-    // Notify all direct subscribers
-    for (let i = 0; i < this.subscribers.length; i++) {
-      this.subscribers[i](transformed);
-    }
-  }
-
-  /**
-   * Subscribes a handler to this emitter. Handler is called on every push.
-   * @param {function(krnlMessage): void} handler - Callback for each message.
-   * @returns {function(): void} Unsubscribe function.
-   */
-  subscribe(handler) {
-    this.subscribers.push(handler);
-    return () => {
-      const idx = this.subscribers.indexOf(handler);
-      if (idx >= 0) this.subscribers.splice(idx, 1);
-    };
-  }
-
-  /**
-   * Subscribes once and auto-unsubscribes after first message.
-   * @param {function(krnlMessage): void} handler
-   * @returns {function(): void}
-   */
-  subscribeOnce(handler) {
-    let unsubscribe = null;
-    const wrapped = (msg) => {
-      if (unsubscribe) unsubscribe();
-      handler(msg);
-    };
-    unsubscribe = this.subscribe(wrapped);
-    return unsubscribe;
-  }
-
-  /**
-   * Resets the stream and removes all subscribers.
-   */
-  disconnectEmitter() {
-    this.stream = new krnlMessageStream();
-    this.subscribers = [];
-  }
-}
-
-//////////////////////////////////////// KRNL COLLECTOR ////////////////////////////////////////
-class krnlCollector {
-  constructor() {
-    this.emitter = null;
-    this.unsubscribe = null;
-  }
-
-  /**
-   * Subscribes this collector to an emitter. Messages are forwarded to the handler.
-   * @param {krnlEmitter} emitter - The emitter to subscribe to.
-   * @param {function(krnlMessage): void} handler - Callback for each message.
-   * @returns {function(): void} Unsubscribe function.
-   */
-  subscribeTo(emitter, handler = null, options = {}) {
-    const { mode = "stream" } = options;
-    const resolvedHandler = typeof handler === "function"
-      ? handler
-      : (msg) => {
-          if (typeof this._directHandler === "function") {
-            return this._directHandler(msg);
-          }
-          return msg;
-        };
-
-    // Disconnect from any previous emitter
-    this.disconnectCollector();
-    this.emitter = emitter;
-    this.unsubscribe = mode === "once"
-      ? emitter.subscribeOnce(resolvedHandler)
-      : emitter.subscribe(resolvedHandler);
-    return this.unsubscribe;
-  }
-
-  /**
-   * Collects a single message from the emitter and auto-disconnects.
-   * @param {krnlEmitter} emitter
-   * @param {number|null} timeoutMs
-   * @returns {Promise<krnlMessage>}
-   */
-  collectNext(emitter, timeoutMs = null) {
-    return new Promise((resolve, reject) => {
-      let timeout = null;
-      const cleanup = () => {
-        if (timeout) clearTimeout(timeout);
-        this.disconnectCollector();
-      };
-
-      this.subscribeTo(emitter, (msg) => {
-        cleanup();
-        resolve(msg);
-      }, { mode: "once" });
-
-      if (typeof timeoutMs === "number" && timeoutMs > 0) {
-        timeout = setTimeout(() => {
-          cleanup();
-          reject(new Error(`Collector timeout after ${timeoutMs}ms`));
-        }, timeoutMs);
-      }
-    });
-  }
-
-  /**
-   * Pipes messages from a connected emitter through a transform function.
-   * Used internally by broadcast functionalities.
-   * @param {object} target - The target entity (for context binding).
-   * @param {function(krnlMessage): void} fn - Processing function for each message.
-   * @returns {function(): void} Disconnect function.
-   */
-  pipeTo(target, fn) {
-    // Create a self-contained emitter for this pipe
-    const pipeEmitter = new krnlEmitter();
-    this.emitter = pipeEmitter;
-
-    const unsub = pipeEmitter.subscribe((msg) => {
-      fn(msg);
-    });
-
-    this.unsubscribe = unsub;
-
-    // Return a disconnect function
-    return () => {
-      this.disconnectCollector();
-    };
-  }
-
-  /**
-   * Pushes data directly into this collector's connected emitter.
-   * Used by broadcast functionalities to inject data.
-   * @param {*} data - Data to push.
-   */
-  pushDataStreamToEmitter(data) {
-    if (this.emitter === null) {
-      throw new krnlError(krnlErrorCodes.COLLECTOR_NOT_SUBSCRIBED);
-    }
-    this.emitter.pushDataStreamToEmitter(data);
-  }
-
-  /**
-   * Disconnects from the current emitter.
-   */
-  disconnectCollector() {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = null;
-      this.emitter = null;
-    }
-  }
-}
-
-//////////////////////////////////////// KRNL INTERFACE ////////////////////////////////////////
-class krnlInterface {
-  constructor(ownerEntity) {
-    this.ownerEntity = ownerEntity;
-    this.emitters = [];    // array — single source of truth
-    this.collectors = [];  // array — single source of truth
-    this.emitterNames = [];   // parallel name array for lookup
-    this.collectorNames = []; // parallel name array for lookup
-  }
-
-  /**
-   * Creates and registers a new emitter.
-   * @param {string} name - Name for the emitter.
-   * @returns {krnlEmitter} The created emitter.
-   */
-  createEmitter(name) {
-    const emitter = new krnlEmitter();
-    this.emitters.push(emitter);
-    this.emitterNames.push(name);
-    emitter.localAddress = {
-      isOwnerEntity: false,
-      siblingID: 0,
-      emitterID: this.emitters.length - 1,
-    };
-    return emitter;
-  }
-
-  /**
-   * Creates and registers a new collector.
-   * @param {string} name - Name for the collector.
-   * @returns {krnlCollector} The created collector.
-   */
-  createCollector(name) {
-    const collector = new krnlCollector();
-    this.collectors.push(collector);
-    this.collectorNames.push(name);
-    return collector;
-  }
-
-  /**
-   * Gets an emitter by name.
-   * @param {string} name - Name of the emitter.
-   * @returns {krnlEmitter} The emitter.
-   * @throws {krnlError} EMITTER_NOT_FOUND if not found.
-   */
-  getEmitter(name) {
-    for (let i = 0; i < this.emitterNames.length; i++) {
-      if (this.emitterNames[i] === name) return this.emitters[i];
-    }
-    throw new krnlError(krnlErrorCodes.EMITTER_NOT_FOUND);
-  }
-
-  /**
-   * Gets a collector by name.
-   * @param {string} name - Name of the collector.
-   * @returns {krnlCollector} The collector.
-   * @throws {krnlError} COLLECTOR_NOT_FOUND if not found.
-   */
-  getCollector(name) {
-    for (let i = 0; i < this.collectorNames.length; i++) {
-      if (this.collectorNames[i] === name) return this.collectors[i];
-    }
-    throw new krnlError(krnlErrorCodes.COLLECTOR_NOT_FOUND);
-  }
-
-  /**
-   * Removes an emitter by name.
-   * @param {string} name 
-   */
-  removeEmitter(name) {
-    const idx = this.emitterNames.indexOf(name);
-    if (idx >= 0) {
-      this.emitters[idx].disconnectEmitter();
-      this.emitters.splice(idx, 1);
-      this.emitterNames.splice(idx, 1);
-    }
-  }
-
-  /**
-   * Removes a collector by name.
-   * @param {string} name 
-   */
-  removeCollector(name) {
-    const idx = this.collectorNames.indexOf(name);
-    if (idx >= 0) {
-      this.collectors[idx].disconnectCollector();
-      this.collectors.splice(idx, 1);
-      this.collectorNames.splice(idx, 1);
-    }
-  }
-
-  /**
-   * Gets all emitters in scope (self + owner + siblings).
-   * @returns {krnlEmitter[]} Array of in-scope emitters.
-   */
-  getEmittersInScope() {
-    const interfaces = this.getInterfacesInScope();
-    const result = [];
-    for (let i = 0; i < interfaces.length; i++) {
-      for (let j = 0; j < interfaces[i].emitters.length; j++) {
-        result.push(interfaces[i].emitters[j]);
-      }
-    }
-    return result;
-  }
-
-  /**
-   * Gets all interfaces in scope (self, owner, and siblings).
-   * @returns {krnlInterface[]} Array of interfaces.
-   */
-  getInterfacesInScope() {
-    const owner = this.ownerEntity.hierarchyManager
-      ? this.ownerEntity.hierarchyManager.getOwnerEntity()
-      : null;
-    if (!owner) return [this];
-
-    const scopes = [this];
-    if (owner.interface) scopes.push(owner.interface);
-
-    const siblings = owner.hierarchyManager
-      ? owner.hierarchyManager.getAllOwnedComponentEntities()
-      : [];
-    for (let i = 0; i < siblings.length; i++) {
-      if (siblings[i] !== this.ownerEntity && siblings[i].interface) {
-        scopes.push(siblings[i].interface);
-      }
-    }
-    return scopes;
-  }
-
-  /**
-   * Disconnects all emitters and collectors.
-   */
-  dispose() {
-    for (let i = 0; i < this.emitters.length; i++) {
-      this.emitters[i].disconnectEmitter();
-    }
-    for (let i = 0; i < this.collectors.length; i++) {
-      this.collectors[i].disconnectCollector();
-    }
-    this.emitters = [];
-    this.collectors = [];
-    this.emitterNames = [];
-    this.collectorNames = [];
-  }
-}
-
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
-/**
- * @file K_LIB_Krnl_Entity_Compositional_Hierarchy.js
- * @description Manages parent-child relationships and component unique instantiation.
- */
-
-/**
- * KRNL ENTITY COMPOSITIONAL HIERARCHY MANAGER
- * Responsible for the "skeleton" of the system.
- */
-class krnlEntityCompositionalHierarchyManager {
-  /**
-   * @param {object} self - The entity this manager belongs to.
-   * @param {object|null} owner - The parent entity (if any).
-   * @param {function} EntityClass - Reference to the Entity base class for instantiation.
-   */
-  constructor(self, owner, EntityClass) {
-    this.self = self;                  // The entity instance we are managing.
-    this.owner = owner;                // The parent entity.
-    this.EntityClass = EntityClass;    // Class used to spawn sub-entities.
-    this.ownedComponents = new Map();  // Map of Name -> EntityInstance.
-    this.componentBaseNames = new Map(); // Map of BaseName -> [EntityInstance]
-    this.componentInstanceCounters = new Map(); // BaseName -> number of created instances
-  }
-
-  /**
-   * Spawns a unique component entity within this host.
-   * @param {string} name - The name of the component.
-   * @param {function} [CustomClass=null] - Optional specific class to instantiate.
-   */
-  createComponentEntity(name, CustomClass = null, options = {}) {
-    // 1. Determine which class to use (Default or Custom).
-    const ClassToUse = CustomClass || this.EntityClass;
-    const shouldBeSingleton = options.Singleton ?? ClassToUse.Singleton ?? true;
-
-    // 2. Enforce unique instantiation for singleton components.
-    if (shouldBeSingleton && this.ownedComponents.has(name)) {
-      return this.ownedComponents.get(name);
-    }
-
-    // 3. Resolve instance identity.
-    const currentCount = this.componentInstanceCounters.get(name) || 0;
-    const nextCount = currentCount + 1;
-    this.componentInstanceCounters.set(name, nextCount);
-    const resolvedName = shouldBeSingleton ? name : `${name}#${nextCount}`;
-
-    // 4. Create the new entity instance.
-    const newEntity = new ClassToUse(resolvedName, this.self, {
-      Singleton: shouldBeSingleton,
-      baseName: name,
-      instanceNumber: nextCount,
-    });
-
-    // 5. Register the component locally.
-    this.ownedComponents.set(resolvedName, newEntity);
-    const group = this.componentBaseNames.get(name) || [];
-    group.push(newEntity);
-    this.componentBaseNames.set(name, group);
-
-    // 6. Notify the host entity that a new component has arrived.
-    // This is crucial for the automatic interface promotion logic.
-    if (this.self._onComponentAdded) {
-      this.self._onComponentAdded(newEntity);
-    }
-
-    return newEntity;
-  }
-
-  /**
-   * Registers a pre-existing entity instance as a component of this host.
-   * Automatically triggers interface promotion for all its public functionalities.
-   * @param {object} instance - The entity instance to register.
-   */
-  addComponentEntityInstance(instance) {
-    this.ownedComponents.set(instance.id, instance);
-    instance.hierarchyManager.owner = this.self;
-    if (instance._promoteAllExistingFunctionalities) {
-      instance._promoteAllExistingFunctionalities();
-    }
-  }
-
-  /**
-   * Returns a list of all component entities owned by this host.
-   */
-  getAllOwnedComponentEntities() {
-    return Array.from(this.ownedComponents.values());
-  }
-
-  /**
-   * Returns all component entity instances created from the same base component name.
-   */
-  getOwnedComponentEntitiesByName(name) {
-    return [...(this.componentBaseNames.get(name) || [])];
-  }
-
-  /**
-   * Returns the parent entity.
-   */
-  getOwnerEntity() {
-    return this.owner;
-  }
-
-  /**
-   * Recursively disposes of all owned components.
-   */
-  dispose() {
-    this.ownedComponents.forEach((entity) => {
-      if (entity.dispose) entity.dispose(); // Kill children first.
-    });
-    this.ownedComponents.clear(); // Clear the registry.
-    this.componentBaseNames.clear();
-    this.componentInstanceCounters.clear();
-  }
-
-  /**
-   * Disposes a specific component instance by ID/name.
-   * @param {string} entityId
-   * @returns {boolean}
-   */
-  disposeComponentEntity(entityId) {
-    const entity = this.ownedComponents.get(entityId);
-    if (!entity) return false;
-
-    if (entity.dispose) entity.dispose();
-    this.ownedComponents.delete(entityId);
-
-    const base = entity.baseName || entity.entityName;
-    const group = this.componentBaseNames.get(base) || [];
-    this.componentBaseNames.set(base, group.filter((e) => e !== entity));
-    return true;
-  }
-}
 
 /**
  * K_LIB_Krnl_Telemetry
  * A lightweight, high-precision telemetry engine for KrnlJS.
  * Tracks latency, frequency, and resource usage per functionality ID.
  */
-class KrnlTelemetry {
-  constructor() {
-    this.metrics = new Map();
-    this.enabled = false;
-  }
+interface TelemetryStats {
+    calls: number;
+    errors: number;
+    totalLatencyNs: number;
+    avgLatencyMs: number;
+    peakLatencyMs: number;
+    totalMemoryDelta: number;
+    avgMemoryDelta: number;
+    lastUpdated: number;
+}
+interface TelemetryTrace {
+    startTime: bigint;
+    startMemory: number;
+}
+declare class KrnlTelemetry {
+    metrics: Map<string, TelemetryStats>;
+    enabled: boolean;
+    constructor();
+    /**
+     * Starts a telemetry trace for a specific functionality.
+     * @param fid
+     * @returns Trace data
+     */
+    startTrace(fid: string): TelemetryTrace;
+    /**
+     * Ends a telemetry trace and updates aggregated metrics.
+     * @param fid
+     * @param trace
+     */
+    endTrace(fid: string, trace: TelemetryTrace, success?: boolean): void;
+    /**
+     * Returns a snapshot of all metrics.
+     */
+    getSummary(): Record<string, TelemetryStats>;
+    /**
+     * Clears all collected metrics.
+     */
+    reset(): void;
+}
+declare const telemetry: KrnlTelemetry;
 
-  /**
-   * Starts a telemetry trace for a specific functionality.
-   * @param {string} fid 
-   * @returns {object} Trace data
-   */
-  startTrace(fid) {
-    return {
-      startTime: process.hrtime.bigint(),
-      startMemory: process.memoryUsage ? process.memoryUsage().heapUsed : 0
+/**
+ * @file K_LIB_Krnl_Messaging_Concepts.ts
+ * @description Core classes for messaging and communication between entities in the Krnl system.
+ */
+declare class krnlGlobalEmitterAddress {
+    systemID: number;
+    subSystemID: number;
+    entityAddress: number[];
+    emitterID: number;
+}
+declare class krnlLocalEmitterAddress {
+    isOwnerEntity: boolean;
+    siblingID: number;
+    emitterID: number;
+}
+declare class krnlMessage {
+    data: any;
+    time: {
+        day: number;
+        hour: number;
+        minute: number;
+        seconds: number;
+        millisecond: number;
     };
-  }
-
-  /**
-   * Ends a telemetry trace and updates aggregated metrics.
-   * @param {string} fid 
-   * @param {object} trace 
-   */
-  endTrace(fid, trace, success = true) {
-    const endTime = process.hrtime.bigint();
-    const endMemory = process.memoryUsage ? process.memoryUsage().heapUsed : 0;
-
-    const latencyNs = Number(endTime - trace.startTime);
-    const memoryDelta = endMemory - trace.startMemory;
-
-    let stats = this.metrics.get(fid);
-    if (!stats) {
-      stats = {
-        calls: 0,
-        errors: 0,
-        totalLatencyNs: 0,
-        avgLatencyMs: 0,
-        peakLatencyMs: 0,
-        totalMemoryDelta: 0,
-        avgMemoryDelta: 0,
-        lastUpdated: 0
-      };
-      this.metrics.set(fid, stats);
-    }
-
-    stats.calls++;
-    if (!success) stats.errors++;
-    stats.totalLatencyNs += latencyNs;
-    stats.totalMemoryDelta += memoryDelta;
-
-    const latencyMs = latencyNs / 1_000_000;
-    stats.avgLatencyMs = (stats.totalLatencyNs / stats.calls) / 1_000_000;
-    stats.avgMemoryDelta = stats.totalMemoryDelta / stats.calls;
-    
-    if (latencyMs > stats.peakLatencyMs) stats.peakLatencyMs = latencyMs;
-    stats.lastUpdated = Date.now();
-  }
-
-  /**
-   * Returns a snapshot of all metrics.
-   */
-  getSummary() {
-    return Object.fromEntries(this.metrics);
-  }
-
-  /**
-   * Clears all collected metrics.
-   */
-  reset() {
-    this.metrics.clear();
-  }
+}
+declare class krnlMessageStream {
+    #private;
+    push(message: krnlMessage): void;
+    next(): Promise<krnlMessage>;
+    [Symbol.asyncIterator](): AsyncGenerator<krnlMessage>;
+}
+declare class krnlEmitter {
+    stream: krnlMessageStream;
+    subscribers: ((msg: krnlMessage) => void)[];
+    localAddress: krnlLocalEmitterAddress | null;
+    constructor();
+    /**
+     * Pushes data into the emitter's stream and notifies all subscribers.
+     */
+    pushDataStreamToEmitter(data: any, time?: any, transform?: (msg: krnlMessage) => krnlMessage): void;
+    /**
+     * Subscribes a handler to this emitter. Handler is called on every push.
+     */
+    subscribe(handler: (msg: krnlMessage) => void): () => void;
+    /**
+     * Subscribes once and auto-unsubscribes after first message.
+     */
+    subscribeOnce(handler: (msg: krnlMessage) => void): () => void;
+    /**
+     * Resets the stream and removes all subscribers.
+     */
+    disconnectEmitter(): void;
+}
+declare class krnlCollector {
+    emitter: krnlEmitter | null;
+    unsubscribe: (() => void) | null;
+    _directHandler?: (msg: krnlMessage) => any;
+    constructor();
+    /**
+     * Subscribes this collector to an emitter. Messages are forwarded to the handler.
+     */
+    subscribeTo(emitter: krnlEmitter, handler?: ((msg: krnlMessage) => void) | null, options?: any): () => void;
+    /**
+     * Collects a single message from the emitter and auto-disconnects.
+     */
+    collectNext(emitter: krnlEmitter, timeoutMs?: number | null): Promise<krnlMessage>;
+    /**
+     * Pipes messages from a connected emitter through a transform function.
+     */
+    pipeTo(target: any, fn: (msg: krnlMessage) => void): () => void;
+    /**
+     * Pushes data directly into this collector's connected emitter.
+     */
+    pushDataStreamToEmitter(data: any): void;
+    /**
+     * Disconnects from the current emitter.
+     */
+    disconnectCollector(): void;
+}
+declare class krnlInterface {
+    ownerEntity: any;
+    emitters: krnlEmitter[];
+    collectors: krnlCollector[];
+    emitterNames: string[];
+    collectorNames: string[];
+    constructor(ownerEntity: any);
+    /**
+     * Creates and registers a new emitter.
+     */
+    createEmitter(name: string): krnlEmitter;
+    /**
+     * Creates and registers a new collector.
+     */
+    createCollector(name: string): krnlCollector;
+    /**
+     * Gets an emitter by name.
+     */
+    getEmitter(name: string): krnlEmitter;
+    /**
+     * Gets a collector by name.
+     */
+    getCollector(name: string): krnlCollector;
+    /**
+     * Removes an emitter by name.
+     */
+    removeEmitter(name: string): void;
+    /**
+     * Removes a collector by name.
+     */
+    removeCollector(name: string): void;
+    /**
+     * Gets all emitters in scope (self + owner + siblings).
+     */
+    getEmittersInScope(): krnlEmitter[];
+    /**
+     * Gets all interfaces in scope (self, owner, and siblings).
+     */
+    getInterfacesInScope(): krnlInterface[];
+    /**
+     * Disconnects all emitters and collectors.
+     */
+    dispose(): void;
 }
 
-// Export a default shared instance for standard app usage
-const telemetry = new KrnlTelemetry();
-
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_LIB_Krnl_Functionality_Types.js
+ * @file K_LIB_Krnl_Entity_Compositional_Hierarchy.ts
+ * @description Manages parent-child relationships and component unique instantiation.
+ */
+/**
+ * KRNL ENTITY COMPOSITIONAL HIERARCHY MANAGER
+ * Responsible for the "skeleton" of the system.
+ */
+declare class krnlEntityCompositionalHierarchyManager {
+    self: any;
+    owner: any | null;
+    EntityClass: any;
+    ownedComponents: Map<string, any>;
+    componentBaseNames: Map<string, any[]>;
+    componentInstanceCounters: Map<string, number>;
+    /**
+     * @param self - The entity this manager belongs to.
+     * @param owner - The parent entity (if any).
+     * @param EntityClass - Reference to the Entity base class for instantiation.
+     */
+    constructor(self: any, owner: any | null, EntityClass: any);
+    /**
+     * Spawns a unique component entity within this host.
+     */
+    createComponentEntity(name: string, CustomClass?: any, options?: any): any;
+    /**
+     * Registers a pre-existing entity instance as a component of this host.
+     */
+    addComponentEntityInstance(instance: any): void;
+    /**
+     * Returns a list of all component entities owned by this host.
+     */
+    getAllOwnedComponentEntities(): any[];
+    /**
+     * Returns all component entity instances created from the same base component name.
+     */
+    getOwnedComponentEntitiesByName(name: string): any[];
+    /**
+     * Returns the parent entity.
+     */
+    getOwnerEntity(): any | null;
+    /**
+     * Recursively disposes of all owned components.
+     */
+    dispose(): void;
+    /**
+     * Disposes a specific component instance by ID/name.
+     */
+    disposeComponentEntity(entityId: string): boolean;
+}
+
+/**
+ * @file K_LIB_Krnl_Functionality_Types.ts
  * @description defines Logic Atoms with Visibility control for Recursive Bubbling.
  */
-
-
-/**
- * Helper to ensure state isolation.
- */
-function cloneState(source) {
-  return JSON.parse(JSON.stringify(source));
-}
 
 /**
  * TRANSPORT ADAPTER INTERFACE
  */
-class krnlTransportAdapter {
-  async call(targetFunction, input, opts) {
-    throw new Error("TransportAdapter.call() not implemented.");
-  }
+declare abstract class krnlTransportAdapter {
+    abstract call(targetFunction: string, input: any, opts: any): Promise<any>;
 }
-
 /**
  * MEMORY TRANSPORT ADAPTER
  * Default adapter for in-memory entity communication.
  */
-class MemoryTransportAdapter extends krnlTransportAdapter {
-  constructor(targetEntity) {
-    super();
-    this.targetEntity = targetEntity;
-  }
-
-  async call(targetFunction, input, opts) {
-    if (!this.targetEntity || typeof this.targetEntity.call !== 'function') {
-      throw new Error("MemoryTransportAdapter: Invalid target entity.");
-    }
-    return await this.targetEntity.call(targetFunction, input, opts);
-  }
+declare class MemoryTransportAdapter extends krnlTransportAdapter {
+    targetEntity: any;
+    constructor(targetEntity: any);
+    call(targetFunction: string, input: any, opts: any): Promise<any>;
 }
-
 /**
  * KRNL LOCAL FUNCTIONALITY
  * The fundamental unit of logic.
  */
-class krnlLocalFunctionality {
-  constructor(config = {}) {
-    const {
-      id,
-      visibility = 'public', // Default: public (bubbles up)
-      initialState = {},
-      api = (input) => input,
-      helpers = {},
-      emitters = {},
-      events = {},
-      schema = null,
-      onMount = null,
-      onTeardown = null,
-      sourcePath = null,
-    } = config;
-
-    if (!id) throw new Error("LocalFunctionality requires an ID.");
-
-    this.id = id;
-    this.visibility = visibility;
-    this.initialState = initialState;
-    this.api = api;
-    this.isLocal = true;
-    this.sourcePath = sourcePath;
-    this.helpers = new Map(Object.entries(helpers));
-    this.emitters = new Map();
-    this.schema = schema;
-
-    this.lifecycle = {
-      beginning: onMount || events.beginning,
-      during: events.during,
-      end: events.end,
-      failure: events.failure,
-      teardown: onTeardown || events.teardown
+declare class krnlLocalFunctionality {
+    id: string;
+    visibility: string;
+    initialState: any;
+    api: Function;
+    isLocal: boolean;
+    sourcePath: string | null;
+    helpers: Map<string, any>;
+    emitters: Map<string, krnlEmitter>;
+    schema: any;
+    lifecycle: {
+        beginning?: Function;
+        during?: Function;
+        end?: Function;
+        failure?: Function;
+        teardown?: Function;
     };
-
-    // Ensure state:changed emitter exists if not provided
-    if (!emitters['state:changed']) {
-      this.emitters.set('state:changed', new krnlEmitter());
-    }
-
-    Object.entries(emitters).forEach(([eid, e]) => {
-      this.emitters.set(eid, e instanceof krnlEmitter ? e : new krnlEmitter());
-    });
-
-    this.state = this._createObservedState(cloneState(initialState));
-  }
-
-  _createObservedState(initialState) {
-    const self = this;
-    const handler = {
-      get(target, prop, receiver) {
-        const value = Reflect.get(target, prop, receiver);
-        if (typeof value === 'object' && value !== null) {
-          return new Proxy(value, handler);
-        }
-        return value;
-      },
-      set(target, prop, value, receiver) {
-        const result = Reflect.set(target, prop, value, receiver);
-        if (result) {
-          self._notifyStateChanged(prop, value);
-        }
-        return result;
-      },
-      deleteProperty(target, prop) {
-        const result = Reflect.deleteProperty(target, prop);
-        if (result) {
-          self._notifyStateChanged(prop, undefined);
-        }
-        return result;
-      }
-    };
-    return new Proxy(initialState, handler);
-  }
-
-  _notifyStateChanged(prop, value) {
-    const stateEmitter = this.emitters.get('state:changed');
-    if (stateEmitter) {
-      stateEmitter.pushDataStreamToEmitter({
-        prop,
-        value,
-        state: this.state, // This is the proxied state
-        functionalityId: this.id
-      });
-    }
-  }
-
-  /**
-   * Updates the visibility and handles interface registration/deregistration.
-   * This is the mechanism used to STOP bubbling at a certain level.
-   * @param {'public'|'private'} v 
-   */
-  setVisibility(v) {
-    const oldVisibility = this.visibility;
-    this.visibility = v;
-
-    if (!this.hostEntity) return;
-
-    if (oldVisibility === 'private' && v === 'public') {
-      // Transition to Public: Register in interface
-      this._registerInInterface();
-      // Notify owner to bubble it up
-      const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
-      if (owner) owner._onComponentFunctionalityAdded(this.hostEntity, this);
-    } else if (oldVisibility === 'public' && v === 'private') {
-      this._unregisterFromInterface();
-      const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
-      if (owner && owner._onComponentFunctionalityRemoved) {
-        owner._onComponentFunctionalityRemoved(this.hostEntity, this.id);
-      }
-    }
-  }
-
-  _unregisterFromInterface() {
-    const entity = this.hostEntity;
-    if (!entity) return;
-    entity.interface.removeCollector(this.id);
-    this.emitters.forEach((_, eid) => {
-      entity.interface.removeEmitter(`${this.id}:${eid}`);
-    });
-  }
-
-  _registerInInterface() {
-    const entity = this.hostEntity;
-    // Register API as input
-    const mainCollector = entity.interface.createCollector(this.id);
-    mainCollector._directHandler = async (msg) => {
-      const caller = msg.metadata?.caller || 'anonymous';
-      return await this.execute(msg.data, { caller });
-    };
-
-    // Register Emitters as outputs
-    this.emitters.forEach((emitter, eid) => {
-      const interfaceEmitter = entity.interface.createEmitter(`${this.id}:${eid}`);
-      emitter.subscribe((msg) => interfaceEmitter.pushDataStreamToEmitter(msg.data, msg.time));
-    });
-  }
-
-  bindToEntity(entity) {
-    this.hostEntity = entity;
-    if (this.visibility === 'public') {
-      this._registerInInterface();
-    }
-    if (typeof this.lifecycle.beginning === "function") {
-      this.lifecycle.beginning({
-        state: this.state,
-        emitters: this.emitters,
-        helpers: this.helpers,
-        entity: this.hostEntity,
-        functionality: this
-      });
-    }
-    return this;
-  }
-
-  teardown() {
-    if (typeof this.lifecycle.teardown === "function") {
-      this.lifecycle.teardown({
-        state: this.state,
-        emitters: this.emitters,
-        helpers: this.helpers,
-        entity: this.hostEntity,
-        functionality: this
-      });
-    }
-  }
-
-  async execute(input, opts = {}) {
-    const caller = opts.caller || 'default';
-    const activeState = this.state;
-    const trace = (telemetry.enabled) 
-      ? telemetry.startTrace(this.id) 
-      : null;
-
-    // --- INPUT VALIDATION ---
-    if (this.schema && this.schema.input) {
-      try {
-        if (typeof this.schema.input.parse === 'function') {
-          // Zod-like
-          input = this.schema.input.parse(input);
-        } else if (typeof this.schema.input === 'function') {
-          // Custom validator function
-          if (!this.schema.input(input)) {
-            throw new Error(`Input validation failed.`);
-          }
-        }
-      } catch (err) {
-        const msg = err.errors ? JSON.stringify(err.errors) : err.message;
-        throw new Error(`[KrnlSchemaError] Input validation failed for "${this.id}": ${msg}`);
-      }
-    }
-
-    try {
-      if (typeof this.lifecycle.during === "function") {
-        this.lifecycle.during({ input, opts, state: activeState, entity: this.hostEntity });
-      }
-
-      let result = await this.api(input, {
-        state: activeState,
-        emitters: this.emitters,
-        helpers: this.helpers,
-        entity: this.hostEntity,
-        functionality: this,
-        caller: caller
-      });
-
-      // --- OUTPUT VALIDATION ---
-      if (this.schema && this.schema.output) {
-        try {
-          if (typeof this.schema.output.parse === 'function') {
-            this.schema.output.parse(result);
-          } else if (typeof this.schema.output === 'function') {
-            if (!this.schema.output(result)) {
-              console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}".`);
-            }
-          }
-        } catch (err) {
-          const msg = err.errors ? JSON.stringify(err.errors) : err.message;
-          console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}": ${msg}`);
-        }
-      }
-
-      // --- TELEMETRY END (SUCCESS) ---
-      if (trace) telemetry.endTrace(this.id, trace, true);
-
-      return {
-        status: 'success',
-        payload: result
-      };
-    } catch (err) {
-      // --- TELEMETRY END (ERROR) ---
-      if (trace) telemetry.endTrace(this.id, trace, false);
-
-      if (typeof this.lifecycle.failure === "function") {
-        this.lifecycle.failure({ error: err, input, caller });
-      }
-
-      return {
-        status: 'error',
-        message: err.message,
-        payload: null
-      };
-    }
-  }
+    state: any;
+    hostEntity: any;
+    constructor(config?: any);
+    _createObservedState(initialState: any): any;
+    _notifyStateChanged(prop: string, value: any): void;
+    /**
+     * Updates the visibility and handles interface registration/deregistration.
+     * This is the mechanism used to STOP bubbling at a certain level.
+     */
+    setVisibility(v: string): void;
+    _unregisterFromInterface(): void;
+    _registerInInterface(): void;
+    bindToEntity(entity: any): this;
+    teardown(): void;
+    execute(input: any, opts?: any): Promise<any>;
 }
-
 /**
  * KRNL REMOTE FUNCTIONALITY
  * Proxy for recursive bubbling.
  */
-class krnlRemoteFunctionality {
-  constructor(config = {}) {
-    const { id, targetEntity, targetFunction, transport, visibility = 'public' } = config;
-    this.id = id;
-    this.targetFunction = targetFunction || id;
-    this.targetEntity = targetEntity; // Store the target entity for identification
-    this.visibility = visibility;
-    this.isLocal = false;
-
-    if (transport) {
-      this.transport = transport;
-    } else if (targetEntity) {
-      this.transport = new MemoryTransportAdapter(targetEntity);
-    } else {
-      throw new Error("RemoteFunctionality requires either a transport or a targetEntity.");
-    }
-  }
-
-  setVisibility(v) {
-    const oldVisibility = this.visibility;
-    this.visibility = v;
-    if (this.hostEntity && oldVisibility === 'private' && v === 'public') {
-      this._registerInInterface();
-      const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
-      if (owner) owner._onComponentFunctionalityAdded(this.hostEntity, this);
-    } else if (this.hostEntity && oldVisibility === 'public' && v === 'private') {
-      this._unregisterFromInterface();
-      const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
-      if (owner && owner._onComponentFunctionalityRemoved) {
-        owner._onComponentFunctionalityRemoved(this.hostEntity, this.id);
-      }
-    }
-  }
-
-  _unregisterFromInterface() {
-    if (!this.hostEntity) return;
-    this.hostEntity.interface.removeCollector(this.id);
-  }
-
-  _registerInInterface() {
-    const mainCollector = this.hostEntity.interface.createCollector(this.id);
-    mainCollector._directHandler = async (msg) => {
-      const caller = msg.metadata?.caller || 'anonymous';
-      return await this.execute(msg.data, { caller });
-    };
-  }
-
-  bindToEntity(entity) {
-    this.hostEntity = entity;
-    if (this.visibility === 'public') {
-      this._registerInInterface();
-    }
-  }
-
-  async execute(input, opts = {}) {
-    return await this.transport.call(this.targetFunction, input, { ...opts, caller: this.hostEntity.entityName });
-  }
+declare class krnlRemoteFunctionality {
+    id: string;
+    targetFunction: string;
+    targetEntity: any;
+    visibility: string;
+    isLocal: boolean;
+    transport: krnlTransportAdapter;
+    hostEntity: any;
+    constructor(config?: any);
+    setVisibility(v: string): void;
+    _unregisterFromInterface(): void;
+    _registerInInterface(): void;
+    bindToEntity(entity: any): void;
+    execute(input: any, opts?: any): Promise<any>;
 }
 
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_ENT_Krnl_Entity_Base.js
- * @description The core Entity class, supporting recursive interface promotion and visibility control.
+ * KRNL ENTITY BASE
+ * The building block of the Krnl ecosystem.
  */
-
-
-class krnlEntityBase {
-  /**
-   * @param {string} name - The unique identity of the entity.
-   * @param {object|null} owner - The parent entity (if any).
-   */
-  constructor(name, owner = null, options = {}) {
-    // 1. Core Identification.
-    this.__krnlEntityInstance = true; // Marker for type checking.
-    this.id = name || "UnnamedEntity"; // Unique ID.
-    this.entityName = this.id;         // Alias for the name.
-    this.Singleton = options.Singleton ?? this.constructor.Singleton ?? true;
-    this.baseName = options.baseName || this.entityName;
-    this.instanceNumber = options.instanceNumber || 1;
-    this.telemetryEnabled = options.telemetryEnabled || false;
-
-    // 2. Messaging Infrastructure (The IO Hub).
-    this.interface = new krnlInterface(this);
-
-    // 3. Logic Storage (The Brain).
-    this.localFunctionalities = new Map();  // Logic that is MINE.
-    this.remoteFunctionalities = new Map(); // Proxies for logic from components or external peers.
-    this.collectors = new Set();            // Tracks listeners for cleanup.
-    this.telemetryEnabled = false;          // Default: Disabled for zero overhead
-
-    // 4. Hierarchy Management (The Skeleton).
-    this.hierarchyManager = new krnlEntityCompositionalHierarchyManager(
-      this,          // Host.
-      owner,         // Parent.
-      krnlEntityBase // Base class for nesting.
-    );
-  }
-
-  /**
-   * Registers a local logic block.
-   * If the functionality is 'public', it is automatically promoted to the owner.
-   */
-  addLocal(localFunctionality) {
-    // 1. Ensure we have an instance of LocalFunctionality.
-    const functionality = localFunctionality instanceof krnlLocalFunctionality
-      ? localFunctionality
-      : new krnlLocalFunctionality(localFunctionality);
-
-    // 2. Bind it to THIS entity.
-    functionality.bindToEntity(this);
-
-    // 3. Save it to our local logic map.
-    this.localFunctionalities.set(functionality.id, functionality);
-
-    // 4. Notify our owner to promote this logic.
-    const owner = this.hierarchyManager.getOwnerEntity();
-    if (owner && owner._onComponentFunctionalityAdded) {
-      owner._onComponentFunctionalityAdded(this, functionality);
-    }
-
-    return functionality;
-  }
-
-  /**
-   * Registers a proxy for a functionality on another entity.
-   * If the proxy is 'public', it is promoted to the owner (Recursive Bubbling).
-   */
-  addRemote(remoteFunctionality) {
-    // 1. Ensure we have an instance of RemoteFunctionality.
-    const functionality = remoteFunctionality instanceof krnlRemoteFunctionality
-      ? remoteFunctionality
-      : new krnlRemoteFunctionality(remoteFunctionality);
-
-    // 2. Bind it to THIS entity.
-    functionality.bindToEntity(this);
-
-    // 3. Store the proxy.
-    this.remoteFunctionalities.set(functionality.id, functionality);
-
-    // 4. BUBBLING: Notify our owner to promote this proxy if it is public.
-    const owner = this.hierarchyManager.getOwnerEntity();
-    if (owner && owner._onComponentFunctionalityAdded) {
-      owner._onComponentFunctionalityAdded(this, functionality);
-    }
-
-    return functionality;
-  }
-
-  /**
-   * INTERFACE PROMOTION
-   * Handles the automatic bubbling of component logic to the owner.
-   */
-  _onComponentFunctionalityAdded(component, functionality) {
-    // 1. Only promote 'public' functionalities from the component.
-    if (functionality.visibility !== 'public') return;
-
-    console.log(`[${this.entityName}] Attempting to promote ${functionality.id} from ${component.entityName}`);
-
-    const existing = this.remoteFunctionalities.get(functionality.id);
-    if (existing) {
-      existing.targetEntity = component;
-      existing.targetFunction = functionality.id;
-      return;
-    }
-
-    // 2. Register the component's functionality as a REMOTE proxy on this owner.
-    // By default, promoted proxies are 'public' so they keep bubbling up,
-    // but the owner can intercept this or re-configure the proxy to be 'private'.
-    this.addRemote({
-      id: functionality.id,
-      targetEntity: component,
-      targetFunction: functionality.id,
-      visibility: 'public' // Bubbles up further by default.
-    });
-
-    console.log(`[${this.entityName}] Promoted component logic: ${functionality.id}`);
-  }
-
-  /**
-   * Removes a promoted remote functionality and recursively propagates removal upward.
-   * @param {object} component
-   * @param {string} functionalityId
-   */
-  _onComponentFunctionalityRemoved(component, functionalityId) {
-    console.log(`[${this.entityName}] Removing component logic: ${functionalityId} from ${component.entityName}`);
-    const existing = this.remoteFunctionalities.get(functionalityId);
-    if (!existing) {
-      console.log(`[${this.entityName}] Logic ${functionalityId} not found in remoteFunctionalities.`);
-      return;
-    }
-    if (existing.targetEntity !== component) {
-      console.log(`[${this.entityName}] Logic ${functionalityId} targetEntity mismatch.`);
-      return;
-    }
-
-    this.remoteFunctionalities.delete(functionalityId);
-
-    const owner = this.hierarchyManager.getOwnerEntity();
-    if (owner && owner._onComponentFunctionalityRemoved) {
-      owner._onComponentFunctionalityRemoved(this, functionalityId);
-    }
-  }
-
-  /**
-   * Internal helper to trigger promotion of all existing functionalities.
-   * Useful when an entity is assigned an owner AFTER its functionalities are created.
-   */
-  _promoteAllExistingFunctionalities() {
-    const owner = this.hierarchyManager.getOwnerEntity();
-    if (!owner || !owner._onComponentFunctionalityAdded) return;
-
-    this.localFunctionalities.forEach(f => {
-      owner._onComponentFunctionalityAdded(this, f);
-    });
-    this.remoteFunctionalities.forEach(f => {
-      owner._onComponentFunctionalityAdded(this, f);
-    });
-  }
-
-  /**
-   * Executes a functionality by ID.
-   */
-  async call(fid, input, opts = {}) {
-    const unwrap = opts.unwrap !== false; // Default to true
-    try {
-      let result;
-      if (this.localFunctionalities.has(fid)) {
-        result = await this.localFunctionalities.get(fid).execute(input, opts);
-      } else if (this.remoteFunctionalities.has(fid)) {
-        result = await this.remoteFunctionalities.get(fid).execute(input, opts);
-      } else {
-        throw new krnlError(krnlErrorCodes.FUNCTIONALITY_NOT_DEFINED);
-      }
-
-      // Universal result decoration hook
-      if (this._decorateResult) {
-        result = await this._decorateResult(result, fid, input);
-      }
-
-      // Backward compatibility: If it's a standard Krnl success envelope, unwrap it.
-      // NOTE: We only unwrap if 'unwrap' is true AND there is NO preemptiveDocumentation
-      if (unwrap && result && typeof result === 'object' && result.status === 'success' && 'payload' in result && !result.preemptiveDocumentation) {
-        return result.payload;
-      }
-
-      // Backward compatibility: If it's a standard Krnl error envelope, throw it.
-      if (result && typeof result === 'object' && result.status === 'error') {
-        throw new krnlError(result.message || krnlErrorCodes.REMOTE_EXECUTION_FAILED);
-      }
-
-      return result;
-    } catch (err) {
-      let finalErr = err;
-      // Universal error decoration hook
-      if (this._decorateError) {
-        finalErr = await this._decorateError(err, fid, input);
-      }
-      
-      // If the error was decorated into a Krnl error object, throw it so try/catch works locally
-      if (finalErr && typeof finalErr === 'object' && finalErr.status === 'error') {
-        const wrapper = new krnlError(finalErr.message || krnlErrorCodes.REMOTE_EXECUTION_FAILED);
-        Object.assign(wrapper, finalErr); // Preserve metadata/documentation
-        throw wrapper;
-      }
-
-      throw finalErr;
-    }
-  }
-
-  getLocal(fid) { return this.localFunctionalities.get(fid); }
-  getRemote(fid) { return this.remoteFunctionalities.get(fid); }
-  addChild(instance) {
-    return this.hierarchyManager.addComponentEntityInstance(instance);
-  }
-
-  getTelemetry() {
-    return {
-      entity: this.entityName,
-      timestamp: Date.now(),
-      metrics: telemetry.getSummary()
+declare class krnlEntityBase {
+    __krnlEntityInstance: boolean;
+    id: string;
+    entityName: string;
+    Singleton: boolean;
+    baseName: string;
+    instanceNumber: number;
+    _telemetryEnabled: boolean;
+    get telemetryEnabled(): boolean;
+    set telemetryEnabled(val: boolean);
+    systemType: string;
+    interface: krnlInterface;
+    localFunctionalities: Map<string, krnlLocalFunctionality>;
+    remoteFunctionalities: Map<string, krnlRemoteFunctionality>;
+    collectors: Set<any>;
+    hierarchyManager: krnlEntityCompositionalHierarchyManager;
+    _decorateResult(result: any, fid: string, input: any): Promise<any>;
+    _decorateError(error: any, fid: string, input: any): Promise<any>;
+    /**
+     * @param name - The unique identity of the entity.
+     * @param owner - The parent entity (if any).
+     */
+    constructor(name: string, owner?: krnlEntityBase | null, options?: any);
+    /**
+     * Registers a local logic block.
+     * If the functionality is 'public', it is automatically promoted to the owner.
+     */
+    addLocal(localFunctionality: any): krnlLocalFunctionality;
+    /**
+     * Registers a proxy for a functionality on another entity.
+     * If the proxy is 'public', it is promoted to the owner (Recursive Bubbling).
+     */
+    addRemote(remoteFunctionality: any): krnlRemoteFunctionality;
+    /**
+     * INTERFACE PROMOTION
+     * Handles the automatic bubbling of component logic to the owner.
+     */
+    _onComponentFunctionalityAdded(component: krnlEntityBase, functionality: any): void;
+    /**
+     * Removes a promoted remote functionality and recursively propagates removal upward.
+     */
+    _onComponentFunctionalityRemoved(component: krnlEntityBase, functionalityId: string): void;
+    /**
+     * Internal helper to trigger promotion of all existing functionalities.
+     */
+    _promoteAllExistingFunctionalities(): void;
+    /**
+     * Executes a functionality by ID.
+     */
+    call(fid: string, input: any, opts?: any): Promise<any>;
+    getLocal(fid: string): krnlLocalFunctionality | undefined;
+    getRemote(fid: string): krnlRemoteFunctionality | undefined;
+    addChild(instance: krnlEntityBase): void;
+    getTelemetry(): {
+        entity: string;
+        timestamp: number;
+        metrics: Record<string, TelemetryStats>;
     };
-  }
-
-  disposeOwnedComponent(entityId) {
-    return this.hierarchyManager.disposeComponentEntity(entityId);
-  }
-
-  dispose() {
-    if (this.hierarchyManager) this.hierarchyManager.dispose();
-    if (this.interface) this.interface.dispose();
-
-    // 1. Teardown all local functionalities to release resources.
-    this.localFunctionalities.forEach(func => {
-      if (typeof func.teardown === 'function') {
-        func.teardown();
-      }
-    });
-
-    this.localFunctionalities.clear();
-    this.remoteFunctionalities.clear();
-  }
+    disposeOwnedComponent(entityId: string): boolean;
+    dispose(): void;
 }
 
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_ENT_Krnl_Sub_System_Orchestrator_Base.js
+ * @file K_ENT_Krnl_Sub_System_Orchestrator_Base.ts
  * @description Defines the base class for all sub-system orchestrator entities in the Krnl ecosystem.
  */
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA ////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////// KRNL SUB SYSTEM ORCHESTRATOR BASE ////////////////////////////////////////
-class krnlSubSystemOrchestratorBase extends krnlEntityBase {
-  constructor(name, owner) {
-    // A sub-system orchestrator must have a system orchestrator as its owner.
-    if (!owner) {
-      throw new Error("A sub-system orchestrator must be owned by a parent entity.");
-    }
-    super(name, owner);
-    this.systemType = 'SubSystemOrchestrator';
-  }
+declare class krnlSubSystemOrchestratorBase extends krnlEntityBase {
+    constructor(name: string, owner: krnlEntityBase);
 }
 
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_LIB_Krnl_System_Comm_Component.js
+ * @file K_LIB_Krnl_System_Comm_Component.ts
  *
  * @description The uniform P2P communication bridge for all Krnl system orchestrators.
- * Every system (Brnda, Qwnsr, Wepr, DummyA, etc.) owns one of these.
- *
- * Responsibilities:
- *  1. Accept "wire" instructions from the Hub: connect one of this system's emitters to a
- *     remote system's collector via a WebSocket channel (or in-process direct binding in tests).
- *  2. Maintain a table of active routes so the Hub can inspect them.
- *
- * Architecture:
- *
- *   ┌─────────────────────────────────────────────┐
- *   │           SystemA                           │
- *   │  interface.emitter("A-Events")              │
- *   │          │                                  │
- *   │   CommComponent ──── ws ──► B.CommComponent │
- *   └─────────────────────────────────────────────┘
- *          ▼ injects into
- *   ┌──────────────────────────────────────────────┐
- *   │           SystemB                            │
- *   │  interface.collector("B-Commands")           │
- *   │          △                                  │
- *   │   CommComponent ─── receives & calls handler │
- *   └──────────────────────────────────────────────┘
- *
- * Two transport modes (both exposed via the same API):
- *   • "direct" — in-process reference wiring (testing / same-process demo).
- *   • "ws"     — WebSocket channel (multi-process / network).
  */
-
 
 /**
  * WEBSOCKET TRANSPORT ADAPTER
  * For remote inter-system communication.
  */
-class WebSocketTransportAdapter extends krnlTransportAdapter {
+declare class WebSocketTransportAdapter extends krnlTransportAdapter {
+    commComponent: krnlSystemCommComponent;
+    remoteAddress: string;
     /**
-     * @param {krnlSystemCommComponent} commComponent - The local system's comm component.
-     * @param {string} remoteAddress - "host:port" of the remote system.
+     * @param commComponent - The local system's comm component.
+     * @param remoteAddress - "host:port" of the remote system.
      */
-    constructor(commComponent, remoteAddress) {
-        super();
-        this.commComponent = commComponent;
-        this.remoteAddress = remoteAddress;
-    }
-
-    async call(targetFunction, input, opts) {
-        const timeout = opts.timeout || opts.timeoutMs;
-        return await this.commComponent.callWsRpc(this.remoteAddress, 'call', { fid: targetFunction, data: input }, timeout);
-    }
+    constructor(commComponent: krnlSystemCommComponent, remoteAddress: string);
+    call(targetFunction: string, input: any, opts: any): Promise<any>;
 }
-
-// ws is loaded lazily so the CommComponent can be imported in environments where
-// the `ws` package is not installed — as long as only 'direct' wiring is used.
-let _WS, _WSServer;
-async function _loadWs() {
-    if (!_WS) {
-        const mod = await import('ws');
-        _WS = mod.WebSocket;
-        _WSServer = mod.WebSocketServer;
-    }
-    return { WebSocket: _WS, WebSocketServer: _WSServer };
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA //////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////// ROUTE ENTRY ////////////////////////////////////////
-/**
- * Describes one active route.
- * @typedef {Object} KrnlRoute
- * @property {string} id             - Unique route id.
- * @property {string} sourceEmitter  - Emitter name on the local interface.
- * @property {string} targetSystem   - Remote system name.
- * @property {string} targetCollector - Collector name on the remote interface.
- * @property {"direct"|"ws"} mode   - Transport mode.
- * @property {Function} [disconnect] - Call to tear down this route.
- */
-
-//////////////////////////////////////// KRNL SYSTEM COMM COMPONENT ////////////////////////////////////////
-class krnlSystemCommComponent {
+declare class krnlSystemCommComponent {
+    ownerEntity: any;
+    listenPort: number;
+    host: string;
+    routes: Map<string, any>;
+    _routeSeq: number;
+    _wsServer: any | null;
+    _wsClients: Map<string, any>;
+    _wsIngress: Map<string, (data: any) => void>;
+    _wsPendingRpc: Map<string, any>;
+    _wsRpcHandlers: Map<string, Function>;
+    _introspectionProvider: (() => Promise<any>) | null;
     /**
-     * @param {import("../../../entities/krnlEntityBase/K_ENT_Krnl_Entity_Base.js").krnlEntityBase} ownerEntity
-     * @param {number} [listenPort=10099] - WS server port (only used in "ws" mode).
-     * @param {string} [host='0.0.0.0'] - Interface to bind to.
+     * @param ownerEntity
+     * @param listenPort - WS server port (only used in "ws" mode).
+     * @param host - Interface to bind to.
      */
-    constructor(ownerEntity, listenPort = 10099, host = '0.0.0.0') {
-        this.ownerEntity = ownerEntity;
-        this.listenPort = listenPort;
-        this.host = host;
-        this.routes = new Map();   // routeId → KrnlRoute
-        this._routeSeq = 0;
-        this._wsServer = null;        // WebSocketServer instance (if ws mode is active)
-        this._wsClients = new Map();   // systemName → WebSocket (outgoing)
-        this._wsIngress = new Map();   // routeId → unsubscribe fn
-        this._wsPendingRpc = new Map(); // requestId → { resolve, reject, timeoutId }
-        this._wsRpcHandlers = new Map(); // method → handler
-        this._introspectionProvider = null; // fn → { methods: [], schemas: {} }
-    }
-
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////// DIRECT (IN-PROCESS) WIRING //////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+    constructor(ownerEntity: any, listenPort?: number, host?: string);
     /**
      * Binds a local emitter directly to another in-process system's collector.
-     * This is the primary method used in same-process tests.
-     *
-     * @param {string} localEmitterName - Name of the emitter on this entity's interface.
-     * @param {object} remoteCommComponent - The target system's CommComponent instance.
-     * @param {string} remoteCollectorName - The collector name on the target system's interface.
-     * @returns {KrnlRoute} The created route.
      */
-    wireDirectly(localEmitterName, remoteCommComponent, remoteCollectorName) {
-        const emitter = this.ownerEntity.interface.getEmitter(localEmitterName);
-        const remoteCollector = remoteCommComponent.ownerEntity.interface.getCollector(remoteCollectorName);
-
-        // Subscribe the remote collector handler to this emitter
-        const unsubscribe = emitter.subscribe((msg) => {
-            // Inject the data stream into the remote collector via its internally piped emitter
-            // If the collector has a subscriber registered by the remote system, it fires.
-            if (remoteCollector.emitter) {
-                remoteCollector.emitter.pushDataStreamToEmitter(msg.data);
-            }
-            // Also call any handlers registered via subscribeTo
-            if (remoteCollector._directHandler) {
-                remoteCollector._directHandler(msg);
-            }
-        });
-
-        const routeId = `route_${this._routeSeq++}`;
-        const route = {
-            id: routeId,
-            sourceEmitter: localEmitterName,
-            targetSystem: remoteCommComponent.ownerEntity.entityName,
-            targetCollector: remoteCollectorName,
-            mode: "direct",
-            disconnect: unsubscribe,
-        };
-        this.routes.set(routeId, route);
-
-        Logger.log(
-            `[CommComponent:${this.ownerEntity.entityName}] DIRECT route created: ` +
-            `${localEmitterName} → ${route.targetSystem}.${remoteCollectorName}`
-        );
-        return route;
-    }
-
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////// WEBSOCKET (NETWORK) WIRING ///////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+    wireDirectly(localEmitterName: string, remoteCommComponent: krnlSystemCommComponent, remoteCollectorName: string): any;
     /**
      * Starts a WebSocket server so that remote systems can push data into local collectors.
      */
-    async startWsServer(externalServer = null) {
-        if (this._wsServer) return; // Already running
-        const { WebSocketServer } = await _loadWs();
-        
-        return new Promise((resolve, reject) => {
-            if (externalServer) {
-                this._wsServer = new WebSocketServer({ server: externalServer });
-                resolve();
-            } else {
-                this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
-                this._wsServer.on('listening', () => {
-                    Logger.log(`[CommComponent:${this.ownerEntity.entityName}] WS server listening on :${this.listenPort}`);
-                    resolve();
-                });
-            }
-
-            this._wsServer.on('error', (err) => {
-                Logger.error(`[CommComponent:${this.ownerEntity.entityName}] WS server error:`, err.message);
-                reject(err);
-            });
-
-            this._wsServer.on('connection', (ws) => {
-                ws.on('error', (err) => {
-                    Logger.error(`[CommComponent:${this.ownerEntity.entityName}] Incoming WS error:`, err.message);
-                });
-
-                ws.on('message', (raw) => {
-                    try {
-                        const msg = JSON.parse(raw.toString());
-
-                        // Backward-compatible payload support
-                        if (msg.routeId && Object.prototype.hasOwnProperty.call(msg, 'data') && !msg.kind) {
-                            const handler = this._wsIngress.get(msg.routeId);
-                            if (handler) handler(msg.data);
-                            return;
-                        }
-
-                        if (msg.kind === 'register-ingress') {
-                            this.registerWsIngress(msg.routeId, msg.collectorName);
-                            return;
-                        }
-
-                        if (msg.kind === 'route-data') {
-                            const handler = this._wsIngress.get(msg.routeId);
-                            if (handler) handler(msg.data);
-                            return;
-                        }
-
-                        if (msg.kind === 'rpc-request') {
-                            this._handleRpcRequest(ws, msg);
-                            return;
-                        }
-
-                        if (msg.kind === 'rpc-response') {
-                            this._handleRpcResponse(msg);
-                            return;
-                        }
-
-                        if (msg.kind === 'introspect') {
-                            this._handleIntrospect(ws, msg);
-                            return;
-                        }
-                    } catch (e) {
-                        Logger.error(`[CommComponent:${this.ownerEntity.entityName}] WS message error:`, e.message);
-                        try {
-                            ws.send(JSON.stringify({
-                                kind: 'error',
-                                message: `Invalid request: ${e.message}. Ensure payload is valid JSON and follows Krnl protocol.`
-                            }));
-                        } catch (_) { }
-                    }
-                });
-            });
-        });
-    }
-
+    startWsServer(externalServer?: any): Promise<void>;
     /**
      * Connects to a remote system's CommComponent WS server.
-     *
-     * @param {string} localEmitterName - Local emitter to bridge out.
-     * @param {string} remoteAddress - "host:port" of the remote system.
-     * @param {string} remoteCollectorName - Collector name at the remote end.
-     * @param {string} remoteSystemName - Name of the remote system.
-     * @returns {Promise<KrnlRoute>}
      */
-    async wireViaWs(localEmitterName, remoteAddress, remoteCollectorName, remoteSystemName, options = {}) {
-        const { WebSocket } = await _loadWs();
-        const emitter = this.ownerEntity.interface.getEmitter(localEmitterName);
-        const ws = new WebSocket(`ws://${remoteAddress}`);
-        const {
-            managedBy = this.ownerEntity.entityName,
-            externallyMutable = true,
-            metadata = {},
-        } = options;
-
-        await new Promise((resolve, reject) => {
-            ws.once('open', resolve);
-            ws.once('error', reject);
-        });
-
-        ws.on('error', (err) => {
-            Logger.error(`[CommComponent:${this.ownerEntity.entityName}] Outgoing WS error to ${remoteSystemName}:`, err.message);
-        });
-
-        this._wsClients.set(remoteSystemName, ws);
-        const routeId = `ws_route_${this._routeSeq++}`;
-
-        ws.send(JSON.stringify({
-            kind: 'register-ingress',
-            routeId,
-            collectorName: remoteCollectorName,
-        }));
-
-        const unsubscribe = emitter.subscribe((msg) => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    kind: 'route-data',
-                    routeId,
-                    data: msg.data,
-                }));
-            }
-        });
-
-        const route = {
-            id: routeId,
-            sourceEmitter: localEmitterName,
-            targetSystem: remoteSystemName,
-            targetCollector: remoteCollectorName,
-            mode: "ws",
-            managedBy,
-            externallyMutable,
-            metadata,
-            disconnect: () => {
-                unsubscribe();
-                ws.close();
-                this._wsClients.delete(remoteSystemName);
-            },
-        };
-        this.routes.set(routeId, route);
-
-        Logger.log(
-            `[CommComponent:${this.ownerEntity.entityName}] WS route created: ` +
-            `${localEmitterName} → ${remoteSystemName}.${remoteCollectorName} @ ${remoteAddress}`
-        );
-        return route;
-    }
-
+    wireViaWs(localEmitterName: string, remoteAddress: string, remoteCollectorName: string, remoteSystemName: string, options?: any): Promise<any>;
     /**
-     * Registers a WS ingress handler: data arriving for a specific route is forwarded
-     * to a local collector.
-     *
-     * @param {string} routeId - The route identifier the remote end will include.
-     * @param {string} localCollectorName - Collector on this entity's interface.
+     * Registers a WS ingress handler.
      */
-    registerWsIngress(routeId, localCollectorName) {
-        this._wsIngress.set(routeId, (data) => {
-            const collector = this.ownerEntity.interface.getCollector(localCollectorName);
-            if (collector._directHandler) {
-                collector._directHandler({ data });
-            }
-        });
-    }
-
-    /**
-     * Wires a remote system's emitter to a local collector.
-     * This is used when a remote system initiates the wiring.
-     * 
-     * @param {string} remoteAddress - "host:port" of the remote system.
-     * @param {string} remoteEmitterName - Emitter name at the remote end.
-     * @param {string} localCollectorName - Local collector name.
-     * @param {string} remoteSystemName - Name of the remote system.
-     */
-    async wireRemoteEmitterToLocal(remoteAddress, remoteEmitterName, localCollectorName, remoteSystemName) {
-        return this.wireViaWs(remoteEmitterName, remoteAddress, localCollectorName, remoteSystemName);
-    }
-
-    defineRpc(methodName, handler) {
-        this._wsRpcHandlers.set(methodName, handler);
-    }
-
-    setIntrospectionProvider(providerFn) {
-        this._introspectionProvider = providerFn;
-    }
-
-    async callWsRpc(remoteAddress, method, params = {}, timeoutMs = 5000) {
-        const { WebSocket } = await _loadWs();
-        const requestId = `rpc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-
-        const ws = new WebSocket(`ws://${remoteAddress}`);
-        await new Promise((resolve, reject) => {
-            ws.once('open', resolve);
-            ws.once('error', reject);
-        });
-
-        ws.on('error', (err) => {
-            Logger.error(`[CommComponent:${this.ownerEntity.entityName}] RPC WS error to ${remoteAddress}:`, err.message);
-        });
-
-        return new Promise((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
-                this._wsPendingRpc.delete(requestId);
-                ws.close();
-                reject(new Error(`RPC timeout for method ${method}`));
-            }, timeoutMs);
-
-            this._wsPendingRpc.set(requestId, { resolve, reject, timeoutId, ws });
-
-            ws.on('message', (raw) => {
-                try {
-                    const msg = JSON.parse(raw.toString());
-                    if (msg.kind === 'rpc-response') this._handleRpcResponse(msg);
-                } catch (_) { }
-            });
-
-            ws.send(JSON.stringify({
-                kind: 'rpc-request',
-                requestId,
-                method,
-                params,
-            }));
-        });
-    }
-
-    async _handleRpcRequest(ws, msg) {
-        const { requestId, method, params } = msg;
-        const handler = this._wsRpcHandlers.get(method);
-        if (!handler) {
-            ws.send(JSON.stringify({
-                kind: 'rpc-response',
-                requestId,
-                ok: false,
-                error: `Unknown RPC method: ${method}`,
-            }));
-            return;
-        }
-
-        try {
-            const result = await handler(params);
-            ws.send(JSON.stringify({
-                kind: 'rpc-response',
-                requestId,
-                ok: true,
-                result
-            }));
-        } catch (e) {
-            // Safely extract a human-readable error string.
-            // String(e) on a plain object yields "[object Object]" — always use
-            // message if available, otherwise JSON.stringify so callers see real details.
-            let errorMsg;
-            if (typeof e === 'string') {
-                errorMsg = e;
-            } else if (e instanceof Error) {
-                errorMsg = e.message;
-            } else if (e && typeof e === 'object') {
-                errorMsg = e.message || JSON.stringify(e, null, 2);
-            } else {
-                errorMsg = String(e);
-            }
-            ws.send(JSON.stringify({
-                kind: 'rpc-response',
-                requestId,
-                ok: false,
-                status: "error",
-                message: errorMsg,
-                error: errorMsg,
-                payload: null,
-                // If the entity provides extra error metadata (e.g. docs), include it
-                ...(e && typeof e === 'object' ? (e.metadata || {}) : {})
-            }));
-        }
-    }
-
-    async _handleIntrospect(ws, msg) {
-        const baseInfo = {
-            entity: this.ownerEntity.entityName,
-            kind: 'introspect-response',
-            methods: Array.from(this._wsRpcHandlers.keys())
-        };
-
-        if (this._introspectionProvider) {
-            try {
-                const extra = await this._introspectionProvider();
-                ws.send(JSON.stringify({ ...baseInfo, ...extra }));
-            } catch (e) {
-                ws.send(JSON.stringify({ ...baseInfo, error: `Introspection provider failed: ${e.message}` }));
-            }
-        } else {
-            ws.send(JSON.stringify(baseInfo));
-        }
-    }
-
-    _handleRpcResponse(msg) {
-        const pending = this._wsPendingRpc.get(msg.requestId);
-        if (!pending) return;
-        clearTimeout(pending.timeoutId);
-        this._wsPendingRpc.delete(msg.requestId);
-        pending.ws?.close();
-
-        if (msg.ok) pending.resolve(msg.result);
-        else pending.reject(new Error(msg.error || 'RPC error'));
-    }
-
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////// ROUTE MANAGEMENT ////////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    /**
-     * Returns an array of all active routes (safe serializable snapshot).
-     * @returns {KrnlRoute[]}
-     */
-    listRoutes() {
-        return Array.from(this.routes.values()).map(r => ({
-            id: r.id,
-            sourceEmitter: r.sourceEmitter,
-            targetSystem: r.targetSystem,
-            targetCollector: r.targetCollector,
-            mode: r.mode,
-            managedBy: r.managedBy || null,
-            externallyMutable: r.externallyMutable !== false,
-            metadata: r.metadata || {},
-        }));
-    }
-
-    /**
-     * Tears down a route by id.
-     * @param {string} routeId
-     */
-    disconnectRoute(routeId, options = {}) {
-        const { requester = null, force = false } = options;
-        const route = this.routes.get(routeId);
-        if (!route) throw new Error(`[CommComponent] Route not found: ${routeId}`);
-        if (!force && route.externallyMutable === false) {
-            const manager = route.managedBy || this.ownerEntity.entityName;
-            if (requester && requester !== manager) {
-                throw new Error(
-                    `[CommComponent:${this.ownerEntity.entityName}] Route ${routeId} is immutable for requester ${requester}. Managed by ${manager}.`
-                );
-            }
-        }
-        if (route.disconnect) route.disconnect();
-        this.routes.delete(routeId);
-        console.log(`[CommComponent:${this.ownerEntity.entityName}] Route ${routeId} disconnected.`);
-    }
-
-    /**
-     * Tears down all routes and closes any WS connections.
-     */
-    dispose() {
-        for (const [id] of this.routes) {
-            try { this.disconnectRoute(id, { force: true }); } catch (_) { }
-        }
-        if (this._wsServer) {
-            this._wsServer.close();
-            this._wsServer = null;
-        }
-        for (const ws of this._wsClients.values()) ws.close();
-        this._wsClients.clear();
-        this._wsIngress.clear();
-        for (const pending of this._wsPendingRpc.values()) {
-            clearTimeout(pending.timeoutId);
-            pending.reject(new Error('CommComponent disposed before RPC response'));
-        }
-        this._wsPendingRpc.clear();
-        this._wsRpcHandlers.clear();
-        Logger.log(`[CommComponent:${this.ownerEntity.entityName}] CommComponent disposed.`);
-    }
-}
-
-function heartbeatApi(entity) {
-  return () => ({
-    name: entity.entityName,
-    type: entity.systemType,
-    timestamp: new Date().toISOString()
-  });
-}
-
-function telemetryApi(entity) {
-  return () => ({
-    entityName: entity.entityName,
-    systemType: entity.systemType,
-    flags: entity.getSystemFlags(),
-    owner: entity.hierarchyManager.getOwnerEntity()?.entityName || null,
-    ownedEntities: entity.hierarchyManager.getAllOwnedComponentEntities().map((e) => e.entityName),
-    activeRoutes: entity.commComponent.listRoutes(),
-    uptime: typeof process !== 'undefined' && process.uptime ? process.uptime() : null,
-    performance: telemetry.getSummary()
-  });
-}
-
-function adminCommandApi(entity) {
-  return async ({ command, args }) => {
-    console.log(`[${entity.entityName}] Admin command: ${command}`, args);
-    if (command === 'set-discoverable') {
-      return {
-        status: 'acknowledged',
-        command,
-        flags: entity.setDiscoverable(Boolean(args?.value)),
-      };
-    }
-    if (command === 'reserve') {
-      return {
-        status: 'acknowledged',
-        command,
-        flags: entity.reserveFor(args?.serviceName || 'unknown'),
-      };
-    }
-    if (command === 'release-reservation') {
-      return {
-        status: 'acknowledged',
-        command,
-        flags: entity.releaseReservation(args?.serviceName || null),
-      };
-    }
-    if (command === 'shutdown') {
-      console.log(`[${entity.entityName}] Graceful shutdown initiated via admin command.`);
-      setTimeout(() => {
-        entity.dispose();
-        process.exit(0);
-      }, 500);
-      return {
-        status: 'acknowledged',
-        command,
-        message: 'System will shutdown in 500ms'
-      };
-    }
-    return { status: 'acknowledged', command, flags: entity.getSystemFlags() };
-  };
-}
-
-function discoverPeersApi(entity) {
-  return ({ includeBusy = true } = {}) => {
-    const peers = entity.listPeers();
-    if (includeBusy) return peers;
-    return peers.filter((peer) => !peer.busy);
-  };
-}
-
-function manifestApi(entity) {
-  return () => entity.getManifest();
-}
-
-function systemCommandsCollectorHandler(entity) {
-  return (msg) => {
-    console.log(`[${entity.entityName}] system-commands received:`, JSON.stringify(msg.data));
-  };
+    registerWsIngress(routeId: string, localCollectorName: string): void;
+    defineRpc(methodName: string, handler: Function): void;
+    setIntrospectionProvider(providerFn: () => Promise<any>): void;
+    callWsRpc(remoteAddress: string, method: string, params?: any, timeoutMs?: number): Promise<any>;
+    _handleRpcRequest(ws: any, msg: any): Promise<void>;
+    _handleIntrospect(ws: any, msg: any): Promise<void>;
+    _handleRpcResponse(msg: any): void;
+    listRoutes(): any[];
+    disconnectRoute(routeId: string, options?: any): void;
+    dispose(): void;
 }
 
 /**
- * @file K_LIB_Krnl_Protocol_MCP.js
+ * @file K_LIB_Krnl_Protocol_MCP.ts
  * @description Helper for Model Context Protocol (MCP) integration.
  */
-
-class KrnlMcpProtocol {
+declare class KrnlMcpProtocol {
+    system: any;
     /**
-     * @param {import("./K_ENT_Krnl_System_Entity_Base.js").krnlSystemEntityBase} system
+     * @param system
      */
-    constructor(system) {
-        this.system = system;
-    }
-
+    constructor(system: any);
     /**
      * Returns the MCP Tools list based on system functionalities.
      */
-    async listTools() {
-        const manifest = this.system.getManifest();
-        const tools = manifest.inputs.api.map(fid => {
-            // Try to find the functionality to get schema if available
-            const functionality = this.system.localFunctionalities.get(fid);
-            const description = functionality?.description || `Execute ${fid} on ${this.system.entityName}`;
-            
-            // Basic schema mapping
-            let inputSchema = { type: "object", properties: {} };
-            if (functionality?.schema?.input) {
-                // If it's a simple function/validator, we can't easily introspect it into JSON Schema
-                // but we can provide a generic 'data' property.
-                inputSchema.properties = {
-                    data: { type: "object", description: "Input data for the functionality" }
-                };
-            }
-
-            return {
-                name: fid,
-                description: description,
-                inputSchema: inputSchema
-            };
-        });
-
-        return { tools };
-    }
-
+    listTools(): Promise<any>;
     /**
      * Handles an MCP JSON-RPC request.
      */
-    async handleRequest(rpc) {
-        const { method, params, id } = rpc;
-
-        if (method === 'tools/list') {
-            const result = await this.listTools();
-            return { jsonrpc: "2.0", id, result };
-        }
-
-        if (method === 'tools/call') {
-            const { name, arguments: args } = params;
-            try {
-                // MCP 'arguments' usually maps to our 'data' input
-                const result = await this.system.call(name, args);
-                return {
-                    jsonrpc: "2.0",
-                    id,
-                    result: {
-                        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-                    }
-                };
-            } catch (error) {
-                return {
-                    jsonrpc: "2.0",
-                    id,
-                    error: { code: -32e3, message: error.message }
-                };
-            }
-        }
-
-        if (method === 'initialize') {
-            return {
-                jsonrpc: "2.0",
-                id,
-                result: {
-                    protocolVersion: "2024-11-05", // Standard MCP version
-                    capabilities: {
-                        tools: { listChanged: false }
-                    },
-                    serverInfo: {
-                        name: this.system.entityName,
-                        version: "1.0.0"
-                    }
-                }
-            };
-        }
-
-        return {
-            jsonrpc: "2.0",
-            id,
-            error: { code: -32601, message: "Method not found" }
-        };
-    }
+    handleRequest(rpc: any): Promise<any>;
 }
 
 /**
- * @file K_LIB_Krnl_Protocol_ACP.js
+ * @file K_LIB_Krnl_Protocol_ACP.ts
  * @description Helper for Agent Communication Protocol (ACP) integration.
- * Enables agent-to-agent interoperability.
  */
-
-class KrnlAcpProtocol {
+declare class KrnlAcpProtocol {
+    system: any;
     /**
-     * @param {import("./K_ENT_Krnl_System_Entity_Base.js").krnlSystemEntityBase} system
+     * @param system
      */
-    constructor(system) {
-        this.system = system;
-    }
-
+    constructor(system: any);
     /**
      * ACP Information endpoint.
      */
-    getInfo() {
-        const manifest = this.system.getManifest();
-        return {
-            agentId: this.system.entityName,
-            type: manifest.systemType,
-            version: "1.0.0",
-            protocols: ["ACP", "MCP", "KrnlWS"],
-            description: `Krnl System Entity: ${this.system.entityName}`
-        };
-    }
-
+    getInfo(): any;
     /**
      * ACP Capabilities endpoint.
      */
-    getCapabilities() {
-        const manifest = this.system.getManifest();
-        return {
-            services: manifest.inputs.api.map(fid => ({
-                id: fid,
-                name: fid,
-                type: "functionality"
-            })),
-            events: manifest.outputs.events.map(eid => ({
-                id: eid,
-                type: "event"
-            }))
-        };
-    }
-
+    getCapabilities(): any;
     /**
      * ACP Message endpoint handler.
-     * Maps incoming ACP messages to Krnl calls.
      */
-    async handleMessage(payload) {
-        const { target, action, data, metadata = {} } = payload;
-        
-        // In ACP, the 'action' is usually the tool/functionality name
-        try {
-            const result = await this.system.call(action, data);
-            return {
-                status: "success",
-                result,
-                metadata: {
-                    processedBy: this.system.entityName,
-                    timestamp: Date.now()
-                }
-            };
-        } catch (error) {
-            return {
-                status: "error",
-                error: error.message,
-                metadata: {
-                    processedBy: this.system.entityName,
-                    timestamp: Date.now()
-                }
-            };
-        }
-    }
+    handleMessage(payload: any): Promise<any>;
 }
 
 /**
- * @file K_LIB_Krnl_System_Unified_Http_Adapter.js
+ * @file K_LIB_Krnl_System_Unified_Http_Adapter.ts
  * @description Unified HTTP adapter that exposes REST, SSE, MCP, and ACP protocols.
- * Supports sharing a single port/server with WebSocket.
  */
 
-
-class krnlUnifiedHttpAdapter {
+declare class krnlUnifiedHttpAdapter {
+    system: any;
+    port: number;
+    host: string;
+    server: http.Server | null;
+    _isExternalServer: boolean;
+    mcp: KrnlMcpProtocol;
+    acp: KrnlAcpProtocol;
+    enableFriendlyRouting: boolean;
     /**
-     * @param {import("./K_ENT_Krnl_System_Entity_Base.js").krnlSystemEntityBase} system
-     * @param {number} port
-     * @param {string} host
+     * @param system
+     * @param port
+     * @param host
      */
-    constructor(system, port, host = '0.0.0.0') {
-        this.system = system;
-        this.port = port;
-        this.host = host;
-        this.server = null;
-        this._isExternalServer = false;
-
-        this.mcp = new KrnlMcpProtocol(system);
-        this.acp = new KrnlAcpProtocol(system);
-
-        /**
-         * If true, allows direct FID routes (e.g., POST /LoadProject) 
-         * and supports flat JSON payloads.
-         */
-        this.enableFriendlyRouting = false;
-    }
-
+    constructor(system: any, port: number, host?: string);
     /**
-     * Starts the adapter. If an external server is provided, it attaches its handler to it.
-     * @param {http.Server} [externalServer]
+     * Starts the adapter.
      */
-    async start(externalServer = null) {
-        if (this.server) return;
-
-        if (externalServer) {
-            this.server = externalServer;
-            this._isExternalServer = true;
-            // Intercept requests on the external server
-            // Ensure we are the first handler if possible, or just add a listener.
-            // Note: Since node's http.Server executes listeners in order, 
-            // if this doesn't handle it, others might.
-            this.server.on('request', (req, res) => {
-                this._handleRequest(req, res);
-            });
-        } else {
-            this.server = http.createServer((req, res) => {
-                this._handleRequest(req, res);
-            });
-
-            return new Promise((resolve, reject) => {
-                this.server.listen(this.port, this.host, () => {
-                    Logger.log(`[${this.system.entityName}] Unified HTTP Adapter active on http://${this.host}:${this.port}`);
-                    resolve();
-                });
-                this.server.on('error', reject);
-            });
-        }
-    }
-    stop() {
-        if (this.server && !this._isExternalServer) {
-            this.server.close();
-            console.log(`[${this.system.entityName}] Unified HTTP Adapter stopped.`);
-        }
-        this.server = null;
-    }
-
-    async _handleRequest(req, res) {
-        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-        const path = url.pathname;
-
-        // Enable CORS
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Mcp-Session-Id');
-
-        if (req.method === 'OPTIONS') {
-            res.writeHead(204);
-            res.end();
-            return;
-        }
-
-        // Common routes
-        const isKrnlRoute = path.startsWith('/call/') || 
-                           path.startsWith('/sse/') || 
-                           path.startsWith('/mcp') || 
-                           path.startsWith('/acp') || 
-                           path === '/manifest' ||
-                           path === '/health';
-
-        if (!isKrnlRoute) {
-            // ── FRIENDLY ROUTING: /:fid ───────────────────────────
-            if (this.enableFriendlyRouting && req.method === 'POST') {
-                let fid = path.slice(1);
-                if (fid.endsWith('/')) fid = fid.slice(0, -1); // Handle trailing slashes
-
-                if (this.system.localFunctionalities.has(fid) || this.system.remoteFunctionalities.has(fid)) {
-                    try {
-                        Logger.log(`[HttpAdapter] Friendly route hit: ${fid}`);
-                        const body = await this._readJsonBody(req);
-                        // Smart payload wrapping: if no "data" key but other keys exist, wrap it.
-                        // We exclude empty bodies or already-wrapped bodies.
-                        const data = (body && typeof body === 'object' && !('data' in body) && Object.keys(body).length > 0) 
-                                     ? { data: body } 
-                                     : body;
-                        
-                        const result = await this.system.call(fid, data.data || data, { unwrap: false });
-                        this._sendJson(res, 200, result);
-                    } catch (e) {
-                        Logger.error(`[HttpAdapter] Friendly route error (${fid}):`, e.message);
-                        this._sendJson(res, 200, { status: "error", message: e.message });
-                    }
-                    return;
-                }
-            }
-
-            // If it's not a Krnl route and not a friendly route, respond with 404.
-            this._sendJson(res, 404, this.system.getNotFoundResponse(path));
-            return;
-        }
-
-        try {
-            // ── REST: /call/:fid ───────────────────────────────────
-            if (path.startsWith('/call/')) {
-                const fid = path.split('/')[2];
-                const body = await this._readJsonBody(req);
-                const result = await this.system.call(fid, body, { unwrap: false });
-                this._sendJson(res, 200, result);
-                return;
-            }
-
-            // ── SSE: /sse/:fid ────────────────────────────────────
-            if (path.startsWith('/sse/')) {
-                const fid = path.split('/')[2];
-                this._handleSse(req, res, fid);
-                return;
-            }
-
-            // ── MCP: /mcp (Unified / Streamable) ───────────────────
-            if (path === '/mcp') {
-                const body = await this._readJsonBody(req);
-                const result = await this.mcp.handleRequest(body);
-                this._sendJson(res, 200, result);
-                return;
-            }
-
-            // ── HEALTH: /health ────────────────────────────────────
-            if (path === '/health') {
-                this._sendJson(res, 200, { status: "ok", entity: this.system.entityName });
-                return;
-            }
-
-            // ── ACP: /acp/* ───────────────────────────────────────
-            if (path.startsWith('/acp')) {
-                if (path === '/acp/info' || path === '/acp') {
-                    this._sendJson(res, 200, this.acp.getInfo());
-                } else if (path === '/acp/capabilities') {
-                    this._sendJson(res, 200, this.acp.getCapabilities());
-                } else if (path === '/acp/messages' && req.method === 'POST') {
-                    const body = await this._readJsonBody(req);
-                    const result = await this.acp.handleMessage(body);
-                    this._sendJson(res, 200, result);
-                } else {
-                    this._sendJson(res, 404, { error: "ACP route not found" });
-                }
-                return;
-            }
-
-            // ── MANIFEST: /manifest ───────────────────────────────
-            if (path === '/manifest') {
-                this._sendJson(res, 200, this.system.getManifest());
-                return;
-            }
-
-        } catch (error) {
-            Logger.error(`[HttpAdapter] Fatal handler error ${path}:`, error);
-            this._sendJson(res, 200, { status: "error", message: error.message });
-        }
-    }
-
-    _handleSse(req, res, fid) {
-        res.writeHead(200, {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-        });
-
-        const functionality = this.system.localFunctionalities.get(fid);
-        if (!functionality) {
-            res.write(`data: ${JSON.stringify({ error: "Functionality not found" })}\n\n`);
-            res.end();
-            return;
-        }
-
-        const stateEmitter = functionality.emitters.get('state:changed');
-        const unsubscribe = stateEmitter?.subscribe((msg) => {
-            res.write(`data: ${JSON.stringify(msg.data)}\n\n`);
-        });
-
-        req.on('close', () => {
-            if (unsubscribe) unsubscribe();
-            res.end();
-        });
-
-        // Heartbeat
-        const interval = setInterval(() => {
-            if (res.writable) {
-                res.write(': keepalive\n\n');
-            }
-        }, 15000);
-
-        req.on('close', () => clearInterval(interval));
-    }
-
-    _sendJson(res, status, data) {
-        res.writeHead(status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(data));
-    }
-
-    _readJsonBody(req) {
-        return new Promise((resolve, reject) => {
-            let body = '';
-            req.on('data', chunk => { body += chunk.toString(); });
-            req.on('end', () => {
-                if (!body) return resolve({});
-                try {
-                    resolve(JSON.parse(body));
-                } catch (e) {
-                    reject(new Error("Invalid JSON body"));
-                }
-            });
-        });
-    }
+    start(externalServer?: http.Server | null): Promise<void>;
+    stop(): void;
+    _handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
+    _handleSse(req: http.IncomingMessage, res: http.ServerResponse, fid: string): void;
+    _sendJson(res: http.ServerResponse, status: number, data: any): void;
+    _readJsonBody(req: http.IncomingMessage): Promise<any>;
 }
 
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_ENT_System_Entity_Base.js
+ * @file K_ENT_System_Entity_Base.ts
  * @description Base class for all system orchestrator entities in the Krnl ecosystem.
  */
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA ////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////// KRNL SYSTEM ENTITY BASE ////////////////////////////////////////
-class krnlSystemEntityBase extends krnlEntityBase {
-  /**
-   * @param {string} name
-   * @param {object|null} owner
-   * @param {number} [commPort=10099] - WS listen port for the commComponent.
-   * @param {string} [host='0.0.0.0'] - Interface to bind to.
-   * @param {object} [options={}] - Entity options.
-   */
-  constructor(name, owner = null, commPort = 10099, host = '0.0.0.0', options = {}) {
-    super(name, owner, { ...options, Singleton: true });
-    this.systemType = 'SystemOrchestrator';
-    this.peers = new Map(); // id -> { address, lastSeen }
-    this.discoverable = true;
-    this.reservation = {
-      busy: false,
-      reservedBy: null,
-      reservedAt: null,
+declare class krnlSystemEntityBase extends krnlEntityBase {
+    systemType: string;
+    peers: Map<string, any>;
+    discoverable: boolean;
+    reservation: {
+        busy: boolean;
+        reservedBy: string | null;
+        reservedAt: number | null;
     };
-    this.peerTtlMs = 60000; // Increased to 60s for stability
-
-    // ── Uniform P2P communication bridge ──────────────────────────────
-    this.commPort = commPort;
-    this.host = host;
-    this.commComponent = new krnlSystemCommComponent(this, commPort, host);
-
-    this._setupBaseFunctionalities();
-    this._setupBaseInterface();
-    this._setupRpcHandlers();
-    
-    this._sharedServer = null;
-    this.serviceSuites = new Map(); // suiteName -> adapterInstance
-    // Pre-initialize the unified HTTP adapter (always-on)
-    this.unifiedHttpAdapter = new krnlUnifiedHttpAdapter(this, commPort, host);
-
-    // ── Protocol Unification & Decoration ──────────────────────────────
-    this._documentationProvider = null;
-
-    // ── Startup Diagnostics ──────────────────────────────
-    this._emitStartupDiagnostics();
-  }
-
-  /**
-   * Registers a documentation provider to enable automatic result decoration across all protocols.
-   * @param {Object} provider - Must implement getDocForEndpoint, getNextStepsDoc, and getDocsForLayer.
-   */
-  setDocumentationProvider(provider) {
-    this._documentationProvider = provider;
-  }
-
-  async _decorateResult(result, fid, input) {
-    // 1. Standardize Transaction Wrapping
-    // If the result is already wrapped, we keep it. Otherwise, we wrap it.
-    let finalResult = (result && typeof result === 'object' && result.status)
-      ? result
-      : { status: "success", payload: result };
-
-    // 2. Inject Preemptive Documentation
-    if (this._documentationProvider && finalResult.status === "success") {
-      if (typeof this._documentationProvider.getNextStepsDoc === 'function') {
-        const nextSteps = this._documentationProvider.getNextStepsDoc(fid);
-        if (nextSteps && nextSteps.length > 0) {
-          // If payload is an object, attach documentation
-        finalResult.preemptiveDocumentation = {
-          message: "Progressive Exploration: Recommended next steps.",
-          nextSteps
+    peerTtlMs: number;
+    commPort: number;
+    host: string;
+    commComponent: krnlSystemCommComponent;
+    _sharedServer: http.Server | null;
+    serviceSuites: Map<string, any>;
+    unifiedHttpAdapter: krnlUnifiedHttpAdapter;
+    _documentationProvider: any | null;
+    discoverySocket: any | null;
+    beaconInterval: any | null;
+    /**
+     * @param name
+     * @param owner
+     * @param commPort - WS listen port for the commComponent.
+     * @param host - Interface to bind to.
+     * @param options - Entity options.
+     */
+    constructor(name: string, owner?: krnlEntityBase | null, commPort?: number, host?: string, options?: any);
+    /**
+     * Registers a documentation provider to enable automatic result decoration across all protocols.
+     */
+    setDocumentationProvider(provider: any): void;
+    _decorateResult(result: any, fid: string, input: any): Promise<any>;
+    _decorateError(err: any, fid: string, input: any): Promise<any>;
+    getNotFoundResponse(path: string): any;
+    isDiscoveryAvailable(): boolean;
+    _emitStartupDiagnostics(): void;
+    getSystemFlags(): {
+        discoverable: boolean;
+        busy: boolean;
+        reservedBy: string | null;
+        reservedAt: number | null;
+    };
+    setDiscoverable(value: boolean): {
+        discoverable: boolean;
+        busy: boolean;
+        reservedBy: string | null;
+        reservedAt: number | null;
+    };
+    reserveFor(serviceName?: string): {
+        discoverable: boolean;
+        busy: boolean;
+        reservedBy: string | null;
+        reservedAt: number | null;
+    };
+    releaseReservation(serviceName?: string | null): {
+        discoverable: boolean;
+        busy: boolean;
+        reservedBy: string | null;
+        reservedAt: number | null;
+    };
+    _assertAvailableForRemoteAccess(requester?: string | null): void;
+    getManifest(): {
+        entityName: string;
+        systemType: string;
+        flags: {
+            discoverable: boolean;
+            busy: boolean;
+            reservedBy: string | null;
+            reservedAt: number | null;
         };
-        }
-      }
-    }
-    return finalResult;
-  }
-
-  /**
-   * Universal Error Decorator: Automatically attaches documentation to error results.
-   */
-  async _decorateError(err, fid, input) {
-    const response = {
-      status: "error",
-      message: err.message || String(err),
-      payload: null,
-      ...(err.metadata || {})
-    };
-    if (this._documentationProvider && typeof this._documentationProvider.getDocForEndpoint === 'function') {
-      const usageDoc = this._documentationProvider.getDocForEndpoint(fid);
-      if (usageDoc) response.errorDocumentation = usageDoc;
-    }
-    return response;
-  }
-
-  /**
-   * Global 404 Handler: Provides entry-layer documentation for unknown routes.
-   */
-  getNotFoundResponse(path) {
-    const response = {
-      status: "error",
-      message: `Route '${path}' not found.`
-    };
-    if (this._documentationProvider && typeof this._documentationProvider.getDocsForLayer === 'function') {
-      const entryPoints = this._documentationProvider.getDocsForLayer("LAYER_1_ENTRY");
-      if (entryPoints && entryPoints.length > 0) {
-        response.preemptiveDocumentation = {
-          message: "Welcome! Here is the entry-level documentation.",
-          entryPoints
+        telemetry: boolean;
+        inputs: {
+            collectors: any;
+            api: any;
         };
-      }
-    }
-    return response;
-  }
-
-  /**
-   * Returns true if UDP discovery is available in the current environment.
-   */
-  isDiscoveryAvailable() {
-    return typeof window === 'undefined';
-  }
-
-  /**
-   * Emits structured startup diagnostics.
-   * Useful for wrapper services (like Wepr) to monitor active subsystems.
-   */
-  _emitStartupDiagnostics() {
-    const diagnostics = {
-      event: 'KRNL_STARTUP',
-      entity: this.entityName,
-      timestamp: Date.now(),
-      subsystems: {
-        comm: { status: 'active', port: this.commPort },
-        discovery: { status: this.isDiscoveryAvailable() ? 'available' : 'unavailable' }
-      },
-      flags: this.getSystemFlags(),
-      environment: typeof window === 'undefined' ? 'node' : 'browser'
+        outputs: {
+            emitters: any;
+            events: string[];
+        };
     };
-    console.log(`[KRNL_DIAGNOSTICS] ${JSON.stringify(diagnostics)}`);
-    Logger.log(`System ${this.entityName} starting diagnostics emitted.`);
-  }
-
-  getSystemFlags() {
-    return {
-      discoverable: this.discoverable,
-      busy: this.reservation.busy,
-      reservedBy: this.reservation.reservedBy,
-      reservedAt: this.reservation.reservedAt,
-    };
-  }
-
-  setDiscoverable(value) {
-    this.discoverable = Boolean(value);
-    return this.getSystemFlags();
-  }
-
-  reserveFor(serviceName = 'unknown') {
-    this.reservation = {
-      busy: true,
-      reservedBy: serviceName,
-      reservedAt: Date.now(),
-    };
-    return this.getSystemFlags();
-  }
-
-  releaseReservation(serviceName = null) {
-    if (serviceName && this.reservation.reservedBy && this.reservation.reservedBy !== serviceName) {
-      throw new Error(
-        `[${this.entityName}] Reservation owned by ${this.reservation.reservedBy}; cannot release as ${serviceName}.`
-      );
-    }
-    this.reservation = {
-      busy: false,
-      reservedBy: null,
-      reservedAt: null,
-    };
-    return this.getSystemFlags();
-  }
-
-  _assertAvailableForRemoteAccess(requester = null) {
-    if (!this.reservation.busy) return;
-    if (requester && requester === this.reservation.reservedBy) return;
-    const by = this.reservation.reservedBy || 'another service';
-    throw new Error(`[${this.entityName}] Entity is busy/reserved by ${by}.`);
-  }
-
-  /**
-   * Returns a manifest of all available inputs and outputs.
-   * Inputs = Collectors + Functionalities (API call)
-   * Outputs = Emitters + Functionality Emitters (Events)
-   */
-  getManifest() {
-    const apiNames = [];
-    const eventsNames = [];
-    const api = {};
-
-    this.localFunctionalities.forEach((f) => {
-      const fManifest = {
-        id: f.id,
-        type: 'local',
-        visibility: f.visibility,
-        sourcePath: f.sourcePath, // Captured for Orchestrated Evolution
-        events: [] 
-      };
-      f.emitters.forEach((_, eid) => {
-        const eventId = `${f.id}:${eid}`;
-        fManifest.events.push(eventId);
-        eventsNames.push(eventId);
-      });
-
-      // Export Schemas if they exist
-      if (f.schema) {
-        fManifest.schema = {};
-        if (f.schema.input) {
-          try {
-            fManifest.schema.input = zodToJsonSchema(f.schema.input);
-          } catch (e) {
-             fManifest.schema.input = { type: "custom", message: "Non-Zod or complex schema" };
-          }
-        }
-        if (f.schema.output) {
-          try {
-            fManifest.schema.output = zodToJsonSchema(f.schema.output);
-          } catch (e) {
-            fManifest.schema.output = { type: "custom", message: "Non-Zod or complex schema" };
-          }
-        }
-      }
-
-      api[f.id] = fManifest;
-      apiNames.push(f.id);
-    });
-
-    this.remoteFunctionalities.forEach((f) => {
-      if (!api[f.id]) {
-        api[f.id] = { id: f.id, type: 'remote' };
-        apiNames.push(f.id);
-      }
-    });
-
-    return {
-      entityName: this.entityName,
-      systemType: this.systemType,
-      flags: this.getSystemFlags(),
-      telemetry: this.telemetryEnabled,
-      inputs: {
-        collectors: this.interface.collectorNames,
-        api: api, // Detailed map instead of just names
-      },
-      outputs: {
-        emitters: this.interface.emitterNames,
-        events: eventsNames,
-      }
-    };
-  }
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////// DISCOVERY ////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  /**
-   * Starts discovery: advertises presence and listens for other peers.
-   * @param {number} [discoveryPort=10101]
-   * @param {string} [discoveryHost='255.255.255.255'] - Broadcast address.
-   */
-  async startDiscovery(discoveryPort = 10101, discoveryHost = '255.255.255.255') {
-    if (this.discoverySocket) return; // Already started
-    
-    if (!this.isDiscoveryAvailable()) {
-      console.warn(`[${this.entityName}] Discovery: UDP not supported in current environment.`);
-      return;
-    }
-
-    const dgram = await import('dgram').then(m => m.default || m);
-    this.discoverySocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
-
-    this.discoverySocket.on('message', (msg, rinfo) => {
-      try {
-        const data = JSON.parse(msg.toString());
-        if (data.type === 'KRNL_BEACON' && data.id !== this.entityName) {
-          if (data.discoverable === false) {
-            this.peers.delete(data.id);
-            return;
-          }
-          this.peers.set(data.id, {
-            id: data.id,
-            name: data.id,
-            address: `${rinfo.address}:${data.port}`,
-            busy: Boolean(data.busy),
-            reservedBy: data.reservedBy || null,
-            discoverable: data.discoverable !== false,
-            lastSeen: Date.now()
-          });
-        }
-      } catch (e) { }
-    });
-
-    this.discoverySocket.bind(discoveryPort, this.host, () => {
-      this.discoverySocket.setBroadcast(true);
-      console.log(`[${this.entityName}] Discovery active on ${this.host}:${discoveryPort} (broadcast to ${discoveryHost})`);
-    });
-
-    // Start Discovery UDP beacon
-    this.beaconInterval = setInterval(() => {
-      if (!this.discoverable) return;
-      const beacon = JSON.stringify({
-        type: 'KRNL_BEACON',
-        id: this.entityName,
-        port: this.commPort,
-        discoverable: this.discoverable,
-        busy: this.reservation.busy,
-        reservedBy: this.reservation.reservedBy
-      });
-      this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, discoveryHost);
-    }, 5000);
-
-    // Initialise and start the shared HTTP/WS server
-    await this._startSharedServer();
-  }
-
-  /**
-   * Internal helper to start the shared server for WS and HTTP protocols.
-   * Ensures everything runs on this.commPort.
-   */
-  async _startSharedServer() {
-    if (this._sharedServer) return;
-
-    // Create the primary HTTP server
-    this._sharedServer = http.createServer();
-
-    // 1. Start the Unified HTTP Adapter (Routes: /call, /mcp, /acp, /sse, /manifest)
-    await this.unifiedHttpAdapter.start(this._sharedServer);
-    this.serviceSuites.set("UNIFIED_HTTP", this.unifiedHttpAdapter);
-
-    // 2. Start the WebSocket server using the SAME HTTP server
-    await this.commComponent.startWsServer(this._sharedServer);
-
-    // 3. Listen on the unified port
-    return new Promise((resolve, reject) => {
-      this._sharedServer.listen(this.commPort, this.host, () => {
-        console.log(`[${this.entityName}] Unified port active on http://${this.host}:${this.commPort} (WS + REST + MCP + ACP)`);
-        resolve();
-      });
-      this._sharedServer.on('error', (err) => {
-        console.error(`[${this.entityName}] Failed to start unified server:`, err.message);
-        reject(err);
-      });
-    });
-  }
-
-  /**
-   * Backward compatible activation method. Now simply ensures the shared server is running.
-   */
-  async activateServiceSuite(suiteName = "UNIFIED_HTTP") {
-    return this._startSharedServer();
-  }
-
-  /**
-   * Returns a list of all discovered peers.
-   */
-  listPeers() {
-    const now = Date.now();
-    for (const [id, peer] of this.peers.entries()) {
-      if (now - peer.lastSeen > this.peerTtlMs) this.peers.delete(id);
-    }
-    return Array.from(this.peers.values()).filter((peer) => peer.discoverable !== false);
-  }
-
-  /**
-   * Returns a proxy object for a remote entity by ID.
-   * @param {string} peerId 
-   * @returns {Object|null}
-   */
-  getRemoteEntity(peerId) {
-    const peer = this.peers.get(peerId);
-    if (!peer) return null;
-    return {
-      call: async (fid, data) => {
-        return await this.commComponent.callWsRpc(peer.address, 'call', { fid, data });
-      }
-    };
-  }
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////// WIRING ///////////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  /**
-   * Wires a local output to a remote input, or a remote output to a local input.
-   * 
-   * @param {string} peerId - The ID of the discovered peer.
-   * @param {Object} options 
-   * @param {string} [options.localOutput] - Name of local emitter.
-   * @param {string} [options.remoteInput] - Name of remote collector.
-   * @param {string} [options.remoteOutput] - Name of remote emitter.
-   * @param {string} [options.localInput] - Name of local collector.
-   */
-  async wire(peerId, options) {
-    const peer = this.peers.get(peerId);
-    if (!peer) throw new Error(`Peer ${peerId} not discovered.`);
-    if (peer.busy) throw new Error(`Peer ${peerId} is reserved by ${peer.reservedBy || 'another service'}.`);
-
-    const { localOutput, remoteInput, remoteOutput, localInput, connectionPolicy = {} } = options;
-
-    // Case 1: Local Output -> Remote Input
-    if (localOutput && remoteInput) {
-      await this.commComponent.wireViaWs(localOutput, peer.address, remoteInput, peer.name, {
-        managedBy: connectionPolicy.managedBy || this.entityName,
-        externallyMutable: connectionPolicy.externallyMutable !== false,
-        metadata: connectionPolicy.metadata || {},
-      });
-    }
-
-    // Case 2: Remote Output -> Local Input
-    if (remoteOutput && localInput) {
-      // We request the remote peer to wire its output to our local input
-      await this.commComponent.callWsRpc(peer.address, 'wire-output-to-me', {
-        remoteOutput: remoteOutput,
-        localInput: localInput,
-        myAddress: `${this.host}:${this.commPort}`,
-        myName: this.entityName,
-        connectionPolicy,
-      });
-    }
-  }
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////// PRIVATE SETUP ////////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  _setupRpcHandlers() {
-    // Allows others to see what we have
-    this.commComponent.defineRpc('get-manifest', async () => {
-      return this.getManifest();
-    });
-
-    // Allows others to request we wire an output to them
-    this.commComponent.defineRpc('wire-output-to-me', async (params) => {
-      const { remoteOutput, localInput, myAddress, myName, connectionPolicy = {} } = params;
-      this._assertAvailableForRemoteAccess(myName);
-      console.log(`[${this.entityName}] Remote ${myName} requested wiring: ${remoteOutput} -> ${localInput}`);
-      return await this.commComponent.wireViaWs(remoteOutput, myAddress, localInput, myName, {
-        managedBy: connectionPolicy.managedBy || myName,
-        externallyMutable: connectionPolicy.externallyMutable !== false,
-        metadata: connectionPolicy.metadata || {},
-      });
-    });
-
-    // Allows others to call functionalities on this system
-    this.commComponent.defineRpc('call', async ({ fid, data }) => {
-      this._assertAvailableForRemoteAccess(data?.meta?.requester || null);
-      return await this.call(fid, data);
-    });
-
-    this.commComponent.defineRpc('set-entity-flags', async ({ discoverable, busy, reservedBy, requester }) => {
-      this._assertAvailableForRemoteAccess(requester || null);
-      if (typeof discoverable === 'boolean') this.setDiscoverable(discoverable);
-      if (typeof busy === 'boolean') {
-        if (busy) this.reserveFor(reservedBy || requester || 'unknown');
-        else this.releaseReservation(requester || null);
-      }
-      return this.getSystemFlags();
-    });
-
-    this.commComponent.defineRpc('list-routes', async () => {
-      return this.commComponent.listRoutes();
-    });
-
-    this.commComponent.defineRpc('disconnect-route', async ({ routeId, requester, force = false }) => {
-      this._assertAvailableForRemoteAccess(requester || null);
-      this.commComponent.disconnectRoute(routeId, { requester, force });
-      return { ok: true, routeId };
-    });
-
-    this.commComponent.defineRpc('connect-to-target', async ({ sourceEmitter, targetAddress, targetCollector, targetName, requester, connectionPolicy = {} }) => {
-      this._assertAvailableForRemoteAccess(requester || null);
-      return await this.commComponent.wireViaWs(sourceEmitter, targetAddress, targetCollector, targetName, {
-        managedBy: connectionPolicy.managedBy || requester || this.entityName,
-        externallyMutable: connectionPolicy.externallyMutable !== false,
-        metadata: connectionPolicy.metadata || {},
-      });
-    });
-  }
-
-  _setupBaseFunctionalities() {
-    this.addLocal({
-      id: 'heartbeat',
-      api: heartbeatApi(this),
-      emitters: { status: {} }
-    });
-
-    this.addLocal({
-      id: 'getTelemetry',
-      api: telemetryApi(this)
-    });
-
-    this.addLocal({
-      id: 'adminCommand',
-      api: adminCommandApi(this)
-    });
-
-    this.addLocal({
-      id: 'discoverPeers',
-      api: discoverPeersApi(this)
-    });
-
-    this.addLocal({
-      id: 'getManifest',
-      api: manifestApi(this)
-    });
-  }
-
-  _setupBaseInterface() {
-    this.interface.createEmitter('system-events');
-    this.interface.createCollector('system-commands');
-    this._attachCollectorHandler('system-commands', systemCommandsCollectorHandler(this));
-  }
-
-  _attachCollectorHandler(collectorName, handler) {
-    const collector = this.interface.getCollector(collectorName);
-    collector._directHandler = handler;
-  }
-
-  /**
-   * Binds Node.js process signals (SIGINT, SIGTERM) and unhandled errors 
-   * to the entity's dispose() method. Ensures graceful shutdown and 
-   * port release in Node.js environments.
-   */
-  bindProcessSignals() {
-    if (typeof process === 'undefined' || !process.on) return;
-
-    const handleSignal = (signal) => {
-      console.log(`\n[${this.entityName}] OS Signal ${signal} received. Cleaning up...`);
-      this.dispose();
-      process.exit(0);
-    };
-
-    process.on('SIGINT', () => handleSignal('SIGINT'));
-    process.on('SIGTERM', () => handleSignal('SIGTERM'));
-    process.on('SIGHUP', () => {
-      console.log(`[${this.entityName}] SIGHUP received. Ignoring to maintain background persistence.`);
-    });
-
-    process.on('uncaughtException', (err) => {
-      Logger.error(`UNCAUGHT EXCEPTION in ${this.entityName}:`, err);
-      this.dispose();
-      process.exit(1);
-    });
-
-    process.on('unhandledRejection', (reason) => {
-      Logger.error(`UNHANDLED REJECTION in ${this.entityName}:`, reason);
-      this.dispose();
-      process.exit(1);
-    });
-
-    process.on('exit', (code) => {
-      console.log(`[${this.entityName}] Process exiting with code: ${code}`);
-    });
-  }
-
-  dispose() {
-    if (this.beaconInterval) clearInterval(this.beaconInterval);
-    if (this.discoverySocket) this.discoverySocket.close();
-    
-    // Stop all service suites
-    for (const [name, suite] of this.serviceSuites) {
-      suite.stop();
-    }
-    this.serviceSuites.clear();
-
-    if (this._sharedServer) {
-        this._sharedServer.close();
-        this._sharedServer = null;
-    }
-
-    this.commComponent.dispose();
-    super.dispose();
-  }
+    startDiscovery(discoveryPort?: number, discoveryHost?: string): Promise<void>;
+    _startSharedServer(): Promise<void>;
+    activateServiceSuite(suiteName?: string): Promise<void>;
+    listPeers(): any[];
+    getRemoteEntity(peerId: string): any;
+    wire(peerId: string, options: any): Promise<void>;
+    _setupRpcHandlers(): void;
+    _setupBaseFunctionalities(): void;
+    _setupBaseInterface(): void;
+    _attachCollectorHandler(collectorName: string, handler: any): void;
+    bindProcessSignals(): void;
+    dispose(): void;
 }
 
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_ENT_Krnl_Network_Orchestrator_Entity_Base.js
+ * @file K_ENT_Krnl_Network_Orchestrator_Entity_Base.ts
  * @description Network-level orchestrator for discovering systems and managing inter-system routes.
  */
 
-
-class krnlNetworkOrchestratorEntityBase extends krnlSystemEntityBase {
-  constructor(name = "KrnlNetworkOrchestrator", owner = null, commPort = 10110, host = "0.0.0.0") {
-    super(name, owner, commPort, host);
-    this.systemType = "NetworkOrchestrator";
-  }
-
-  async getPeerManifest(peerId) {
-    const peer = this.peers.get(peerId);
-    if (!peer) throw new Error(`Peer ${peerId} not discovered.`);
-    return await this.commComponent.callWsRpc(peer.address, "get-manifest", {});
-  }
-
-  async listPeerRoutes(peerId) {
-    const peer = this.peers.get(peerId);
-    if (!peer) throw new Error(`Peer ${peerId} not discovered.`);
-    return await this.commComponent.callWsRpc(peer.address, "list-routes", {});
-  }
-
-  /**
-   * Connects source system emitter -> target system collector.
-   */
-  async connectSystems(sourcePeerId, targetPeerId, options) {
-    const source = this.peers.get(sourcePeerId);
-    const target = this.peers.get(targetPeerId);
-    if (!source) throw new Error(`Source peer ${sourcePeerId} not discovered.`);
-    if (!target) throw new Error(`Target peer ${targetPeerId} not discovered.`);
-    if (source.busy && source.reservedBy !== this.entityName) {
-      throw new Error(`Source peer ${sourcePeerId} is reserved by ${source.reservedBy || "another service"}.`);
-    }
-    if (target.busy && target.reservedBy !== this.entityName) {
-      throw new Error(`Target peer ${targetPeerId} is reserved by ${target.reservedBy || "another service"}.`);
-    }
-
-    const {
-      sourceEmitter,
-      targetCollector,
-      externallyMutable = true,
-      metadata = {},
-    } = options;
-
-    return await this.commComponent.callWsRpc(source.address, "connect-to-target", {
-      sourceEmitter,
-      targetAddress: target.address,
-      targetCollector,
-      targetName: target.name,
-      requester: this.entityName,
-      connectionPolicy: {
-        managedBy: this.entityName,
-        externallyMutable,
-        metadata,
-      },
-    });
-  }
-
-  async disconnectPeerRoute(peerId, routeId, options = {}) {
-    const peer = this.peers.get(peerId);
-    if (!peer) throw new Error(`Peer ${peerId} not discovered.`);
-    const { force = false } = options;
-    return await this.commComponent.callWsRpc(peer.address, "disconnect-route", {
-      routeId,
-      force,
-      requester: this.entityName,
-    });
-  }
+declare class krnlNetworkOrchestratorEntityBase extends krnlSystemEntityBase {
+    constructor(name?: string, owner?: any, commPort?: number, host?: string);
+    getPeerManifest(peerId: string): Promise<any>;
+    listPeerRoutes(peerId: string): Promise<any>;
+    /**
+     * Connects source system emitter -> target system collector.
+     */
+    connectSystems(sourcePeerId: string, targetPeerId: string, options: any): Promise<any>;
+    disconnectPeerRoute(peerId: string, routeId: string, options?: any): Promise<any>;
 }
 
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_LIB_Krnl_Backend_Visual_Functionality_APIs.js
- * @description Reusable API atoms for krnlBackendVisualEntityBase.
+ * @file K_LIB_Krnl_Base_Concepts.ts
+ * @description These are building blocks for the basic structures that define the Krnl system.
  */
-
-function setBrndaComponentApi(entity) {
-  return (config = {}) => {
-    entity.brndaConfig = { ...entity.brndaConfig, ...config };
-    console.log(`[${entity.entityName}] Brnda config updated:`, entity.brndaConfig);
-    return entity.brndaConfig;
-  };
-}
-
-function setWeprComponentApi(entity) {
-  return (config = {}) => {
-    entity.weprConfig = { ...entity.weprConfig, ...config };
-    console.log(`[${entity.entityName}] Wepr config updated:`, entity.weprConfig);
-    return entity.weprConfig;
-  };
-}
-
-function setVisualCoreApi(entity) {
-  return (patch = {}) => {
-    entity.visualCore = {
-      ...entity.visualCore,
-      ...patch,
-      position: { ...entity.visualCore.position, ...patch.position },
-      rotation: { ...entity.visualCore.rotation, ...patch.rotation },
-      scale: { ...entity.visualCore.scale, ...patch.scale },
-    };
-    return entity.visualCore;
-  };
-}
-
-function getVisualSnapshotApi(entity) {
-  return () => entity.visualCore;
-}
-
-function syncAllFrontendsApi(entity) {
-  return async () => {
-    console.log(`[${entity.entityName}] Syncing all frontends...`);
-    return { status: 'synced', timestamp: Date.now() };
-  };
-}
-
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_ENT_Backend_Visual_Entity_Base.js
- * @description A base class for entities that have a visual backend representation.
+ * Unified logger with support for synchronous flushing.
  */
-
-
-class krnlBackendVisualEntityBase extends krnlEntityBase {
-  constructor(name, owner = null) {
-    super(name, owner);
-    this.visualCore = {
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      scale: { x: 1, y: 1, z: 1 },
-      visible: true,
-      color: "#ffffff"
-    };
-
-    this._setupVisualFunctionalities();
-  }
-
-  _setupVisualFunctionalities() {
-    this.addLocal({
-      id: 'setBrndaComponent',
-      api: setBrndaComponentApi(this)
-    });
-
-    this.addLocal({
-      id: 'setWeprComponent',
-      api: setWeprComponentApi(this)
-    });
-
-    this.addLocal({
-      id: 'setVisualCore',
-      api: setVisualCoreApi(this)
-    });
-
-    this.addLocal({
-      id: 'getVisualSnapshot',
-      api: getVisualSnapshotApi(this)
-    });
-
-    this.addLocal({
-      id: 'syncAllFrontends',
-      api: syncAllFrontendsApi(this)
-    });
-  }
-
-  getVisualSnapshot() {
-    return { ...this.visualCore };
-  }
+declare class Logger {
+    static log(...args: any[]): void;
+    static error(...args: any[]): void;
+    static flush(): void;
+}
+/**
+ * Enum Template Object
+ */
+declare const EnumTemplate: {
+    types: string[];
+    listTypes(): readonly string[];
+    getTypeID(typeName: string): number;
+};
+/**
+ * Creates an immutable enum object from a list of type names.
+ * @param typeNames - An array of strings representing the enum type names.
+ */
+declare function createEnum<T extends string>(typeNames: T[]): Readonly<Record<T, number> & typeof EnumTemplate>;
+declare const krnlSystemTypes: Readonly<Record<"qwnsr" | "brnda" | "symba" | "mosy", number> & {
+    types: string[];
+    listTypes(): readonly string[];
+    getTypeID(typeName: string): number;
+}>;
+declare const krnlServiceSuites: Readonly<Record<"UNIFIED_HTTP", number> & {
+    types: string[];
+    listTypes(): readonly string[];
+    getTypeID(typeName: string): number;
+}>;
+declare const krnlServiceSuitePorts: Readonly<{
+    readonly UNIFIED_HTTP: 1;
+}>;
+declare const krnlPrimitiveDataTypes: Readonly<Record<"audio" | "control-signal" | "video" | "MIDI" | "OSC" | "text" | "trigger", number> & {
+    types: string[];
+    listTypes(): readonly string[];
+    getTypeID(typeName: string): number;
+}>;
+declare class krnlData {
+    isSignal: boolean;
+    dataType: number;
+    transportKind: "single" | "blob" | "stream";
+    timestamp: number;
+    correlationId: string | number | null;
+    sourceId: string | number | null;
+    tags: string[] | null;
+    data: any;
+}
+declare class krnlDataFactory {
+    static audio(opts: {
+        isSignal?: boolean;
+        transportKind?: "single" | "blob" | "stream";
+        codec?: string;
+        sampleRate?: number;
+        channels?: number;
+        frameIndex?: number;
+        buffer?: any;
+        extra?: object;
+    }): krnlData;
+    static control(opts: {
+        name: string;
+        value: any;
+        unit?: string | null;
+        curve?: string;
+        transportKind?: "single" | "blob" | "stream";
+        isSignal?: boolean;
+        extra?: object;
+    }): krnlData;
+    static midi(opts: {
+        status: number;
+        data1: number;
+        data2: number;
+        channel?: number;
+        raw?: any;
+        transportKind?: "single" | "blob" | "stream";
+        isSignal?: boolean;
+        extra?: object;
+    }): krnlData;
+    static text(opts: {
+        text: string;
+        encoding?: string;
+        language?: string;
+        contentType?: string;
+        transportKind?: "single" | "blob" | "stream";
+        isSignal?: boolean;
+        extra?: object;
+    }): krnlData;
+    static trigger(opts: {
+        name: string;
+        value?: number;
+        transportKind?: "single" | "blob" | "stream";
+        isSignal?: boolean;
+        extra?: object;
+    }): krnlData;
 }
 
-//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
+/**
+ * @file K_LIB_Krnl_Error_Concepts.ts
+ * @description Defines the system-wide error codes, messages, and typed error class for the Krnl ecosystem.
+ */
+/**
+ * Krnl System Error Codes.
+ * Integer-based for cross-platform portability (Go, C++, Rust).
+ */
+declare const krnlErrorCodes: Readonly<{
+    readonly ENUM_ID_NOT_FOUND: -1;
+    readonly STATE_NOT_FOUND: 100;
+    readonly STATE_DUPLICATE_NAME: 101;
+    readonly STATE_INDEX_OUT_OF_RANGE: 102;
+    readonly FUNCTIONALITY_NOT_DEFINED: 200;
+    readonly FUNCTIONALITY_ALREADY_DEFINED: 201;
+    readonly FUNCTIONALITY_INSTANCE_NOT_FOUND: 202;
+    readonly REMOTE_EXECUTION_FAILED: 203;
+    readonly EMITTER_NOT_FOUND: 300;
+    readonly COLLECTOR_NOT_FOUND: 301;
+    readonly COLLECTOR_NOT_SUBSCRIBED: 302;
+    readonly ENTITY_NOT_FOUND: 400;
+}>;
+/**
+ * Map of Error Codes to human-readable messages.
+ */
+declare const krnlErrorMessages: Record<number, string>;
+/**
+ * Typed error class for the Krnl system.
+ */
+declare class krnlError extends Error {
+    code: number;
+    errorMessage: string;
+    constructor(code: number | string);
+}
+
+declare class krnlBackendVisualEntityBase extends krnlEntityBase {
+    constructor(name: any, owner?: null);
+    visualCore: {
+        position: {
+            x: number;
+            y: number;
+            z: number;
+        };
+        rotation: {
+            x: number;
+            y: number;
+            z: number;
+        };
+        scale: {
+            x: number;
+            y: number;
+            z: number;
+        };
+        visible: boolean;
+        color: string;
+    };
+    _setupVisualFunctionalities(): void;
+    getVisualSnapshot(): {
+        position: {
+            x: number;
+            y: number;
+            z: number;
+        };
+        rotation: {
+            x: number;
+            y: number;
+            z: number;
+        };
+        scale: {
+            x: number;
+            y: number;
+            z: number;
+        };
+        visible: boolean;
+        color: string;
+    };
+}
+
 /**
  * @file K_LIB_Dasy_JS.js
  * @description The library that provides file operations for reading and writing data with a uniform API using the Browser Origin Private File System (OPFS).
  */
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA //////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////// DASY JS ////////////////////////////////////////
 /**
  * DasyJS Class
  * Provides a uniform API for file operations on the JS platform using OPFS.
  */
-class DasyJS {
-  constructor(rootName = "dasy-root") {
-    this.rootName = rootName;
-    this.rootDir = null;
-  }
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////// INITIALIZATION AND PATH RESOLUTION ///////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  /**
-   * Initializes the file system access.
-   */
-  async init() {
-    const storageRoot = await navigator.storage.getDirectory();
-    this.rootDir = await storageRoot.getDirectoryHandle(this.rootName, {
-      create: true
-    });
-  }
-
-  /**
-   * Resolves a user path into normalized parts.
-   * @param {string} userPath 
-   * @returns {string[]}
-   */
-  resolve(userPath) {
-    const trimmed = (userPath || "").trim();
-    if (!trimmed) throw new Error("invalid path");
-
-    const relative = trimmed.replace(/^\/+/, "");
-    const normalized = relative.replace(/\\/g, "/");
-
-    if (normalized.includes("..")) {
-      throw new Error("invalid path");
-    }
-
-    return normalized.split("/").filter(Boolean);
-  }
-
-  /**
-   * Internal helper to get a file handle.
-   */
-  async getFileHandle(pathParts, create = false) {
-    let current = this.rootDir;
-
-    for (let i = 0; i < pathParts.length - 1; i++) {
-      current = await current.getDirectoryHandle(pathParts[i], { create });
-    }
-
-    return current.getFileHandle(pathParts.at(-1), { create });
-  }
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////// FILE OPERATIONS //////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  async createFile(filePath) {
-    const parts = this.resolve(filePath);
-    await this.getFileHandle(parts, true);
-  }
-
-  async deleteFile(filePath) {
-    const parts = this.resolve(filePath);
-
-    let current = this.rootDir;
-    for (let i = 0; i < parts.length - 1; i++) {
-      current = await current.getDirectoryHandle(parts[i]);
-    }
-
-    try {
-      await current.removeEntry(parts.at(-1));
-    } catch (err) {
-      if (err.name !== "NotFoundError") throw err;
-    }
-  }
-
-  async duplicateFile(source, destination) {
-    const data = await this.readBytes(source);
-    await this.writeBytes(destination, data);
-  }
-
-  async writeText(filePath, data) {
-    const parts = this.resolve(filePath);
-    const handle = await this.getFileHandle(parts, true);
-    const writable = await handle.createWritable();
-    await writable.write(data);
-    await writable.close();
-  }
-
-  async readText(filePath) {
-    const parts = this.resolve(filePath);
-    const handle = await this.getFileHandle(parts);
-    const file = await handle.getFile();
-    return file.text();
-  }
-
-  async writeBytes(filePath, data) {
-    const parts = this.resolve(filePath);
-    const handle = await this.getFileHandle(parts, true);
-    const writable = await handle.createWritable();
-    await writable.write(data);
-    await writable.close();
-  }
-
-  async readBytes(filePath) {
-    const parts = this.resolve(filePath);
-    const handle = await this.getFileHandle(parts);
-    const file = await handle.getFile();
-    return file.arrayBuffer();
-  }
+declare class DasyJS {
+    constructor(rootName?: string);
+    rootName: string;
+    rootDir: FileSystemDirectoryHandle | null;
+    /**
+     * Initializes the file system access.
+     */
+    init(): Promise<void>;
+    /**
+     * Resolves a user path into normalized parts.
+     * @param {string} userPath
+     * @returns {string[]}
+     */
+    resolve(userPath: string): string[];
+    /**
+     * Internal helper to get a file handle.
+     */
+    getFileHandle(pathParts: any, create?: boolean): Promise<FileSystemFileHandle>;
+    createFile(filePath: any): Promise<void>;
+    deleteFile(filePath: any): Promise<void>;
+    duplicateFile(source: any, destination: any): Promise<void>;
+    writeText(filePath: any, data: any): Promise<void>;
+    readText(filePath: any): Promise<string>;
+    writeBytes(filePath: any, data: any): Promise<void>;
+    readBytes(filePath: any): Promise<ArrayBuffer>;
 }
 
 export { DasyJS, KrnlAcpProtocol, KrnlMcpProtocol, Logger, MemoryTransportAdapter, WebSocketTransportAdapter, createEnum, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, telemetry };

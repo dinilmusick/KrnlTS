@@ -1,13 +1,8 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_LIB_Krnl_Error_Concepts.js
+ * @file K_LIB_Krnl_Error_Concepts.ts
  * @description Defines the system-wide error codes, messages, and typed error class for the Krnl ecosystem.
- * This file does not have dependencies.
  */
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA //////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //////////////////////////////////////// ERROR CODES ////////////////////////////////////////
 /**
@@ -27,6 +22,7 @@ export const krnlErrorCodes = Object.freeze({
   FUNCTIONALITY_NOT_DEFINED: 200,
   FUNCTIONALITY_ALREADY_DEFINED: 201,
   FUNCTIONALITY_INSTANCE_NOT_FOUND: 202,
+  REMOTE_EXECUTION_FAILED: 203,
 
   // Interface errors (300-399)
   EMITTER_NOT_FOUND: 300,
@@ -35,13 +31,13 @@ export const krnlErrorCodes = Object.freeze({
 
   // Hierarchy errors (400-499)
   ENTITY_NOT_FOUND: 400,
-});
+} as const);
 
 //////////////////////////////////////// ERROR MESSAGES ////////////////////////////////////////
 /**
  * Map of Error Codes to human-readable messages.
  */
-export const krnlErrorMessages = Object.freeze({
+export const krnlErrorMessages: Record<number, string> = Object.freeze({
   // Enum
   [krnlErrorCodes.ENUM_ID_NOT_FOUND]:
     "Enum: ID not found. The requested enum type is not defined.",
@@ -61,6 +57,8 @@ export const krnlErrorMessages = Object.freeze({
     "Functionality: A functionality with this name is already defined.",
   [krnlErrorCodes.FUNCTIONALITY_INSTANCE_NOT_FOUND]:
     "Functionality: The requested functionality instance was not found.",
+  [krnlErrorCodes.REMOTE_EXECUTION_FAILED]:
+    "Functionality: Remote execution failed.",
 
   // Interface
   [krnlErrorCodes.EMITTER_NOT_FOUND]:
@@ -78,12 +76,15 @@ export const krnlErrorMessages = Object.freeze({
 //////////////////////////////////////// KRNL ERROR ////////////////////////////////////////
 /**
  * Typed error class for the Krnl system.
- * Always carries an integer error code for programmatic handling.
  */
 export class krnlError extends Error {
-  constructor(code) {
-    super(krnlErrorMessages[code] ?? `Unknown error (code: ${code})`);
-    this.code = code;
+  code: number;
+  errorMessage: string;
+
+  constructor(code: number | string) {
+    const numericCode = typeof code === 'number' ? code : -1;
+    super(krnlErrorMessages[numericCode] ?? `Error: ${code}`);
+    this.code = numericCode;
     this.errorMessage = this.message;
   }
 }

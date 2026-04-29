@@ -1,6 +1,6 @@
 import { telemetry } from './K_LIB_Krnl_Telemetry.js';
 
-export function heartbeatApi(entity) {
+export function heartbeatApi(entity: any) {
   return () => ({
     name: entity.entityName,
     type: entity.systemType,
@@ -8,41 +8,41 @@ export function heartbeatApi(entity) {
   });
 }
 
-export function telemetryApi(entity) {
+export function telemetryApi(entity: any) {
   return () => ({
     entityName: entity.entityName,
     systemType: entity.systemType,
-    flags: entity.getSystemFlags(),
-    owner: entity.hierarchyManager.getOwnerEntity()?.entityName || null,
-    ownedEntities: entity.hierarchyManager.getAllOwnedComponentEntities().map((e) => e.entityName),
-    activeRoutes: entity.commComponent.listRoutes(),
+    flags: (entity as any).getSystemFlags(),
+    owner: (entity as any).hierarchyManager.getOwnerEntity()?.entityName || null,
+    ownedEntities: (entity as any).hierarchyManager.getAllOwnedComponentEntities().map((e: any) => e.entityName),
+    activeRoutes: (entity as any).commComponent.listRoutes(),
     uptime: typeof process !== 'undefined' && process.uptime ? process.uptime() : null,
     performance: telemetry.getSummary()
   });
 }
 
-export function adminCommandApi(entity) {
-  return async ({ command, args }) => {
+export function adminCommandApi(entity: any) {
+  return async ({ command, args }: { command: string, args: any }) => {
     console.log(`[${entity.entityName}] Admin command: ${command}`, args);
     if (command === 'set-discoverable') {
       return {
         status: 'acknowledged',
         command,
-        flags: entity.setDiscoverable(Boolean(args?.value)),
+        flags: (entity as any).setDiscoverable(Boolean(args?.value)),
       };
     }
     if (command === 'reserve') {
       return {
         status: 'acknowledged',
         command,
-        flags: entity.reserveFor(args?.serviceName || 'unknown'),
+        flags: (entity as any).reserveFor(args?.serviceName || 'unknown'),
       };
     }
     if (command === 'release-reservation') {
       return {
         status: 'acknowledged',
         command,
-        flags: entity.releaseReservation(args?.serviceName || null),
+        flags: (entity as any).releaseReservation(args?.serviceName || null),
       };
     }
     if (command === 'shutdown') {
@@ -57,24 +57,24 @@ export function adminCommandApi(entity) {
         message: 'System will shutdown in 500ms'
       };
     }
-    return { status: 'acknowledged', command, flags: entity.getSystemFlags() };
+    return { status: 'acknowledged', command, flags: (entity as any).getSystemFlags() };
   };
 }
 
-export function discoverPeersApi(entity) {
+export function discoverPeersApi(entity: any) {
   return ({ includeBusy = true } = {}) => {
-    const peers = entity.listPeers();
+    const peers = (entity as any).listPeers();
     if (includeBusy) return peers;
-    return peers.filter((peer) => !peer.busy);
+    return peers.filter((peer: any) => !peer.busy);
   };
 }
 
-export function manifestApi(entity) {
-  return () => entity.getManifest();
+export function manifestApi(entity: any) {
+  return () => (entity as any).getManifest();
 }
 
-export function systemCommandsCollectorHandler(entity) {
-  return (msg) => {
+export function systemCommandsCollectorHandler(entity: any) {
+  return (msg: any) => {
     console.log(`[${entity.entityName}] system-commands received:`, JSON.stringify(msg.data));
   };
 }

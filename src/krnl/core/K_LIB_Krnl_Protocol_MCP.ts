@@ -1,31 +1,31 @@
 /**
- * @file K_LIB_Krnl_Protocol_MCP.js
+ * @file K_LIB_Krnl_Protocol_MCP.ts
  * @description Helper for Model Context Protocol (MCP) integration.
  */
 
 export class KrnlMcpProtocol {
+    system: any;
+
     /**
-     * @param {import("./K_ENT_Krnl_System_Entity_Base.js").krnlSystemEntityBase} system
+     * @param system
      */
-    constructor(system) {
+    constructor(system: any) {
         this.system = system;
     }
 
     /**
      * Returns the MCP Tools list based on system functionalities.
      */
-    async listTools() {
-        const manifest = this.system.getManifest();
-        const tools = manifest.inputs.api.map(fid => {
-            // Try to find the functionality to get schema if available
-            const functionality = this.system.localFunctionalities.get(fid);
+    async listTools(): Promise<any> {
+        const manifest = (this.system as any).getManifest();
+        const apiIds = Object.keys(manifest.inputs.api);
+        
+        const tools = apiIds.map(fid => {
+            const functionality = (this.system as any).localFunctionalities.get(fid);
             const description = functionality?.description || `Execute ${fid} on ${this.system.entityName}`;
             
-            // Basic schema mapping
-            let inputSchema = { type: "object", properties: {} };
+            let inputSchema: any = { type: "object", properties: {} };
             if (functionality?.schema?.input) {
-                // If it's a simple function/validator, we can't easily introspect it into JSON Schema
-                // but we can provide a generic 'data' property.
                 inputSchema.properties = {
                     data: { type: "object", description: "Input data for the functionality" }
                 };
@@ -44,7 +44,7 @@ export class KrnlMcpProtocol {
     /**
      * Handles an MCP JSON-RPC request.
      */
-    async handleRequest(rpc) {
+    async handleRequest(rpc: any): Promise<any> {
         const { method, params, id } = rpc;
 
         if (method === 'tools/list') {
@@ -55,7 +55,6 @@ export class KrnlMcpProtocol {
         if (method === 'tools/call') {
             const { name, arguments: args } = params;
             try {
-                // MCP 'arguments' usually maps to our 'data' input
                 const result = await this.system.call(name, args);
                 return {
                     jsonrpc: "2.0",
@@ -64,7 +63,7 @@ export class KrnlMcpProtocol {
                         content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
                     }
                 };
-            } catch (error) {
+            } catch (error: any) {
                 return {
                     jsonrpc: "2.0",
                     id,
@@ -78,7 +77,7 @@ export class KrnlMcpProtocol {
                 jsonrpc: "2.0",
                 id,
                 result: {
-                    protocolVersion: "2024-11-05", // Standard MCP version
+                    protocolVersion: "2024-11-05", 
                     capabilities: {
                         tools: { listChanged: false }
                     },

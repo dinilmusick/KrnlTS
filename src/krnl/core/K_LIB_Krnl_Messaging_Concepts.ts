@@ -1,11 +1,10 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_LIB_Krnl_Messaging_Concepts.js
+ * @file K_LIB_Krnl_Messaging_Concepts.ts
  * @description Core classes for messaging and communication between entities in the Krnl system.
  */
 
 import {
-  krnlSystemTypes,
   krnlData,
 } from "./K_LIB_Krnl_Base_Concepts.js";
 
@@ -20,47 +19,47 @@ import {
 
 //////////////////////////////////////// KRNL GLOBAL EMITTER ADDRESS ////////////////////////////////////////
 export class krnlGlobalEmitterAddress {
-  systemID = 0; // ["qwnsr", "brnda", "symba", "mosy"]
-  subSystemID = 0; // ["qwnsrControl", "qwnsrBlocks"], other options for other systems.
-  entityAddress = []; // nesting of type => entity36{entity45{entity67}} = [36,45,67]
-  emitterID = 0;
+  systemID: number = 0; // ["qwnsr", "brnda", "symba", "mosy"]
+  subSystemID: number = 0; // ["qwnsrControl", "qwnsrBlocks"]
+  entityAddress: number[] = []; // nesting of type
+  emitterID: number = 0;
 }
 
 //////////////////////////////////////// KRNL LOCAL EMITTER ADDRESS ////////////////////////////////////////
 export class krnlLocalEmitterAddress {
-  isOwnerEntity = true; // simply an address to the owner of the current entity if true. else address directed to sibling
-  siblingID = 0;
-  emitterID = 0;
+  isOwnerEntity: boolean = true; 
+  siblingID: number = 0;
+  emitterID: number = 0;
 }
 
 //////////////////////////////////////// KRNL MESSAGE ////////////////////////////////////////
 export class krnlMessage {
-  data = null;
-  time = { day: 0, hour: 0, minute: 0, seconds: 0, millisecond: 0 };
+  data: any = null;
+  time: { day: number, hour: number, minute: number, seconds: number, millisecond: number } = { day: 0, hour: 0, minute: 0, seconds: 0, millisecond: 0 };
 }
 
 //////////////////////////////////////// KRNL MESSAGE STREAM ////////////////////////////////////////
 export class krnlMessageStream {
-  #queue = [];
-  #waiters = [];
+  #queue: krnlMessage[] = [];
+  #waiters: ((message: krnlMessage) => void)[] = [];
 
-  push(message) {
+  push(message: krnlMessage): void {
     if (this.#waiters.length > 0) {
       const resolve = this.#waiters.shift();
-      resolve(message);
+      if (resolve) resolve(message);
     } else {
       this.#queue.push(message);
     }
   }
 
-  async next() {
+  async next(): Promise<krnlMessage> {
     if (this.#queue.length > 0) {
-      return this.#queue.shift();
+      return this.#queue.shift()!;
     }
     return new Promise((resolve) => this.#waiters.push(resolve));
   }
 
-  async *[Symbol.asyncIterator]() {
+  async *[Symbol.asyncIterator](): AsyncGenerator<krnlMessage> {
     while (true) {
       yield await this.next();
     }
@@ -69,6 +68,10 @@ export class krnlMessageStream {
 
 //////////////////////////////////////// KRNL EMITTER ////////////////////////////////////////
 export class krnlEmitter {
+  stream: krnlMessageStream;
+  subscribers: ((msg: krnlMessage) => void)[];
+  localAddress: krnlLocalEmitterAddress | null;
+
   constructor() {
     this.stream = new krnlMessageStream();
     this.subscribers = [];
@@ -77,17 +80,14 @@ export class krnlEmitter {
 
   /**
    * Pushes data into the emitter's stream and notifies all subscribers.
-   * @param {*} data - The data payload.
-   * @param {object} [time={}] - Optional time metadata.
-   * @param {function} [transform=(msg)=>msg] - Optional message transform.
    */
-  pushDataStreamToEmitter(data, time = {}, transform = (msg) => msg) {
+  pushDataStreamToEmitter(data: any, time: any = {}, transform: (msg: krnlMessage) => krnlMessage = (msg) => msg): void {
     const msg = new krnlMessage();
     msg.data = data;
     Object.assign(msg.time, time);
     const transformed = transform(msg);
     this.stream.push(transformed);
-    // Notify all direct subscribers
+    
     for (let i = 0; i < this.subscribers.length; i++) {
       this.subscribers[i](transformed);
     }
@@ -95,10 +95,8 @@ export class krnlEmitter {
 
   /**
    * Subscribes a handler to this emitter. Handler is called on every push.
-   * @param {function(krnlMessage): void} handler - Callback for each message.
-   * @returns {function(): void} Unsubscribe function.
    */
-  subscribe(handler) {
+  subscribe(handler: (msg: krnlMessage) => void): () => void {
     this.subscribers.push(handler);
     return () => {
       const idx = this.subscribers.indexOf(handler);
@@ -108,12 +106,10 @@ export class krnlEmitter {
 
   /**
    * Subscribes once and auto-unsubscribes after first message.
-   * @param {function(krnlMessage): void} handler
-   * @returns {function(): void}
    */
-  subscribeOnce(handler) {
-    let unsubscribe = null;
-    const wrapped = (msg) => {
+  subscribeOnce(handler: (msg: krnlMessage) => void): () => void {
+    let unsubscribe: (() => void) | null = null;
+    const wrapped = (msg: krnlMessage) => {
       if (unsubscribe) unsubscribe();
       handler(msg);
     };
@@ -124,7 +120,7 @@ export class krnlEmitter {
   /**
    * Resets the stream and removes all subscribers.
    */
-  disconnectEmitter() {
+  disconnectEmitter(): void {
     this.stream = new krnlMessageStream();
     this.subscribers = [];
   }
@@ -132,6 +128,10 @@ export class krnlEmitter {
 
 //////////////////////////////////////// KRNL COLLECTOR ////////////////////////////////////////
 export class krnlCollector {
+  emitter: krnlEmitter | null;
+  unsubscribe: (() => void) | null;
+  _directHandler?: (msg: krnlMessage) => any;
+
   constructor() {
     this.emitter = null;
     this.unsubscribe = null;
@@ -139,22 +139,18 @@ export class krnlCollector {
 
   /**
    * Subscribes this collector to an emitter. Messages are forwarded to the handler.
-   * @param {krnlEmitter} emitter - The emitter to subscribe to.
-   * @param {function(krnlMessage): void} handler - Callback for each message.
-   * @returns {function(): void} Unsubscribe function.
    */
-  subscribeTo(emitter, handler = null, options = {}) {
+  subscribeTo(emitter: krnlEmitter, handler: ((msg: krnlMessage) => void) | null = null, options: any = {}): () => void {
     const { mode = "stream" } = options;
     const resolvedHandler = typeof handler === "function"
       ? handler
-      : (msg) => {
+      : (msg: krnlMessage) => {
           if (typeof this._directHandler === "function") {
             return this._directHandler(msg);
           }
           return msg;
         };
 
-    // Disconnect from any previous emitter
     this.disconnectCollector();
     this.emitter = emitter;
     this.unsubscribe = mode === "once"
@@ -165,19 +161,16 @@ export class krnlCollector {
 
   /**
    * Collects a single message from the emitter and auto-disconnects.
-   * @param {krnlEmitter} emitter
-   * @param {number|null} timeoutMs
-   * @returns {Promise<krnlMessage>}
    */
-  collectNext(emitter, timeoutMs = null) {
+  collectNext(emitter: krnlEmitter, timeoutMs: number | null = null): Promise<krnlMessage> {
     return new Promise((resolve, reject) => {
-      let timeout = null;
+      let timeout: any = null;
       const cleanup = () => {
         if (timeout) clearTimeout(timeout);
         this.disconnectCollector();
       };
 
-      this.subscribeTo(emitter, (msg) => {
+      this.subscribeTo(emitter, (msg: krnlMessage) => {
         cleanup();
         resolve(msg);
       }, { mode: "once" });
@@ -193,23 +186,17 @@ export class krnlCollector {
 
   /**
    * Pipes messages from a connected emitter through a transform function.
-   * Used internally by broadcast functionalities.
-   * @param {object} target - The target entity (for context binding).
-   * @param {function(krnlMessage): void} fn - Processing function for each message.
-   * @returns {function(): void} Disconnect function.
    */
-  pipeTo(target, fn) {
-    // Create a self-contained emitter for this pipe
+  pipeTo(target: any, fn: (msg: krnlMessage) => void): () => void {
     const pipeEmitter = new krnlEmitter();
     this.emitter = pipeEmitter;
 
-    const unsub = pipeEmitter.subscribe((msg) => {
+    const unsub = pipeEmitter.subscribe((msg: krnlMessage) => {
       fn(msg);
     });
 
     this.unsubscribe = unsub;
 
-    // Return a disconnect function
     return () => {
       this.disconnectCollector();
     };
@@ -217,10 +204,8 @@ export class krnlCollector {
 
   /**
    * Pushes data directly into this collector's connected emitter.
-   * Used by broadcast functionalities to inject data.
-   * @param {*} data - Data to push.
    */
-  pushDataStreamToEmitter(data) {
+  pushDataStreamToEmitter(data: any): void {
     if (this.emitter === null) {
       throw new krnlError(krnlErrorCodes.COLLECTOR_NOT_SUBSCRIBED);
     }
@@ -230,7 +215,7 @@ export class krnlCollector {
   /**
    * Disconnects from the current emitter.
    */
-  disconnectCollector() {
+  disconnectCollector(): void {
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;
@@ -241,20 +226,24 @@ export class krnlCollector {
 
 //////////////////////////////////////// KRNL INTERFACE ////////////////////////////////////////
 export class krnlInterface {
-  constructor(ownerEntity) {
+  ownerEntity: any;
+  emitters: krnlEmitter[];
+  collectors: krnlCollector[];
+  emitterNames: string[];
+  collectorNames: string[];
+
+  constructor(ownerEntity: any) {
     this.ownerEntity = ownerEntity;
-    this.emitters = [];    // array — single source of truth
-    this.collectors = [];  // array — single source of truth
-    this.emitterNames = [];   // parallel name array for lookup
-    this.collectorNames = []; // parallel name array for lookup
+    this.emitters = [];    
+    this.collectors = [];  
+    this.emitterNames = [];   
+    this.collectorNames = []; 
   }
 
   /**
    * Creates and registers a new emitter.
-   * @param {string} name - Name for the emitter.
-   * @returns {krnlEmitter} The created emitter.
    */
-  createEmitter(name) {
+  createEmitter(name: string): krnlEmitter {
     const emitter = new krnlEmitter();
     this.emitters.push(emitter);
     this.emitterNames.push(name);
@@ -268,10 +257,8 @@ export class krnlInterface {
 
   /**
    * Creates and registers a new collector.
-   * @param {string} name - Name for the collector.
-   * @returns {krnlCollector} The created collector.
    */
-  createCollector(name) {
+  createCollector(name: string): krnlCollector {
     const collector = new krnlCollector();
     this.collectors.push(collector);
     this.collectorNames.push(name);
@@ -280,11 +267,8 @@ export class krnlInterface {
 
   /**
    * Gets an emitter by name.
-   * @param {string} name - Name of the emitter.
-   * @returns {krnlEmitter} The emitter.
-   * @throws {krnlError} EMITTER_NOT_FOUND if not found.
    */
-  getEmitter(name) {
+  getEmitter(name: string): krnlEmitter {
     for (let i = 0; i < this.emitterNames.length; i++) {
       if (this.emitterNames[i] === name) return this.emitters[i];
     }
@@ -293,11 +277,8 @@ export class krnlInterface {
 
   /**
    * Gets a collector by name.
-   * @param {string} name - Name of the collector.
-   * @returns {krnlCollector} The collector.
-   * @throws {krnlError} COLLECTOR_NOT_FOUND if not found.
    */
-  getCollector(name) {
+  getCollector(name: string): krnlCollector {
     for (let i = 0; i < this.collectorNames.length; i++) {
       if (this.collectorNames[i] === name) return this.collectors[i];
     }
@@ -306,9 +287,8 @@ export class krnlInterface {
 
   /**
    * Removes an emitter by name.
-   * @param {string} name 
    */
-  removeEmitter(name) {
+  removeEmitter(name: string): void {
     const idx = this.emitterNames.indexOf(name);
     if (idx >= 0) {
       this.emitters[idx].disconnectEmitter();
@@ -319,9 +299,8 @@ export class krnlInterface {
 
   /**
    * Removes a collector by name.
-   * @param {string} name 
    */
-  removeCollector(name) {
+  removeCollector(name: string): void {
     const idx = this.collectorNames.indexOf(name);
     if (idx >= 0) {
       this.collectors[idx].disconnectCollector();
@@ -332,11 +311,10 @@ export class krnlInterface {
 
   /**
    * Gets all emitters in scope (self + owner + siblings).
-   * @returns {krnlEmitter[]} Array of in-scope emitters.
    */
-  getEmittersInScope() {
+  getEmittersInScope(): krnlEmitter[] {
     const interfaces = this.getInterfacesInScope();
-    const result = [];
+    const result: krnlEmitter[] = [];
     for (let i = 0; i < interfaces.length; i++) {
       for (let j = 0; j < interfaces[i].emitters.length; j++) {
         result.push(interfaces[i].emitters[j]);
@@ -347,9 +325,8 @@ export class krnlInterface {
 
   /**
    * Gets all interfaces in scope (self, owner, and siblings).
-   * @returns {krnlInterface[]} Array of interfaces.
    */
-  getInterfacesInScope() {
+  getInterfacesInScope(): krnlInterface[] {
     const owner = this.ownerEntity.hierarchyManager
       ? this.ownerEntity.hierarchyManager.getOwnerEntity()
       : null;
@@ -372,7 +349,7 @@ export class krnlInterface {
   /**
    * Disconnects all emitters and collectors.
    */
-  dispose() {
+  dispose(): void {
     for (let i = 0; i < this.emitters.length; i++) {
       this.emitters[i].disconnectEmitter();
     }

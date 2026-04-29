@@ -1,7 +1,6 @@
 /**
- * @file K_LIB_Krnl_System_Unified_Http_Adapter.js
+ * @file K_LIB_Krnl_System_Unified_Http_Adapter.ts
  * @description Unified HTTP adapter that exposes REST, SSE, MCP, and ACP protocols.
- * Supports sharing a single port/server with WebSocket.
  */
 
 import http from 'http';
@@ -10,12 +9,21 @@ import { KrnlAcpProtocol } from './K_LIB_Krnl_Protocol_ACP.js';
 import { Logger } from './K_LIB_Krnl_Base_Concepts.js';
 
 export class krnlUnifiedHttpAdapter {
+    system: any;
+    port: number;
+    host: string;
+    server: http.Server | null;
+    _isExternalServer: boolean;
+    mcp: KrnlMcpProtocol;
+    acp: KrnlAcpProtocol;
+    enableFriendlyRouting: boolean;
+
     /**
-     * @param {import("./K_ENT_Krnl_System_Entity_Base.js").krnlSystemEntityBase} system
-     * @param {number} port
-     * @param {string} host
+     * @param system
+     * @param port
+     * @param host
      */
-    constructor(system, port, host = '0.0.0.0') {
+    constructor(system: any, port: number, host: string = '0.0.0.0') {
         this.system = system;
         this.port = port;
         this.host = host;
@@ -24,46 +32,37 @@ export class krnlUnifiedHttpAdapter {
 
         this.mcp = new KrnlMcpProtocol(system);
         this.acp = new KrnlAcpProtocol(system);
-
-        /**
-         * If true, allows direct FID routes (e.g., POST /LoadProject) 
-         * and supports flat JSON payloads.
-         */
         this.enableFriendlyRouting = false;
     }
 
     /**
-     * Starts the adapter. If an external server is provided, it attaches its handler to it.
-     * @param {http.Server} [externalServer]
+     * Starts the adapter.
      */
-    async start(externalServer = null) {
+    async start(externalServer: http.Server | null = null): Promise<void> {
         if (this.server) return;
 
         if (externalServer) {
             this.server = externalServer;
             this._isExternalServer = true;
-            // Intercept requests on the external server
-            // Ensure we are the first handler if possible, or just add a listener.
-            // Note: Since node's http.Server executes listeners in order, 
-            // if this doesn't handle it, others might.
-            this.server.on('request', (req, res) => {
+            this.server.on('request', (req: http.IncomingMessage, res: http.ServerResponse) => {
                 this._handleRequest(req, res);
             });
         } else {
-            this.server = http.createServer((req, res) => {
+            this.server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
                 this._handleRequest(req, res);
             });
 
             return new Promise((resolve, reject) => {
-                this.server.listen(this.port, this.host, () => {
+                this.server!.listen(this.port, this.host, () => {
                     Logger.log(`[${this.system.entityName}] Unified HTTP Adapter active on http://${this.host}:${this.port}`);
                     resolve();
                 });
-                this.server.on('error', reject);
+                this.server!.on('error', reject);
             });
         }
     }
-    stop() {
+
+    stop(): void {
         if (this.server && !this._isExternalServer) {
             this.server.close();
             console.log(`[${this.system.entityName}] Unified HTTP Adapter stopped.`);
@@ -71,11 +70,10 @@ export class krnlUnifiedHttpAdapter {
         this.server = null;
     }
 
-    async _handleRequest(req, res) {
-        const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+        const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
         const path = url.pathname;
 
-        // Enable CORS
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Mcp-Session-Id');
@@ -86,7 +84,6 @@ export class krnlUnifiedHttpAdapter {
             return;
         }
 
-        // Common routes
         const isKrnlRoute = path.startsWith('/call/') || 
                            path.startsWith('/sse/') || 
                            path.startsWith('/mcp') || 
@@ -95,24 +92,21 @@ export class krnlUnifiedHttpAdapter {
                            path === '/health';
 
         if (!isKrnlRoute) {
-            // ── FRIENDLY ROUTING: /:fid ───────────────────────────
             if (this.enableFriendlyRouting && req.method === 'POST') {
                 let fid = path.slice(1);
-                if (fid.endsWith('/')) fid = fid.slice(0, -1); // Handle trailing slashes
+                if (fid.endsWith('/')) fid = fid.slice(0, -1); 
 
                 if (this.system.localFunctionalities.has(fid) || this.system.remoteFunctionalities.has(fid)) {
                     try {
                         Logger.log(`[HttpAdapter] Friendly route hit: ${fid}`);
                         const body = await this._readJsonBody(req);
-                        // Smart payload wrapping: if no "data" key but other keys exist, wrap it.
-                        // We exclude empty bodies or already-wrapped bodies.
                         const data = (body && typeof body === 'object' && !('data' in body) && Object.keys(body).length > 0) 
                                      ? { data: body } 
                                      : body;
                         
-                        const result = await this.system.call(fid, data.data || data, { unwrap: false });
+                        const result = await this.system.call(fid, (data as any).data || data, { unwrap: false });
                         this._sendJson(res, 200, result);
-                    } catch (e) {
+                    } catch (e: any) {
                         Logger.error(`[HttpAdapter] Friendly route error (${fid}):`, e.message);
                         this._sendJson(res, 200, { status: "error", message: e.message });
                     }
@@ -120,13 +114,11 @@ export class krnlUnifiedHttpAdapter {
                 }
             }
 
-            // If it's not a Krnl route and not a friendly route, respond with 404.
             this._sendJson(res, 404, this.system.getNotFoundResponse(path));
             return;
         }
 
         try {
-            // ── REST: /call/:fid ───────────────────────────────────
             if (path.startsWith('/call/')) {
                 const fid = path.split('/')[2];
                 const body = await this._readJsonBody(req);
@@ -135,28 +127,24 @@ export class krnlUnifiedHttpAdapter {
                 return;
             }
 
-            // ── SSE: /sse/:fid ────────────────────────────────────
             if (path.startsWith('/sse/')) {
                 const fid = path.split('/')[2];
                 this._handleSse(req, res, fid);
                 return;
             }
 
-            // ── MCP: /mcp (Unified / Streamable) ───────────────────
             if (path === '/mcp') {
                 const body = await this._readJsonBody(req);
-                const result = await this.mcp.handleRequest(body);
+                const result = await (this.mcp as any).handleRequest(body);
                 this._sendJson(res, 200, result);
                 return;
             }
 
-            // ── HEALTH: /health ────────────────────────────────────
             if (path === '/health') {
                 this._sendJson(res, 200, { status: "ok", entity: this.system.entityName });
                 return;
             }
 
-            // ── ACP: /acp/* ───────────────────────────────────────
             if (path.startsWith('/acp')) {
                 if (path === '/acp/info' || path === '/acp') {
                     this._sendJson(res, 200, this.acp.getInfo());
@@ -164,7 +152,7 @@ export class krnlUnifiedHttpAdapter {
                     this._sendJson(res, 200, this.acp.getCapabilities());
                 } else if (path === '/acp/messages' && req.method === 'POST') {
                     const body = await this._readJsonBody(req);
-                    const result = await this.acp.handleMessage(body);
+                    const result = await (this.acp as any).handleMessage(body);
                     this._sendJson(res, 200, result);
                 } else {
                     this._sendJson(res, 404, { error: "ACP route not found" });
@@ -172,19 +160,18 @@ export class krnlUnifiedHttpAdapter {
                 return;
             }
 
-            // ── MANIFEST: /manifest ───────────────────────────────
             if (path === '/manifest') {
                 this._sendJson(res, 200, this.system.getManifest());
                 return;
             }
 
-        } catch (error) {
+        } catch (error: any) {
             Logger.error(`[HttpAdapter] Fatal handler error ${path}:`, error);
             this._sendJson(res, 200, { status: "error", message: error.message });
         }
     }
 
-    _handleSse(req, res, fid) {
+    _handleSse(req: http.IncomingMessage, res: http.ServerResponse, fid: string): void {
         res.writeHead(200, {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
@@ -199,7 +186,7 @@ export class krnlUnifiedHttpAdapter {
         }
 
         const stateEmitter = functionality.emitters.get('state:changed');
-        const unsubscribe = stateEmitter?.subscribe((msg) => {
+        const unsubscribe = stateEmitter?.subscribe((msg: any) => {
             res.write(`data: ${JSON.stringify(msg.data)}\n\n`);
         });
 
@@ -208,7 +195,6 @@ export class krnlUnifiedHttpAdapter {
             res.end();
         });
 
-        // Heartbeat
         const interval = setInterval(() => {
             if (res.writable) {
                 res.write(': keepalive\n\n');
@@ -218,12 +204,12 @@ export class krnlUnifiedHttpAdapter {
         req.on('close', () => clearInterval(interval));
     }
 
-    _sendJson(res, status, data) {
+    _sendJson(res: http.ServerResponse, status: number, data: any): void {
         res.writeHead(status, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(data));
     }
 
-    _readJsonBody(req) {
+    _readJsonBody(req: http.IncomingMessage): Promise<any> {
         return new Promise((resolve, reject) => {
             let body = '';
             req.on('data', chunk => { body += chunk.toString(); });

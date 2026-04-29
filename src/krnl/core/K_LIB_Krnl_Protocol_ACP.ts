@@ -1,22 +1,23 @@
 /**
- * @file K_LIB_Krnl_Protocol_ACP.js
+ * @file K_LIB_Krnl_Protocol_ACP.ts
  * @description Helper for Agent Communication Protocol (ACP) integration.
- * Enables agent-to-agent interoperability.
  */
 
 export class KrnlAcpProtocol {
+    system: any;
+
     /**
-     * @param {import("./K_ENT_Krnl_System_Entity_Base.js").krnlSystemEntityBase} system
+     * @param system
      */
-    constructor(system) {
+    constructor(system: any) {
         this.system = system;
     }
 
     /**
      * ACP Information endpoint.
      */
-    getInfo() {
-        const manifest = this.system.getManifest();
+    getInfo(): any {
+        const manifest = (this.system as any).getManifest();
         return {
             agentId: this.system.entityName,
             type: manifest.systemType,
@@ -29,15 +30,15 @@ export class KrnlAcpProtocol {
     /**
      * ACP Capabilities endpoint.
      */
-    getCapabilities() {
-        const manifest = this.system.getManifest();
+    getCapabilities(): any {
+        const manifest = (this.system as any).getManifest();
         return {
-            services: manifest.inputs.api.map(fid => ({
+            services: Object.keys(manifest.inputs.api).map(fid => ({
                 id: fid,
                 name: fid,
                 type: "functionality"
             })),
-            events: manifest.outputs.events.map(eid => ({
+            events: manifest.outputs.events.map((eid: string) => ({
                 id: eid,
                 type: "event"
             }))
@@ -46,12 +47,10 @@ export class KrnlAcpProtocol {
 
     /**
      * ACP Message endpoint handler.
-     * Maps incoming ACP messages to Krnl calls.
      */
-    async handleMessage(payload) {
-        const { target, action, data, metadata = {} } = payload;
+    async handleMessage(payload: any): Promise<any> {
+        const { action, data } = payload;
         
-        // In ACP, the 'action' is usually the tool/functionality name
         try {
             const result = await this.system.call(action, data);
             return {
@@ -62,7 +61,7 @@ export class KrnlAcpProtocol {
                     timestamp: Date.now()
                 }
             };
-        } catch (error) {
+        } catch (error: any) {
             return {
                 status: "error",
                 error: error.message,

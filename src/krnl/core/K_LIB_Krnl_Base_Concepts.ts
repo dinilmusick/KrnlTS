@@ -2,7 +2,7 @@ import fs from 'fs';
 
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_LIB_Krnl_Base_Concepts.js
+ * @file K_LIB_Krnl_Base_Concepts.ts
  * @description These are building blocks for the basic structures that define the Krnl system.
  */
 
@@ -11,16 +11,16 @@ import fs from 'fs';
  * Unified logger with support for synchronous flushing.
  */
 export class Logger {
-  static log(...args) {
+  static log(...args: any[]): void {
     console.log(`[${new Date().toISOString()}]`, ...args);
   }
 
-  static error(...args) {
+  static error(...args: any[]): void {
     console.error(`[${new Date().toISOString()}] ERROR:`, ...args);
     this.flush();
   }
 
-  static flush() {
+  static flush(): void {
     if (typeof process !== 'undefined') {
       try {
         // Force synchronous flush of stdout and stderr
@@ -39,25 +39,23 @@ export class Logger {
 
 //////////////////////////////////////// CREATE ENUM ////////////////////////////////////////
 /**
- * Enum Template Object :
- * Template enum "class"
+ * Enum Template Object
  */
 const EnumTemplate = {
-  types: [],
-  listTypes() {
+  types: [] as string[],
+  listTypes(): readonly string[] {
     return Object.freeze([...this.types]);
   },
-  getTypeID(typeName) {
-    return this[typeName] !== undefined ? this[typeName] : -1;
+  getTypeID(typeName: string): number {
+    return (this as any)[typeName] !== undefined ? (this as any)[typeName] : -1;
   },
 };
 
 /**
  * Creates an immutable enum object from a list of type names.
- * @param {string[]} typeNames - An array of strings representing the enum type names.
- * @returns {Readonly<object>} An immutable enum object.
+ * @param typeNames - An array of strings representing the enum type names.
  */
-export function createEnum(typeNames) {
+export function createEnum<T extends string>(typeNames: T[]): Readonly<Record<T, number> & typeof EnumTemplate> {
   const enumObj = Object.create(EnumTemplate);
   enumObj.types = typeNames;
   typeNames.forEach((name, index) => {
@@ -67,44 +65,47 @@ export function createEnum(typeNames) {
 }
 
 //////////////////////////////////////// KRNL SYSTEM TYPES ////////////////////////////////////////
-export const krnlSystemTypes = Object.freeze(
-  createEnum(["qwnsr", "brnda", "symba", "mosy"])
-);
+export const krnlSystemTypes = createEnum(["qwnsr", "brnda", "symba", "mosy"]);
 
 //////////////////////////////////////// KRNL SERVICE SUITES ////////////////////////////////////////
-export const krnlServiceSuites = Object.freeze(
-  createEnum(["UNIFIED_HTTP"])
-);
+export const krnlServiceSuites = createEnum(["UNIFIED_HTTP"]);
 
 export const krnlServiceSuitePorts = Object.freeze({
   UNIFIED_HTTP: 1
-});
+} as const);
 
 //////////////////////////////////////// KRNL PRIMITIVE DATA TYPES ////////////////////////////////////////
-export const krnlPrimitiveDataTypes = Object.freeze(
-  createEnum(["audio", "control-signal", "video", "MIDI", "OSC", "text", "trigger"])
-);
+export const krnlPrimitiveDataTypes = createEnum(["audio", "control-signal", "video", "MIDI", "OSC", "text", "trigger"]);
 
 //////////////////////////////////////// KRNL DATA ////////////////////////////////////////
 export class krnlData {
   // --- Transport semantics ---
-  isSignal = false; // boolean: stream-like vs discrete
-  dataType = 0; // enum index: ["audio","control-signal","video","MIDI","OSC","text","trigger",...]
-  transportKind = "single"; // "single" | "blob" | "stream"
+  isSignal: boolean = false; 
+  dataType: number = 0; 
+  transportKind: "single" | "blob" | "stream" = "single"; 
 
   // --- Cross-cutting metadata ---
-  timestamp = 0; // logical time
-  correlationId = null; // string | number | null
-  sourceId = null; // string | number | null
-  tags = null; // optional string[] (can stay null on MCUs)
+  timestamp: number = 0; 
+  correlationId: string | number | null = null;
+  sourceId: string | number | null = null;
+  tags: string[] | null = null; 
 
   // --- Type-specific payload ---
-  data = null; // payload object / buffer / frame
-};
+  data: any = null; 
+}
 
 //////////////////////////////////////// KRNL DATA FACTORY ////////////////////////////////////////
 export class krnlDataFactory {
-  static audio(opts) {
+  static audio(opts: {
+    isSignal?: boolean,
+    transportKind?: "single" | "blob" | "stream",
+    codec?: string,
+    sampleRate?: number,
+    channels?: number,
+    frameIndex?: number,
+    buffer?: any,
+    extra?: object
+  }): krnlData {
     const {
       isSignal = true,
       transportKind = "stream",
@@ -132,7 +133,15 @@ export class krnlDataFactory {
     return d;
   }
 
-  static control(opts) {
+  static control(opts: {
+    name: string,
+    value: any,
+    unit?: string | null,
+    curve?: string,
+    transportKind?: "single" | "blob" | "stream",
+    isSignal?: boolean,
+    extra?: object
+  }): krnlData {
     const {
       name,
       value,
@@ -151,7 +160,14 @@ export class krnlDataFactory {
     return d;
   }
 
-  static midi(opts) {
+  static midi(opts: {
+    status: number, data1: number, data2: number,
+    channel?: number,
+    raw?: any,
+    transportKind?: "single" | "blob" | "stream",
+    isSignal?: boolean,
+    extra?: object
+  }): krnlData {
     const {
       status, data1, data2,
       channel = 0,
@@ -169,7 +185,15 @@ export class krnlDataFactory {
     return d;
   }
 
-  static text(opts) {
+  static text(opts: {
+    text: string,
+    encoding?: string,
+    language?: string,
+    contentType?: string,
+    transportKind?: "single" | "blob" | "stream",
+    isSignal?: boolean,
+    extra?: object
+  }): krnlData {
     const {
       text,
       encoding = "utf-8",
@@ -188,7 +212,13 @@ export class krnlDataFactory {
     return d;
   }
 
-  static trigger(opts) {
+  static trigger(opts: {
+    name: string,
+    value?: number,
+    transportKind?: "single" | "blob" | "stream",
+    isSignal?: boolean,
+    extra?: object
+  }): krnlData {
     const {
       name,
       value = 1,

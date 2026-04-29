@@ -1,6 +1,6 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_LIB_Krnl_Functionality_Types.js
+ * @file K_LIB_Krnl_Functionality_Types.ts
  * @description defines Logic Atoms with Visibility control for Recursive Bubbling.
  */
 
@@ -10,17 +10,15 @@ import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
 /**
  * Helper to ensure state isolation.
  */
-function cloneState(source) {
+function cloneState(source: any): any {
   return JSON.parse(JSON.stringify(source));
 }
 
 /**
  * TRANSPORT ADAPTER INTERFACE
  */
-export class krnlTransportAdapter {
-  async call(targetFunction, input, opts) {
-    throw new Error("TransportAdapter.call() not implemented.");
-  }
+export abstract class krnlTransportAdapter {
+  abstract call(targetFunction: string, input: any, opts: any): Promise<any>;
 }
 
 /**
@@ -28,12 +26,14 @@ export class krnlTransportAdapter {
  * Default adapter for in-memory entity communication.
  */
 export class MemoryTransportAdapter extends krnlTransportAdapter {
-  constructor(targetEntity) {
+  targetEntity: any;
+
+  constructor(targetEntity: any) {
     super();
     this.targetEntity = targetEntity;
   }
 
-  async call(targetFunction, input, opts) {
+  async call(targetFunction: string, input: any, opts: any): Promise<any> {
     if (!this.targetEntity || typeof this.targetEntity.call !== 'function') {
       throw new Error("MemoryTransportAdapter: Invalid target entity.");
     }
@@ -46,12 +46,31 @@ export class MemoryTransportAdapter extends krnlTransportAdapter {
  * The fundamental unit of logic.
  */
 export class krnlLocalFunctionality {
-  constructor(config = {}) {
+  id: string;
+  visibility: string;
+  initialState: any;
+  api: Function;
+  isLocal: boolean = true;
+  sourcePath: string | null;
+  helpers: Map<string, any>;
+  emitters: Map<string, krnlEmitter>;
+  schema: any;
+  lifecycle: {
+    beginning?: Function;
+    during?: Function;
+    end?: Function;
+    failure?: Function;
+    teardown?: Function;
+  };
+  state: any;
+  hostEntity: any;
+
+  constructor(config: any = {}) {
     const {
       id,
       visibility = 'public', // Default: public (bubbles up)
       initialState = {},
-      api = (input) => input,
+      api = (input: any) => input,
       helpers = {},
       emitters = {},
       events = {},
@@ -67,7 +86,6 @@ export class krnlLocalFunctionality {
     this.visibility = visibility;
     this.initialState = initialState;
     this.api = api;
-    this.isLocal = true;
     this.sourcePath = sourcePath;
     this.helpers = new Map(Object.entries(helpers));
     this.emitters = new Map();
@@ -93,9 +111,9 @@ export class krnlLocalFunctionality {
     this.state = this._createObservedState(cloneState(initialState));
   }
 
-  _createObservedState(initialState) {
+  _createObservedState(initialState: any): any {
     const self = this;
-    const handler = {
+    const handler: ProxyHandler<any> = {
       get(target, prop, receiver) {
         const value = Reflect.get(target, prop, receiver);
         if (typeof value === 'object' && value !== null) {
@@ -106,14 +124,14 @@ export class krnlLocalFunctionality {
       set(target, prop, value, receiver) {
         const result = Reflect.set(target, prop, value, receiver);
         if (result) {
-          self._notifyStateChanged(prop, value);
+          self._notifyStateChanged(prop as string, value);
         }
         return result;
       },
       deleteProperty(target, prop) {
         const result = Reflect.deleteProperty(target, prop);
         if (result) {
-          self._notifyStateChanged(prop, undefined);
+          self._notifyStateChanged(prop as string, undefined);
         }
         return result;
       }
@@ -121,10 +139,10 @@ export class krnlLocalFunctionality {
     return new Proxy(initialState, handler);
   }
 
-  _notifyStateChanged(prop, value) {
+  _notifyStateChanged(prop: string, value: any): void {
     const stateEmitter = this.emitters.get('state:changed');
     if (stateEmitter) {
-      stateEmitter.pushDataStreamToEmitter({
+      (stateEmitter as any).pushDataStreamToEmitter({
         prop,
         value,
         state: this.state, // This is the proxied state
@@ -136,9 +154,8 @@ export class krnlLocalFunctionality {
   /**
    * Updates the visibility and handles interface registration/deregistration.
    * This is the mechanism used to STOP bubbling at a certain level.
-   * @param {'public'|'private'} v 
    */
-  setVisibility(v) {
+  setVisibility(v: string): void {
     const oldVisibility = this.visibility;
     this.visibility = v;
 
@@ -148,43 +165,43 @@ export class krnlLocalFunctionality {
       // Transition to Public: Register in interface
       this._registerInInterface();
       // Notify owner to bubble it up
-      const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
-      if (owner) owner._onComponentFunctionalityAdded(this.hostEntity, this);
+      const owner = (this.hostEntity as any).hierarchyManager.getOwnerEntity();
+      if (owner) (owner as any)._onComponentFunctionalityAdded(this.hostEntity, this);
     } else if (oldVisibility === 'public' && v === 'private') {
       this._unregisterFromInterface();
-      const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
-      if (owner && owner._onComponentFunctionalityRemoved) {
-        owner._onComponentFunctionalityRemoved(this.hostEntity, this.id);
+      const owner = (this.hostEntity as any).hierarchyManager.getOwnerEntity();
+      if (owner && (owner as any)._onComponentFunctionalityRemoved) {
+        (owner as any)._onComponentFunctionalityRemoved(this.hostEntity, this.id);
       }
     }
   }
 
-  _unregisterFromInterface() {
+  _unregisterFromInterface(): void {
     const entity = this.hostEntity;
     if (!entity) return;
-    entity.interface.removeCollector(this.id);
+    (entity as any).interface.removeCollector(this.id);
     this.emitters.forEach((_, eid) => {
-      entity.interface.removeEmitter(`${this.id}:${eid}`);
+      (entity as any).interface.removeEmitter(`${this.id}:${eid}`);
     });
   }
 
-  _registerInInterface() {
+  _registerInInterface(): void {
     const entity = this.hostEntity;
     // Register API as input
-    const mainCollector = entity.interface.createCollector(this.id);
-    mainCollector._directHandler = async (msg) => {
+    const mainCollector = (entity as any).interface.createCollector(this.id);
+    mainCollector._directHandler = async (msg: any) => {
       const caller = msg.metadata?.caller || 'anonymous';
       return await this.execute(msg.data, { caller });
     };
 
     // Register Emitters as outputs
     this.emitters.forEach((emitter, eid) => {
-      const interfaceEmitter = entity.interface.createEmitter(`${this.id}:${eid}`);
-      emitter.subscribe((msg) => interfaceEmitter.pushDataStreamToEmitter(msg.data, msg.time));
+      const interfaceEmitter = (entity as any).interface.createEmitter(`${this.id}:${eid}`);
+      emitter.subscribe((msg: any) => (interfaceEmitter as any).pushDataStreamToEmitter(msg.data, msg.time));
     });
   }
 
-  bindToEntity(entity) {
+  bindToEntity(entity: any): this {
     this.hostEntity = entity;
     if (this.visibility === 'public') {
       this._registerInInterface();
@@ -201,7 +218,7 @@ export class krnlLocalFunctionality {
     return this;
   }
 
-  teardown() {
+  teardown(): void {
     if (typeof this.lifecycle.teardown === "function") {
       this.lifecycle.teardown({
         state: this.state,
@@ -213,7 +230,7 @@ export class krnlLocalFunctionality {
     }
   }
 
-  async execute(input, opts = {}) {
+  async execute(input: any, opts: any = {}): Promise<any> {
     const caller = opts.caller || 'default';
     const activeState = this.state;
     const trace = (telemetry.enabled) 
@@ -232,7 +249,7 @@ export class krnlLocalFunctionality {
             throw new Error(`Input validation failed.`);
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         const msg = err.errors ? JSON.stringify(err.errors) : err.message;
         throw new Error(`[KrnlSchemaError] Input validation failed for "${this.id}": ${msg}`);
       }
@@ -262,7 +279,7 @@ export class krnlLocalFunctionality {
               console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}".`);
             }
           }
-        } catch (err) {
+        } catch (err: any) {
           const msg = err.errors ? JSON.stringify(err.errors) : err.message;
           console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}": ${msg}`);
         }
@@ -275,7 +292,7 @@ export class krnlLocalFunctionality {
         status: 'success',
         payload: result
       };
-    } catch (err) {
+    } catch (err: any) {
       // --- TELEMETRY END (ERROR) ---
       if (trace) telemetry.endTrace(this.id, trace, false);
 
@@ -297,13 +314,20 @@ export class krnlLocalFunctionality {
  * Proxy for recursive bubbling.
  */
 export class krnlRemoteFunctionality {
-  constructor(config = {}) {
+  id: string;
+  targetFunction: string;
+  targetEntity: any;
+  visibility: string;
+  isLocal: boolean = false;
+  transport: krnlTransportAdapter;
+  hostEntity: any;
+
+  constructor(config: any = {}) {
     const { id, targetEntity, targetFunction, transport, visibility = 'public' } = config;
     this.id = id;
     this.targetFunction = targetFunction || id;
-    this.targetEntity = targetEntity; // Store the target entity for identification
+    this.targetEntity = targetEntity; 
     this.visibility = visibility;
-    this.isLocal = false;
 
     if (transport) {
       this.transport = transport;
@@ -314,43 +338,43 @@ export class krnlRemoteFunctionality {
     }
   }
 
-  setVisibility(v) {
+  setVisibility(v: string): void {
     const oldVisibility = this.visibility;
     this.visibility = v;
     if (this.hostEntity && oldVisibility === 'private' && v === 'public') {
       this._registerInInterface();
-      const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
-      if (owner) owner._onComponentFunctionalityAdded(this.hostEntity, this);
+      const owner = (this.hostEntity as any).hierarchyManager.getOwnerEntity();
+      if (owner) (owner as any)._onComponentFunctionalityAdded(this.hostEntity, this);
     } else if (this.hostEntity && oldVisibility === 'public' && v === 'private') {
       this._unregisterFromInterface();
-      const owner = this.hostEntity.hierarchyManager.getOwnerEntity();
-      if (owner && owner._onComponentFunctionalityRemoved) {
-        owner._onComponentFunctionalityRemoved(this.hostEntity, this.id);
+      const owner = (this.hostEntity as any).hierarchyManager.getOwnerEntity();
+      if (owner && (owner as any)._onComponentFunctionalityRemoved) {
+        (owner as any)._onComponentFunctionalityRemoved(this.hostEntity, this.id);
       }
     }
   }
 
-  _unregisterFromInterface() {
+  _unregisterFromInterface(): void {
     if (!this.hostEntity) return;
-    this.hostEntity.interface.removeCollector(this.id);
+    (this.hostEntity as any).interface.removeCollector(this.id);
   }
 
-  _registerInInterface() {
-    const mainCollector = this.hostEntity.interface.createCollector(this.id);
-    mainCollector._directHandler = async (msg) => {
+  _registerInInterface(): void {
+    const mainCollector = (this.hostEntity as any).interface.createCollector(this.id);
+    mainCollector._directHandler = async (msg: any) => {
       const caller = msg.metadata?.caller || 'anonymous';
       return await this.execute(msg.data, { caller });
     };
   }
 
-  bindToEntity(entity) {
+  bindToEntity(entity: any): void {
     this.hostEntity = entity;
     if (this.visibility === 'public') {
       this._registerInInterface();
     }
   }
 
-  async execute(input, opts = {}) {
+  async execute(input: any, opts: any = {}): Promise<any> {
     return await this.transport.call(this.targetFunction, input, { ...opts, caller: this.hostEntity.entityName });
   }
 }

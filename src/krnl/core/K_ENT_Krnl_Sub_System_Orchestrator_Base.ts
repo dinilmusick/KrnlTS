@@ -1,19 +1,14 @@
 //////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
 /**
- * @file K_ENT_Krnl_Sub_System_Orchestrator_Base.js
+ * @file K_ENT_Krnl_Sub_System_Orchestrator_Base.ts
  * @description Defines the base class for all sub-system orchestrator entities in the Krnl ecosystem.
  */
 
 import { krnlEntityBase } from "./K_ENT_Krnl_Entity_Base.js";
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////// MAIN API FUNCTIONS AND DATA ////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 //////////////////////////////////////// KRNL SUB SYSTEM ORCHESTRATOR BASE ////////////////////////////////////////
 export class krnlSubSystemOrchestratorBase extends krnlEntityBase {
-  constructor(name, owner) {
-    // A sub-system orchestrator must have a system orchestrator as its owner.
+  constructor(name: string, owner: krnlEntityBase) {
     if (!owner) {
       throw new Error("A sub-system orchestrator must be owned by a parent entity.");
     }
