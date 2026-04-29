@@ -31,6 +31,13 @@ export const krnlErrorCodes = Object.freeze({
 
   // Hierarchy errors (400-499)
   ENTITY_NOT_FOUND: 400,
+
+  // Networking/RPC errors (500-599)
+  ERR_NET_RPC_TIMEOUT_EXCEEDED: 500,
+  ERR_NET_RPC_NETWORK_ERROR: 501,
+  ERR_NET_RPC_INTERNAL_SERVER_ERROR: 502,
+  ERR_SYS_ENTITY_BUSY_RESERVED: 503,
+  ERR_COM_INGRESS_ROUTE_NOT_FOUND: 504,
 } as const);
 
 //////////////////////////////////////// ERROR MESSAGES ////////////////////////////////////////
@@ -40,37 +47,49 @@ export const krnlErrorCodes = Object.freeze({
 export const krnlErrorMessages: Record<number, string> = Object.freeze({
   // Enum
   [krnlErrorCodes.ENUM_ID_NOT_FOUND]:
-    "Enum: ID not found. The requested enum type is not defined.",
+    "ERR_LIB_ENUM_ID_NOT_FOUND",
 
   // State
   [krnlErrorCodes.STATE_NOT_FOUND]:
-    "State: No state found with the given name.",
+    "ERR_LIB_STATE_NOT_FOUND",
   [krnlErrorCodes.STATE_DUPLICATE_NAME]:
-    "State: A state with this name already exists.",
+    "ERR_LIB_STATE_DUPLICATE_NAME",
   [krnlErrorCodes.STATE_INDEX_OUT_OF_RANGE]:
-    "State: Index is out of range of the states array.",
+    "ERR_LIB_STATE_INDEX_OUT_OF_RANGE",
 
   // Functionality
   [krnlErrorCodes.FUNCTIONALITY_NOT_DEFINED]:
-    "Functionality: The requested functionality is not defined.",
+    "ERR_LIB_FUNCTIONALITY_NOT_DEFINED",
   [krnlErrorCodes.FUNCTIONALITY_ALREADY_DEFINED]:
-    "Functionality: A functionality with this name is already defined.",
+    "ERR_LIB_FUNCTIONALITY_ALREADY_DEFINED",
   [krnlErrorCodes.FUNCTIONALITY_INSTANCE_NOT_FOUND]:
-    "Functionality: The requested functionality instance was not found.",
+    "ERR_LIB_FUNCTIONALITY_INSTANCE_NOT_FOUND",
   [krnlErrorCodes.REMOTE_EXECUTION_FAILED]:
-    "Functionality: Remote execution failed.",
+    "ERR_LIB_REMOTE_EXECUTION_FAILED",
 
   // Interface
   [krnlErrorCodes.EMITTER_NOT_FOUND]:
-    "Interface: No emitter found with the given name.",
+    "ERR_INT_EMITTER_NOT_FOUND",
   [krnlErrorCodes.COLLECTOR_NOT_FOUND]:
-    "Interface: No collector found with the given name.",
+    "ERR_INT_COLLECTOR_NOT_FOUND",
   [krnlErrorCodes.COLLECTOR_NOT_SUBSCRIBED]:
-    "Interface: Collector is not subscribed to any emitter.",
+    "ERR_INT_COLLECTOR_NOT_SUBSCRIBED",
 
   // Hierarchy
   [krnlErrorCodes.ENTITY_NOT_FOUND]:
-    "Hierarchy: No entity found with the given name.",
+    "ERR_SYS_ENTITY_NOT_FOUND",
+
+  // Networking/RPC
+  [krnlErrorCodes.ERR_NET_RPC_TIMEOUT_EXCEEDED]:
+    "ERR_NET_RPC_TIMEOUT_EXCEEDED",
+  [krnlErrorCodes.ERR_NET_RPC_NETWORK_ERROR]:
+    "ERR_NET_RPC_NETWORK_ERROR",
+  [krnlErrorCodes.ERR_NET_RPC_INTERNAL_SERVER_ERROR]:
+    "ERR_NET_RPC_INTERNAL_SERVER_ERROR",
+  [krnlErrorCodes.ERR_SYS_ENTITY_BUSY_RESERVED]:
+    "ERR_SYS_ENTITY_BUSY_RESERVED",
+  [krnlErrorCodes.ERR_COM_INGRESS_ROUTE_NOT_FOUND]:
+    "ERR_COM_INGRESS_ROUTE_NOT_FOUND",
 });
 
 //////////////////////////////////////// KRNL ERROR ////////////////////////////////////////

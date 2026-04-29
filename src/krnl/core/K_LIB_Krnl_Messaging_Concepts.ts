@@ -36,6 +36,12 @@ export class krnlLocalEmitterAddress {
 export class krnlMessage {
   data: any = null;
   time: { day: number, hour: number, minute: number, seconds: number, millisecond: number } = { day: 0, hour: 0, minute: 0, seconds: 0, millisecond: 0 };
+  
+  // Tracing metadata aligned with core lingo
+  sourceEmitterAddress: string | null = null;
+  targetCollectorAddress: string | null = null;
+  traceCorrelationId: string | null = null;
+  originSystemAddress: string | null = null;
 }
 
 //////////////////////////////////////// KRNL MESSAGE STREAM ////////////////////////////////////////

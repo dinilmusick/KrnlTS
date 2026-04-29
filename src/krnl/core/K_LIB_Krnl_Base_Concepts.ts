@@ -92,6 +92,12 @@ export class krnlData {
 
   // --- Type-specific payload ---
   data: any = null; 
+
+  // --- Tracing metadata aligned with core lingo ---
+  sourceEmitterAddress: string | null = null;
+  targetCollectorAddress: string | null = null;
+  traceCorrelationId: string | null = null;
+  originSystemAddress: string | null = null;
 }
 
 //////////////////////////////////////// KRNL DATA FACTORY ////////////////////////////////////////
@@ -233,5 +239,29 @@ export class krnlDataFactory {
     d.dataType = krnlPrimitiveDataTypes.getTypeID("trigger");
     d.data = { name, value, ...extra };
     return d;
+  }
+}
+
+//////////////////////////////////////// KRNL POLICY ////////////////////////////////////////
+/**
+ * A minimalist policy structure for resilience (retries, timeouts).
+ * Designed for cross-language portability.
+ */
+export class KrnlPolicy {
+  maxRetries: number = 0;
+  timeoutMs: number = 5000;
+  retryDelayMs: number = 1000;
+  backoffStrategy: "LINEAR" | "EXPONENTIAL" = "LINEAR";
+
+  constructor(opts: Partial<KrnlPolicy> = {}) {
+    Object.assign(this, opts);
+  }
+
+  static default(): KrnlPolicy {
+    return new KrnlPolicy();
+  }
+
+  static resilient(): KrnlPolicy {
+    return new KrnlPolicy({ maxRetries: 3, timeoutMs: 10000, retryDelayMs: 1000, backoffStrategy: "EXPONENTIAL" });
   }
 }

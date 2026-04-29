@@ -70,6 +70,10 @@ declare class krnlMessage {
         seconds: number;
         millisecond: number;
     };
+    sourceEmitterAddress: string | null;
+    targetCollectorAddress: string | null;
+    traceCorrelationId: string | null;
+    originSystemAddress: string | null;
 }
 declare class krnlMessageStream {
     #private;
@@ -374,6 +378,124 @@ declare class krnlSubSystemOrchestratorBase extends krnlEntityBase {
 }
 
 /**
+ * @file K_LIB_Krnl_Base_Concepts.ts
+ * @description These are building blocks for the basic structures that define the Krnl system.
+ */
+/**
+ * Unified logger with support for synchronous flushing.
+ */
+declare class Logger {
+    static log(...args: any[]): void;
+    static error(...args: any[]): void;
+    static flush(): void;
+}
+/**
+ * Enum Template Object
+ */
+declare const EnumTemplate: {
+    types: string[];
+    listTypes(): readonly string[];
+    getTypeID(typeName: string): number;
+};
+/**
+ * Creates an immutable enum object from a list of type names.
+ * @param typeNames - An array of strings representing the enum type names.
+ */
+declare function createEnum<T extends string>(typeNames: T[]): Readonly<Record<T, number> & typeof EnumTemplate>;
+declare const krnlSystemTypes: Readonly<Record<"qwnsr" | "brnda" | "symba" | "mosy", number> & {
+    types: string[];
+    listTypes(): readonly string[];
+    getTypeID(typeName: string): number;
+}>;
+declare const krnlServiceSuites: Readonly<Record<"UNIFIED_HTTP", number> & {
+    types: string[];
+    listTypes(): readonly string[];
+    getTypeID(typeName: string): number;
+}>;
+declare const krnlServiceSuitePorts: Readonly<{
+    readonly UNIFIED_HTTP: 1;
+}>;
+declare const krnlPrimitiveDataTypes: Readonly<Record<"audio" | "control-signal" | "video" | "MIDI" | "OSC" | "text" | "trigger", number> & {
+    types: string[];
+    listTypes(): readonly string[];
+    getTypeID(typeName: string): number;
+}>;
+declare class krnlData {
+    isSignal: boolean;
+    dataType: number;
+    transportKind: "single" | "blob" | "stream";
+    timestamp: number;
+    correlationId: string | number | null;
+    sourceId: string | number | null;
+    tags: string[] | null;
+    data: any;
+    sourceEmitterAddress: string | null;
+    targetCollectorAddress: string | null;
+    traceCorrelationId: string | null;
+    originSystemAddress: string | null;
+}
+declare class krnlDataFactory {
+    static audio(opts: {
+        isSignal?: boolean;
+        transportKind?: "single" | "blob" | "stream";
+        codec?: string;
+        sampleRate?: number;
+        channels?: number;
+        frameIndex?: number;
+        buffer?: any;
+        extra?: object;
+    }): krnlData;
+    static control(opts: {
+        name: string;
+        value: any;
+        unit?: string | null;
+        curve?: string;
+        transportKind?: "single" | "blob" | "stream";
+        isSignal?: boolean;
+        extra?: object;
+    }): krnlData;
+    static midi(opts: {
+        status: number;
+        data1: number;
+        data2: number;
+        channel?: number;
+        raw?: any;
+        transportKind?: "single" | "blob" | "stream";
+        isSignal?: boolean;
+        extra?: object;
+    }): krnlData;
+    static text(opts: {
+        text: string;
+        encoding?: string;
+        language?: string;
+        contentType?: string;
+        transportKind?: "single" | "blob" | "stream";
+        isSignal?: boolean;
+        extra?: object;
+    }): krnlData;
+    static trigger(opts: {
+        name: string;
+        value?: number;
+        transportKind?: "single" | "blob" | "stream";
+        isSignal?: boolean;
+        extra?: object;
+    }): krnlData;
+}
+/**
+ * A minimalist policy structure for resilience (retries, timeouts).
+ * Designed for cross-language portability.
+ */
+declare class KrnlPolicy {
+    maxRetries: number;
+    timeoutMs: number;
+    retryDelayMs: number;
+    backoffStrategy: "LINEAR" | "EXPONENTIAL";
+    constructor(opts?: Partial<KrnlPolicy>);
+    static default(): KrnlPolicy;
+    static resilient(): KrnlPolicy;
+}
+
+/**
  * @file K_LIB_Krnl_System_Comm_Component.ts
  *
  * @description The uniform P2P communication bridge for all Krnl system orchestrators.
@@ -391,7 +513,7 @@ declare class WebSocketTransportAdapter extends krnlTransportAdapter {
      * @param remoteAddress - "host:port" of the remote system.
      */
     constructor(commComponent: krnlSystemCommComponent, remoteAddress: string);
-    call(targetFunction: string, input: any, opts: any): Promise<any>;
+    call(targetFunction: string, input: any, opts?: any): Promise<any>;
 }
 declare class krnlSystemCommComponent {
     ownerEntity: any;
@@ -429,7 +551,7 @@ declare class krnlSystemCommComponent {
     registerWsIngress(routeId: string, localCollectorName: string): void;
     defineRpc(methodName: string, handler: Function): void;
     setIntrospectionProvider(providerFn: () => Promise<any>): void;
-    callWsRpc(remoteAddress: string, method: string, params?: any, timeoutMs?: number): Promise<any>;
+    callWsRpc(remoteAddress: string, method: string, params?: any, policy?: KrnlPolicy): Promise<any>;
     _handleRpcRequest(ws: any, msg: any): Promise<void>;
     _handleIntrospect(ws: any, msg: any): Promise<void>;
     _handleRpcResponse(msg: any): void;
@@ -629,107 +751,6 @@ declare class krnlNetworkOrchestratorEntityBase extends krnlSystemEntityBase {
 }
 
 /**
- * @file K_LIB_Krnl_Base_Concepts.ts
- * @description These are building blocks for the basic structures that define the Krnl system.
- */
-/**
- * Unified logger with support for synchronous flushing.
- */
-declare class Logger {
-    static log(...args: any[]): void;
-    static error(...args: any[]): void;
-    static flush(): void;
-}
-/**
- * Enum Template Object
- */
-declare const EnumTemplate: {
-    types: string[];
-    listTypes(): readonly string[];
-    getTypeID(typeName: string): number;
-};
-/**
- * Creates an immutable enum object from a list of type names.
- * @param typeNames - An array of strings representing the enum type names.
- */
-declare function createEnum<T extends string>(typeNames: T[]): Readonly<Record<T, number> & typeof EnumTemplate>;
-declare const krnlSystemTypes: Readonly<Record<"qwnsr" | "brnda" | "symba" | "mosy", number> & {
-    types: string[];
-    listTypes(): readonly string[];
-    getTypeID(typeName: string): number;
-}>;
-declare const krnlServiceSuites: Readonly<Record<"UNIFIED_HTTP", number> & {
-    types: string[];
-    listTypes(): readonly string[];
-    getTypeID(typeName: string): number;
-}>;
-declare const krnlServiceSuitePorts: Readonly<{
-    readonly UNIFIED_HTTP: 1;
-}>;
-declare const krnlPrimitiveDataTypes: Readonly<Record<"audio" | "control-signal" | "video" | "MIDI" | "OSC" | "text" | "trigger", number> & {
-    types: string[];
-    listTypes(): readonly string[];
-    getTypeID(typeName: string): number;
-}>;
-declare class krnlData {
-    isSignal: boolean;
-    dataType: number;
-    transportKind: "single" | "blob" | "stream";
-    timestamp: number;
-    correlationId: string | number | null;
-    sourceId: string | number | null;
-    tags: string[] | null;
-    data: any;
-}
-declare class krnlDataFactory {
-    static audio(opts: {
-        isSignal?: boolean;
-        transportKind?: "single" | "blob" | "stream";
-        codec?: string;
-        sampleRate?: number;
-        channels?: number;
-        frameIndex?: number;
-        buffer?: any;
-        extra?: object;
-    }): krnlData;
-    static control(opts: {
-        name: string;
-        value: any;
-        unit?: string | null;
-        curve?: string;
-        transportKind?: "single" | "blob" | "stream";
-        isSignal?: boolean;
-        extra?: object;
-    }): krnlData;
-    static midi(opts: {
-        status: number;
-        data1: number;
-        data2: number;
-        channel?: number;
-        raw?: any;
-        transportKind?: "single" | "blob" | "stream";
-        isSignal?: boolean;
-        extra?: object;
-    }): krnlData;
-    static text(opts: {
-        text: string;
-        encoding?: string;
-        language?: string;
-        contentType?: string;
-        transportKind?: "single" | "blob" | "stream";
-        isSignal?: boolean;
-        extra?: object;
-    }): krnlData;
-    static trigger(opts: {
-        name: string;
-        value?: number;
-        transportKind?: "single" | "blob" | "stream";
-        isSignal?: boolean;
-        extra?: object;
-    }): krnlData;
-}
-
-/**
  * @file K_LIB_Krnl_Error_Concepts.ts
  * @description Defines the system-wide error codes, messages, and typed error class for the Krnl ecosystem.
  */
@@ -750,6 +771,11 @@ declare const krnlErrorCodes: Readonly<{
     readonly COLLECTOR_NOT_FOUND: 301;
     readonly COLLECTOR_NOT_SUBSCRIBED: 302;
     readonly ENTITY_NOT_FOUND: 400;
+    readonly ERR_NET_RPC_TIMEOUT_EXCEEDED: 500;
+    readonly ERR_NET_RPC_NETWORK_ERROR: 501;
+    readonly ERR_NET_RPC_INTERNAL_SERVER_ERROR: 502;
+    readonly ERR_SYS_ENTITY_BUSY_RESERVED: 503;
+    readonly ERR_COM_INGRESS_ROUTE_NOT_FOUND: 504;
 }>;
 /**
  * Map of Error Codes to human-readable messages.
@@ -842,4 +868,4 @@ declare class DasyJS {
     readBytes(filePath: any): Promise<ArrayBuffer>;
 }
 
-export { DasyJS, KrnlAcpProtocol, KrnlMcpProtocol, Logger, MemoryTransportAdapter, WebSocketTransportAdapter, createEnum, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, telemetry };
+export { DasyJS, KrnlAcpProtocol, KrnlMcpProtocol, KrnlPolicy, Logger, MemoryTransportAdapter, WebSocketTransportAdapter, createEnum, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, telemetry };

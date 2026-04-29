@@ -7,7 +7,8 @@
 
 import { krnlEmitter } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { krnlTransportAdapter } from "./K_LIB_Krnl_Functionality_Types.js";
-import { Logger } from "./K_LIB_Krnl_Base_Concepts.js";
+import { Logger, KrnlPolicy } from "./K_LIB_Krnl_Base_Concepts.js";
+import { krnlErrorCodes } from "./K_LIB_Krnl_Error_Concepts.js";
 
 /**
  * WEBSOCKET TRANSPORT ADAPTER
@@ -27,9 +28,9 @@ export class WebSocketTransportAdapter extends krnlTransportAdapter {
         this.remoteAddress = remoteAddress;
     }
 
-    async call(targetFunction: string, input: any, opts: any): Promise<any> {
-        const timeout = opts.timeout || opts.timeoutMs;
-        return await this.commComponent.callWsRpc(this.remoteAddress, 'call', { fid: targetFunction, data: input }, timeout);
+    async call(targetFunction: string, input: any, opts: any = {}): Promise<any> {
+        const policy = opts.policy instanceof KrnlPolicy ? opts.policy : new KrnlPolicy(opts);
+        return await this.commComponent.callWsRpc(this.remoteAddress, 'call', { fid: targetFunction, data: input }, policy);
     }
 }
 
@@ -271,39 +272,73 @@ export class krnlSystemCommComponent {
         this._introspectionProvider = providerFn;
     }
 
-    async callWsRpc(remoteAddress: string, method: string, params: any = {}, timeoutMs: number = 5000): Promise<any> {
+    async callWsRpc(remoteAddress: string, method: string, params: any = {}, policy: KrnlPolicy = KrnlPolicy.default()): Promise<any> {
         const { WebSocket } = await _loadWs();
-        const requestId = `rpc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        let lastError: any = null;
 
-        const ws = new WebSocket(`ws://${remoteAddress}`);
-        await new Promise((resolve, reject) => {
-            ws.once('open', resolve);
-            ws.once('error', reject);
-        });
+        for (let attempt = 0; attempt <= policy.maxRetries; attempt++) {
+            try {
+                const requestId = `rpc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+                const ws = new WebSocket(`ws://${remoteAddress}`);
 
-        return new Promise((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
-                this._wsPendingRpc.delete(requestId);
-                ws.close();
-                reject(new Error(`RPC timeout for method ${method}`));
-            }, timeoutMs);
+                await new Promise((resolve, reject) => {
+                    const connTimeout = setTimeout(() => {
+                        ws.close();
+                        reject(new Error("ERR_NET_CONNECTION_TIMEOUT"));
+                    }, policy.timeoutMs);
 
-            this._wsPendingRpc.set(requestId, { resolve, reject, timeoutId, ws });
+                    ws.once('open', () => {
+                        clearTimeout(connTimeout);
+                        resolve(true);
+                    });
+                    ws.once('error', (err: any) => {
+                        clearTimeout(connTimeout);
+                        reject(err);
+                    });
+                });
 
-            ws.on('message', (raw: Buffer) => {
-                try {
-                    const msg = JSON.parse(raw.toString());
-                    if (msg.kind === 'rpc-response') this._handleRpcResponse(msg);
-                } catch (_) { }
-            });
+                const result = await new Promise((resolve, reject) => {
+                    const timeoutId = setTimeout(() => {
+                        this._wsPendingRpc.delete(requestId);
+                        ws.close();
+                        reject({ code: krnlErrorCodes.ERR_NET_RPC_TIMEOUT_EXCEEDED, message: "ERR_NET_RPC_TIMEOUT_EXCEEDED" });
+                    }, policy.timeoutMs);
 
-            ws.send(JSON.stringify({
-                kind: 'rpc-request',
-                requestId,
-                method,
-                params,
-            }));
-        });
+                    this._wsPendingRpc.set(requestId, { resolve, reject, timeoutId, ws });
+
+                    ws.on('message', (raw: Buffer) => {
+                        try {
+                            const msg = JSON.parse(raw.toString());
+                            if (msg.kind === 'rpc-response') this._handleRpcResponse(msg);
+                        } catch (_) { }
+                    });
+
+                    ws.send(JSON.stringify({
+                        kind: 'rpc-request',
+                        requestId,
+                        traceCorrelationId: requestId, // Trace ID matches Request ID for initial hop
+                        originSystemAddress: this.ownerEntity.entityName,
+                        timestamp: Date.now(),
+                        method,
+                        params,
+                    }));
+                });
+
+                return result;
+            } catch (err: any) {
+                lastError = err;
+                if (attempt < policy.maxRetries) {
+                    const delay = policy.backoffStrategy === "EXPONENTIAL"
+                        ? policy.retryDelayMs * Math.pow(2, attempt)
+                        : policy.retryDelayMs;
+                    
+                    Logger.log(`[CommComponent:${this.ownerEntity.entityName}] RPC failed (attempt ${attempt + 1}). Retrying in ${delay}ms...`);
+                    await new Promise(r => setTimeout(r, delay));
+                }
+            }
+        }
+
+        throw lastError;
     }
 
     async _handleRpcRequest(ws: any, msg: any): Promise<void> {

@@ -16,26 +16,38 @@ var krnlErrorCodes = Object.freeze({
   COLLECTOR_NOT_FOUND: 301,
   COLLECTOR_NOT_SUBSCRIBED: 302,
   // Hierarchy errors (400-499)
-  ENTITY_NOT_FOUND: 400
+  ENTITY_NOT_FOUND: 400,
+  // Networking/RPC errors (500-599)
+  ERR_NET_RPC_TIMEOUT_EXCEEDED: 500,
+  ERR_NET_RPC_NETWORK_ERROR: 501,
+  ERR_NET_RPC_INTERNAL_SERVER_ERROR: 502,
+  ERR_SYS_ENTITY_BUSY_RESERVED: 503,
+  ERR_COM_INGRESS_ROUTE_NOT_FOUND: 504
 });
 var krnlErrorMessages = Object.freeze({
   // Enum
-  [krnlErrorCodes.ENUM_ID_NOT_FOUND]: "Enum: ID not found. The requested enum type is not defined.",
+  [krnlErrorCodes.ENUM_ID_NOT_FOUND]: "ERR_LIB_ENUM_ID_NOT_FOUND",
   // State
-  [krnlErrorCodes.STATE_NOT_FOUND]: "State: No state found with the given name.",
-  [krnlErrorCodes.STATE_DUPLICATE_NAME]: "State: A state with this name already exists.",
-  [krnlErrorCodes.STATE_INDEX_OUT_OF_RANGE]: "State: Index is out of range of the states array.",
+  [krnlErrorCodes.STATE_NOT_FOUND]: "ERR_LIB_STATE_NOT_FOUND",
+  [krnlErrorCodes.STATE_DUPLICATE_NAME]: "ERR_LIB_STATE_DUPLICATE_NAME",
+  [krnlErrorCodes.STATE_INDEX_OUT_OF_RANGE]: "ERR_LIB_STATE_INDEX_OUT_OF_RANGE",
   // Functionality
-  [krnlErrorCodes.FUNCTIONALITY_NOT_DEFINED]: "Functionality: The requested functionality is not defined.",
-  [krnlErrorCodes.FUNCTIONALITY_ALREADY_DEFINED]: "Functionality: A functionality with this name is already defined.",
-  [krnlErrorCodes.FUNCTIONALITY_INSTANCE_NOT_FOUND]: "Functionality: The requested functionality instance was not found.",
-  [krnlErrorCodes.REMOTE_EXECUTION_FAILED]: "Functionality: Remote execution failed.",
+  [krnlErrorCodes.FUNCTIONALITY_NOT_DEFINED]: "ERR_LIB_FUNCTIONALITY_NOT_DEFINED",
+  [krnlErrorCodes.FUNCTIONALITY_ALREADY_DEFINED]: "ERR_LIB_FUNCTIONALITY_ALREADY_DEFINED",
+  [krnlErrorCodes.FUNCTIONALITY_INSTANCE_NOT_FOUND]: "ERR_LIB_FUNCTIONALITY_INSTANCE_NOT_FOUND",
+  [krnlErrorCodes.REMOTE_EXECUTION_FAILED]: "ERR_LIB_REMOTE_EXECUTION_FAILED",
   // Interface
-  [krnlErrorCodes.EMITTER_NOT_FOUND]: "Interface: No emitter found with the given name.",
-  [krnlErrorCodes.COLLECTOR_NOT_FOUND]: "Interface: No collector found with the given name.",
-  [krnlErrorCodes.COLLECTOR_NOT_SUBSCRIBED]: "Interface: Collector is not subscribed to any emitter.",
+  [krnlErrorCodes.EMITTER_NOT_FOUND]: "ERR_INT_EMITTER_NOT_FOUND",
+  [krnlErrorCodes.COLLECTOR_NOT_FOUND]: "ERR_INT_COLLECTOR_NOT_FOUND",
+  [krnlErrorCodes.COLLECTOR_NOT_SUBSCRIBED]: "ERR_INT_COLLECTOR_NOT_SUBSCRIBED",
   // Hierarchy
-  [krnlErrorCodes.ENTITY_NOT_FOUND]: "Hierarchy: No entity found with the given name."
+  [krnlErrorCodes.ENTITY_NOT_FOUND]: "ERR_SYS_ENTITY_NOT_FOUND",
+  // Networking/RPC
+  [krnlErrorCodes.ERR_NET_RPC_TIMEOUT_EXCEEDED]: "ERR_NET_RPC_TIMEOUT_EXCEEDED",
+  [krnlErrorCodes.ERR_NET_RPC_NETWORK_ERROR]: "ERR_NET_RPC_NETWORK_ERROR",
+  [krnlErrorCodes.ERR_NET_RPC_INTERNAL_SERVER_ERROR]: "ERR_NET_RPC_INTERNAL_SERVER_ERROR",
+  [krnlErrorCodes.ERR_SYS_ENTITY_BUSY_RESERVED]: "ERR_SYS_ENTITY_BUSY_RESERVED",
+  [krnlErrorCodes.ERR_COM_INGRESS_ROUTE_NOT_FOUND]: "ERR_COM_INGRESS_ROUTE_NOT_FOUND"
 });
 var krnlError = class extends Error {
   code;
@@ -66,6 +78,11 @@ var krnlLocalEmitterAddress = class {
 var krnlMessage = class {
   data = null;
   time = { day: 0, hour: 0, minute: 0, seconds: 0, millisecond: 0 };
+  // Tracing metadata aligned with core lingo
+  sourceEmitterAddress = null;
+  targetCollectorAddress = null;
+  traceCorrelationId = null;
+  originSystemAddress = null;
 };
 var krnlMessageStream = class {
   #queue = [];
@@ -1071,6 +1088,11 @@ var krnlData = class {
   tags = null;
   // --- Type-specific payload ---
   data = null;
+  // --- Tracing metadata aligned with core lingo ---
+  sourceEmitterAddress = null;
+  targetCollectorAddress = null;
+  traceCorrelationId = null;
+  originSystemAddress = null;
 };
 var krnlDataFactory = class {
   static audio(opts) {
@@ -1167,6 +1189,21 @@ var krnlDataFactory = class {
     return d;
   }
 };
+var KrnlPolicy = class _KrnlPolicy {
+  maxRetries = 0;
+  timeoutMs = 5e3;
+  retryDelayMs = 1e3;
+  backoffStrategy = "LINEAR";
+  constructor(opts = {}) {
+    Object.assign(this, opts);
+  }
+  static default() {
+    return new _KrnlPolicy();
+  }
+  static resilient() {
+    return new _KrnlPolicy({ maxRetries: 3, timeoutMs: 1e4, retryDelayMs: 1e3, backoffStrategy: "EXPONENTIAL" });
+  }
+};
 
 // src/krnl/core/K_LIB_Krnl_System_Comm_Component.ts
 var WebSocketTransportAdapter = class extends krnlTransportAdapter {
@@ -1181,9 +1218,9 @@ var WebSocketTransportAdapter = class extends krnlTransportAdapter {
     this.commComponent = commComponent;
     this.remoteAddress = remoteAddress;
   }
-  async call(targetFunction, input, opts) {
-    const timeout = opts.timeout || opts.timeoutMs;
-    return await this.commComponent.callWsRpc(this.remoteAddress, "call", { fid: targetFunction, data: input }, timeout);
+  async call(targetFunction, input, opts = {}) {
+    const policy = opts.policy instanceof KrnlPolicy ? opts.policy : new KrnlPolicy(opts);
+    return await this.commComponent.callWsRpc(this.remoteAddress, "call", { fid: targetFunction, data: input }, policy);
   }
 };
 var _WS;
@@ -1389,35 +1426,63 @@ var krnlSystemCommComponent = class {
   setIntrospectionProvider(providerFn) {
     this._introspectionProvider = providerFn;
   }
-  async callWsRpc(remoteAddress, method, params = {}, timeoutMs = 5e3) {
+  async callWsRpc(remoteAddress, method, params = {}, policy = KrnlPolicy.default()) {
     const { WebSocket } = await _loadWs();
-    const requestId = `rpc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const ws = new WebSocket(`ws://${remoteAddress}`);
-    await new Promise((resolve, reject) => {
-      ws.once("open", resolve);
-      ws.once("error", reject);
-    });
-    return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        this._wsPendingRpc.delete(requestId);
-        ws.close();
-        reject(new Error(`RPC timeout for method ${method}`));
-      }, timeoutMs);
-      this._wsPendingRpc.set(requestId, { resolve, reject, timeoutId, ws });
-      ws.on("message", (raw) => {
-        try {
-          const msg = JSON.parse(raw.toString());
-          if (msg.kind === "rpc-response") this._handleRpcResponse(msg);
-        } catch (_) {
+    let lastError = null;
+    for (let attempt = 0; attempt <= policy.maxRetries; attempt++) {
+      try {
+        const requestId = `rpc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const ws = new WebSocket(`ws://${remoteAddress}`);
+        await new Promise((resolve, reject) => {
+          const connTimeout = setTimeout(() => {
+            ws.close();
+            reject(new Error("ERR_NET_CONNECTION_TIMEOUT"));
+          }, policy.timeoutMs);
+          ws.once("open", () => {
+            clearTimeout(connTimeout);
+            resolve(true);
+          });
+          ws.once("error", (err) => {
+            clearTimeout(connTimeout);
+            reject(err);
+          });
+        });
+        const result = await new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            this._wsPendingRpc.delete(requestId);
+            ws.close();
+            reject({ code: krnlErrorCodes.ERR_NET_RPC_TIMEOUT_EXCEEDED, message: "ERR_NET_RPC_TIMEOUT_EXCEEDED" });
+          }, policy.timeoutMs);
+          this._wsPendingRpc.set(requestId, { resolve, reject, timeoutId, ws });
+          ws.on("message", (raw) => {
+            try {
+              const msg = JSON.parse(raw.toString());
+              if (msg.kind === "rpc-response") this._handleRpcResponse(msg);
+            } catch (_) {
+            }
+          });
+          ws.send(JSON.stringify({
+            kind: "rpc-request",
+            requestId,
+            traceCorrelationId: requestId,
+            // Trace ID matches Request ID for initial hop
+            originSystemAddress: this.ownerEntity.entityName,
+            timestamp: Date.now(),
+            method,
+            params
+          }));
+        });
+        return result;
+      } catch (err) {
+        lastError = err;
+        if (attempt < policy.maxRetries) {
+          const delay = policy.backoffStrategy === "EXPONENTIAL" ? policy.retryDelayMs * Math.pow(2, attempt) : policy.retryDelayMs;
+          Logger.log(`[CommComponent:${this.ownerEntity.entityName}] RPC failed (attempt ${attempt + 1}). Retrying in ${delay}ms...`);
+          await new Promise((r) => setTimeout(r, delay));
         }
-      });
-      ws.send(JSON.stringify({
-        kind: "rpc-request",
-        requestId,
-        method,
-        params
-      }));
-    });
+      }
+    }
+    throw lastError;
   }
   async _handleRpcRequest(ws, msg) {
     const { requestId, method, params } = msg;
@@ -2616,6 +2681,7 @@ export {
   DasyJS,
   KrnlAcpProtocol,
   KrnlMcpProtocol,
+  KrnlPolicy,
   Logger,
   MemoryTransportAdapter,
   WebSocketTransportAdapter,
