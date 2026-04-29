@@ -1,5 +1,5 @@
 import { AvailabilitySystem } from "./AvailabilitySystem/AvailabilitySystem.js";
-import { telemetry } from "../../src/krnl/core/index.js";
+import { telemetry } from "../../dist/index.js";
 
 async function main() {
     telemetry.enabled = true;

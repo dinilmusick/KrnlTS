@@ -1,4 +1,4 @@
-import { krnlEntityBase } from "../../../../../src/krnl/core/index.js";
+import { krnlEntityBase } from "../../../../../dist/index.js";
 import { LeafEntity } from "./entities/LeafEntity/LeafEntity.js";
 
 // Entity descriptor: assembly and visibility boundary only.

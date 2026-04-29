@@ -2,7 +2,7 @@
  * Test: _handleRpcRequest error serialization fix
  * Verifies that plain objects thrown as errors don't produce "[object Object]"
  */
-import { krnlSystemEntityBase } from '../../../src/krnl/core/index.js';
+import { krnlSystemEntityBase } from '../../../dist/index.js';
 
 let passed = 0;
 let failed = 0;

@@ -1,5 +1,5 @@
 import { SourceSystem, TargetSystem, DemoOrchestrator } from "./OrchestratorSystem/OrchestratorSystem.js";
-import { telemetry } from "../../src/krnl/core/index.js";
+import { telemetry } from "../../dist/index.js";
 
 // Note: I had to add exports to the classes in OrchestratorSystem.js for this to work.
 // I'll go back and add those exports.

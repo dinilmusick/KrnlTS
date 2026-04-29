@@ -1,4 +1,4 @@
-import { krnlSystemEntityBase } from '../../../src/krnl/core/index.js';
+import { krnlSystemEntityBase } from '../../../dist/index.js';
 
 async function test() {
     const system = new krnlSystemEntityBase("TestSystem", null, 10099);

@@ -1,5 +1,5 @@
 import { AIServerSystem } from "./AIServerSystem/AIServerSystem.js";
-import { telemetry } from "../../src/krnl/core/index.js";
+import { telemetry } from "../../dist/index.js";
 
 /**
  * Bootstrapper for the AI Server Example.

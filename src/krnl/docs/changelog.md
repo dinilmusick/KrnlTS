@@ -1,6 +1,24 @@
-# KrnlJS Changelog (v1.2.0)
+# KrnlTS Changelog (v2.0.0)
 
-This document outlines the major architectural changes introduced in v1.2.0. If you are updating a legacy project, please follow the "Migration Steps" section below.
+This document outlines the major architectural changes introduced in v2.0.0. This version represents a complete migration to TypeScript.
+
+## [2.0.0] - 2026-04-29
+
+### Added
+- **Full TypeScript Migration**: All core modules converted to `.ts`.
+- **Strict Build Pipeline**: Integrated `tsup` for ESM/CJS bundling with automatic `.d.ts` generation.
+- **Reactive Telemetry Flags**: `telemetryEnabled` now automatically toggles the global telemetry engine via reactive setters.
+- **Ambient Declarations**: Added `declarations.d.ts` for improved IDE support on external dependencies.
+- **Modern Module Resolution**: Switched to `NodeNext` for improved ESM compatibility and type discovery.
+
+### Changed
+- **Package Renaming**: Formally transitioned from `KrnlJS` to `KrnlTS`.
+- **Inheritance Refinement**: Decoration hooks (`_decorateResult`, `_decorateError`) converted to formal methods in the base class for type-safe overriding.
+- **Example Migration**: All examples updated to point to the compiled `/dist` directory.
+
+### Fixed
+- Resolved IDE type discovery issues for `zod-to-json-schema`.
+- Fixed cross-system result decoration inconsistencies.
 
 ## [1.2.2] - 2026-04-11
 

@@ -1,5 +1,5 @@
 import { InstanceSystem } from "./InstanceSystem/InstanceSystem.js";
-import { telemetry } from "../../src/krnl/core/index.js";
+import { telemetry } from "../../dist/index.js";
 
 async function main() {
     telemetry.enabled = true;

@@ -1,6 +1,6 @@
 // examples/example3/EventSystem/EventSystem.js
 
-import { krnlSystemEntityBase } from "../../../src/krnl/core/index.js";
+import { krnlSystemEntityBase } from "../../../dist/index.js";
 import { ProducerEntity } from "./entities/ProducerEntity/ProducerEntity.js";
 import { ConsumerEntity } from "./entities/ConsumerEntity/ConsumerEntity.js";
 import { RunScenarioAtom } from "./functionalities/RunScenario/RunScenario.js";

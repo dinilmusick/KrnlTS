@@ -1,4 +1,4 @@
-import { krnlEntityBase } from "../../../../../src/krnl/core/index.js";
+import { krnlEntityBase } from "../../../../../dist/index.js";
 import { HandleAtom } from "./functionalities/Handle/Handle.js";
 
 export class WorkerEntity extends krnlEntityBase {

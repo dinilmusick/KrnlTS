@@ -1,4 +1,4 @@
-import { krnlEntityBase } from "../../../../../../../src/krnl/core/index.js";
+import { krnlEntityBase } from "../../../../../../../dist/index.js";
 import { LeafActionAtom } from "./functionalities/LeafAction/LeafAction.js";
 
 // Entity descriptor: assembly only.

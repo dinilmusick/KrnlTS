@@ -1,9 +1,10 @@
-# KrnlJS Core Library (v1.3.0)
+# KrnlTS Core Library (v2.0.0)
 
-KrnlJS is a senior-level orchestration library for building reactive, distributed JavaScript systems using an **Atomic Entity Model**. It treats software components like physical hardware with isolated logic, state, and messaging ports.
+KrnlTS is a senior-level orchestration library for building reactive, distributed systems using an **Atomic Entity Model**. It provides a strictly-typed, hardware-inspired framework where software components are treated like physical "Boxes" with isolated logic, state, and messaging ports.
 
 ## 🏗️ Core Principles
 
+- **TypeScript Native**: Full type safety for entities, functionalities, and messaging.
 - **Atomic Scaffolding**: Strict directory-based logic isolation.
 - **Descriptor Purity**: Assembly-only descriptors; no loose runtime logic.
 - **Implicit Reactivity**: Proxy-based state observability with automatic change events.
@@ -18,17 +19,25 @@ KrnlJS is a senior-level orchestration library for building reactive, distribute
 npm install git+https://github.com/dinilmusick/KrnlJS.git
 ```
 
-### Basic Entity Usage
+### Basic Entity Usage (TypeScript)
 
-```javascript
-import { krnlEntityBase, krnlRemoteFunctionality } from "krnljs";
-import { mathAtom } from "./functionalities/Math/Math.js";
+```typescript
+import { krnlEntityBase, KrnlFunctionality } from "krnlts";
 
-// 1. Local Logic
+// 1. Define logic atom
+const mathAtom: KrnlFunctionality = {
+    id: "Math",
+    api: async ({ a, b, op }) => {
+        if (op === "add") return a + b;
+        return 0;
+    }
+};
+
+// 2. Assembly
 const calc = new krnlEntityBase("Calculator");
 calc.addLocal(mathAtom);
 
-// 2. Remote Proxy (In-Memory)
+// 3. Remote Proxy (In-Memory)
 const gateway = new krnlEntityBase("Gateway");
 gateway.addRemote({
   id: "CalcProxy",
@@ -36,7 +45,7 @@ gateway.addRemote({
   targetFunction: "Math"
 });
 
-// 3. Trigger Logic
+// 4. Trigger Logic
 const result = await gateway.call("CalcProxy", { a: 10, b: 5, op: "add" });
 console.log(result); // 15
 ```

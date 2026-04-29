@@ -1,5 +1,5 @@
 // WebInterfaceSystem/WebInterfaceSystem.js
-import { krnlSystemEntityBase } from "../../../src/krnl/core/index.js";
+import { krnlSystemEntityBase } from "../../../dist/index.js";
 import { UIPanelAtom } from "./functionalities/UIPanel/UIPanel.js";
 import { SetupCommsAtom } from "./functionalities/SetupComms/SetupComms.js";
 import { MonitorAtom } from "./functionalities/Monitor/Monitor.js";

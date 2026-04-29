@@ -1,6 +1,6 @@
 import { CalculatorSystem } from "./CalculatorSystem/CalculatorSystem.js";
 import { WebInterfaceSystem } from "./WebInterfaceSystem/WebInterfaceSystem.js";
-import { telemetry } from "../../src/krnl/core/index.js";
+import { telemetry } from "../../dist/index.js";
 
 async function main() {
     telemetry.enabled = true;

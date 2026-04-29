@@ -1,7 +1,7 @@
 import {
   krnlNetworkOrchestratorEntityBase,
   krnlSystemEntityBase,
-} from "../../../src/krnl/core/index.js";
+} from "../../../dist/index.js";
 
 export class SourceSystem extends krnlSystemEntityBase {
   static Singleton = true;

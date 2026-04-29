@@ -1,4 +1,4 @@
-import { krnlSystemEntityBase } from '../../../src/krnl/core/index.js';
+import { krnlSystemEntityBase } from '../../../dist/index.js';
 import { WebSocket } from 'ws';
 
 async function test() {

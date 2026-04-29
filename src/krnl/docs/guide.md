@@ -1,8 +1,8 @@
-# KrnlJS Guide: The Ultrst Logic Engine
+# KrnlTS Guide: The Ultrst Logic Engine
 
 By **Dinil Palackal**
 
-KrnlJS is the core library for the Krnl ecosystem, providing a uniform syntax and API across JavaScript projects. It enforces a strict physical directory hierarchy and the **Ultrst Philosophy**: treat code like physical hardware where every Entity is a "Box" with specific input and output ports.
+KrnlTS is the core library for the Krnl ecosystem, providing a strictly-typed uniform syntax and API across projects. It enforces a strict physical directory hierarchy and the **Ultrst Philosophy**: treat code like physical hardware where every Entity is a "Box" with specific input and output ports.
 
 ---
 

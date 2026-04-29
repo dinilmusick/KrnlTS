@@ -1,4 +1,4 @@
-import { krnlEntityBase } from "../../../../../src/krnl/core/index.js";
+import { krnlEntityBase } from "../../../../../dist/index.js";
 import { PingAtom } from "./functionalities/Ping/Ping.js";
 
 export class ProducerEntity extends krnlEntityBase {
