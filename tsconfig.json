@@ -15,9 +15,8 @@
     "allowJs": true,
     "checkJs": false,
     "resolveJsonModule": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src/**/*"],
