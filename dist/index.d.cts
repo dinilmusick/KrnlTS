@@ -657,6 +657,8 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
     serviceSuites: Map<string, any>;
     unifiedHttpAdapter: krnlUnifiedHttpAdapter;
     _documentationProvider: any | null;
+    _lastPreemptiveDoc: any | null;
+    _lastErrorDoc: any | null;
     discoverySocket: any | null;
     beaconInterval: any | null;
     /**

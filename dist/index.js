@@ -53,8 +53,10 @@ var krnlError = class extends Error {
   code;
   errorMessage;
   constructor(code) {
-    const numericCode = typeof code === "number" ? code : -1;
-    super(krnlErrorMessages[numericCode] ?? `Error: ${code}`);
+    const isNumeric = typeof code === "number";
+    const numericCode = isNumeric ? code : -1;
+    const message = isNumeric ? krnlErrorMessages[numericCode] ?? `Error: ${code}` : code;
+    super(message);
     this.code = numericCode;
     this.errorMessage = this.message;
   }
@@ -1659,8 +1661,24 @@ function discoverPeersApi(entity) {
     return peers.filter((peer) => !peer.busy);
   };
 }
-function manifestApi(entity) {
+function getManifestApi(entity) {
   return () => entity.getManifest();
+}
+function getLastActionDocsApi(entity) {
+  return () => {
+    return {
+      preemptiveDocumentation: entity._lastPreemptiveDoc || null,
+      errorDocumentation: entity._lastErrorDoc || null
+    };
+  };
+}
+function getFullDocumentationApi(entity) {
+  return () => {
+    if (entity._documentationProvider && typeof entity._documentationProvider.getDocsForLayer === "function") {
+      return entity._documentationProvider.getDocsForLayer("LAYER_1_ENTRY") || [];
+    }
+    return [];
+  };
 }
 function systemCommandsCollectorHandler(entity) {
   return (msg) => {
@@ -2026,6 +2044,8 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
   serviceSuites;
   unifiedHttpAdapter;
   _documentationProvider;
+  _lastPreemptiveDoc = null;
+  _lastErrorDoc = null;
   discoverySocket;
   beaconInterval;
   /**
@@ -2070,9 +2090,14 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
       if (typeof this._documentationProvider.getNextStepsDoc === "function") {
         const nextSteps = this._documentationProvider.getNextStepsDoc(fid);
         if (nextSteps && nextSteps.length > 0) {
-          finalResult.preemptiveDocumentation = {
+          this._lastPreemptiveDoc = {
             message: "Progressive Exploration: Recommended next steps.",
             nextSteps
+          };
+          this._lastErrorDoc = null;
+          finalResult.preemptiveDocumentation = {
+            message: "PREEMPTIVE_DOCS: call('getLastActionDocs'); FULL_DOCS: call('getFullDocumentation');",
+            accessEndpoint: "getLastActionDocs"
           };
         }
       }
@@ -2088,7 +2113,14 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     };
     if (this._documentationProvider && typeof this._documentationProvider.getDocForEndpoint === "function") {
       const usageDoc = this._documentationProvider.getDocForEndpoint(fid);
-      if (usageDoc) response.errorDocumentation = usageDoc;
+      if (usageDoc) {
+        this._lastErrorDoc = usageDoc;
+        this._lastPreemptiveDoc = null;
+        response.errorDocumentation = {
+          message: "ERROR_DOCS: call('getLastActionDocs'); FULL_DOCS: call('getFullDocumentation');",
+          accessEndpoint: "getLastActionDocs"
+        };
+      }
     }
     return response;
   }
@@ -2391,7 +2423,15 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     });
     this.addLocal({
       id: "getManifest",
-      api: manifestApi(this)
+      api: getManifestApi(this)
+    });
+    this.addLocal({
+      id: "getLastActionDocs",
+      api: getLastActionDocsApi(this)
+    });
+    this.addLocal({
+      id: "getFullDocumentation",
+      api: getFullDocumentationApi(this)
     });
   }
   _setupBaseInterface() {

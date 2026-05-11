@@ -101,8 +101,10 @@ export class krnlError extends Error {
   errorMessage: string;
 
   constructor(code: number | string) {
-    const numericCode = typeof code === 'number' ? code : -1;
-    super(krnlErrorMessages[numericCode] ?? `Error: ${code}`);
+    const isNumeric = typeof code === 'number';
+    const numericCode = isNumeric ? code : -1;
+    const message = isNumeric ? (krnlErrorMessages[numericCode] ?? `Error: ${code}`) : code;
+    super(message);
     this.code = numericCode;
     this.errorMessage = this.message;
   }

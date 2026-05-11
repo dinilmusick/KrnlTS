@@ -69,8 +69,27 @@ export function discoverPeersApi(entity: any) {
   };
 }
 
-export function manifestApi(entity: any) {
+export function getManifestApi(entity: any) {
   return () => (entity as any).getManifest();
+}
+
+export function getLastActionDocsApi(entity: any) {
+  return () => {
+    return {
+      preemptiveDocumentation: entity._lastPreemptiveDoc || null,
+      errorDocumentation: entity._lastErrorDoc || null
+    };
+  };
+}
+
+export function getFullDocumentationApi(entity: any) {
+  return () => {
+    if (entity._documentationProvider && typeof entity._documentationProvider.getDocsForLayer === 'function') {
+      // Return everything from LAYER_1_ENTRY as a starting point, or maybe a dedicated "FULL" call if it exists
+      return entity._documentationProvider.getDocsForLayer("LAYER_1_ENTRY") || [];
+    }
+    return [];
+  };
 }
 
 export function systemCommandsCollectorHandler(entity: any) {

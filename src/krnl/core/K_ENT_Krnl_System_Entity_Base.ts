@@ -10,7 +10,9 @@ import {
   adminCommandApi,
   discoverPeersApi,
   heartbeatApi,
-  manifestApi,
+  getManifestApi as manifestApi,
+  getLastActionDocsApi,
+  getFullDocumentationApi,
   systemCommandsCollectorHandler,
   telemetryApi,
 } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
@@ -40,6 +42,8 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   serviceSuites: Map<string, any>;
   unifiedHttpAdapter: krnlUnifiedHttpAdapter;
   _documentationProvider: any | null;
+  _lastPreemptiveDoc: any | null = null;
+  _lastErrorDoc: any | null = null;
   discoverySocket: any | null;
   beaconInterval: any | null;
 
@@ -99,10 +103,18 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       if (typeof this._documentationProvider.getNextStepsDoc === 'function') {
         const nextSteps = this._documentationProvider.getNextStepsDoc(fid);
         if (nextSteps && nextSteps.length > 0) {
-        finalResult.preemptiveDocumentation = {
-          message: "Progressive Exploration: Recommended next steps.",
-          nextSteps
-        };
+          // Store the full doc
+          this._lastPreemptiveDoc = {
+            message: "Progressive Exploration: Recommended next steps.",
+            nextSteps
+          };
+          this._lastErrorDoc = null; // Clear error doc on success
+
+          // Return concise message
+          finalResult.preemptiveDocumentation = {
+            message: "PREEMPTIVE_DOCS: call('getLastActionDocs'); FULL_DOCS: call('getFullDocumentation');",
+            accessEndpoint: "getLastActionDocs"
+          };
         }
       }
     }
@@ -118,7 +130,17 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     };
     if (this._documentationProvider && typeof this._documentationProvider.getDocForEndpoint === 'function') {
       const usageDoc = this._documentationProvider.getDocForEndpoint(fid);
-      if (usageDoc) response.errorDocumentation = usageDoc;
+      if (usageDoc) {
+        // Store full error doc
+        this._lastErrorDoc = usageDoc;
+        this._lastPreemptiveDoc = null; // Clear preemptive doc on error
+
+        // Return concise message
+        response.errorDocumentation = {
+          message: "ERROR_DOCS: call('getLastActionDocs'); FULL_DOCS: call('getFullDocumentation');",
+          accessEndpoint: "getLastActionDocs"
+        };
+      }
     }
     return response;
   }
@@ -466,6 +488,16 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this.addLocal({
       id: 'getManifest',
       api: manifestApi(this as any)
+    });
+
+    this.addLocal({
+      id: 'getLastActionDocs',
+      api: getLastActionDocsApi(this as any)
+    });
+
+    this.addLocal({
+      id: 'getFullDocumentation',
+      api: getFullDocumentationApi(this as any)
     });
   }
 
