@@ -1586,6 +1586,7 @@ var krnlSystemCommComponent = class {
         status: "error",
         message: errorMsg,
         error: errorMsg,
+        errorDocumentation: e.errorDocumentation || null,
         payload: null,
         ...e && typeof e === "object" ? e.metadata || {} : {}
       }));
@@ -1816,7 +1817,13 @@ var KrnlMcpProtocol = class {
         return {
           jsonrpc: "2.0",
           id,
-          error: { code: -32e3, message: error.message }
+          error: {
+            code: -32e3,
+            message: error.message,
+            data: {
+              errorDocumentation: error.errorDocumentation || null
+            }
+          }
         };
       }
     }
@@ -1902,6 +1909,7 @@ var KrnlAcpProtocol = class {
       return {
         status: "error",
         error: error.message,
+        errorDocumentation: error.errorDocumentation || null,
         metadata: {
           processedBy: this.system.entityName,
           timestamp: Date.now()
@@ -1992,7 +2000,11 @@ var krnlUnifiedHttpAdapter = class {
             this._sendJson(res, 200, result);
           } catch (e) {
             Logger.error(`[HttpAdapter] Friendly route error (${fid}):`, e.message);
-            this._sendJson(res, 200, { status: "error", message: e.message });
+            this._sendJson(res, 200, {
+              status: "error",
+              message: e.message,
+              errorDocumentation: e.errorDocumentation || null
+            });
           }
           return;
         }
@@ -2042,8 +2054,12 @@ var krnlUnifiedHttpAdapter = class {
         return;
       }
     } catch (error) {
-      Logger.error(`[HttpAdapter] Fatal handler error ${path}:`, error);
-      this._sendJson(res, 200, { status: "error", message: error.message });
+      Logger.error(`[HttpAdapter] Fatal handler error ${path}:`, error.message || error);
+      this._sendJson(res, 200, {
+        status: "error",
+        message: error.message || String(error),
+        errorDocumentation: error.errorDocumentation || null
+      });
     }
   }
   _handleSse(req, res, fid) {

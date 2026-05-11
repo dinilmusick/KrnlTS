@@ -67,7 +67,13 @@ export class KrnlMcpProtocol {
                 return {
                     jsonrpc: "2.0",
                     id,
-                    error: { code: -32000, message: error.message }
+                    error: { 
+                        code: -32000, 
+                        message: error.message,
+                        data: {
+                            errorDocumentation: error.errorDocumentation || null
+                        }
+                    }
                 };
             }
         }

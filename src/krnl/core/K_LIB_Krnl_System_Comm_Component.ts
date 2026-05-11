@@ -371,6 +371,7 @@ export class krnlSystemCommComponent {
                 status: "error",
                 message: errorMsg,
                 error: errorMsg,
+                errorDocumentation: e.errorDocumentation || null,
                 payload: null,
                 ...(e && typeof e === 'object' ? (e.metadata || {}) : {})
             }));

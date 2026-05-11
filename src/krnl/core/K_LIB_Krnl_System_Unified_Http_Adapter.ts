@@ -108,7 +108,11 @@ export class krnlUnifiedHttpAdapter {
                         this._sendJson(res, 200, result);
                     } catch (e: any) {
                         Logger.error(`[HttpAdapter] Friendly route error (${fid}):`, e.message);
-                        this._sendJson(res, 200, { status: "error", message: e.message });
+                        this._sendJson(res, 200, { 
+                            status: "error", 
+                            message: e.message,
+                            errorDocumentation: e.errorDocumentation || null
+                        });
                     }
                     return;
                 }
@@ -166,8 +170,12 @@ export class krnlUnifiedHttpAdapter {
             }
 
         } catch (error: any) {
-            Logger.error(`[HttpAdapter] Fatal handler error ${path}:`, error);
-            this._sendJson(res, 200, { status: "error", message: error.message });
+            Logger.error(`[HttpAdapter] Fatal handler error ${path}:`, error.message || error);
+            this._sendJson(res, 200, { 
+                status: "error", 
+                message: error.message || String(error),
+                errorDocumentation: error.errorDocumentation || null
+            });
         }
     }
 

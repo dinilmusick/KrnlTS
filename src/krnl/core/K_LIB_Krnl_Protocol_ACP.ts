@@ -65,6 +65,7 @@ export class KrnlAcpProtocol {
             return {
                 status: "error",
                 error: error.message,
+                errorDocumentation: error.errorDocumentation || null,
                 metadata: {
                     processedBy: this.system.entityName,
                     timestamp: Date.now()
