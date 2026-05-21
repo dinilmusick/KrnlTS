@@ -1988,14 +1988,23 @@ var krnlUnifiedHttpAdapter = class {
     }
     const isKrnlRoute = path.startsWith("/call/") || path.startsWith("/sse/") || path.startsWith("/mcp") || path.startsWith("/acp") || path === "/manifest" || path === "/health";
     if (!isKrnlRoute) {
-      if (this.enableFriendlyRouting && req.method === "POST") {
+      if (this.enableFriendlyRouting) {
         let fid = path.slice(1);
         if (fid.endsWith("/")) fid = fid.slice(0, -1);
-        if (this.system.localFunctionalities.has(fid) || this.system.remoteFunctionalities.has(fid)) {
+        const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid);
+        if (functionality) {
+          const expectedMethod = functionality.method || "POST";
+          if (req.method !== expectedMethod) {
+            this._sendJson(res, 405, {
+              status: "error",
+              message: `Method ${req.method} not allowed for ${fid}. Use ${expectedMethod}.`
+            });
+            return;
+          }
           try {
-            Logger.log(`[HttpAdapter] Friendly route hit: ${fid}`);
-            const body = await this._readJsonBody(req);
-            const data = body && typeof body === "object" && !("data" in body) && Object.keys(body).length > 0 ? { data: body } : body;
+            Logger.log(`[HttpAdapter] Friendly route hit: ${fid} (${req.method})`);
+            const input = req.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : await this._readJsonBody(req);
+            const data = input && typeof input === "object" && !("data" in input) && Object.keys(input).length > 0 ? { data: input } : input;
             const result = await this.system.call(fid, data.data || data, { unwrap: false });
             this._sendJson(res, 200, result);
           } catch (e) {
