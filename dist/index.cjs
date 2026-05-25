@@ -30,12 +30,26 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  AsyncKit: () => AsyncKit,
+  CacheKit: () => CacheKit,
   DasyJS: () => DasyJS,
+  FileCache: () => FileCache,
+  FileLock: () => FileLock,
+  GitManager: () => GitManager,
   KrnlAcpProtocol: () => KrnlAcpProtocol,
+  KrnlEnv: () => KrnlEnv,
+  KrnlFS: () => KrnlFS,
+  KrnlHTTP: () => KrnlHTTP,
   KrnlMcpProtocol: () => KrnlMcpProtocol,
   KrnlPolicy: () => KrnlPolicy,
+  KrnlResult: () => KrnlResult,
+  KrnlShell: () => KrnlShell,
+  LRUCache: () => LRUCache,
   Logger: () => Logger,
   MemoryTransportAdapter: () => MemoryTransportAdapter,
+  ObjectKit: () => ObjectKit,
+  StringKit: () => StringKit,
+  TTLCache: () => TTLCache,
   WebSocketTransportAdapter: () => WebSocketTransportAdapter,
   createEnum: () => createEnum,
   krnlBackendVisualEntityBase: () => krnlBackendVisualEntityBase,
@@ -633,6 +647,8 @@ var krnlLocalFunctionality = class {
   helpers;
   emitters;
   schema;
+  description;
+  method;
   lifecycle;
   state;
   hostEntity;
@@ -660,6 +676,8 @@ var krnlLocalFunctionality = class {
     this.helpers = new Map(Object.entries(helpers));
     this.emitters = /* @__PURE__ */ new Map();
     this.schema = schema;
+    this.description = config.description || "";
+    this.method = config.method || "POST";
     this.lifecycle = {
       beginning: onMount || events.beginning,
       during: events.during,
@@ -1068,6 +1086,30 @@ var krnlEntityBase = class _krnlEntityBase {
   }
   getRemote(fid) {
     return this.remoteFunctionalities.get(fid);
+  }
+  resolveLocalFunctionality(fid) {
+    if (this.localFunctionalities.has(fid)) {
+      return this.localFunctionalities.get(fid);
+    }
+    let current = this.remoteFunctionalities.get(fid);
+    while (current) {
+      if (current.isLocal) {
+        return current;
+      }
+      if (current.transport && current.transport.targetEntity) {
+        const target = current.transport.targetEntity;
+        const targetFid = current.targetFunction;
+        if (target.localFunctionalities && target.localFunctionalities.has(targetFid)) {
+          return target.localFunctionalities.get(targetFid);
+        }
+        if (target.remoteFunctionalities && target.remoteFunctionalities.has(targetFid)) {
+          current = target.remoteFunctionalities.get(targetFid);
+          continue;
+        }
+      }
+      break;
+    }
+    return null;
   }
   addChild(instance) {
     return this.hierarchyManager.addComponentEntityInstance(instance);
@@ -1777,7 +1819,7 @@ var KrnlMcpProtocol = class {
     const manifest = this.system.getManifest();
     const apiIds = Object.keys(manifest.inputs.api);
     const tools = apiIds.map((fid) => {
-      const functionality = this.system.localFunctionalities.get(fid);
+      const functionality = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : this.system.localFunctionalities.get(fid);
       const description = functionality?.description || `Execute ${fid} on ${this.system.entityName}`;
       let inputSchema = { type: "object", properties: {} };
       if (functionality?.schema?.input) {
@@ -1977,7 +2019,7 @@ var krnlUnifiedHttpAdapter = class {
   }
   async _handleRequest(req, res) {
     const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
-    const path = url.pathname;
+    const path6 = url.pathname;
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id");
@@ -1986,14 +2028,15 @@ var krnlUnifiedHttpAdapter = class {
       res.end();
       return;
     }
-    const isKrnlRoute = path.startsWith("/call/") || path.startsWith("/sse/") || path.startsWith("/mcp") || path.startsWith("/acp") || path === "/manifest" || path === "/health";
+    const isKrnlRoute = path6.startsWith("/call/") || path6.startsWith("/sse/") || path6.startsWith("/mcp") || path6.startsWith("/acp") || path6 === "/manifest" || path6 === "/health";
     if (!isKrnlRoute) {
       if (this.enableFriendlyRouting) {
-        let fid = path.slice(1);
+        let fid = path6.slice(1);
         if (fid.endsWith("/")) fid = fid.slice(0, -1);
         const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid);
+        const resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
         if (functionality) {
-          const expectedMethod = functionality.method || "POST";
+          const expectedMethod = (resolved || functionality).method || "POST";
           if (req.method !== expectedMethod) {
             this._sendJson(res, 405, {
               status: "error",
@@ -2018,38 +2061,38 @@ var krnlUnifiedHttpAdapter = class {
           return;
         }
       }
-      this._sendJson(res, 404, this.system.getNotFoundResponse(path));
+      this._sendJson(res, 404, this.system.getNotFoundResponse(path6));
       return;
     }
     try {
-      if (path.startsWith("/call/")) {
-        const fid = path.split("/")[2];
+      if (path6.startsWith("/call/")) {
+        const fid = path6.split("/")[2];
         const body = await this._readJsonBody(req);
         const result = await this.system.call(fid, body, { unwrap: false });
         this._sendJson(res, 200, result);
         return;
       }
-      if (path.startsWith("/sse/")) {
-        const fid = path.split("/")[2];
+      if (path6.startsWith("/sse/")) {
+        const fid = path6.split("/")[2];
         this._handleSse(req, res, fid);
         return;
       }
-      if (path === "/mcp") {
+      if (path6 === "/mcp") {
         const body = await this._readJsonBody(req);
         const result = await this.mcp.handleRequest(body);
         this._sendJson(res, 200, result);
         return;
       }
-      if (path === "/health") {
+      if (path6 === "/health") {
         this._sendJson(res, 200, { status: "ok", entity: this.system.entityName });
         return;
       }
-      if (path.startsWith("/acp")) {
-        if (path === "/acp/info" || path === "/acp") {
+      if (path6.startsWith("/acp")) {
+        if (path6 === "/acp/info" || path6 === "/acp") {
           this._sendJson(res, 200, this.acp.getInfo());
-        } else if (path === "/acp/capabilities") {
+        } else if (path6 === "/acp/capabilities") {
           this._sendJson(res, 200, this.acp.getCapabilities());
-        } else if (path === "/acp/messages" && req.method === "POST") {
+        } else if (path6 === "/acp/messages" && req.method === "POST") {
           const body = await this._readJsonBody(req);
           const result = await this.acp.handleMessage(body);
           this._sendJson(res, 200, result);
@@ -2058,12 +2101,12 @@ var krnlUnifiedHttpAdapter = class {
         }
         return;
       }
-      if (path === "/manifest") {
+      if (path6 === "/manifest") {
         this._sendJson(res, 200, this.system.getManifest());
         return;
       }
     } catch (error) {
-      Logger.error(`[HttpAdapter] Fatal handler error ${path}:`, error.message || error);
+      Logger.error(`[HttpAdapter] Fatal handler error ${path6}:`, error.message || error);
       this._sendJson(res, 200, {
         status: "error",
         message: error.message || String(error),
@@ -2077,7 +2120,7 @@ var krnlUnifiedHttpAdapter = class {
       "Cache-Control": "no-cache",
       "Connection": "keep-alive"
     });
-    const functionality = this.system.localFunctionalities.get(fid);
+    const functionality = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : this.system.localFunctionalities.get(fid);
     if (!functionality) {
       res.write(`data: ${JSON.stringify({ error: "Functionality not found" })}
 
@@ -2220,10 +2263,10 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     }
     return response;
   }
-  getNotFoundResponse(path) {
+  getNotFoundResponse(path6) {
     const response = {
       status: "error",
-      message: `Route '${path}' not found.`
+      message: `Route '${path6}' not found.`
     };
     if (this._documentationProvider && typeof this._documentationProvider.getDocsForLayer === "function") {
       const entryPoints = this._documentationProvider.getDocsForLayer("LAYER_1_ENTRY");
@@ -2332,7 +2375,41 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     });
     this.remoteFunctionalities.forEach((f) => {
       if (!api[f.id]) {
-        api[f.id] = { id: f.id, type: "remote" };
+        const resolved = this.resolveLocalFunctionality(f.id);
+        if (resolved) {
+          const fManifest = {
+            id: f.id,
+            type: "remote",
+            visibility: resolved.visibility,
+            sourcePath: resolved.sourcePath,
+            events: []
+          };
+          resolved.emitters.forEach((_, eid) => {
+            const eventId = `${f.id}:${eid}`;
+            fManifest.events.push(eventId);
+            eventsNames.push(eventId);
+          });
+          if (resolved.schema) {
+            fManifest.schema = {};
+            if (resolved.schema.input) {
+              try {
+                fManifest.schema.input = (0, import_zod_to_json_schema.zodToJsonSchema)(resolved.schema.input);
+              } catch (e) {
+                fManifest.schema.input = { type: "custom", message: "Non-Zod or complex schema" };
+              }
+            }
+            if (resolved.schema.output) {
+              try {
+                fManifest.schema.output = (0, import_zod_to_json_schema.zodToJsonSchema)(resolved.schema.output);
+              } catch (e) {
+                fManifest.schema.output = { type: "custom", message: "Non-Zod or complex schema" };
+              }
+            }
+          }
+          api[f.id] = fManifest;
+        } else {
+          api[f.id] = { id: f.id, type: "remote" };
+        }
         apiNames.push(f.id);
       }
     });
@@ -2813,14 +2890,1008 @@ var DasyJS = class {
     return file.arrayBuffer();
   }
 };
+
+// src/krnl/tools/KrnlResult.ts
+var KrnlResult = class _KrnlResult {
+  status;
+  message;
+  data;
+  code;
+  constructor(status, message, data, code) {
+    this.status = status;
+    if (message !== void 0) this.message = message;
+    if (data !== void 0) this.data = data;
+    if (code !== void 0) this.code = code;
+  }
+  static ok(data, message) {
+    return new _KrnlResult("success", message, data);
+  }
+  static fail(message, code) {
+    return new _KrnlResult("error", message, void 0, code);
+  }
+  isSuccess() {
+    return this.status === "success";
+  }
+  isError() {
+    return this.status === "error";
+  }
+};
+
+// src/krnl/tools/ObjectKit.ts
+var ObjectKit = class _ObjectKit {
+  /**
+   * Structurally deep clones an object with circular dependency check.
+   */
+  static deepClone(obj, seen = /* @__PURE__ */ new Map()) {
+    if (obj === null || typeof obj !== "object") {
+      return obj;
+    }
+    if (seen.has(obj)) {
+      return seen.get(obj);
+    }
+    if (obj instanceof Date) {
+      return new Date(obj.getTime());
+    }
+    if (obj instanceof RegExp) {
+      return new RegExp(obj.source, obj.flags);
+    }
+    if (Array.isArray(obj)) {
+      const cloneArr = [];
+      seen.set(obj, cloneArr);
+      for (const item of obj) {
+        cloneArr.push(_ObjectKit.deepClone(item, seen));
+      }
+      return cloneArr;
+    }
+    const cloneObj = Object.create(Object.getPrototypeOf(obj));
+    seen.set(obj, cloneObj);
+    for (const key of Reflect.ownKeys(obj)) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(obj, key);
+      if (descriptor) {
+        descriptor.value = _ObjectKit.deepClone(descriptor.value, seen);
+        Object.defineProperty(cloneObj, key, descriptor);
+      }
+    }
+    return cloneObj;
+  }
+  /**
+   * Recursively deep merges override objects into a base.
+   */
+  static deepMerge(base, ...overrides) {
+    let result = _ObjectKit.deepClone(base);
+    for (const override of overrides) {
+      if (override === null || typeof override !== "object") {
+        continue;
+      }
+      for (const key of Object.keys(override)) {
+        const val = override[key];
+        if (val === void 0) {
+          delete result[key];
+        } else if (val && typeof val === "object" && !Array.isArray(val)) {
+          if (result[key] && typeof result[key] === "object" && !Array.isArray(result[key])) {
+            result[key] = _ObjectKit.deepMerge(result[key], val);
+          } else {
+            result[key] = _ObjectKit.deepClone(val);
+          }
+        } else {
+          result[key] = _ObjectKit.deepClone(val);
+        }
+      }
+    }
+    return result;
+  }
+  /**
+   * Performs a strict structural equality check.
+   */
+  static deepEqual(a, b) {
+    if (Object.is(a, b)) return true;
+    if (typeof a !== "object" || a === null || typeof b !== "object" || b === null) {
+      return false;
+    }
+    if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b)) {
+      return false;
+    }
+    if (a instanceof Date && b instanceof Date) {
+      return a.getTime() === b.getTime();
+    }
+    if (a instanceof RegExp && b instanceof RegExp) {
+      return a.toString() === b.toString();
+    }
+    const keysA = Reflect.ownKeys(a);
+    const keysB = Reflect.ownKeys(b);
+    if (keysA.length !== keysB.length) return false;
+    const setB = new Set(keysB);
+    for (const key of keysA) {
+      if (!setB.has(key)) return false;
+      if (!_ObjectKit.deepEqual(a[key], b[key])) return false;
+    }
+    return true;
+  }
+  /**
+   * Performs an object diff between before and after states.
+   */
+  static objectDiff(before, after) {
+    const added = {};
+    const removed = {};
+    const changed = {};
+    if (before === null || typeof before !== "object" || after === null || typeof after !== "object") {
+      return { added, removed, changed };
+    }
+    const keysBefore = Object.keys(before);
+    const keysAfter = Object.keys(after);
+    for (const key of keysAfter) {
+      if (!(key in before)) {
+        added[key] = _ObjectKit.deepClone(after[key]);
+      } else if (!_ObjectKit.deepEqual(before[key], after[key])) {
+        if (before[key] && typeof before[key] === "object" && after[key] && typeof after[key] === "object" && !Array.isArray(before[key]) && !Array.isArray(after[key])) {
+          const nested = _ObjectKit.objectDiff(before[key], after[key]);
+          if (Object.keys(nested.added).length > 0 || Object.keys(nested.removed).length > 0 || Object.keys(nested.changed).length > 0) {
+            changed[key] = nested;
+          }
+        } else {
+          changed[key] = { from: _ObjectKit.deepClone(before[key]), to: _ObjectKit.deepClone(after[key]) };
+        }
+      }
+    }
+    for (const key of keysBefore) {
+      if (!(key in after)) {
+        removed[key] = _ObjectKit.deepClone(before[key]);
+      }
+    }
+    return { added, removed, changed };
+  }
+  /**
+   * Accesses an in-memory object by dot-notation.
+   */
+  static getPath(obj, path6, defaultValue) {
+    if (!path6) return obj;
+    const parts = path6.split(".");
+    let current = obj;
+    for (const part of parts) {
+      if (current === null || current === void 0) {
+        return defaultValue;
+      }
+      current = current[part];
+    }
+    return current !== void 0 ? current : defaultValue;
+  }
+  /**
+   * Mutates or sets an in-memory object by dot-notation.
+   */
+  static setPath(obj, path6, value) {
+    if (!path6) return obj;
+    const parts = path6.split(".");
+    let current = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (current[part] === void 0 || current[part] === null) {
+        current[part] = {};
+      }
+      current = current[part];
+    }
+    current[parts[parts.length - 1]] = value;
+    return obj;
+  }
+};
+
+// src/krnl/tools/AsyncKit.ts
+var AsyncKit = class _AsyncKit {
+  /**
+   * Classic sleep/delay.
+   */
+  static sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+  /**
+   * Rejects if the task does not finish within ms.
+   */
+  static withTimeout(promise, ms, label = "Operation") {
+    let timer;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error(`[KrnlTimeoutError] ${label} timed out after ${ms}ms`));
+      }, ms);
+    });
+    return Promise.race([
+      promise.then((val) => {
+        clearTimeout(timer);
+        return val;
+      }),
+      timeoutPromise
+    ]);
+  }
+  /**
+   * Retries an async execution up to maxAttempts times.
+   */
+  static async retry(fn, maxAttempts, delayMs = 1e3) {
+    let attempts = 0;
+    while (attempts < maxAttempts) {
+      try {
+        return await fn();
+      } catch (err) {
+        attempts++;
+        if (attempts >= maxAttempts) {
+          throw err;
+        }
+        await _AsyncKit.sleep(delayMs);
+      }
+    }
+    throw new Error("Retry failed");
+  }
+  static async pLimit(tasks, concurrency) {
+    const results = [];
+    let index = 0;
+    const worker = async () => {
+      while (index < tasks.length) {
+        const i = index++;
+        results[i] = await tasks[i]();
+      }
+    };
+    const workers = [];
+    for (let i = 0; i < concurrency && i < tasks.length; i++) {
+      workers.push(worker());
+    }
+    await Promise.all(workers);
+    return results;
+  }
+  /**
+   * Debounces a function.
+   */
+  static debounce(fn, ms) {
+    let timer = null;
+    return (...args) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), ms);
+    };
+  }
+  /**
+   * Throttles a function.
+   */
+  static throttle(fn, ms) {
+    let lastCall = 0;
+    return (...args) => {
+      const now = Date.now();
+      if (now - lastCall >= ms) {
+        lastCall = now;
+        fn(...args);
+      }
+    };
+  }
+  /**
+   * Wraps a function to run only once and cache its outcome.
+   */
+  static once(fn) {
+    let run = false;
+    let result;
+    return (...args) => {
+      if (!run) {
+        run = true;
+        result = fn(...args);
+      }
+      return result;
+    };
+  }
+  /**
+   * computational memoization cache helper.
+   */
+  static memoize(fn, keyFn) {
+    const cache = /* @__PURE__ */ new Map();
+    return (...args) => {
+      const key = keyFn ? keyFn(...args) : JSON.stringify(args);
+      if (cache.has(key)) {
+        return cache.get(key);
+      }
+      const val = fn(...args);
+      cache.set(key, val);
+      return val;
+    };
+  }
+};
+
+// src/krnl/tools/StringKit.ts
+var StringKit = class _StringKit {
+  static toCamelCase(str) {
+    return str.replace(/[-_]+/g, " ").replace(/[^\w\s]/g, "").replace(
+      /(?:^\w|[A-Z]|\b\w)/g,
+      (word, index) => index === 0 ? word.toLowerCase() : word.toUpperCase()
+    ).replace(/\s+/g, "");
+  }
+  static toPascalCase(str) {
+    const camel = _StringKit.toCamelCase(str);
+    return camel.charAt(0).toUpperCase() + camel.slice(1);
+  }
+  static toSnakeCase(str) {
+    return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`).replace(/[-_\s]+/g, "_").replace(/^[_\s]+|[_\s]+$/g, "").toLowerCase();
+  }
+  static toKebabCase(str) {
+    return str.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`).replace(/[-_\s]+/g, "-").replace(/^[-_\s]+|[-_\s]+$/g, "").toLowerCase();
+  }
+  static toScreamingSnake(str) {
+    return _StringKit.toSnakeCase(str).toUpperCase();
+  }
+  static toSlug(str) {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9\s-_]/g, "").replace(/[\s-_]+/g, "-").replace(/^-+|-+$/g, "");
+  }
+  static generateUUID() {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      const r = Math.random() * 16 | 0;
+      const v = c === "x" ? r : r & 3 | 8;
+      return v.toString(16);
+    });
+  }
+  static generateShortId(length = 8) {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.random() * chars.length | 0);
+    }
+    return result;
+  }
+  static generatePrefixedId(prefix, length = 8) {
+    return `${prefix}-${_StringKit.generateShortId(length)}`;
+  }
+  static interpolate(tmpl, data) {
+    return tmpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key) => {
+      return data[key] !== void 0 ? String(data[key]) : `{{${key}}}`;
+    });
+  }
+};
+
+// src/krnl/tools/CacheKit.ts
+var import_fs2 = __toESM(require("fs"), 1);
+var import_path = __toESM(require("path"), 1);
+var LRUCache = class {
+  maxSize;
+  cache;
+  constructor(maxSize) {
+    this.maxSize = maxSize;
+    this.cache = /* @__PURE__ */ new Map();
+  }
+  get(key) {
+    if (!this.cache.has(key)) return void 0;
+    const val = this.cache.get(key);
+    this.cache.delete(key);
+    this.cache.set(key, val);
+    return val;
+  }
+  set(key, value) {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey !== void 0) this.cache.delete(firstKey);
+    }
+    this.cache.set(key, value);
+  }
+  delete(key) {
+    return this.cache.delete(key);
+  }
+  clear() {
+    this.cache.clear();
+  }
+  size() {
+    return this.cache.size;
+  }
+};
+var TTLCache = class {
+  ttlMs;
+  cache;
+  constructor(ttlMs) {
+    this.ttlMs = ttlMs;
+    this.cache = /* @__PURE__ */ new Map();
+  }
+  get(key) {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expires) {
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.value;
+  }
+  set(key, value) {
+    this.cache.set(key, {
+      value,
+      expires: Date.now() + this.ttlMs
+    });
+  }
+  delete(key) {
+    return this.cache.delete(key);
+  }
+  clear() {
+    this.cache.clear();
+  }
+};
+var CacheKit = class {
+  /**
+   * Stale-While-Revalidate utility.
+   */
+  static swr(cache, key, fetchFn) {
+    const cached = cache.get(key);
+    if (cached !== null) {
+      setTimeout(() => {
+        fetchFn().then((fresh) => cache.set(key, fresh)).catch(() => {
+        });
+      }, 0);
+      return Promise.resolve(cached);
+    }
+    return fetchFn().then((fresh) => {
+      cache.set(key, fresh);
+      return fresh;
+    });
+  }
+};
+var FileCache = class {
+  cacheDir;
+  constructor(cacheDir) {
+    this.cacheDir = cacheDir;
+    try {
+      if (!import_fs2.default.existsSync(cacheDir)) {
+        import_fs2.default.mkdirSync(cacheDir, { recursive: true });
+      }
+    } catch (e) {
+    }
+  }
+  getFilePath(key) {
+    return import_path.default.join(this.cacheDir, `${encodeURIComponent(key)}.json`);
+  }
+  get(key) {
+    const file = this.getFilePath(key);
+    if (!import_fs2.default.existsSync(file)) return null;
+    try {
+      const content = import_fs2.default.readFileSync(file, "utf8");
+      return JSON.parse(content);
+    } catch (e) {
+      return null;
+    }
+  }
+  set(key, value) {
+    const file = this.getFilePath(key);
+    try {
+      import_fs2.default.writeFileSync(file, JSON.stringify(value, null, 2), "utf8");
+    } catch (e) {
+    }
+  }
+  delete(key) {
+    const file = this.getFilePath(key);
+    if (import_fs2.default.existsSync(file)) {
+      try {
+        import_fs2.default.unlinkSync(file);
+      } catch (e) {
+      }
+    }
+  }
+  clear() {
+    try {
+      const files = import_fs2.default.readdirSync(this.cacheDir);
+      for (const file of files) {
+        import_fs2.default.unlinkSync(import_path.default.join(this.cacheDir, file));
+      }
+    } catch (e) {
+    }
+  }
+};
+
+// src/krnl/tools/KrnlFS.ts
+var import_fs3 = __toESM(require("fs"), 1);
+var import_promises = __toESM(require("fs/promises"), 1);
+var import_path2 = __toESM(require("path"), 1);
+var import_os = __toESM(require("os"), 1);
+var FileLock = class _FileLock {
+  static locks = /* @__PURE__ */ new Map();
+  static async acquire(filePath) {
+    const resolvedPath = import_path2.default.resolve(filePath);
+    const existing = _FileLock.locks.get(resolvedPath) || Promise.resolve();
+    let release = () => {
+    };
+    const nextLock = new Promise((resolve) => {
+      release = () => {
+        _FileLock.locks.delete(resolvedPath);
+        resolve();
+      };
+    });
+    _FileLock.locks.set(resolvedPath, nextLock);
+    await existing;
+    return release;
+  }
+};
+var KrnlFS = class _KrnlFS {
+  // --- File primitives ---
+  static async readFile(filePath, encoding = "utf8") {
+    return await import_promises.default.readFile(filePath, encoding);
+  }
+  static async writeFile(filePath, content) {
+    await import_promises.default.writeFile(filePath, content);
+  }
+  /**
+   * Atomic file writing via temp files.
+   */
+  static async writeFileAtomic(filePath, content) {
+    const dir = import_path2.default.dirname(filePath);
+    await _KrnlFS.ensureDir(dir);
+    const tempFile = import_path2.default.join(dir, `.${import_path2.default.basename(filePath)}.tmp_${Date.now()}_${Math.random().toString(36).substring(7)}`);
+    try {
+      await import_promises.default.writeFile(tempFile, content);
+      await import_promises.default.rename(tempFile, filePath);
+    } catch (e) {
+      if (import_fs3.default.existsSync(tempFile)) {
+        await import_promises.default.unlink(tempFile).catch(() => {
+        });
+      }
+      throw e;
+    }
+  }
+  static async appendFile(filePath, content) {
+    await import_promises.default.appendFile(filePath, content);
+  }
+  static async deleteFile(filePath) {
+    await import_promises.default.unlink(filePath);
+  }
+  static async fileExists(filePath) {
+    try {
+      const stat = await import_promises.default.stat(filePath);
+      return stat.isFile();
+    } catch (e) {
+      return false;
+    }
+  }
+  static async getFileStat(filePath) {
+    const stat = await import_promises.default.stat(filePath);
+    return {
+      size: stat.size,
+      createdAt: stat.birthtime,
+      modifiedAt: stat.mtime,
+      isDir: stat.isDirectory()
+    };
+  }
+  // --- JSON convenience ---
+  static async readJSON(filePath) {
+    try {
+      const content = await _KrnlFS.readFile(filePath, "utf8");
+      return JSON.parse(content);
+    } catch (e) {
+      return null;
+    }
+  }
+  static async writeJSON(filePath, data, indent = 2) {
+    const content = JSON.stringify(data, null, indent);
+    await _KrnlFS.writeFileAtomic(filePath, content);
+  }
+  static async updateJSON(filePath, patch) {
+    const release = await FileLock.acquire(filePath);
+    try {
+      let existing = await _KrnlFS.readJSON(filePath);
+      if (!existing) {
+        existing = {};
+      }
+      const updated = ObjectKit.deepMerge(existing, patch);
+      await _KrnlFS.writeJSON(filePath, updated);
+      return updated;
+    } finally {
+      release();
+    }
+  }
+  // --- Directory primitives ---
+  static async ensureDir(dirPath) {
+    await import_promises.default.mkdir(dirPath, { recursive: true });
+  }
+  static async deleteDir(dirPath, recursive = true) {
+    await import_promises.default.rm(dirPath, { recursive, force: true });
+  }
+  static async listDir(dirPath) {
+    return await import_promises.default.readdir(dirPath);
+  }
+  static async *walkDir(dirPath, filter) {
+    const list = await _KrnlFS.listDir(dirPath);
+    for (const item of list) {
+      const full = import_path2.default.join(dirPath, item);
+      const stat = await _KrnlFS.getFileStat(full);
+      if (stat.isDir) {
+        yield* _KrnlFS.walkDir(full, filter);
+      } else {
+        if (!filter || filter(full)) {
+          yield full;
+        }
+      }
+    }
+  }
+  static async dirExists(dirPath) {
+    try {
+      const stat = await import_promises.default.stat(dirPath);
+      return stat.isDirectory();
+    } catch (e) {
+      return false;
+    }
+  }
+  static async copyDir(src, dest) {
+    await _KrnlFS.ensureDir(dest);
+    const list = await _KrnlFS.listDir(src);
+    for (const item of list) {
+      const srcItem = import_path2.default.join(src, item);
+      const destItem = import_path2.default.join(dest, item);
+      const stat = await _KrnlFS.getFileStat(srcItem);
+      if (stat.isDir) {
+        await _KrnlFS.copyDir(srcItem, destItem);
+      } else {
+        await import_promises.default.copyFile(srcItem, destItem);
+      }
+    }
+  }
+  // --- Path utilities ---
+  static join(...parts) {
+    return import_path2.default.join(...parts);
+  }
+  static resolve(...parts) {
+    return import_path2.default.resolve(...parts);
+  }
+  static relative(from, to) {
+    return import_path2.default.relative(from, to);
+  }
+  static basename(filePath, ext) {
+    return import_path2.default.basename(filePath, ext);
+  }
+  static dirname(filePath) {
+    return import_path2.default.dirname(filePath);
+  }
+  static extname(filePath) {
+    return import_path2.default.extname(filePath);
+  }
+  static normalize(filePath) {
+    return import_path2.default.normalize(filePath);
+  }
+  static isSafe(filePath, root) {
+    const resolvedPath = import_path2.default.resolve(filePath);
+    const resolvedRoot = import_path2.default.resolve(root);
+    return resolvedPath.startsWith(resolvedRoot);
+  }
+  // --- Candidate resolution ---
+  static async firstExisting(candidates) {
+    for (const cand of candidates) {
+      if (await _KrnlFS.fileExists(cand)) {
+        return cand;
+      }
+    }
+    return null;
+  }
+  // --- Watching ---
+  static watchFile(filePath, handler, debounceMs = 100) {
+    let timer = null;
+    return import_fs3.default.watch(filePath, (event) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => handler(event), debounceMs);
+    });
+  }
+  static watchDir(dirPath, handler, debounceMs = 100) {
+    let timer = null;
+    return import_fs3.default.watch(dirPath, (event, filename) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => handler(event, filename), debounceMs);
+    });
+  }
+  // --- Temp ---
+  static createTempFile(prefix = "tmp-") {
+    return import_path2.default.join(import_os.default.tmpdir(), `${prefix}${Math.random().toString(36).substring(7)}.tmp`);
+  }
+  static createTempDir(prefix = "tmp-dir-") {
+    const dir = import_path2.default.join(import_os.default.tmpdir(), `${prefix}${Math.random().toString(36).substring(7)}`);
+    import_fs3.default.mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+  static async withTempDir(fn, prefix = "tmp-") {
+    const tempDir = _KrnlFS.createTempDir(prefix);
+    try {
+      return await fn(tempDir);
+    } finally {
+      await _KrnlFS.deleteDir(tempDir, true).catch(() => {
+      });
+    }
+  }
+};
+
+// src/krnl/tools/KrnlEnv.ts
+var import_fs4 = __toESM(require("fs"), 1);
+var import_path3 = __toESM(require("path"), 1);
+var KrnlEnv = class {
+  /**
+   * Reads a process environment variable with type coercion and defaults.
+   */
+  static get(key, defaultValue) {
+    const val = process.env[key];
+    if (val === void 0) {
+      if (defaultValue !== void 0) return defaultValue;
+      throw new Error(`[KrnlEnvError] Missing required environment variable: ${key}`);
+    }
+    if (typeof defaultValue === "number") {
+      const num = Number(val);
+      if (isNaN(num)) {
+        throw new Error(`[KrnlEnvError] Expected number for ${key}, received: ${val}`);
+      }
+      return num;
+    }
+    if (typeof defaultValue === "boolean") {
+      return val === "true" || val === "1";
+    }
+    try {
+      if (defaultValue && typeof defaultValue === "object") {
+        return JSON.parse(val);
+      }
+    } catch (e) {
+    }
+    return val;
+  }
+  /**
+   * Asserts environment variable is set and returns its string value.
+   */
+  static require(key) {
+    const val = process.env[key];
+    if (val === void 0) {
+      throw new Error(`[KrnlEnvError] Missing required environment variable: ${key}`);
+    }
+    return val;
+  }
+  /**
+   * Loads a .env file and injects variables into process.env.
+   */
+  static load(filePath) {
+    const file = filePath || import_path3.default.join(process.cwd(), ".env");
+    if (!import_fs4.default.existsSync(file)) return;
+    try {
+      const content = import_fs4.default.readFileSync(file, "utf8");
+      const lines = content.split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const equalsIndex = trimmed.indexOf("=");
+        if (equalsIndex === -1) continue;
+        const key = trimmed.slice(0, equalsIndex).trim();
+        let value = trimmed.slice(equalsIndex + 1).trim();
+        if (value.startsWith('"') && value.endsWith('"')) {
+          value = value.slice(1, -1);
+        } else if (value.startsWith("'") && value.endsWith("'")) {
+          value = value.slice(1, -1);
+        }
+        if (process.env[key] === void 0) {
+          process.env[key] = value;
+        }
+      }
+    } catch (e) {
+    }
+  }
+  /**
+   * Validates the entire config using a Zod schema.
+   */
+  static schema(zodSchema) {
+    try {
+      return zodSchema.parse(process.env);
+    } catch (err) {
+      throw new Error(`[KrnlEnvError] Environment validation failed: ${err.message || String(err)}`);
+    }
+  }
+};
+
+// src/krnl/tools/KrnlShell.ts
+var import_child_process = require("child_process");
+var import_path4 = __toESM(require("path"), 1);
+var import_fs5 = __toESM(require("fs"), 1);
+var KrnlShell = class {
+  /**
+   * Promisified command execution.
+   */
+  static exec(cmd, opts = {}) {
+    const timeout = opts.timeout || 3e4;
+    return new Promise((resolve, reject) => {
+      (0, import_child_process.exec)(cmd, { ...opts, timeout }, (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`[KrnlShellError] Command failed: ${cmd}
+Exit Code: ${error.code}
+Stderr: ${String(stderr)}`));
+        } else {
+          resolve({ stdout: String(stdout), stderr: String(stderr) });
+        }
+      });
+    });
+  }
+  /**
+   * Streaming command execution.
+   */
+  static spawn(cmd, args, opts = {}) {
+    const child = (0, import_child_process.spawn)(cmd, args, opts);
+    const promise = new Promise((resolve, reject) => {
+      child.on("close", (code, signal) => {
+        resolve({ code, signal });
+      });
+      child.on("error", (err) => {
+        reject(err);
+      });
+    });
+    return {
+      pid: child.pid,
+      kill: (signal) => child.kill(signal),
+      promise
+    };
+  }
+  /**
+   * Defines posix vs win32 specific commands.
+   */
+  static platform(routing) {
+    return process.platform === "win32" ? routing.win32 : routing.posix;
+  }
+  /**
+   * Resolves the full path of a binary.
+   */
+  static which(cmd) {
+    const envPath = process.env.PATH || "";
+    const paths = envPath.split(import_path4.default.delimiter);
+    const extensions = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+    for (const p of paths) {
+      for (const ext of extensions) {
+        const fullPath = import_path4.default.join(p, `${cmd}${ext}`);
+        try {
+          if (import_fs5.default.existsSync(fullPath) && import_fs5.default.statSync(fullPath).isFile()) {
+            return fullPath;
+          }
+        } catch (e) {
+        }
+      }
+    }
+    return null;
+  }
+};
+
+// src/krnl/tools/KrnlHTTP.ts
+var KrnlHTTP = class _KrnlHTTP {
+  /**
+   * Helper to perform fetch with timeout and retries.
+   */
+  static async requestRaw(url, opts = {}) {
+    const timeout = opts.timeout || 15e3;
+    const retries = opts.retries || 0;
+    const perform = async () => {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      try {
+        const response = await fetch(url, {
+          ...opts,
+          signal: controller.signal
+        });
+        clearTimeout(id);
+        return response;
+      } catch (e) {
+        clearTimeout(id);
+        throw e;
+      }
+    };
+    return await AsyncKit.retry(perform, retries + 1, 1e3);
+  }
+  static async request(url, opts = {}) {
+    try {
+      const res = await _KrnlHTTP.requestRaw(url, opts);
+      if (!res.ok) {
+        return KrnlResult.fail(`HTTP Error ${res.status}: ${res.statusText}`, res.status);
+      }
+      const data = await res.json();
+      return KrnlResult.ok(data);
+    } catch (e) {
+      return KrnlResult.fail(e.message || String(e));
+    }
+  }
+  static async get(url, opts = {}) {
+    return await _KrnlHTTP.request(url, { ...opts, method: "GET" });
+  }
+  static async post(url, body, opts = {}) {
+    return await _KrnlHTTP.request(url, {
+      ...opts,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...opts.headers },
+      body: JSON.stringify(body)
+    });
+  }
+  static async put(url, body, opts = {}) {
+    return await _KrnlHTTP.request(url, {
+      ...opts,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...opts.headers },
+      body: JSON.stringify(body)
+    });
+  }
+  static async del(url, opts = {}) {
+    return await _KrnlHTTP.request(url, { ...opts, method: "DELETE" });
+  }
+  /**
+   * Creates a client instance.
+   */
+  static createClient(baseUrl, defaultHeaders = {}) {
+    return {
+      get: (path6, opts = {}) => _KrnlHTTP.get(`${baseUrl}${path6}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+      post: (path6, body, opts = {}) => _KrnlHTTP.post(`${baseUrl}${path6}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+      put: (path6, body, opts = {}) => _KrnlHTTP.put(`${baseUrl}${path6}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+      del: (path6, opts = {}) => _KrnlHTTP.del(`${baseUrl}${path6}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } })
+    };
+  }
+  /**
+   * Streaming SSE / Chunk response.
+   */
+  static async *streamResponse(url, opts = {}) {
+    const res = await _KrnlHTTP.requestRaw(url, opts);
+    if (!res.ok || !res.body) {
+      throw new Error(`Failed to initialize stream: HTTP ${res.status}`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        yield decoder.decode(value, { stream: true });
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+};
+
+// src/krnl/tools/GitManager.ts
+var import_fs6 = __toESM(require("fs"), 1);
+var import_path5 = __toESM(require("path"), 1);
+var GitManager = class _GitManager {
+  static isRepo(dirPath) {
+    return import_fs6.default.existsSync(import_path5.default.join(dirPath, ".git"));
+  }
+  static async init(dirPath) {
+    if (_GitManager.isRepo(dirPath)) return;
+    await KrnlShell.exec("git init", { cwd: dirPath });
+  }
+  static async clone(repoUrl, destPath) {
+    const parentDir = import_path5.default.dirname(destPath);
+    if (!import_fs6.default.existsSync(parentDir)) {
+      import_fs6.default.mkdirSync(parentDir, { recursive: true });
+    }
+    await KrnlShell.exec(`git clone ${repoUrl} ${import_path5.default.basename(destPath)}`, { cwd: parentDir });
+  }
+  static async commit(dirPath, message) {
+    if (!_GitManager.isRepo(dirPath)) {
+      throw new Error(`[GitManagerError] Directory ${dirPath} is not a git repository.`);
+    }
+    const { stdout: status } = await KrnlShell.exec("git status --porcelain", { cwd: dirPath });
+    if (!status.trim()) {
+      return false;
+    }
+    await KrnlShell.exec("git add -A", { cwd: dirPath });
+    await KrnlShell.exec(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: dirPath });
+    return true;
+  }
+  static async push(dirPath, remote = "origin", branch = "main") {
+    if (!_GitManager.isRepo(dirPath)) {
+      throw new Error(`[GitManagerError] Directory ${dirPath} is not a git repository.`);
+    }
+    await KrnlShell.exec(`git push ${remote} ${branch}`, { cwd: dirPath });
+  }
+};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  AsyncKit,
+  CacheKit,
   DasyJS,
+  FileCache,
+  FileLock,
+  GitManager,
   KrnlAcpProtocol,
+  KrnlEnv,
+  KrnlFS,
+  KrnlHTTP,
   KrnlMcpProtocol,
   KrnlPolicy,
+  KrnlResult,
+  KrnlShell,
+  LRUCache,
   Logger,
   MemoryTransportAdapter,
+  ObjectKit,
+  StringKit,
+  TTLCache,
   WebSocketTransportAdapter,
   createEnum,
   krnlBackendVisualEntityBase,

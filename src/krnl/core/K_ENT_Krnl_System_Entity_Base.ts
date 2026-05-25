@@ -269,7 +269,42 @@ export class krnlSystemEntityBase extends krnlEntityBase {
 
     this.remoteFunctionalities.forEach((f: any) => {
       if (!api[f.id]) {
-        api[f.id] = { id: f.id, type: 'remote' };
+        const resolved = (this as any).resolveLocalFunctionality(f.id);
+        if (resolved) {
+          const fManifest: any = {
+            id: f.id,
+            type: 'remote',
+            visibility: resolved.visibility,
+            sourcePath: resolved.sourcePath, 
+            events: [] 
+          };
+          resolved.emitters.forEach((_: any, eid: string) => {
+            const eventId = `${f.id}:${eid}`;
+            fManifest.events.push(eventId);
+            eventsNames.push(eventId);
+          });
+
+          if (resolved.schema) {
+            fManifest.schema = {};
+            if (resolved.schema.input) {
+              try {
+                fManifest.schema.input = zodToJsonSchema(resolved.schema.input);
+              } catch (e) {
+                fManifest.schema.input = { type: "custom", message: "Non-Zod or complex schema" };
+              }
+            }
+            if (resolved.schema.output) {
+              try {
+                fManifest.schema.output = zodToJsonSchema(resolved.schema.output);
+              } catch (e) {
+                fManifest.schema.output = { type: "custom", message: "Non-Zod or complex schema" };
+              }
+            }
+          }
+          api[f.id] = fManifest;
+        } else {
+          api[f.id] = { id: f.id, type: 'remote' };
+        }
         apiNames.push(f.id);
       }
     });

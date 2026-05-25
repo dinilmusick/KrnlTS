@@ -224,6 +224,30 @@ export class krnlEntityBase {
 
   getLocal(fid: string) { return this.localFunctionalities.get(fid); }
   getRemote(fid: string) { return this.remoteFunctionalities.get(fid); }
+  resolveLocalFunctionality(fid: string): any {
+    if (this.localFunctionalities.has(fid)) {
+      return this.localFunctionalities.get(fid);
+    }
+    let current: any = this.remoteFunctionalities.get(fid);
+    while (current) {
+      if (current.isLocal) {
+        return current;
+      }
+      if (current.transport && current.transport.targetEntity) {
+        const target = current.transport.targetEntity;
+        const targetFid = current.targetFunction;
+        if (target.localFunctionalities && target.localFunctionalities.has(targetFid)) {
+          return target.localFunctionalities.get(targetFid);
+        }
+        if (target.remoteFunctionalities && target.remoteFunctionalities.has(targetFid)) {
+          current = target.remoteFunctionalities.get(targetFid);
+          continue;
+        }
+      }
+      break;
+    }
+    return null;
+  }
   addChild(instance: krnlEntityBase) {
     return this.hierarchyManager.addComponentEntityInstance(instance);
   }

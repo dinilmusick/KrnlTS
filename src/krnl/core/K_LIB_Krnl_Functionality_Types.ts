@@ -55,6 +55,8 @@ export class krnlLocalFunctionality {
   helpers: Map<string, any>;
   emitters: Map<string, krnlEmitter>;
   schema: any;
+  description?: string;
+  method?: string;
   lifecycle: {
     beginning?: Function;
     during?: Function;
@@ -90,6 +92,8 @@ export class krnlLocalFunctionality {
     this.helpers = new Map(Object.entries(helpers));
     this.emitters = new Map();
     this.schema = schema;
+    this.description = config.description || '';
+    this.method = config.method || 'POST';
 
     this.lifecycle = {
       beginning: onMount || events.beginning,

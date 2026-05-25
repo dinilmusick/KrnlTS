@@ -1,196 +1,83 @@
-    // ULTRST FRAMEWORK CONVENTIONS : Project structure conventions for all projects with KrnlJS Library.
-// RULES_VERSION: 1.3.0
-// KrnlJS = Core Library -> Ultrst Framework Projects
+// ULTRST & KRNL CONVENTIONS (SUPER COMPRESSED) - v2.0.0
+// Target: All KrnlJS/KrnlTS project modules & ecosystem layers
 
 [STRUCTURE]
 ROOT/
-├── doc.md -> Root Documentation (Links to all assets)
-├── src/ -> Canonical Source
-├── libraries/ -> External dependencies (submodules) <- project-local shared modules (NOT npm packages)
-│   └── MyLib/
-│       ├── MyLib.js
-│       └── doc.md
-├── entities/ -> Child entities (recursive)
-│   └── MySubSystemEntity/ <-  should be krnlSubSystemOrchestratorBase for major domains that divide the system/app into major subsystems
-│       ├── doc.md
-│       ├── entities/ <- component entities (recursive, owned by parent)
-│       │   └── MyEntity <- should be krnlEntityBase like normal entities
-│       │       ├── doc.md
-│       │       ├── entities/ 
-│       │       ├── functionalities/ -> Logic atoms (recursive)
-│       │       │    └── MyFunc/
-│       │       │       ├── doc.md
-│       │       │       ├── main_function/
-│       │       │       └── MyFunc.js
-│       │       └── MyEntity.js
-│       ├── functionalities/
-│       │   └── MyFunc/
-│       │       ├── doc.md
-│       │       ├── main_function/
-│       │       └── MyFunc.js
-│       └── MySubSystemEntity.js
-├── functionalities/ <- project-root-level logic atoms
-│   └── MyFunc/
-│       ├── doc.md
-│       ├── main_function/
-│       └── MyFunc.js
-└── <project-name>.js <- system assembler (krnlSystemEntityBase)
+├── doc.md -> Root documentation
+├── src/ -> Canonical source files (.ts/esm)
+├── libraries/ -> Project-local submodules (NO npm packages)
+├── entities/ -> Child nested orchestrators & component entities
+│   └── MyEntity/
+│       ├── functionalities/ -> Encapsulated logic atoms
+│       └── MyEntity.js -> Composition assembler
+└── assembler.js -> System Entrypoint (krnlSystemEntityBase)
 
-[ROOT_CLEANLINESS_POLICY]
-RULE: NEVER create test files or example scripts in the ROOT of the codebase.
-RULE: All tests, benchmarks, and functional demos MUST reside in the `examples/` folder.
-RULE: Each example MUST be a self-contained folder with its own `doc.md`.
-
-[SUBSYSTEM_PATTERN]
-USE krnlSubSystemOrchestratorBase when a system is large enough to split into
-named major domains that still run in the same process.
-
-RULE: Subsystems extend krnlSubSystemOrchestratorBase, not krnlSystemEntityBase.
-RULE: Subsystems MUST be owned by a parent entity (enforced by constructor).
-RULE: Subsystem functionalities bubble to the system root like any component's.
-RULE: No network ports, no WS server, no discovery on subsystems.
-RULE: Subsystems live inside entities/ — they are a semantic label, not a new folder type.
-
-EXAMPLE:
-  MySystem (krnlSystemEntityBase, port 10099)
-    └── AuthSubSystem (krnlSubSystemOrchestratorBase, owner = MySystem)
-          └── UserEntity (krnlEntityBase, owner = AuthSubSystem)
-
-AuthSubSystem's and UserEntity's public functionalities bubble up to MySystem automatically.
-MySystem.call('login', ...) works without any manual wiring.
-
-[REMOTE_FUNCTIONALITY_POLICY]
-krnlRemoteFunctionality has two valid creation paths:
-
-PATH A (auto, framework-generated): When a component has a public local functionality,
-  the framework creates a RemoteFunctionality proxy on the owner automatically.
-  Developer writes nothing. MemoryTransportAdapter is used internally.
-
-PATH B (manual, cross-process only): When a entity needs to call a functionality
-  in a SEPARATE PROCESS (different Node instance, different port), use:
-  addRemote({ transport: new WebSocketTransportAdapter(commComponent, addr), ... })
-
-RULE: Do NOT manually call addRemote() with MemoryTransportAdapter.
-RULE: Do NOT manually call addRemote() to point at a sibling/cousin entity in the same process.
-RULE: If you feel the need to addRemote() within a single process, the architecture needs
-      refactoring — the entities should share a common owner so bubbling handles it.
-RULE: krnlRemoteFunctionality across a process boundary is an advanced use case.
-      Default to subsystems and bubbling first.
-
-[DOCUMENTATION_POLICY]
-RULE: Every asset (Library, Entity, Functionality, Exhibit) MUST have a 'doc.md'.
-RULE: 'doc.md' MUST contain: Name, Description, API List (Signatures + Descriptions + 2 Examples).
-RULE: Parent 'doc.md' MUST link to child 'doc.md' files.
-RULE: Root 'doc.md' MUST link to all top-level asset 'doc.md' files.
-RULE: Every System MUST provide a '/guide' endpoint that returns a hierarchical JSON guide.
-RULE: The '/guide' endpoint MUST support a 'section' parameter for recursive navigation.
-
-[LIBRARY_STRUCTURE]
-RULE: Each library MUST reside in its own folder named after the library.
-RULE: The folder MUST contain the library JS file and a 'doc.md'.
-
-[VISIBILITY_&_BUBBLING]
-RULE: Functionalities are 'public' by default and bubble up to the system level.
-RULE: Set visibility to 'private' in the descriptor to stop bubbling at the current entity.
+[POLICIES]
+- ROOT CLEANLINESS: Zero test/scaffold/scratch files in root. All demos inside `examples/`.
+- SUBSYSTEMS: Major process-local domains inherit `krnlSubSystemOrchestratorBase`, owned by parent.
+- VISIBILITY: Functionalities bubble up to owner by default if `visibility = 'public'`. Avoid manual `addRemote` for local sibling calls.
+- BUBBLING RESOLUTION: Unified HTTP, SSE, MCP, & manifest protocols resolve remote proxies to source metadata.
 
 [IMPORT_RESTRICTIONS]
-RULE: DESCRIPTOR_FILES (Entity.js, Functionality.js) -> NO library imports, NO logic.
-RULE: LOGIC_FILES (logic.js, helpers.js) -> YES library imports, YES helper imports.
-RULE: PATHS (npm packages) -> import { krnlEntityBase } from 'krnljs'
-RULE: PATHS (internal)     -> Use relative paths for atoms within the same project.
-RULE: libraries/ folder    -> Project-local shared modules ONLY. Not for npm packages.
-RULE: IMPORT EXTENSIONS    -> ALL internal import paths MUST use .js extension, never .ts.
-                              The TypeScript compiler emits .js files; Node.js ESM resolves .js.
-                              Using .ts extensions causes silent undefined imports at runtime.
+- Descriptors (Entity.js, Func.js) are strictly declarative CONFIG_ONLY. No library imports.
+- Logic Files (logic.js) contain helper and library imports.
+- All internal import extensions MUST be `.js` (never `.ts` to ensure clean ES resolution).
 
-[FUNCTIONALITY_DESCRIPTOR_IMPORT]
-FILE: ./functionalities/MyFunc/MyFunc.js
------------------------------------------
-import { main } from "./main_function/logic.js";
-import { onMount, onTeardown } from "./main_function/lifecycle.js";
-import { initialState } from "./state_data/state.js";
+---
 
-export const MyFuncAtom = {
-    id: "MyFunc",
-    initialState,
-    api: main,
-    onMount,
-    onTeardown,
-    emitters: { ... },
-    schema: { input: (data) => true }
-};
+[KRNL-TOOLS INTEGRATION GUIDE]
+The new foundational primitives are exported under `krnlts` namespace:
+`import { KrnlResult, KrnlFS, KrnlEnv, KrnlShell, AsyncKit, StringKit, ObjectKit, CacheKit, KrnlHTTP, GitManager } from "krnlts";`
 
-[LOGIC_ATOM_IMPORT]
-FILE: ./functionalities/MyFunc/main_function/logic.js
-------------------------------------------------------
-import { myHelper } from "../helper_functions/myHelper.js";
-import { myEvent } from "../events/myEvent.js";
-import { ExternalLib } from "../../../libraries/ExternalLib.js"; // Libraries ONLY here
+1. OPERATIONS ENVELOPE (KrnlResult)
+```ts
+// Enforces standard success/error structure
+const res = KrnlResult.ok({ payload: "value" }); // -> { status: "success", data }
+const err = KrnlResult.fail("Something went wrong", 500); // -> { status: "error", message, code }
+```
 
-export const main = async (input, { state, emitters, functionality, entity }) => { ... };
+2. SAFE FILESYSTEM (KrnlFS)
+```ts
+// Atomic writing (corrupt-proof), deep-merge updateJSON, directory operations
+await KrnlFS.writeFileAtomic("path/file.txt", "data");
+await KrnlFS.ensureDir("nested/path");
+const user = await KrnlFS.updateJSON("user.json", { preferences: { dark: true } }); // safe deep-merge
+const release = await KrnlFS.acquireFileLock("file.txt"); // Cooperative Promise-based file mutex lock
+release();
+```
 
-[ENTITY_ASSEMBLER_IMPORT]
-FILE: ./entities/MyEntity/MyEntity.js
---------------------------------------
-import { MyFuncAtom } from "./functionalities/MyFunc/MyFunc.js";
-import { MyChildEntity } from "./entities/Child/Child.js";
+3. SYSTEM CONTROL & ENV (KrnlEnv & KrnlShell)
+```ts
+// Type-safe Zod schema validation & loading for environment configurations
+KrnlEnv.load(".env");
+const config = KrnlEnv.schema(z.object({ PORT: z.coerce.number().default(8080) }));
+// Execution wrappers
+const { stdout } = await KrnlShell.exec("git status");
+const handle = KrnlShell.spawn("node", ["server.js"]);
+const actualBin = KrnlShell.which("node"); // locates system binaries
+```
 
-export class MyEntity extends krnlEntityBase {
-    constructor() {
-        super("MyEntity");
-        this.addLocal(MyFuncAtom);
-        this.addChild(new MyChildEntity());
-    }
-}
+4. FLOW & PROMISE CONTROLS (AsyncKit)
+```ts
+// Timings, limiters, debouncing, once
+await AsyncKit.sleep(500);
+const res = await AsyncKit.withTimeout(fetchData(), 5000, "FetchTask");
+const results = await AsyncKit.pLimit([() => task1(), () => task2()], 2); // concurrency limiting
+```
 
-[PURE_DESCRIPTOR_POLICY]
-RULE: Assemblers == CONFIG_ONLY (Imports of descriptors/atoms/baseClasses(KnrlJS Library) ONLY)
-PROHIBITED: import { someLib } from "../../libraries/Lib.js" inside Entity.js or Func.js
+5. OBJECT & TEXT FORMATTING (ObjectKit & StringKit)
+```ts
+const cloned = ObjectKit.deepClone(obj); // handles Dates, Regex, deep refs cleanly
+const merged = ObjectKit.deepMerge(base, override); // recursive deep key merge
+const camel = StringKit.toCamelCase("my-entity-name"); // camel, pascal, snake, kebab, slug
+const uuid = StringKit.generateUUID(); // UUID generator
+const interpolated = StringKit.interpolate("Hello {{name}}", { name: "Dinil" });
+```
 
-[ATOMIC_API_SIGNATURE]
-FUNCTION: (input, { state, emitters, functionality, entity, caller }) => {
-    TRANSFORM(input);
-    UPDATE(state);   // Automatic Proxy Reactivity
-    EMIT(emitters.get('name'), data);
-    RETURN(result);
-}
-
-[CONTEXT_OBJECT_REFERENCE]
-Each atom's main function receives a context object as its second argument.
-Full type map — know exactly what each field is before using it:
-
-  state          : object     -> Reactive proxy of the atom's own state (mutate directly).
-  emitters       : Map        -> Emitter instances keyed by id. Use emitters.get('name').
-  functionality  : object     -> The krnlLocalFunctionality descriptor instance itself.
-  entity         : object     -> The live host entity instance (krnlEntityBase / krnlSystemEntityBase).
-                                 Use entity.call('OtherAtom', input) to invoke sibling atoms.
-  caller         : string     -> Name string of the upstream caller (e.g. "default", "Wepx").
-                                 NOT an entity. Has no .call() method.
-                                 Use for logging/tracing only.
-
-CRITICAL RULES:
-RULE: To call another atom from inside a logic function, use entity.call('AtomId', input).
-RULE: NEVER use caller.call(...) — caller is a string, not an entity. This throws a TypeError.
-RULE: caller is for identification/logging only.
-
-[STATE_MANAGEMENT]
-RULE: State defined as literal in state_data/state.js.
-RULE: Exported as 'initialState' or 'state'.
-RULE: Mutations to 'state' automatically fire 'state:changed' events.
-
-[DISTRIBUTED_RPC]
-RULE: Use 'WebSocketTransportAdapter' for remote systems.
-RULE: System orchestrators must extend 'krnlSystemEntityBase'.
-
-[UNIFIED_SERVICE_SUITE]
-RULE: Every krnlSystemEntityBase automatically hosts a Unified HTTP Service on 'commPort'.
-RULE: The suite is "Always-On" and provides the following endpoints:
-    - /call/:fid     -> REST (POST) execute functionality.
-    - /sse/:fid      -> SSE (GET) stream state updates.
-    - /mcp           -> MCP (POST/GET) Streamable HTTP protocol.
-    - /acp           -> ACP (GET/POST) Agent Communication Protocol.
-    - /manifest      -> System manifest & tool list.
-
-RULE: Access these endpoints using standard HTTP clients (fetch, curl) or AI Agent SDKs.
-RULE: WebSocket sharing is automatic; no port offsets are required unless explicitly configured.
-
+6. CACHING & DYNAMIC CLIENT (CacheKit & KrnlHTTP)
+```ts
+const cache = new TTLCache(60000); // time-to-live cache
+const data = await CacheKit.swr(cache, "key", () => fetchFresh()); // Stale-While-Revalidate
+const client = KrnlHTTP.createClient("https://api.example.com", { "Authorization": "Bearer token" });
+const sseStream = KrnlHTTP.streamResponse("https://api.example.com/stream"); // yields SSE chunks
+```

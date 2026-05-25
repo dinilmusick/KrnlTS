@@ -97,9 +97,10 @@ export class krnlUnifiedHttpAdapter {
                 if (fid.endsWith('/')) fid = fid.slice(0, -1); 
 
                 const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid);
+                const resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
 
                 if (functionality) {
-                    const expectedMethod = functionality.method || 'POST';
+                    const expectedMethod = (resolved || functionality).method || 'POST';
 
                     if (req.method !== expectedMethod) {
                         this._sendJson(res, 405, {
@@ -201,7 +202,7 @@ export class krnlUnifiedHttpAdapter {
             'Connection': 'keep-alive',
         });
 
-        const functionality = this.system.localFunctionalities.get(fid);
+        const functionality = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : this.system.localFunctionalities.get(fid);
         if (!functionality) {
             res.write(`data: ${JSON.stringify({ error: "Functionality not found" })}\n\n`);
             res.end();

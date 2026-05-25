@@ -1,4 +1,7 @@
 import http from 'http';
+import fs from 'fs';
+import { z } from 'zod';
+import { ExecOptions, SpawnOptions } from 'child_process';
 
 /**
  * K_LIB_Krnl_Telemetry
@@ -259,6 +262,8 @@ declare class krnlLocalFunctionality {
     helpers: Map<string, any>;
     emitters: Map<string, krnlEmitter>;
     schema: any;
+    description?: string;
+    method?: string;
     lifecycle: {
         beginning?: Function;
         during?: Function;
@@ -358,6 +363,7 @@ declare class krnlEntityBase {
     call(fid: string, input: any, opts?: any): Promise<any>;
     getLocal(fid: string): krnlLocalFunctionality | undefined;
     getRemote(fid: string): krnlRemoteFunctionality | undefined;
+    resolveLocalFunctionality(fid: string): any;
     addChild(instance: krnlEntityBase): void;
     getTelemetry(): {
         entity: string;
@@ -870,4 +876,314 @@ declare class DasyJS {
     readBytes(filePath: any): Promise<ArrayBuffer>;
 }
 
-export { DasyJS, KrnlAcpProtocol, KrnlMcpProtocol, KrnlPolicy, Logger, MemoryTransportAdapter, WebSocketTransportAdapter, createEnum, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, telemetry };
+/**
+ * @file KrnlResult.ts
+ * @description Generic, standard typed operation result envelope.
+ */
+interface KrnlResultEnvelope<T> {
+    status: "success" | "error";
+    message?: string;
+    data?: T;
+    code?: string | number;
+}
+declare class KrnlResult<T> implements KrnlResultEnvelope<T> {
+    status: "success" | "error";
+    message?: string;
+    data?: T;
+    code?: string | number;
+    private constructor();
+    static ok<T>(data?: T, message?: string): KrnlResult<T>;
+    static fail<T = any>(message: string, code?: string | number): KrnlResult<T>;
+    isSuccess(): boolean;
+    isError(): boolean;
+}
+
+/**
+ * @file ObjectKit.ts
+ * @description Deep clone, deep merge, deep equal, object diffing, and dot-notation in-memory path accessor tools.
+ */
+declare class ObjectKit {
+    /**
+     * Structurally deep clones an object with circular dependency check.
+     */
+    static deepClone<T>(obj: T, seen?: Map<any, any>): T;
+    /**
+     * Recursively deep merges override objects into a base.
+     */
+    static deepMerge(base: any, ...overrides: any[]): any;
+    /**
+     * Performs a strict structural equality check.
+     */
+    static deepEqual(a: any, b: any): boolean;
+    /**
+     * Performs an object diff between before and after states.
+     */
+    static objectDiff(before: any, after: any): {
+        added: any;
+        removed: any;
+        changed: any;
+    };
+    /**
+     * Accesses an in-memory object by dot-notation.
+     */
+    static getPath(obj: any, path: string, defaultValue?: any): any;
+    /**
+     * Mutates or sets an in-memory object by dot-notation.
+     */
+    static setPath(obj: any, path: string, value: any): any;
+}
+
+/**
+ * @file AsyncKit.ts
+ * @description sleep, withTimeout, retry, pLimit, debounce, throttle, once, and memoize primitives.
+ */
+declare class AsyncKit {
+    /**
+     * Classic sleep/delay.
+     */
+    static sleep(ms: number): Promise<void>;
+    /**
+     * Rejects if the task does not finish within ms.
+     */
+    static withTimeout<T>(promise: Promise<T>, ms: number, label?: string): Promise<T>;
+    /**
+     * Retries an async execution up to maxAttempts times.
+     */
+    static retry<T>(fn: () => Promise<T>, maxAttempts: number, delayMs?: number): Promise<T>;
+    static pLimit<T>(tasks: (() => Promise<T>)[], concurrency: number): Promise<T[]>;
+    /**
+     * Debounces a function.
+     */
+    static debounce<T extends (...args: any[]) => any>(fn: T, ms: number): (...args: Parameters<T>) => void;
+    /**
+     * Throttles a function.
+     */
+    static throttle<T extends (...args: any[]) => any>(fn: T, ms: number): (...args: Parameters<T>) => void;
+    /**
+     * Wraps a function to run only once and cache its outcome.
+     */
+    static once<T extends (...args: any[]) => any>(fn: T): (...args: Parameters<T>) => ReturnType<T>;
+    /**
+     * computational memoization cache helper.
+     */
+    static memoize<T extends (...args: any[]) => any>(fn: T, keyFn?: (...args: Parameters<T>) => string): (...args: Parameters<T>) => ReturnType<T>;
+}
+
+/**
+ * @file StringKit.ts
+ * @description String case conversions, UUID & ShortID generators, and minimal template interpolation.
+ */
+declare class StringKit {
+    static toCamelCase(str: string): string;
+    static toPascalCase(str: string): string;
+    static toSnakeCase(str: string): string;
+    static toKebabCase(str: string): string;
+    static toScreamingSnake(str: string): string;
+    static toSlug(str: string): string;
+    static generateUUID(): string;
+    static generateShortId(length?: number): string;
+    static generatePrefixedId(prefix: string, length?: number): string;
+    static interpolate(tmpl: string, data: Record<string, any>): string;
+}
+
+/**
+ * @file CacheKit.ts
+ * @description LRU cache, TTL cache, Stale-While-Revalidate, and File-system persistent caching.
+ */
+declare class LRUCache<K, V> {
+    private maxSize;
+    private cache;
+    constructor(maxSize: number);
+    get(key: K): V | undefined;
+    set(key: K, value: V): void;
+    delete(key: K): boolean;
+    clear(): void;
+    size(): number;
+}
+declare class TTLCache<K, V> {
+    private ttlMs;
+    private cache;
+    constructor(ttlMs: number);
+    get(key: K): V | null;
+    set(key: K, value: V): void;
+    delete(key: K): boolean;
+    clear(): void;
+}
+declare class CacheKit {
+    /**
+     * Stale-While-Revalidate utility.
+     */
+    static swr<K, V>(cache: TTLCache<K, V>, key: K, fetchFn: () => Promise<V>): Promise<V>;
+}
+declare class FileCache<T> {
+    private cacheDir;
+    constructor(cacheDir: string);
+    private getFilePath;
+    get(key: string): T | null;
+    set(key: string, value: T): void;
+    delete(key: string): void;
+    clear(): void;
+}
+
+/**
+ * @file KrnlFS.ts
+ * @description Robust cross-platform filesystem abstraction layer for KrnlTS.
+ */
+
+type ReleaseFn = () => void;
+declare class FileLock {
+    private static locks;
+    static acquire(filePath: string): Promise<ReleaseFn>;
+}
+declare class KrnlFS {
+    static readFile(filePath: string, encoding?: BufferEncoding): Promise<string>;
+    static writeFile(filePath: string, content: string | Buffer): Promise<void>;
+    /**
+     * Atomic file writing via temp files.
+     */
+    static writeFileAtomic(filePath: string, content: string | Buffer): Promise<void>;
+    static appendFile(filePath: string, content: string | Buffer): Promise<void>;
+    static deleteFile(filePath: string): Promise<void>;
+    static fileExists(filePath: string): Promise<boolean>;
+    static getFileStat(filePath: string): Promise<{
+        size: number;
+        createdAt: Date;
+        modifiedAt: Date;
+        isDir: boolean;
+    }>;
+    static readJSON<T>(filePath: string): Promise<T | null>;
+    static writeJSON(filePath: string, data: unknown, indent?: number): Promise<void>;
+    static updateJSON<T>(filePath: string, patch: Partial<T>): Promise<T>;
+    static ensureDir(dirPath: string): Promise<void>;
+    static deleteDir(dirPath: string, recursive?: boolean): Promise<void>;
+    static listDir(dirPath: string): Promise<string[]>;
+    static walkDir(dirPath: string, filter?: (file: string) => boolean): AsyncIterable<string>;
+    static dirExists(dirPath: string): Promise<boolean>;
+    static copyDir(src: string, dest: string): Promise<void>;
+    static join(...parts: string[]): string;
+    static resolve(...parts: string[]): string;
+    static relative(from: string, to: string): string;
+    static basename(filePath: string, ext?: string): string;
+    static dirname(filePath: string): string;
+    static extname(filePath: string): string;
+    static normalize(filePath: string): string;
+    static isSafe(filePath: string, root: string): boolean;
+    static firstExisting(candidates: string[]): Promise<string | null>;
+    static watchFile(filePath: string, handler: (event: string) => void, debounceMs?: number): fs.FSWatcher;
+    static watchDir(dirPath: string, handler: (event: string, filename: string | null) => void, debounceMs?: number): fs.FSWatcher;
+    static createTempFile(prefix?: string): string;
+    static createTempDir(prefix?: string): string;
+    static withTempDir<T>(fn: (tempDir: string) => Promise<T>, prefix?: string): Promise<T>;
+}
+
+/**
+ * @file KrnlEnv.ts
+ * @description Type-safe environment loading and Zod schema config validation tool.
+ */
+
+declare class KrnlEnv {
+    /**
+     * Reads a process environment variable with type coercion and defaults.
+     */
+    static get<T>(key: string, defaultValue?: T): T;
+    /**
+     * Asserts environment variable is set and returns its string value.
+     */
+    static require(key: string): string;
+    /**
+     * Loads a .env file and injects variables into process.env.
+     */
+    static load(filePath?: string): void;
+    /**
+     * Validates the entire config using a Zod schema.
+     */
+    static schema<T extends z.ZodTypeAny>(zodSchema: T): z.infer<T>;
+}
+
+/**
+ * @file KrnlShell.ts
+ * @description Safe promise-based exec and spawn wrappers with cross-platform command routing.
+ */
+
+interface SpawnHandle {
+    pid?: number;
+    kill: (signal?: NodeJS.Signals | number) => boolean;
+    promise: Promise<{
+        code: number | null;
+        signal: NodeJS.Signals | null;
+    }>;
+}
+declare class KrnlShell {
+    /**
+     * Promisified command execution.
+     */
+    static exec(cmd: string, opts?: ExecOptions & {
+        timeout?: number;
+    }): Promise<{
+        stdout: string;
+        stderr: string;
+    }>;
+    /**
+     * Streaming command execution.
+     */
+    static spawn(cmd: string, args: string[], opts?: SpawnOptions): SpawnHandle;
+    /**
+     * Defines posix vs win32 specific commands.
+     */
+    static platform<T>(routing: {
+        posix: T;
+        win32: T;
+    }): T;
+    /**
+     * Resolves the full path of a binary.
+     */
+    static which(cmd: string): string | null;
+}
+
+/**
+ * @file KrnlHTTP.ts
+ * @description Safe, type-safe HTTP client wrapper.
+ */
+
+interface KrnlHTTPOptions extends RequestInit {
+    timeout?: number;
+    retries?: number;
+}
+declare class KrnlHTTP {
+    /**
+     * Helper to perform fetch with timeout and retries.
+     */
+    private static requestRaw;
+    static request<T>(url: string, opts?: KrnlHTTPOptions): Promise<KrnlResult<T>>;
+    static get<T>(url: string, opts?: KrnlHTTPOptions): Promise<KrnlResult<T>>;
+    static post<T>(url: string, body: any, opts?: KrnlHTTPOptions): Promise<KrnlResult<T>>;
+    static put<T>(url: string, body: any, opts?: KrnlHTTPOptions): Promise<KrnlResult<T>>;
+    static del<T>(url: string, opts?: KrnlHTTPOptions): Promise<KrnlResult<T>>;
+    /**
+     * Creates a client instance.
+     */
+    static createClient(baseUrl: string, defaultHeaders?: Record<string, string>): {
+        get: <T>(path: string, opts?: KrnlHTTPOptions) => Promise<KrnlResult<T>>;
+        post: <T>(path: string, body: any, opts?: KrnlHTTPOptions) => Promise<KrnlResult<T>>;
+        put: <T>(path: string, body: any, opts?: KrnlHTTPOptions) => Promise<KrnlResult<T>>;
+        del: <T>(path: string, opts?: KrnlHTTPOptions) => Promise<KrnlResult<T>>;
+    };
+    /**
+     * Streaming SSE / Chunk response.
+     */
+    static streamResponse(url: string, opts?: KrnlHTTPOptions): AsyncIterable<string>;
+}
+
+/**
+ * @file GitManager.ts
+ * @description Safe project-scoped Git operations.
+ */
+declare class GitManager {
+    static isRepo(dirPath: string): boolean;
+    static init(dirPath: string): Promise<void>;
+    static clone(repoUrl: string, destPath: string): Promise<void>;
+    static commit(dirPath: string, message: string): Promise<boolean>;
+    static push(dirPath: string, remote?: string, branch?: string): Promise<void>;
+}
+
+export { AsyncKit, CacheKit, DasyJS, FileCache, FileLock, GitManager, KrnlAcpProtocol, KrnlEnv, KrnlFS, KrnlHTTP, type KrnlHTTPOptions, KrnlMcpProtocol, KrnlPolicy, KrnlResult, type KrnlResultEnvelope, KrnlShell, LRUCache, Logger, MemoryTransportAdapter, ObjectKit, type ReleaseFn, type SpawnHandle, StringKit, TTLCache, WebSocketTransportAdapter, createEnum, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, telemetry };

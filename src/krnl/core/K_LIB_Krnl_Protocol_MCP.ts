@@ -21,7 +21,7 @@ export class KrnlMcpProtocol {
         const apiIds = Object.keys(manifest.inputs.api);
         
         const tools = apiIds.map(fid => {
-            const functionality = (this.system as any).localFunctionalities.get(fid);
+            const functionality = (this.system as any).resolveLocalFunctionality ? (this.system as any).resolveLocalFunctionality(fid) : (this.system as any).localFunctionalities.get(fid);
             const description = functionality?.description || `Execute ${fid} on ${this.system.entityName}`;
             
             let inputSchema: any = { type: "object", properties: {} };
