@@ -1,5 +1,5 @@
     // ULTRST FRAMEWORK CONVENTIONS : Project structure conventions for all projects with KrnlJS Library.
-// RULES_VERSION: 1.2.0
+// RULES_VERSION: 1.3.0
 // KrnlJS = Core Library -> Ultrst Framework Projects
 
 [STRUCTURE]
@@ -99,6 +99,9 @@ RULE: LOGIC_FILES (logic.js, helpers.js) -> YES library imports, YES helper impo
 RULE: PATHS (npm packages) -> import { krnlEntityBase } from 'krnljs'
 RULE: PATHS (internal)     -> Use relative paths for atoms within the same project.
 RULE: libraries/ folder    -> Project-local shared modules ONLY. Not for npm packages.
+RULE: IMPORT EXTENSIONS    -> ALL internal import paths MUST use .js extension, never .ts.
+                              The TypeScript compiler emits .js files; Node.js ESM resolves .js.
+                              Using .ts extensions causes silent undefined imports at runtime.
 
 [FUNCTIONALITY_DESCRIPTOR_IMPORT]
 FILE: ./functionalities/MyFunc/MyFunc.js
@@ -124,7 +127,7 @@ import { myHelper } from "../helper_functions/myHelper.js";
 import { myEvent } from "../events/myEvent.js";
 import { ExternalLib } from "../../../libraries/ExternalLib.js"; // Libraries ONLY here
 
-export const main = async (input, { state, emitters, functionality }) => { ... };
+export const main = async (input, { state, emitters, functionality, entity }) => { ... };
 
 [ENTITY_ASSEMBLER_IMPORT]
 FILE: ./entities/MyEntity/MyEntity.js
@@ -145,12 +148,30 @@ RULE: Assemblers == CONFIG_ONLY (Imports of descriptors/atoms/baseClasses(KnrlJS
 PROHIBITED: import { someLib } from "../../libraries/Lib.js" inside Entity.js or Func.js
 
 [ATOMIC_API_SIGNATURE]
-FUNCTION: (input, { state, emitters, functionality, caller }) => {
+FUNCTION: (input, { state, emitters, functionality, entity, caller }) => {
     TRANSFORM(input);
-    UPDATE(state); // Automatic Proxy Reactivity
+    UPDATE(state);   // Automatic Proxy Reactivity
     EMIT(emitters.get('name'), data);
     RETURN(result);
 }
+
+[CONTEXT_OBJECT_REFERENCE]
+Each atom's main function receives a context object as its second argument.
+Full type map — know exactly what each field is before using it:
+
+  state          : object     -> Reactive proxy of the atom's own state (mutate directly).
+  emitters       : Map        -> Emitter instances keyed by id. Use emitters.get('name').
+  functionality  : object     -> The krnlLocalFunctionality descriptor instance itself.
+  entity         : object     -> The live host entity instance (krnlEntityBase / krnlSystemEntityBase).
+                                 Use entity.call('OtherAtom', input) to invoke sibling atoms.
+  caller         : string     -> Name string of the upstream caller (e.g. "default", "Wepx").
+                                 NOT an entity. Has no .call() method.
+                                 Use for logging/tracing only.
+
+CRITICAL RULES:
+RULE: To call another atom from inside a logic function, use entity.call('AtomId', input).
+RULE: NEVER use caller.call(...) — caller is a string, not an entity. This throws a TypeError.
+RULE: caller is for identification/logging only.
 
 [STATE_MANAGEMENT]
 RULE: State defined as literal in state_data/state.js.
