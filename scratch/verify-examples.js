@@ -18,7 +18,7 @@ const examples = [
     { num: 11, script: 'ServiceSuiteVerification/verify_suite.js' }
 ];
 
-const BASE_PATH = '/Users/dinil/Desktop/Projects/Javascript/KrnlJS';
+const BASE_PATH = '/Users/dinil/Desktop/Projects/Javascript/KrnlTS';
 
 async function runExample(ex) {
     console.log(`\n>>> RUNNING EXAMPLE ${ex.num} (${ex.script})...`);

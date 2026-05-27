@@ -15,6 +15,8 @@ import {
   getFullDocumentationApi,
   systemCommandsCollectorHandler,
   telemetryApi,
+  getUsedPortsApi,
+  findFreePortsApi,
 } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
 import { Logger } from "./K_LIB_Krnl_Base_Concepts.js";
 import { krnlUnifiedHttpAdapter } from "./K_LIB_Krnl_System_Unified_Http_Adapter.js";
@@ -46,6 +48,8 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   _lastErrorDoc: any | null = null;
   discoverySocket: any | null;
   beaconInterval: any | null;
+  /** portRegistry: serviceName → port  (P_local ⊆ ℕ) */
+  portRegistry: Map<string, number>;
 
   /**
    * @param name
@@ -79,6 +83,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this.serviceSuites = new Map(); // suiteName -> adapterInstance
     // Pre-initialize the unified HTTP adapter (always-on)
     this.unifiedHttpAdapter = new krnlUnifiedHttpAdapter(this as any, commPort, host);
+
+    // ── Port Registry ────────────────────────────────────────────────
+    // P_local = { _krnl_system → commPort } at construction time
+    this.portRegistry = new Map<string, number>();
+    this.portRegistry.set('_krnl_system', commPort);
 
     // ── Protocol Unification & Decoration ──────────────────────────────
     this._documentationProvider = null;
@@ -194,6 +203,37 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   setDiscoverable(value: boolean) {
     this.discoverable = Boolean(value);
     return this.getSystemFlags();
+  }
+
+  // ── Port Registry Methods ────────────────────────────────────────────────
+
+  /**
+   * Register a named service port.
+   * registerPort(name, p) → portRegistry[name] = p
+   * Throws if the port is already claimed by a different service.
+   */
+  registerPort(serviceName: string, port: number): void {
+    for (const [existingName, existingPort] of this.portRegistry.entries()) {
+      if (existingPort === port && existingName !== serviceName) {
+        throw new Error(
+          `[${this.entityName}] Port ${port} is already registered to '${existingName}'.`
+        );
+      }
+    }
+    this.portRegistry.set(serviceName, port);
+  }
+
+  /** Remove a service port registration. */
+  unregisterPort(serviceName: string): void {
+    if (serviceName === '_krnl_system') {
+      throw new Error(`[${this.entityName}] Cannot unregister the system port '_krnl_system'.`);
+    }
+    this.portRegistry.delete(serviceName);
+  }
+
+  /** Return a plain-object snapshot of portRegistry: Record<serviceName, port>. */
+  getRegisteredPorts(): Record<string, number> {
+    return Object.fromEntries(this.portRegistry.entries());
   }
 
   reserveFor(serviceName: string = 'unknown') {
@@ -533,6 +573,16 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this.addLocal({
       id: 'getFullDocumentation',
       api: getFullDocumentationApi(this as any)
+    });
+
+    this.addLocal({
+      id: 'getUsedPorts',
+      api: getUsedPortsApi(this as any)
+    });
+
+    this.addLocal({
+      id: 'findFreePorts',
+      api: findFreePortsApi(this as any)
     });
   }
 
