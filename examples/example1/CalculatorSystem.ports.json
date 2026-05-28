@@ -1,0 +1,7 @@
+{
+  "entity": "CalculatorSystem",
+  "timestamp": "2026-05-28T23:04:52.192Z",
+  "ports": {
+    "_krnl_system": 10091
+  }
+}

@@ -74,6 +74,12 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   _entityDataDir: string;
   /** True once gracefulShutdown has been triggered — prevents re-entry. */
   _shuttingDown: boolean = false;
+  /** 
+   * Internal readiness signaling. 
+   * Resolves after _startSharedServer successfully binds and finalizeCommPort is called.
+   */
+  private _readyPromise: Promise<void>;
+  private _resolveReady!: () => void;
 
   /**
    * @param name
@@ -93,6 +99,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       reservedAt: null,
     };
     this.peerTtlMs = 60000; 
+
+    // ── Readiness State ───────────────────────────────────────────────
+    this._readyPromise = new Promise((resolve) => {
+      this._resolveReady = resolve;
+    });
 
     // ── Uniform P2P communication bridge ──────────────────────────────
     this.commPort = commPort;
@@ -134,6 +145,15 @@ export class krnlSystemEntityBase extends krnlEntityBase {
 
     // ── Startup Diagnostics ──────────────────────────────
     this._emitStartupDiagnostics();
+  }
+
+  /**
+   * whenReady
+   * Await this promise to ensure the system has bound to its final port,
+   * written its snapshot file, and is fully operational.
+   */
+  async whenReady(): Promise<void> {
+    return this._readyPromise;
   }
 
   /**
@@ -253,7 +273,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    * registerPort(name, p) → portRegistry[name] = p
    * Throws if the port is already claimed by a different service.
    */
-  registerPort(serviceName: string, port: number): void {
+  async registerPort(serviceName: string, port: number): Promise<void> {
     for (const [existingName, existingPort] of this.portRegistry.entries()) {
       if (existingPort === port && existingName !== serviceName) {
         throw new Error(
@@ -262,16 +282,16 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       }
     }
     this.portRegistry.set(serviceName, port);
-    this._writePortsFile();
+    await this._writePortsFile();
   }
 
   /** Remove a service port registration. */
-  unregisterPort(serviceName: string): void {
+  async unregisterPort(serviceName: string): Promise<void> {
     if (serviceName === '_krnl_system') {
       throw new Error(`[${this.entityName}] Cannot unregister the system port '_krnl_system'.`);
     }
     this.portRegistry.delete(serviceName);
-    this._writePortsFile();
+    await this._writePortsFile();
   }
 
   /** Return a plain-object snapshot of portRegistry: Record<serviceName, port>. */
@@ -296,7 +316,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    *
    * Only called by finalizeCommPort() — never from constructor state.
    */
-  _writePortsFile(): void {
+  async _writePortsFile(): Promise<void> {
     const filePath = this._getPortsFilePath();
     const tmpPath  = `${filePath}.tmp`;
     const snapshot = JSON.stringify({
@@ -305,23 +325,22 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       ports:     this.getRegisteredPorts(),  // derived from live portRegistry, not from hint
     }, null, 2);
 
-    fs.writeFile(tmpPath, snapshot, (writeErr) => {
-      if (writeErr) {
-        Logger.error(`[${this.entityName}] Ports file write failed:`, writeErr);
-        return;
-      }
-      fs.rename(tmpPath, filePath, (renameErr) => {
-        if (renameErr) Logger.error(`[${this.entityName}] Ports file rename failed:`, renameErr);
-      });
-    });
+    try {
+      await fs.promises.writeFile(tmpPath, snapshot);
+      await fs.promises.rename(tmpPath, filePath);
+    } catch (err) {
+      Logger.error(`[${this.entityName}] Ports file write failed:`, err);
+    }
   }
 
   /** Remove the ports snapshot file on shutdown. */
   _deletePortsFile(): void {
     const filePath = this._getPortsFilePath();
     const tmpPath  = `${filePath}.tmp`;
-    fs.unlink(filePath, () => {});
-    fs.unlink(tmpPath,  () => {});  // clean up any orphaned tmp
+    try {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      if (fs.existsSync(tmpPath))  fs.unlinkSync(tmpPath);  // clean up any orphaned tmp
+    } catch (_) {}
   }
 
   // ── Port Probe ────────────────────────────────────────────────────────────
@@ -371,13 +390,18 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    *   this.unifiedHttpAdapter.port     ← actualPort
    *   portRegistry['_krnl_system']     ← actualPort
    *   ports snapshot file              ← written atomically
+   *   _readyPromise                    ← resolved
    */
-  finalizeCommPort(actualPort: number): void {
+  async finalizeCommPort(actualPort: number): Promise<void> {
     this.commPort                   = actualPort;
     this.commComponent.listenPort   = actualPort;
     this.unifiedHttpAdapter.port    = actualPort;
     this.portRegistry.set('_krnl_system', actualPort);
-    this._writePortsFile();
+    
+    // Write snapshot file and wait for completion before signaling readiness
+    await this._writePortsFile();
+    
+    this._resolveReady();
     Logger.log(`[${this.entityName}] commPort finalized → ${actualPort}`);
   }
 
@@ -555,7 +579,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       this._managedServices.set(config.name, serviceHandle);
       
       // Register in port registry so other entities can find it
-      this.registerPort(config.name, assignedPort);
+      await this.registerPort(config.name, assignedPort);
 
       // 4. Wait for startup if requested
       if (config.waitForStartup) {
@@ -764,8 +788,13 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       console.log(`[${this.entityName}] Discovery active on ${this.host}:${discoveryPort} (broadcast to ${discoveryHost})`);
     });
 
-    this.beaconInterval = setInterval(() => {
+    this.beaconInterval = setInterval(async () => {
       if (!this.discoverable) return;
+      
+      // Wait for port finalization before sending any beacons.
+      // This ensures peers receive the authoritative bound port, not the constructor hint.
+      await this.whenReady();
+
       const beacon = JSON.stringify({
         type: 'KRNL_BEACON',
         id: this.entityName,
@@ -774,7 +803,9 @@ export class krnlSystemEntityBase extends krnlEntityBase {
         busy: this.reservation.busy,
         reservedBy: this.reservation.reservedBy
       });
-      this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, discoveryHost);
+      if (this.discoverySocket) {
+        this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, discoveryHost);
+      }
     }, 5000);
 
     await this._startSharedServer();
@@ -794,12 +825,12 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     await (this.commComponent as any).startWsServer(this._sharedServer);
 
     return new Promise((resolve, reject) => {
-      this._sharedServer!.listen(resolvedPort, this.host, () => {
+      this._sharedServer!.listen(resolvedPort, this.host, async () => {
         // Read the port the OS actually bound — the only authoritative source
         const bound = (this._sharedServer!.address() as net.AddressInfo).port;
 
         // ── Single write barrier: all port state updated here, atomically ──
-        this.finalizeCommPort(bound);
+        await this.finalizeCommPort(bound);
 
         console.log(`[${this.entityName}] Unified port active on http://${this.host}:${bound} (WS + REST + MCP + ACP)`);
         resolve();

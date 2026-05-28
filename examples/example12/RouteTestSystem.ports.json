@@ -1,0 +1,7 @@
+{
+  "entity": "RouteTestSystem",
+  "timestamp": "2026-05-28T23:05:39.383Z",
+  "ports": {
+    "_krnl_system": 10100
+  }
+}
