@@ -18,17 +18,14 @@ async function main() {
     setTimeout(async () => {
         try {
             let status = await web.call("SetupComms");
-            // Handle both raw string and wrapped status for backward compatibility in examples
-            if (status && typeof status === 'object' && status.status === 'success') {
-                status = status.payload;
-            }
-
+            // SetupComms returns a raw string after auto-unwrap
             console.log(`[WebInterfaceSystem] Setup status: ${status}`);
+
             if (status === "Wiring complete.") {
                 console.log("[WebInterfaceSystem] Triggering demo calculation...");
                 let res = await web.call("UIPanel", { a: 10, b: 5, op: "add" });
-                if (res && typeof res === 'object' && res.status === 'success') res = res.payload;
-                console.log("[WebInterfaceSystem] Result from UIPanel:", res);
+                // UIPanel returns { status: "success", result: 15, ... } after auto-unwrap
+                console.log("[WebInterfaceSystem] Result from UIPanel:", JSON.stringify(res, null, 2));
             }
         } catch (e) {
             console.error("Error during example 1 execution:", e);

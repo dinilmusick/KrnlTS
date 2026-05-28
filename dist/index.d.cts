@@ -1,6 +1,6 @@
+import { z } from 'zod';
 import http from 'http';
 import fs from 'fs';
-import { z } from 'zod';
 import { ExecOptions, SpawnOptions } from 'child_process';
 
 /**
@@ -228,6 +228,75 @@ declare class krnlEntityCompositionalHierarchyManager {
     disposeComponentEntity(entityId: string): boolean;
 }
 
+interface KrnlFunctionality<I = any, O = any> {
+    id: string;
+    api: (input: I, context: {
+        entity: any;
+        state: any;
+    }) => Promise<O>;
+    schema?: z.ZodType<I>;
+    visibility?: "public" | "private" | "protected";
+    description?: string;
+}
+interface KrnlPeer {
+    id: string;
+    address: string;
+    lastSeen: number;
+    tags?: string[];
+    capabilities?: string[];
+}
+interface TelemetrySnapshot {
+    calls: number;
+    errors: number;
+    avgLatencyMs: number;
+    peakLatencyMs: number;
+    avgMemoryDelta: number;
+}
+/**
+ * DefaultConnectionBehaviour
+ * Governs treatment of ports not listed in allow / allow_with_key / forbid.
+ *
+ *   allow_unlisted    → unlisted ports pass through   (open endpoints)
+ *   ask_key_unlisted  → unlisted ports must supply key (keyed external endpoints)
+ *   forbid_unlisted   → unlisted ports are rejected    (internal endpoints)
+ */
+type DefaultConnectionBehaviour = 'allow_unlisted' | 'ask_key_unlisted' | 'forbid_unlisted';
+/**
+ * KrnlEndpointAccessPolicy
+ *
+ * Port-based access control attached to any krnlLocalFunctionality.
+ *
+ *   P_allow   = allow          — unconditional access
+ *   P_key     = allow_with_key — access conditional on valid key
+ *   P_forbid  = forbid         — hard block
+ *
+ * Decision function:
+ *   f(p, k) = FORBID  if p ∈ P_forbid
+ *             PASS    if p ∈ P_allow
+ *             KEY(k)  if p ∈ P_key
+ *             default_connection_behaviour(p, k)   otherwise
+ */
+interface KrnlEndpointAccessPolicy {
+    allow: number[];
+    allow_with_key: number[];
+    forbid: number[];
+    default_connection_behaviour: DefaultConnectionBehaviour;
+}
+/**
+ * EndpointCategory — semantic labels for pre-configured access policies.
+ *
+ *   internal_endpoint          → allow = [registered service ports], default = forbid_unlisted
+ *   external_endpoint / free   → default = allow_unlisted
+ *   external_endpoint / keyed  → default = ask_key_unlisted  (requires accessKey)
+ */
+type EndpointCategory = {
+    kind: 'internal_endpoint';
+} | {
+    kind: 'external_endpoint';
+    access: 'free' | 'keyed';
+    accessKey?: string;
+};
+
 /**
  * @file K_LIB_Krnl_Functionality_Types.ts
  * @description defines Logic Atoms with Visibility control for Recursive Bubbling.
@@ -264,6 +333,10 @@ declare class krnlLocalFunctionality {
     schema: any;
     description?: string;
     method?: string;
+    /** Port-based access control policy. Absent = unrestricted. */
+    accessPolicy?: KrnlEndpointAccessPolicy;
+    /** Shared secret for allow_with_key / ask_key_unlisted gates. */
+    accessKey?: string;
     lifecycle: {
         beginning?: Function;
         during?: Function;
@@ -283,6 +356,19 @@ declare class krnlLocalFunctionality {
     setVisibility(v: string): void;
     _unregisterFromInterface(): void;
     _registerInInterface(): void;
+    /**
+     * checkAccess — port-based access gate.
+     *
+     * f(p, k) ∈ { PASS, REJECT }
+     *   FORBID  if p ∈ P_forbid
+     *   PASS    if p ∈ P_allow
+     *   KEY(k)  if p ∈ P_allow_with_key
+     *   default_connection_behaviour(p, k)   otherwise (unlisted)
+     */
+    checkAccess(callerPort: number, key?: string): {
+        allowed: boolean;
+        reason?: string;
+    };
     bindToEntity(entity: any): this;
     teardown(): void;
     execute(input: any, opts?: any): Promise<any>;
@@ -414,6 +500,18 @@ declare const krnlSystemTypes: Readonly<Record<"qwnsr" | "brnda" | "symba" | "mo
     getTypeID(typeName: string): number;
 }>;
 declare const krnlServiceSuites: Readonly<Record<"UNIFIED_HTTP", number> & {
+    types: string[];
+    listTypes(): readonly string[];
+    getTypeID(typeName: string): number;
+}>;
+/**
+ * defaultConnectionBehaviour
+ * Enum governing unlisted-port policy on an endpoint's access policy.
+ *   0 = allow_unlisted   (open)
+ *   1 = ask_key_unlisted (keyed)
+ *   2 = forbid_unlisted  (restricted)
+ */
+declare const defaultConnectionBehaviour: Readonly<Record<"allow_unlisted" | "ask_key_unlisted" | "forbid_unlisted", number> & {
     types: string[];
     listTypes(): readonly string[];
     getTypeID(typeName: string): number;
@@ -558,7 +656,7 @@ declare class krnlSystemCommComponent {
     defineRpc(methodName: string, handler: Function): void;
     setIntrospectionProvider(providerFn: () => Promise<any>): void;
     callWsRpc(remoteAddress: string, method: string, params?: any, policy?: KrnlPolicy): Promise<any>;
-    _handleRpcRequest(ws: any, msg: any): Promise<void>;
+    _handleRpcRequest(ws: any, msg: any, callerPort?: number): Promise<void>;
     _handleIntrospect(ws: any, msg: any): Promise<void>;
     _handleRpcResponse(msg: any): void;
     listRoutes(): any[];
@@ -583,7 +681,7 @@ declare class KrnlMcpProtocol {
     /**
      * Handles an MCP JSON-RPC request.
      */
-    handleRequest(rpc: any): Promise<any>;
+    handleRequest(rpc: any, opts?: any): Promise<any>;
 }
 
 /**
@@ -607,7 +705,7 @@ declare class KrnlAcpProtocol {
     /**
      * ACP Message endpoint handler.
      */
-    handleMessage(payload: any): Promise<any>;
+    handleMessage(payload: any, opts?: any): Promise<any>;
 }
 
 /**
@@ -667,6 +765,8 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
     _lastErrorDoc: any | null;
     discoverySocket: any | null;
     beaconInterval: any | null;
+    /** portRegistry: serviceName → port  (P_local ⊆ ℕ) */
+    portRegistry: Map<string, number>;
     /**
      * @param name
      * @param owner
@@ -696,6 +796,38 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
         reservedBy: string | null;
         reservedAt: number | null;
     };
+    /**
+     * Register a named service port.
+     * registerPort(name, p) → portRegistry[name] = p
+     * Throws if the port is already claimed by a different service.
+     */
+    registerPort(serviceName: string, port: number): void;
+    /** Remove a service port registration. */
+    unregisterPort(serviceName: string): void;
+    /** Return a plain-object snapshot of portRegistry: Record<serviceName, port>. */
+    getRegisteredPorts(): Record<string, number>;
+    /**
+     * addInternalEndpoint
+     *
+     * Registers a functionality accessible ONLY to services whose ports are in
+     * the portRegistry (internal microservices). All external ports are forbidden.
+     *
+     *   policy: allow = [...portRegistry values], default = forbid_unlisted
+     */
+    addInternalEndpoint(config: any): void;
+    /**
+     * addExternalEndpoint
+     *
+     * Registers a functionality for external consumers.
+     *   access = 'free'  → no key required  (default_connection_behaviour = allow_unlisted)
+     *   access = 'keyed' → accessKey must be supplied in x-krnl-access-key header
+     *                       (default_connection_behaviour = ask_key_unlisted)
+     *
+     * @param config    - Standard functionality config.
+     * @param access    - 'free' | 'keyed'
+     * @param accessKey - Required when access = 'keyed'.
+     */
+    addExternalEndpoint(config: any, access?: 'free' | 'keyed', accessKey?: string): void;
     reserveFor(serviceName?: string): {
         discoverable: boolean;
         busy: boolean;
@@ -1186,4 +1318,4 @@ declare class GitManager {
     static push(dirPath: string, remote?: string, branch?: string): Promise<void>;
 }
 
-export { AsyncKit, CacheKit, DasyJS, FileCache, FileLock, GitManager, KrnlAcpProtocol, KrnlEnv, KrnlFS, KrnlHTTP, type KrnlHTTPOptions, KrnlMcpProtocol, KrnlPolicy, KrnlResult, type KrnlResultEnvelope, KrnlShell, LRUCache, Logger, MemoryTransportAdapter, ObjectKit, type ReleaseFn, type SpawnHandle, StringKit, TTLCache, WebSocketTransportAdapter, createEnum, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, telemetry };
+export { AsyncKit, CacheKit, DasyJS, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, KrnlAcpProtocol, type KrnlEndpointAccessPolicy, KrnlEnv, KrnlFS, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlMcpProtocol, type KrnlPeer, KrnlPolicy, KrnlResult, type KrnlResultEnvelope, KrnlShell, LRUCache, Logger, MemoryTransportAdapter, ObjectKit, type ReleaseFn, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, createEnum, defaultConnectionBehaviour, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, telemetry };

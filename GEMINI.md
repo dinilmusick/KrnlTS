@@ -81,3 +81,111 @@ const data = await CacheKit.swr(cache, "key", () => fetchFresh()); // Stale-Whil
 const client = KrnlHTTP.createClient("https://api.example.com", { "Authorization": "Bearer token" });
 const sseStream = KrnlHTTP.streamResponse("https://api.example.com/stream"); // yields SSE chunks
 ```
+
+---
+
+[SYSTEM_ENTITY_FEATURES]
+
+7. PORT REGISTRY
+// krnlSystemEntityBase maintains portRegistry: Map<serviceName, port>
+// '_krnl_system' → commPort is pre-registered at construction.
+// P_local = { p ∈ ℕ | portRegistry.has(p) }
+
+system.registerPort('auth-service',    3001);
+system.registerPort('worker-service',  3002);
+system.unregisterPort('worker-service');
+
+const ports = system.getRegisteredPorts();
+// -> { _krnl_system: 10099, 'auth-service': 3001 }
+
+// Query via HTTP endpoint:
+// GET /call/getUsedPorts  -> { entity, ports: number[], registry: Record<string,number> }
+// POST /call/findFreePorts { count, rangeStart?, rangeEnd? }
+//   -> { freePorts, queriedPeers, totalUsedCount, usedByPeer }
+//   Queries all live peers, unions port sets, returns k free ports in range.
+
+8. ENDPOINT ACCESS CONTROL
+// Endpoints on krnlSystemEntityBase support port-based access policies.
+// Access check: f(callerPort, key) → PASS | REJECT
+
+// Policy shape (KrnlEndpointAccessPolicy):
+//   allow:                      number[]   // P_allow  — unconditional pass
+//   allow_with_key:             number[]   // P_key    — pass with valid key
+//   forbid:                     number[]   // P_forbid — hard block
+//   default_connection_behaviour:          // governs unlisted ports:
+//     'allow_unlisted'                     //   open (pass through)
+//     'ask_key_unlisted'                   //   need key
+//     'forbid_unlisted'                    //   blocked
+
+// Decision function (short-circuit priority):
+//   p ∈ P_forbid          → REJECT  "Port p is explicitly forbidden."
+//   p ∈ P_allow           → PASS
+//   p ∈ P_key             → key === accessKey ? PASS : REJECT  "Access key required."
+//   unlisted              → default_connection_behaviour(p, key)
+
+// callerPort injected automatically from req.socket.remotePort on HTTP calls.
+// key read from request header: x-krnl-access-key
+
+// ENDPOINT CATEGORIES:
+
+// internal_endpoint — only registered service ports may call this.
+// allow = [...portRegistry values], default = forbid_unlisted
+system.addInternalEndpoint({
+  id: 'internalSync',
+  api: async (input) => { /* microservice-only logic */ }
+});
+
+// external_endpoint (free) — open to all callers, no key required.
+system.addExternalEndpoint({
+  id: 'publicStatus',
+  api: async () => ({ status: 'ok' })
+}, 'free');
+
+// external_endpoint (keyed) — all callers must supply x-krnl-access-key header.
+system.addExternalEndpoint({
+  id: 'sensitiveData',
+  api: async (input) => { /* restricted logic */ }
+}, 'keyed', 'my-secret-key');
+
+// Manual policy (granular control):
+system.addLocal({
+  id: 'mixedEndpoint',
+  accessPolicy: {
+    allow:                      [3001, 3002],   // internal services: free pass
+    allow_with_key:             [4000],          // partner service: needs key
+    forbid:                     [9999],          // explicitly blocked port
+    default_connection_behaviour: 'forbid_unlisted',
+  },
+  accessKey: 'partner-secret',
+  api: async (input) => { /* ... */ }
+});
+
+---
+
+[UPDATES]
+
+// v2.1.0 — PORT REGISTRY (2026-05-28)
+// Added portRegistry: Map<serviceName, port> to krnlSystemEntityBase.
+// '_krnl_system' → commPort pre-registered at construction.
+// Files changed:
+//   K_ENT_Krnl_System_Entity_Base.ts  → portRegistry field, registerPort(), unregisterPort(), getRegisteredPorts()
+//   K_LIB_Krnl_System_Base_Functionality_APIs.ts → getUsedPortsApi(), findFreePortsApi()
+//   K_ENT_Krnl_System_Entity_Base.ts._setupBaseFunctionalities() → addLocal getUsedPorts, findFreePorts
+
+// v2.2.0 — ENDPOINT ACCESS CONTROL (2026-05-28)
+// Added port-based access policy to krnlLocalFunctionality and krnlSystemEntityBase.
+// Files changed:
+//   types.ts                           → +DefaultConnectionBehaviour, +KrnlEndpointAccessPolicy, +EndpointCategory
+//   K_LIB_Krnl_Base_Concepts.ts        → +defaultConnectionBehaviour enum (allow_unlisted|ask_key_unlisted|forbid_unlisted)
+//   K_LIB_Krnl_Functionality_Types.ts  → +accessPolicy field, +accessKey field, +checkAccess(), execute() gate block
+//   K_ENT_Krnl_System_Entity_Base.ts   → +addInternalEndpoint(), +addExternalEndpoint()
+//   K_LIB_Krnl_System_Unified_Http_Adapter.ts → callerPort+accessKey injected into call opts from HTTP request
+//   index.ts                           → +export * from "./types.js"
+// Behaviour:
+//   checkAccess(p, k):
+//     p ∈ forbid          → REJECT "explicitly forbidden"
+//     p ∈ allow           → PASS
+//     p ∈ allow_with_key  → key match ? PASS : REJECT "key required"
+//     unlisted            → default_connection_behaviour(p, k)
+//   callerPort = req.socket.remotePort  (HTTP); absent on in-memory calls → gate skipped (trusted path)
+//   accessKey  = req.headers['x-krnl-access-key']

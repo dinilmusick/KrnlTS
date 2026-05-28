@@ -564,6 +564,10 @@ var krnlLocalFunctionality = class {
   schema;
   description;
   method;
+  /** Port-based access control policy. Absent = unrestricted. */
+  accessPolicy;
+  /** Shared secret for allow_with_key / ask_key_unlisted gates. */
+  accessKey;
   lifecycle;
   state;
   hostEntity;
@@ -580,7 +584,9 @@ var krnlLocalFunctionality = class {
       schema = null,
       onMount = null,
       onTeardown = null,
-      sourcePath = null
+      sourcePath = null,
+      accessPolicy = null,
+      accessKey = null
     } = config;
     if (!id) throw new Error("LocalFunctionality requires an ID.");
     this.id = id;
@@ -593,6 +599,8 @@ var krnlLocalFunctionality = class {
     this.schema = schema;
     this.description = config.description || "";
     this.method = config.method || "POST";
+    if (accessPolicy) this.accessPolicy = accessPolicy;
+    if (accessKey) this.accessKey = accessKey;
     this.lifecycle = {
       beginning: onMount || events.beginning,
       during: events.during,
@@ -687,6 +695,42 @@ var krnlLocalFunctionality = class {
       emitter.subscribe((msg) => interfaceEmitter.pushDataStreamToEmitter(msg.data, msg.time));
     });
   }
+  /**
+   * checkAccess — port-based access gate.
+   *
+   * f(p, k) ∈ { PASS, REJECT }
+   *   FORBID  if p ∈ P_forbid
+   *   PASS    if p ∈ P_allow
+   *   KEY(k)  if p ∈ P_allow_with_key
+   *   default_connection_behaviour(p, k)   otherwise (unlisted)
+   */
+  checkAccess(callerPort, key) {
+    const p = this.accessPolicy;
+    if (!p) return { allowed: true };
+    if (p.forbid.includes(callerPort))
+      return { allowed: false, reason: `Port ${callerPort} is explicitly forbidden from accessing this endpoint.` };
+    if (p.allow.includes(callerPort))
+      return { allowed: true };
+    if (p.allow_with_key.includes(callerPort)) {
+      if (key && key === this.accessKey) return { allowed: true };
+      return {
+        allowed: false,
+        reason: key ? `Invalid access key for port ${callerPort}.` : `Port ${callerPort} requires an access key (x-krnl-access-key header).`
+      };
+    }
+    switch (p.default_connection_behaviour) {
+      case "allow_unlisted":
+        return { allowed: true };
+      case "ask_key_unlisted":
+        if (key && key === this.accessKey) return { allowed: true };
+        return {
+          allowed: false,
+          reason: key ? `Invalid access key for this endpoint.` : `This endpoint requires an access key. Provide it via the 'x-krnl-access-key' header.`
+        };
+      case "forbid_unlisted":
+        return { allowed: false, reason: `Port ${callerPort} is not permitted. This is a restricted (internal) endpoint.` };
+    }
+  }
   bindToEntity(entity) {
     this.hostEntity = entity;
     if (this.visibility === "public") {
@@ -718,6 +762,13 @@ var krnlLocalFunctionality = class {
     const caller = opts.caller || "default";
     const activeState = this.state;
     const trace = telemetry.enabled ? telemetry.startTrace(this.id) : null;
+    if (this.accessPolicy && opts.callerPort !== void 0) {
+      const access = this.checkAccess(opts.callerPort, opts.accessKey);
+      if (!access.allowed) {
+        if (trace) telemetry.endTrace(this.id, trace, false);
+        return { status: "error", message: `[AccessDenied] ${access.reason}`, payload: null };
+      }
+    }
     if (this.schema && this.schema.input) {
       try {
         if (typeof this.schema.input.parse === "function") {
@@ -1102,6 +1153,11 @@ function createEnum(typeNames) {
 }
 var krnlSystemTypes = createEnum(["qwnsr", "brnda", "symba", "mosy"]);
 var krnlServiceSuites = createEnum(["UNIFIED_HTTP"]);
+var defaultConnectionBehaviour = createEnum([
+  "allow_unlisted",
+  "ask_key_unlisted",
+  "forbid_unlisted"
+]);
 var krnlServiceSuitePorts = Object.freeze({
   UNIFIED_HTTP: 1
 });
@@ -1250,7 +1306,14 @@ var WebSocketTransportAdapter = class extends krnlTransportAdapter {
   }
   async call(targetFunction, input, opts = {}) {
     const policy = opts.policy instanceof KrnlPolicy ? opts.policy : new KrnlPolicy(opts);
-    return await this.commComponent.callWsRpc(this.remoteAddress, "call", { fid: targetFunction, data: input }, policy);
+    const data = {
+      ...input,
+      meta: {
+        ...input?.meta || {},
+        accessKey: opts.accessKey
+      }
+    };
+    return await this.commComponent.callWsRpc(this.remoteAddress, "call", { fid: targetFunction, data }, policy);
   }
 };
 var _WS;
@@ -1365,7 +1428,8 @@ var krnlSystemCommComponent = class {
               return;
             }
             if (msg.kind === "rpc-request") {
-              this._handleRpcRequest(ws, msg);
+              const callerPort = ws._socket?.remotePort;
+              this._handleRpcRequest(ws, msg, callerPort);
               return;
             }
             if (msg.kind === "rpc-response") {
@@ -1514,7 +1578,7 @@ var krnlSystemCommComponent = class {
     }
     throw lastError;
   }
-  async _handleRpcRequest(ws, msg) {
+  async _handleRpcRequest(ws, msg, callerPort) {
     const { requestId, method, params } = msg;
     const handler = this._wsRpcHandlers.get(method);
     if (!handler) {
@@ -1527,7 +1591,7 @@ var krnlSystemCommComponent = class {
       return;
     }
     try {
-      const result = await handler(params);
+      const result = await handler(params, { callerPort });
       ws.send(JSON.stringify({
         kind: "rpc-response",
         requestId,
@@ -1714,6 +1778,59 @@ function systemCommandsCollectorHandler(entity) {
     console.log(`[${entity.entityName}] system-commands received:`, JSON.stringify(msg.data));
   };
 }
+function getUsedPortsApi(entity) {
+  return () => {
+    const registry = entity.getRegisteredPorts();
+    return {
+      entity: entity.entityName,
+      ports: Object.values(registry),
+      registry
+    };
+  };
+}
+function findFreePortsApi(entity) {
+  return async ({
+    count = 1,
+    rangeStart = 3e3,
+    rangeEnd = 65535
+  }) => {
+    if (count < 1) throw new Error("count must be \u2265 1");
+    if (rangeStart < 1 || rangeEnd > 65535 || rangeStart > rangeEnd) {
+      throw new Error("Invalid port range: 1 \u2264 rangeStart \u2264 rangeEnd \u2264 65535");
+    }
+    const usedSet = new Set(
+      Object.values(entity.getRegisteredPorts())
+    );
+    const usedByPeer = {
+      [entity.entityName]: Array.from(usedSet)
+    };
+    const peers = entity.listPeers();
+    await Promise.allSettled(
+      peers.map(async (peer) => {
+        try {
+          const remote = entity.getRemoteEntity(peer.id);
+          if (!remote) return;
+          const result = await remote.call("getUsedPorts", {});
+          const payload = result?.payload ?? result;
+          const peerPorts = Array.isArray(payload?.ports) ? payload.ports : [];
+          usedByPeer[peer.id] = peerPorts;
+          peerPorts.forEach((p) => usedSet.add(p));
+        } catch (_) {
+        }
+      })
+    );
+    const freePorts = [];
+    for (let p = rangeStart; p <= rangeEnd && freePorts.length < count; p++) {
+      if (!usedSet.has(p)) freePorts.push(p);
+    }
+    if (freePorts.length < count) {
+      throw new Error(
+        `Only ${freePorts.length} free port(s) available in [${rangeStart}, ${rangeEnd}]; requested ${count}.`
+      );
+    }
+    return { freePorts, queriedPeers: peers.length, totalUsedCount: usedSet.size, usedByPeer };
+  };
+}
 
 // src/krnl/core/K_LIB_Krnl_System_Unified_Http_Adapter.ts
 import http from "http";
@@ -1753,7 +1870,7 @@ var KrnlMcpProtocol = class {
   /**
    * Handles an MCP JSON-RPC request.
    */
-  async handleRequest(rpc) {
+  async handleRequest(rpc, opts = {}) {
     const { method, params, id } = rpc;
     if (method === "tools/list") {
       const result = await this.listTools();
@@ -1762,7 +1879,7 @@ var KrnlMcpProtocol = class {
     if (method === "tools/call") {
       const { name, arguments: args } = params;
       try {
-        const result = await this.system.call(name, args);
+        const result = await this.system.call(name, args, opts);
         return {
           jsonrpc: "2.0",
           id,
@@ -1850,10 +1967,10 @@ var KrnlAcpProtocol = class {
   /**
    * ACP Message endpoint handler.
    */
-  async handleMessage(payload) {
+  async handleMessage(payload, opts = {}) {
     const { action, data } = payload;
     try {
-      const result = await this.system.call(action, data);
+      const result = await this.system.call(action, data, opts);
       return {
         status: "success",
         result,
@@ -1963,7 +2080,11 @@ var krnlUnifiedHttpAdapter = class {
             Logger.log(`[HttpAdapter] Friendly route hit: ${fid} (${req.method})`);
             const input = req.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : await this._readJsonBody(req);
             const data = input && typeof input === "object" && !("data" in input) && Object.keys(input).length > 0 ? { data: input } : input;
-            const result = await this.system.call(fid, data.data || data, { unwrap: false });
+            const result = await this.system.call(fid, data.data || data, {
+              unwrap: false,
+              callerPort: req.socket?.remotePort,
+              accessKey: req.headers["x-krnl-access-key"]
+            });
             this._sendJson(res, 200, result);
           } catch (e) {
             Logger.error(`[HttpAdapter] Friendly route error (${fid}):`, e.message);
@@ -1983,7 +2104,11 @@ var krnlUnifiedHttpAdapter = class {
       if (path6.startsWith("/call/")) {
         const fid = path6.split("/")[2];
         const body = await this._readJsonBody(req);
-        const result = await this.system.call(fid, body, { unwrap: false });
+        const result = await this.system.call(fid, body, {
+          unwrap: false,
+          callerPort: req.socket?.remotePort,
+          accessKey: req.headers["x-krnl-access-key"]
+        });
         this._sendJson(res, 200, result);
         return;
       }
@@ -1994,7 +2119,10 @@ var krnlUnifiedHttpAdapter = class {
       }
       if (path6 === "/mcp") {
         const body = await this._readJsonBody(req);
-        const result = await this.mcp.handleRequest(body);
+        const result = await this.mcp.handleRequest(body, {
+          callerPort: req.socket?.remotePort,
+          accessKey: req.headers["x-krnl-access-key"]
+        });
         this._sendJson(res, 200, result);
         return;
       }
@@ -2009,7 +2137,10 @@ var krnlUnifiedHttpAdapter = class {
           this._sendJson(res, 200, this.acp.getCapabilities());
         } else if (path6 === "/acp/messages" && req.method === "POST") {
           const body = await this._readJsonBody(req);
-          const result = await this.acp.handleMessage(body);
+          const result = await this.acp.handleMessage(body, {
+            callerPort: req.socket?.remotePort,
+            accessKey: req.headers["x-krnl-access-key"]
+          });
           this._sendJson(res, 200, result);
         } else {
           this._sendJson(res, 404, { error: "ACP route not found" });
@@ -2102,6 +2233,8 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
   _lastErrorDoc = null;
   discoverySocket;
   beaconInterval;
+  /** portRegistry: serviceName → port  (P_local ⊆ ℕ) */
+  portRegistry;
   /**
    * @param name
    * @param owner
@@ -2129,6 +2262,8 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     this._sharedServer = null;
     this.serviceSuites = /* @__PURE__ */ new Map();
     this.unifiedHttpAdapter = new krnlUnifiedHttpAdapter(this, commPort, host);
+    this.portRegistry = /* @__PURE__ */ new Map();
+    this.portRegistry.set("_krnl_system", commPort);
     this._documentationProvider = null;
     this._emitStartupDiagnostics();
   }
@@ -2223,6 +2358,77 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
   setDiscoverable(value) {
     this.discoverable = Boolean(value);
     return this.getSystemFlags();
+  }
+  // ── Port Registry Methods ────────────────────────────────────────────────
+  /**
+   * Register a named service port.
+   * registerPort(name, p) → portRegistry[name] = p
+   * Throws if the port is already claimed by a different service.
+   */
+  registerPort(serviceName, port) {
+    for (const [existingName, existingPort] of this.portRegistry.entries()) {
+      if (existingPort === port && existingName !== serviceName) {
+        throw new Error(
+          `[${this.entityName}] Port ${port} is already registered to '${existingName}'.`
+        );
+      }
+    }
+    this.portRegistry.set(serviceName, port);
+  }
+  /** Remove a service port registration. */
+  unregisterPort(serviceName) {
+    if (serviceName === "_krnl_system") {
+      throw new Error(`[${this.entityName}] Cannot unregister the system port '_krnl_system'.`);
+    }
+    this.portRegistry.delete(serviceName);
+  }
+  /** Return a plain-object snapshot of portRegistry: Record<serviceName, port>. */
+  getRegisteredPorts() {
+    return Object.fromEntries(this.portRegistry.entries());
+  }
+  // ── Endpoint Category Helpers ─────────────────────────────────────────────
+  /**
+   * addInternalEndpoint
+   *
+   * Registers a functionality accessible ONLY to services whose ports are in
+   * the portRegistry (internal microservices). All external ports are forbidden.
+   *
+   *   policy: allow = [...portRegistry values], default = forbid_unlisted
+   */
+  addInternalEndpoint(config) {
+    const internalPorts = Object.values(this.getRegisteredPorts());
+    config.accessPolicy = {
+      allow: internalPorts,
+      allow_with_key: [],
+      forbid: [],
+      default_connection_behaviour: "forbid_unlisted"
+    };
+    this.addLocal(config);
+  }
+  /**
+   * addExternalEndpoint
+   *
+   * Registers a functionality for external consumers.
+   *   access = 'free'  → no key required  (default_connection_behaviour = allow_unlisted)
+   *   access = 'keyed' → accessKey must be supplied in x-krnl-access-key header
+   *                       (default_connection_behaviour = ask_key_unlisted)
+   *
+   * @param config    - Standard functionality config.
+   * @param access    - 'free' | 'keyed'
+   * @param accessKey - Required when access = 'keyed'.
+   */
+  addExternalEndpoint(config, access = "free", accessKey) {
+    if (access === "keyed" && !accessKey) {
+      throw new Error(`[${this.entityName}] addExternalEndpoint: accessKey is required for 'keyed' endpoints.`);
+    }
+    config.accessPolicy = {
+      allow: [],
+      allow_with_key: [],
+      forbid: [],
+      default_connection_behaviour: access === "free" ? "allow_unlisted" : "ask_key_unlisted"
+    };
+    if (accessKey) config.accessKey = accessKey;
+    this.addLocal(config);
   }
   reserveFor(serviceName = "unknown") {
     this.reservation = {
@@ -2461,9 +2667,9 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
         metadata: connectionPolicy.metadata || {}
       });
     });
-    this.commComponent.defineRpc("call", async ({ fid, data }) => {
+    this.commComponent.defineRpc("call", async ({ fid, data }, { callerPort } = {}) => {
       this._assertAvailableForRemoteAccess(data?.meta?.requester || null);
-      return await this.call(fid, data);
+      return await this.call(fid, data, { callerPort, accessKey: data?.meta?.accessKey });
     });
     this.commComponent.defineRpc("set-entity-flags", async ({ discoverable, busy, reservedBy, requester }) => {
       this._assertAvailableForRemoteAccess(requester || null);
@@ -2520,6 +2726,14 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     this.addLocal({
       id: "getFullDocumentation",
       api: getFullDocumentationApi(this)
+    });
+    this.addLocal({
+      id: "getUsedPorts",
+      api: getUsedPortsApi(this)
+    });
+    this.addLocal({
+      id: "findFreePorts",
+      api: findFreePortsApi(this)
     });
   }
   _setupBaseInterface() {
@@ -3808,6 +4022,7 @@ export {
   TTLCache,
   WebSocketTransportAdapter,
   createEnum,
+  defaultConnectionBehaviour,
   krnlBackendVisualEntityBase,
   krnlCollector,
   krnlData,

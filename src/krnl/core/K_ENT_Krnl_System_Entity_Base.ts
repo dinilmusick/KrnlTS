@@ -236,6 +236,53 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     return Object.fromEntries(this.portRegistry.entries());
   }
 
+  // ── Endpoint Category Helpers ─────────────────────────────────────────────
+
+  /**
+   * addInternalEndpoint
+   *
+   * Registers a functionality accessible ONLY to services whose ports are in
+   * the portRegistry (internal microservices). All external ports are forbidden.
+   *
+   *   policy: allow = [...portRegistry values], default = forbid_unlisted
+   */
+  addInternalEndpoint(config: any): void {
+    const internalPorts = Object.values(this.getRegisteredPorts()) as number[];
+    config.accessPolicy = {
+      allow:                      internalPorts,
+      allow_with_key:             [],
+      forbid:                     [],
+      default_connection_behaviour: 'forbid_unlisted',
+    };
+    this.addLocal(config);
+  }
+
+  /**
+   * addExternalEndpoint
+   *
+   * Registers a functionality for external consumers.
+   *   access = 'free'  → no key required  (default_connection_behaviour = allow_unlisted)
+   *   access = 'keyed' → accessKey must be supplied in x-krnl-access-key header
+   *                       (default_connection_behaviour = ask_key_unlisted)
+   *
+   * @param config    - Standard functionality config.
+   * @param access    - 'free' | 'keyed'
+   * @param accessKey - Required when access = 'keyed'.
+   */
+  addExternalEndpoint(config: any, access: 'free' | 'keyed' = 'free', accessKey?: string): void {
+    if (access === 'keyed' && !accessKey) {
+      throw new Error(`[${this.entityName}] addExternalEndpoint: accessKey is required for 'keyed' endpoints.`);
+    }
+    config.accessPolicy = {
+      allow:                      [],
+      allow_with_key:             [],
+      forbid:                     [],
+      default_connection_behaviour: access === 'free' ? 'allow_unlisted' : 'ask_key_unlisted',
+    };
+    if (accessKey) config.accessKey = accessKey;
+    this.addLocal(config);
+  }
+
   reserveFor(serviceName: string = 'unknown') {
     this.reservation = {
       busy: true,
@@ -503,9 +550,9 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       });
     });
 
-    (this.commComponent as any).defineRpc('call', async ({ fid, data }: any) => {
+    (this.commComponent as any).defineRpc('call', async ({ fid, data }: any, { callerPort }: any = {}) => {
       this._assertAvailableForRemoteAccess(data?.meta?.requester || null);
-      return await this.call(fid, data);
+      return await this.call(fid, data, { callerPort, accessKey: data?.meta?.accessKey });
     });
 
     (this.commComponent as any).defineRpc('set-entity-flags', async ({ discoverable, busy, reservedBy, requester }: any) => {

@@ -70,6 +70,20 @@ export const krnlSystemTypes = createEnum(["qwnsr", "brnda", "symba", "mosy"]);
 //////////////////////////////////////// KRNL SERVICE SUITES ////////////////////////////////////////
 export const krnlServiceSuites = createEnum(["UNIFIED_HTTP"]);
 
+//////////////////////////////////////// ENDPOINT ACCESS CONTROL ////////////////////////////////////////
+/**
+ * defaultConnectionBehaviour
+ * Enum governing unlisted-port policy on an endpoint's access policy.
+ *   0 = allow_unlisted   (open)
+ *   1 = ask_key_unlisted (keyed)
+ *   2 = forbid_unlisted  (restricted)
+ */
+export const defaultConnectionBehaviour = createEnum([
+  'allow_unlisted',
+  'ask_key_unlisted',
+  'forbid_unlisted',
+]);
+
 export const krnlServiceSuitePorts = Object.freeze({
   UNIFIED_HTTP: 1
 } as const);

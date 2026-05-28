@@ -44,7 +44,7 @@ export class KrnlMcpProtocol {
     /**
      * Handles an MCP JSON-RPC request.
      */
-    async handleRequest(rpc: any): Promise<any> {
+    async handleRequest(rpc: any, opts: any = {}): Promise<any> {
         const { method, params, id } = rpc;
 
         if (method === 'tools/list') {
@@ -55,7 +55,7 @@ export class KrnlMcpProtocol {
         if (method === 'tools/call') {
             const { name, arguments: args } = params;
             try {
-                const result = await this.system.call(name, args);
+                const result = await this.system.call(name, args, opts);
                 return {
                     jsonrpc: "2.0",
                     id,

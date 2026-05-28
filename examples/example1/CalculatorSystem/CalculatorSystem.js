@@ -7,7 +7,7 @@ import { LoggerEntity } from "./entities/Logger/Logger.js";
 export class CalculatorSystem extends krnlSystemEntityBase {
     static Singleton = true;
     constructor(port = 10091, options = {}) {
-        super("CalculatorSystem", null, port, "0.0.0.0", options);
+        super("CalculatorSystem", null, port, options.host || "0.0.0.0", options);
 
         // 1. Logic Assembly
         this.addLocal({ 

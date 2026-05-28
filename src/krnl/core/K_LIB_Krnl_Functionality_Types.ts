@@ -6,6 +6,7 @@
 
 import { krnlEmitter } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
+import type { KrnlEndpointAccessPolicy } from "./types.js";
 
 /**
  * Helper to ensure state isolation.
@@ -57,6 +58,10 @@ export class krnlLocalFunctionality {
   schema: any;
   description?: string;
   method?: string;
+  /** Port-based access control policy. Absent = unrestricted. */
+  accessPolicy?: KrnlEndpointAccessPolicy;
+  /** Shared secret for allow_with_key / ask_key_unlisted gates. */
+  accessKey?: string;
   lifecycle: {
     beginning?: Function;
     during?: Function;
@@ -80,6 +85,8 @@ export class krnlLocalFunctionality {
       onMount = null,
       onTeardown = null,
       sourcePath = null,
+      accessPolicy = null,
+      accessKey = null,
     } = config;
 
     if (!id) throw new Error("LocalFunctionality requires an ID.");
@@ -94,6 +101,8 @@ export class krnlLocalFunctionality {
     this.schema = schema;
     this.description = config.description || '';
     this.method = config.method || 'POST';
+    if (accessPolicy) this.accessPolicy = accessPolicy;
+    if (accessKey)    this.accessKey    = accessKey;
 
     this.lifecycle = {
       beginning: onMount || events.beginning,
@@ -205,6 +214,53 @@ export class krnlLocalFunctionality {
     });
   }
 
+  /**
+   * checkAccess — port-based access gate.
+   *
+   * f(p, k) ∈ { PASS, REJECT }
+   *   FORBID  if p ∈ P_forbid
+   *   PASS    if p ∈ P_allow
+   *   KEY(k)  if p ∈ P_allow_with_key
+   *   default_connection_behaviour(p, k)   otherwise (unlisted)
+   */
+  checkAccess(callerPort: number, key?: string): { allowed: boolean; reason?: string } {
+    const p = this.accessPolicy;
+    // If no policy is defined, access is unrestricted (free).
+    if (!p) return { allowed: true };
+
+    if (p.forbid.includes(callerPort))
+      return { allowed: false, reason: `Port ${callerPort} is explicitly forbidden from accessing this endpoint.` };
+
+    if (p.allow.includes(callerPort))
+      return { allowed: true };
+
+    if (p.allow_with_key.includes(callerPort)) {
+      if (key && key === this.accessKey) return { allowed: true };
+      return {
+        allowed: false,
+        reason: key
+          ? `Invalid access key for port ${callerPort}.`
+          : `Port ${callerPort} requires an access key (x-krnl-access-key header).`
+      };
+    }
+
+    // Unlisted port — apply default behaviour
+    switch (p.default_connection_behaviour) {
+      case 'allow_unlisted':
+        return { allowed: true };
+      case 'ask_key_unlisted':
+        if (key && key === this.accessKey) return { allowed: true };
+        return {
+          allowed: false,
+          reason: key
+            ? `Invalid access key for this endpoint.`
+            : `This endpoint requires an access key. Provide it via the 'x-krnl-access-key' header.`
+        };
+      case 'forbid_unlisted':
+        return { allowed: false, reason: `Port ${callerPort} is not permitted. This is a restricted (internal) endpoint.` };
+    }
+  }
+
   bindToEntity(entity: any): this {
     this.hostEntity = entity;
     if (this.visibility === 'public') {
@@ -240,6 +296,17 @@ export class krnlLocalFunctionality {
     const trace = (telemetry.enabled) 
       ? telemetry.startTrace(this.id) 
       : null;
+
+    // ── ACCESS CONTROL GATE ──────────────────────────────────────────
+    // Enforced only when callerPort is provided (HTTP / WS transports).
+    // In-memory local calls bypass the gate (trusted internal path).
+    if (this.accessPolicy && opts.callerPort !== undefined) {
+      const access = this.checkAccess(opts.callerPort as number, opts.accessKey as string | undefined);
+      if (!access.allowed) {
+        if (trace) telemetry.endTrace(this.id, trace, false);
+        return { status: 'error', message: `[AccessDenied] ${access.reason}`, payload: null };
+      }
+    }
 
     // --- INPUT VALIDATION ---
     if (this.schema && this.schema.input) {

@@ -120,7 +120,11 @@ export class krnlUnifiedHttpAdapter {
                                      ? { data: input } 
                                      : input;
                         
-                        const result = await this.system.call(fid, (data as any).data || data, { unwrap: false });
+                        const result = await this.system.call(fid, (data as any).data || data, {
+                            unwrap: false,
+                            callerPort: req.socket?.remotePort,
+                            accessKey: req.headers['x-krnl-access-key'] as string | undefined,
+                        });
                         this._sendJson(res, 200, result);
                     } catch (e: any) {
                         Logger.error(`[HttpAdapter] Friendly route error (${fid}):`, e.message);
@@ -142,7 +146,11 @@ export class krnlUnifiedHttpAdapter {
             if (path.startsWith('/call/')) {
                 const fid = path.split('/')[2];
                 const body = await this._readJsonBody(req);
-                const result = await this.system.call(fid, body, { unwrap: false });
+                const result = await this.system.call(fid, body, {
+                    unwrap: false,
+                    callerPort: req.socket?.remotePort,
+                    accessKey: req.headers['x-krnl-access-key'] as string | undefined,
+                });
                 this._sendJson(res, 200, result);
                 return;
             }
@@ -155,7 +163,10 @@ export class krnlUnifiedHttpAdapter {
 
             if (path === '/mcp') {
                 const body = await this._readJsonBody(req);
-                const result = await (this.mcp as any).handleRequest(body);
+                const result = await (this.mcp as any).handleRequest(body, {
+                    callerPort: req.socket?.remotePort,
+                    accessKey: req.headers['x-krnl-access-key'] as string | undefined,
+                });
                 this._sendJson(res, 200, result);
                 return;
             }
@@ -172,7 +183,10 @@ export class krnlUnifiedHttpAdapter {
                     this._sendJson(res, 200, this.acp.getCapabilities());
                 } else if (path === '/acp/messages' && req.method === 'POST') {
                     const body = await this._readJsonBody(req);
-                    const result = await (this.acp as any).handleMessage(body);
+                    const result = await (this.acp as any).handleMessage(body, {
+                        callerPort: req.socket?.remotePort,
+                        accessKey: req.headers['x-krnl-access-key'] as string | undefined,
+                    });
                     this._sendJson(res, 200, result);
                 } else {
                     this._sendJson(res, 404, { error: "ACP route not found" });

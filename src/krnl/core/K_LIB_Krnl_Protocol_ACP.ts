@@ -48,11 +48,11 @@ export class KrnlAcpProtocol {
     /**
      * ACP Message endpoint handler.
      */
-    async handleMessage(payload: any): Promise<any> {
+    async handleMessage(payload: any, opts: any = {}): Promise<any> {
         const { action, data } = payload;
         
         try {
-            const result = await this.system.call(action, data);
+            const result = await this.system.call(action, data, opts);
             return {
                 status: "success",
                 result,

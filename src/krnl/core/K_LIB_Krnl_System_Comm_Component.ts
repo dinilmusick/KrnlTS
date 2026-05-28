@@ -30,7 +30,14 @@ export class WebSocketTransportAdapter extends krnlTransportAdapter {
 
     async call(targetFunction: string, input: any, opts: any = {}): Promise<any> {
         const policy = opts.policy instanceof KrnlPolicy ? opts.policy : new KrnlPolicy(opts);
-        return await this.commComponent.callWsRpc(this.remoteAddress, 'call', { fid: targetFunction, data: input }, policy);
+        const data = { 
+            ...input, 
+            meta: { 
+                ...(input?.meta || {}), 
+                accessKey: opts.accessKey 
+            } 
+        };
+        return await this.commComponent.callWsRpc(this.remoteAddress, 'call', { fid: targetFunction, data }, policy);
     }
 }
 
@@ -166,7 +173,8 @@ export class krnlSystemCommComponent {
                         }
 
                         if (msg.kind === 'rpc-request') {
-                            this._handleRpcRequest(ws, msg);
+                            const callerPort = ws._socket?.remotePort;
+                            this._handleRpcRequest(ws, msg, callerPort);
                             return;
                         }
 
@@ -341,7 +349,7 @@ export class krnlSystemCommComponent {
         throw lastError;
     }
 
-    async _handleRpcRequest(ws: any, msg: any): Promise<void> {
+    async _handleRpcRequest(ws: any, msg: any, callerPort?: number): Promise<void> {
         const { requestId, method, params } = msg;
         const handler = this._wsRpcHandlers.get(method);
         if (!handler) {
@@ -355,7 +363,7 @@ export class krnlSystemCommComponent {
         }
 
         try {
-            const result = await handler(params);
+            const result = await handler(params, { callerPort });
             ws.send(JSON.stringify({
                 kind: 'rpc-response',
                 requestId,
