@@ -21,8 +21,14 @@ import {
 } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
 import { Logger } from "./K_LIB_Krnl_Base_Concepts.js";
 import { krnlUnifiedHttpAdapter } from "./K_LIB_Krnl_System_Unified_Http_Adapter.js";
+import { KrnlShell } from "../tools/KrnlShell.js";
+import { 
+  KrnlManagedServiceConfig, 
+  KrnlManagedServiceHandle 
+} from "./types.js";
 import http from 'http';
-import fs from 'fs';
+import net  from 'net';
+import fs   from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -54,6 +60,16 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   beaconInterval: any | null;
   /** portRegistry: serviceName → port  (P_local ⊆ ℕ) */
   portRegistry: Map<string, number>;
+  /** Registered service configurations for external processes. */
+  _serviceConfigs: KrnlManagedServiceConfig[] = [];
+  /** Active handles for managed services. */
+  _managedServices: Map<string, KrnlManagedServiceHandle> = new Map();
+  /**
+   * _preferredPort — the port hint supplied at construction.
+   * Write-once. Never published externally. The actual bound port is commPort
+   * (set by finalizeCommPort after a successful server.listen()).
+   */
+  _preferredPort: number;
   /** Directory where {entityName}.ports.json is written. */
   _entityDataDir: string;
   /** True once gracefulShutdown has been triggered — prevents re-entry. */
@@ -92,10 +108,12 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     // Pre-initialize the unified HTTP adapter (always-on)
     this.unifiedHttpAdapter = new krnlUnifiedHttpAdapter(this as any, commPort, host);
 
-    // ── Port Registry ────────────────────────────────────────────────
-    // P_local = { _krnl_system → commPort } at construction time
-    this.portRegistry = new Map<string, number>();
-    this.portRegistry.set('_krnl_system', commPort);
+    // ── Port Registry ─────────────────────────────────────────────────
+    // portRegistry is intentionally EMPTY at construction time.
+    // _krnl_system is only added by finalizeCommPort() after the server
+    // has successfully bound to an OS port.  This prevents snapshot drift.
+    this.portRegistry   = new Map<string, number>();
+    this._preferredPort = commPort;   // hint — never written to portRegistry directly
 
     // ── Data directory for port snapshot file ─────────────────────────
     // Pass options.sourcePath = import.meta.url (ESM) or __filename (CJS)
@@ -203,7 +221,8 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       entity: this.entityName,
       timestamp: Date.now(),
       subsystems: {
-        comm: { status: 'active', port: this.commPort },
+        // preferredPort is the constructor hint; actual bound port is set later by finalizeCommPort
+        comm: { status: 'pending', preferredPort: this._preferredPort },
         discovery: { status: this.isDiscoveryAvailable() ? 'available' : 'unavailable' }
       },
       flags: this.getSystemFlags(),
@@ -268,31 +287,98 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   /**
-   * _writePortsFile — persists portRegistry to disk (fire-and-forget).
+   * _writePortsFile — atomically persists portRegistry to disk.
    *
-   * Written to: {_entityDataDir}/{entityName}.ports.json
-   * Shape: { entity, timestamp, ports: Record<serviceName, port> }
+   * Write strategy: write to {path}.tmp → fs.rename to final path.
+   * fs.rename is atomic on POSIX (single-filesystem) and effectively
+   * atomic on Windows via ReplaceFile.  A partial write never corrupts
+   * the visible file.
    *
-   * Called on every registerPort / unregisterPort / server start.
-   * External tools (process monitors, other apps) can read this file to
-   * discover which ports this app occupies without querying over the network.
+   * Only called by finalizeCommPort() — never from constructor state.
    */
   _writePortsFile(): void {
-    const snapshot = {
+    const filePath = this._getPortsFilePath();
+    const tmpPath  = `${filePath}.tmp`;
+    const snapshot = JSON.stringify({
       entity:    this.entityName,
       timestamp: new Date().toISOString(),
-      ports:     this.getRegisteredPorts(),
-    };
-    fs.writeFile(
-      this._getPortsFilePath(),
-      JSON.stringify(snapshot, null, 2),
-      (err) => { if (err) Logger.error(`[${this.entityName}] Failed to write ports file:`, err); }
-    );
+      ports:     this.getRegisteredPorts(),  // derived from live portRegistry, not from hint
+    }, null, 2);
+
+    fs.writeFile(tmpPath, snapshot, (writeErr) => {
+      if (writeErr) {
+        Logger.error(`[${this.entityName}] Ports file write failed:`, writeErr);
+        return;
+      }
+      fs.rename(tmpPath, filePath, (renameErr) => {
+        if (renameErr) Logger.error(`[${this.entityName}] Ports file rename failed:`, renameErr);
+      });
+    });
   }
 
   /** Remove the ports snapshot file on shutdown. */
   _deletePortsFile(): void {
-    fs.unlink(this._getPortsFilePath(), () => { /* silent — file may not exist */ });
+    const filePath = this._getPortsFilePath();
+    const tmpPath  = `${filePath}.tmp`;
+    fs.unlink(filePath, () => {});
+    fs.unlink(tmpPath,  () => {});  // clean up any orphaned tmp
+  }
+
+  // ── Port Probe ────────────────────────────────────────────────────────────
+
+  /**
+   * _probeAvailablePort — find the first bindable port starting from preferred.
+   *
+   * Algorithm:
+   *   for p in [preferred, preferred+100] ∩ [1, 65535]:
+   *     try net.createServer().listen(p, host)
+   *     if success  → close probe, return p
+   *     if EADDRINUSE → continue
+   *   throw if none found
+   *
+   * The probe server is closed before returning so the actual server can bind.
+   * There is an inherent TOCTOU (time-of-check/time-of-use) window between
+   * probe close and real listen, but this is unavoidable without SO_REUSEPORT
+   * and is acceptable for the port-drift bug class we are eliminating.
+   */
+  async _probeAvailablePort(preferred: number, host: string): Promise<number> {
+    const cap = Math.min(preferred + 100, 65535);
+    for (let port = preferred; port <= cap; port++) {
+      const available = await new Promise<boolean>(resolve => {
+        const probe = net.createServer();
+        probe.once('error', () => resolve(false));
+        probe.listen(port, host, () => probe.close(() => resolve(true)));
+      });
+      if (available) return port;
+    }
+    throw new Error(
+      `[${this.entityName}] No available port in [${preferred}, ${cap}]. ` +
+      `Cannot start server.`
+    );
+  }
+
+  // ── Single Source of Truth for Port Assignment ────────────────────────────
+
+  /**
+   * finalizeCommPort — the only method that writes port state.
+   *
+   * Called once, from _startSharedServer, after server.listen() succeeds.
+   * Never called from the constructor.
+   *
+   * Updates (atomically from caller's perspective):
+   *   this.commPort                    ← actualPort
+   *   this.commComponent.listenPort    ← actualPort
+   *   this.unifiedHttpAdapter.port     ← actualPort
+   *   portRegistry['_krnl_system']     ← actualPort
+   *   ports snapshot file              ← written atomically
+   */
+  finalizeCommPort(actualPort: number): void {
+    this.commPort                   = actualPort;
+    this.commComponent.listenPort   = actualPort;
+    this.unifiedHttpAdapter.port    = actualPort;
+    this.portRegistry.set('_krnl_system', actualPort);
+    this._writePortsFile();
+    Logger.log(`[${this.entityName}] commPort finalized → ${actualPort}`);
   }
 
   // ── Graceful Shutdown ─────────────────────────────────────────────────────
@@ -303,10 +389,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    * Sequence:
    *   1. Signal all owned entities (microservices).
    *      - Calls gracefulShutdown() if available, else dispose().
-   *   2. Await all shutdowns (parallel, bounded by timeoutMs).
-   *   3. Delete ports snapshot file.
-   *   4. Dispose self (server, sockets, intervals).
-   *   5. Exit process.
+   *   2. Stop managed external processes.
+   *   3. Await all shutdowns (parallel, bounded by timeoutMs).
+   *   4. Delete ports snapshot file.
+   *   5. Dispose self (server, sockets, intervals).
+   *   6. Exit process.
    *
    * @param opts.timeoutMs  Max wait for owned services (default 10 000 ms).
    */
@@ -334,8 +421,19 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       }
     };
 
+    // 2.5 Stop managed processes
+    const stopManaged = async () => {
+      for (const [name, handle] of this._managedServices) {
+        if (handle.processHandle && handle.status !== 'stopped') {
+          Logger.log(`[${this.entityName}] Stopping managed service '${name}' (PID: ${handle.pid})...`);
+          handle.processHandle.kill('SIGTERM');
+          handle.status = 'stopped';
+        }
+      }
+    };
+
     await Promise.race([
-      Promise.allSettled(owned.map(shutdownOne)),
+      Promise.allSettled([...owned.map(shutdownOne), stopManaged()]),
       new Promise<void>(res => setTimeout(res, timeoutMs)),
     ]);
 
@@ -398,6 +496,106 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     };
     if (accessKey) config.accessKey = accessKey;
     this.addLocal(config);
+  }
+
+  // ── Managed Services ──────────────────────────────────────────────────────
+
+  /**
+   * registerManagedService
+   * Adds an external process configuration to the system's startup sequence.
+   * Services are started in the order they are registered.
+   */
+  registerManagedService(config: KrnlManagedServiceConfig): void {
+    // Check if name is already taken
+    if (this._serviceConfigs.some(c => c.name === config.name)) {
+      throw new Error(`[${this.entityName}] Managed service '${config.name}' is already registered.`);
+    }
+    this._serviceConfigs.push(config);
+  }
+
+  /**
+   * startManagedServices
+   * Sequentially launches all registered external processes.
+   * Assigns dynamic ports, injects them into process environment, and updates the port registry.
+   */
+  async startManagedServices(): Promise<void> {
+    for (const config of this._serviceConfigs) {
+      if (this._managedServices.has(config.name)) continue;
+
+      // 1. Assign dynamic port
+      // Start probing from 10000 or the one provided in config env
+      const preferred = config.env?.PORT ? parseInt(config.env.PORT) : 10000;
+      const assignedPort = await this._probeAvailablePort(preferred, '0.0.0.0');
+
+      // 2. Prepare environment
+      const env = { 
+        ...process.env, 
+        ...(config.env || {}),
+        [config.portEnvVar || 'PORT']: assignedPort.toString()
+      };
+
+      Logger.log(`[${this.entityName}] Starting managed service '${config.name}' on port ${assignedPort}...`);
+
+      // 3. Spawn process
+      // We use inherit for stdio so child logs appear in the parent terminal
+      const handle = KrnlShell.spawn(config.command, config.args || [], {
+        cwd: config.cwd,
+        env,
+        stdio: 'inherit' 
+      });
+
+      const serviceHandle: KrnlManagedServiceHandle = {
+        config,
+        port: assignedPort,
+        processHandle: handle,
+        pid: handle.pid,
+        status: 'starting'
+      };
+
+      this._managedServices.set(config.name, serviceHandle);
+      
+      // Register in port registry so other entities can find it
+      this.registerPort(config.name, assignedPort);
+
+      // 4. Wait for startup if requested
+      if (config.waitForStartup) {
+        const timeout = config.startupTimeoutMs || 30000;
+        const start = Date.now();
+        let ready = false;
+
+        while (Date.now() - start < timeout) {
+          ready = await new Promise<boolean>(resolve => {
+            const probe = net.connect(assignedPort, '127.0.0.1');
+            probe.on('connect', () => { probe.destroy(); resolve(true); });
+            probe.on('error', () => { resolve(false); });
+          });
+
+          if (ready) break;
+          // Check if process crashed while waiting
+          if (serviceHandle.status === 'failed') break;
+          
+          await new Promise(r => setTimeout(r, 500));
+        }
+
+        if (ready) {
+          serviceHandle.status = 'running';
+          Logger.log(`[${this.entityName}] Managed service '${config.name}' is READY.`);
+        } else {
+          serviceHandle.status = 'failed';
+          Logger.error(`[${this.entityName}] Managed service '${config.name}' FAILED to start within ${timeout}ms.`);
+        }
+      } else {
+        serviceHandle.status = 'running';
+      }
+      
+      // Listen for unexpected exit
+      handle.promise.then(({ code, signal }) => {
+        if (serviceHandle.status !== 'stopped') {
+          serviceHandle.status = 'failed';
+          Logger.error(`[${this.entityName}] Managed service '${config.name}' exited unexpectedly (code: ${code}, signal: ${signal})`);
+        }
+      });
+    }
   }
 
   reserveFor(serviceName: string = 'unknown') {
@@ -585,6 +783,9 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   async _startSharedServer(): Promise<void> {
     if (this._sharedServer) return;
 
+    // ── Port probe: find first bindable port from the preferred hint ──
+    const resolvedPort = await this._probeAvailablePort(this._preferredPort, this.host);
+
     this._sharedServer = http.createServer();
 
     await this.unifiedHttpAdapter.start(this._sharedServer);
@@ -593,14 +794,14 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     await (this.commComponent as any).startWsServer(this._sharedServer);
 
     return new Promise((resolve, reject) => {
-      this._sharedServer!.listen(this.commPort, this.host, () => {
-        console.log(`[${this.entityName}] Unified port active on http://${this.host}:${this.commPort} (WS + REST + MCP + ACP)`);
+      this._sharedServer!.listen(resolvedPort, this.host, () => {
+        // Read the port the OS actually bound — the only authoritative source
+        const bound = (this._sharedServer!.address() as net.AddressInfo).port;
 
-        // ── Startup port audit ────────────────────────────────────────
-        const portSnapshot = this.getRegisteredPorts();
-        console.log(`[${this.entityName}] Port registry: ${JSON.stringify(portSnapshot)}`);
-        this._writePortsFile();
+        // ── Single write barrier: all port state updated here, atomically ──
+        this.finalizeCommPort(bound);
 
+        console.log(`[${this.entityName}] Unified port active on http://${this.host}:${bound} (WS + REST + MCP + ACP)`);
         resolve();
       });
       this._sharedServer!.on('error', (err: any) => {
@@ -809,6 +1010,15 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this._deletePortsFile();
     if (this.beaconInterval) clearInterval(this.beaconInterval);
     if (this.discoverySocket) this.discoverySocket.close();
+
+    // Kill managed processes if not already stopped
+    for (const [name, handle] of this._managedServices) {
+      if (handle.processHandle && handle.status !== 'stopped') {
+        Logger.log(`[${this.entityName}] Force killing managed service '${name}' (PID: ${handle.pid})...`);
+        handle.processHandle.kill('SIGKILL');
+      }
+    }
+    this._managedServices.clear();
     
     for (const [name, suite] of this.serviceSuites) {
       suite.stop();

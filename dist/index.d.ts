@@ -296,6 +296,39 @@ type EndpointCategory = {
     access: 'free' | 'keyed';
     accessKey?: string;
 };
+/**
+ * KrnlManagedServiceConfig
+ * Configuration for an external process (micro-server) managed by the system.
+ */
+interface KrnlManagedServiceConfig {
+    /** Unique name for the service. */
+    name: string;
+    /** Working directory for the process. */
+    cwd: string;
+    /** Command to execute (e.g., 'node', 'npm'). */
+    command: string;
+    /** Arguments for the command. */
+    args?: string[];
+    /** Environment variables to inject. */
+    env?: Record<string, string>;
+    /** The environment variable name used to pass the assigned port (default: 'PORT'). */
+    portEnvVar?: string;
+    /** If true, the system waits for the service to start (port check) before proceeding. */
+    waitForStartup?: boolean;
+    /** Maximum time to wait for startup in milliseconds (default: 30000). */
+    startupTimeoutMs?: number;
+}
+/**
+ * KrnlManagedServiceHandle
+ * Runtime handle for a managed service instance.
+ */
+interface KrnlManagedServiceHandle {
+    config: KrnlManagedServiceConfig;
+    port: number;
+    status: 'starting' | 'running' | 'failed' | 'stopped';
+    processHandle?: any;
+    pid?: number;
+}
 
 /**
  * @file K_LIB_Krnl_Functionality_Types.ts
@@ -767,6 +800,16 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
     beaconInterval: any | null;
     /** portRegistry: serviceName → port  (P_local ⊆ ℕ) */
     portRegistry: Map<string, number>;
+    /** Registered service configurations for external processes. */
+    _serviceConfigs: KrnlManagedServiceConfig[];
+    /** Active handles for managed services. */
+    _managedServices: Map<string, KrnlManagedServiceHandle>;
+    /**
+     * _preferredPort — the port hint supplied at construction.
+     * Write-once. Never published externally. The actual bound port is commPort
+     * (set by finalizeCommPort after a successful server.listen()).
+     */
+    _preferredPort: number;
     /** Directory where {entityName}.ports.json is written. */
     _entityDataDir: string;
     /** True once gracefulShutdown has been triggered — prevents re-entry. */
@@ -813,28 +856,59 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
     /** Absolute path of the JSON port snapshot co-located with the assembler. */
     _getPortsFilePath(): string;
     /**
-     * _writePortsFile — persists portRegistry to disk (fire-and-forget).
+     * _writePortsFile — atomically persists portRegistry to disk.
      *
-     * Written to: {_entityDataDir}/{entityName}.ports.json
-     * Shape: { entity, timestamp, ports: Record<serviceName, port> }
+     * Write strategy: write to {path}.tmp → fs.rename to final path.
+     * fs.rename is atomic on POSIX (single-filesystem) and effectively
+     * atomic on Windows via ReplaceFile.  A partial write never corrupts
+     * the visible file.
      *
-     * Called on every registerPort / unregisterPort / server start.
-     * External tools (process monitors, other apps) can read this file to
-     * discover which ports this app occupies without querying over the network.
+     * Only called by finalizeCommPort() — never from constructor state.
      */
     _writePortsFile(): void;
     /** Remove the ports snapshot file on shutdown. */
     _deletePortsFile(): void;
+    /**
+     * _probeAvailablePort — find the first bindable port starting from preferred.
+     *
+     * Algorithm:
+     *   for p in [preferred, preferred+100] ∩ [1, 65535]:
+     *     try net.createServer().listen(p, host)
+     *     if success  → close probe, return p
+     *     if EADDRINUSE → continue
+     *   throw if none found
+     *
+     * The probe server is closed before returning so the actual server can bind.
+     * There is an inherent TOCTOU (time-of-check/time-of-use) window between
+     * probe close and real listen, but this is unavoidable without SO_REUSEPORT
+     * and is acceptable for the port-drift bug class we are eliminating.
+     */
+    _probeAvailablePort(preferred: number, host: string): Promise<number>;
+    /**
+     * finalizeCommPort — the only method that writes port state.
+     *
+     * Called once, from _startSharedServer, after server.listen() succeeds.
+     * Never called from the constructor.
+     *
+     * Updates (atomically from caller's perspective):
+     *   this.commPort                    ← actualPort
+     *   this.commComponent.listenPort    ← actualPort
+     *   this.unifiedHttpAdapter.port     ← actualPort
+     *   portRegistry['_krnl_system']     ← actualPort
+     *   ports snapshot file              ← written atomically
+     */
+    finalizeCommPort(actualPort: number): void;
     /**
      * gracefulShutdown
      *
      * Sequence:
      *   1. Signal all owned entities (microservices).
      *      - Calls gracefulShutdown() if available, else dispose().
-     *   2. Await all shutdowns (parallel, bounded by timeoutMs).
-     *   3. Delete ports snapshot file.
-     *   4. Dispose self (server, sockets, intervals).
-     *   5. Exit process.
+     *   2. Stop managed external processes.
+     *   3. Await all shutdowns (parallel, bounded by timeoutMs).
+     *   4. Delete ports snapshot file.
+     *   5. Dispose self (server, sockets, intervals).
+     *   6. Exit process.
      *
      * @param opts.timeoutMs  Max wait for owned services (default 10 000 ms).
      */
@@ -863,6 +937,18 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
      * @param accessKey - Required when access = 'keyed'.
      */
     addExternalEndpoint(config: any, access?: 'free' | 'keyed', accessKey?: string): void;
+    /**
+     * registerManagedService
+     * Adds an external process configuration to the system's startup sequence.
+     * Services are started in the order they are registered.
+     */
+    registerManagedService(config: KrnlManagedServiceConfig): void;
+    /**
+     * startManagedServices
+     * Sequentially launches all registered external processes.
+     * Assigns dynamic ports, injects them into process environment, and updates the port registry.
+     */
+    startManagedServices(): Promise<void>;
     reserveFor(serviceName?: string): {
         discoverable: boolean;
         busy: boolean;
@@ -1353,4 +1439,4 @@ declare class GitManager {
     static push(dirPath: string, remote?: string, branch?: string): Promise<void>;
 }
 
-export { AsyncKit, CacheKit, DasyJS, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, KrnlAcpProtocol, type KrnlEndpointAccessPolicy, KrnlEnv, KrnlFS, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlMcpProtocol, type KrnlPeer, KrnlPolicy, KrnlResult, type KrnlResultEnvelope, KrnlShell, LRUCache, Logger, MemoryTransportAdapter, ObjectKit, type ReleaseFn, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, createEnum, defaultConnectionBehaviour, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, telemetry };
+export { AsyncKit, CacheKit, DasyJS, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, KrnlAcpProtocol, type KrnlEndpointAccessPolicy, KrnlEnv, KrnlFS, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, KrnlMcpProtocol, type KrnlPeer, KrnlPolicy, KrnlResult, type KrnlResultEnvelope, KrnlShell, LRUCache, Logger, MemoryTransportAdapter, ObjectKit, type ReleaseFn, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, createEnum, defaultConnectionBehaviour, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlMessageStream, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, telemetry };

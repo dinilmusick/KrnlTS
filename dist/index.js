@@ -2229,10 +2229,80 @@ var krnlUnifiedHttpAdapter = class {
   }
 };
 
+// src/krnl/tools/KrnlShell.ts
+import { exec, spawn } from "child_process";
+import path from "path";
+import fs2 from "fs";
+var KrnlShell = class {
+  /**
+   * Promisified command execution.
+   */
+  static exec(cmd, opts = {}) {
+    const timeout = opts.timeout || 3e4;
+    return new Promise((resolve, reject) => {
+      exec(cmd, { ...opts, timeout }, (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`[KrnlShellError] Command failed: ${cmd}
+Exit Code: ${error.code}
+Stderr: ${String(stderr)}`));
+        } else {
+          resolve({ stdout: String(stdout), stderr: String(stderr) });
+        }
+      });
+    });
+  }
+  /**
+   * Streaming command execution.
+   */
+  static spawn(cmd, args, opts = {}) {
+    const child = spawn(cmd, args, opts);
+    const promise = new Promise((resolve, reject) => {
+      child.on("close", (code, signal) => {
+        resolve({ code, signal });
+      });
+      child.on("error", (err) => {
+        reject(err);
+      });
+    });
+    return {
+      pid: child.pid,
+      kill: (signal) => child.kill(signal),
+      promise
+    };
+  }
+  /**
+   * Defines posix vs win32 specific commands.
+   */
+  static platform(routing) {
+    return process.platform === "win32" ? routing.win32 : routing.posix;
+  }
+  /**
+   * Resolves the full path of a binary.
+   */
+  static which(cmd) {
+    const envPath = process.env.PATH || "";
+    const paths = envPath.split(path.delimiter);
+    const extensions = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+    for (const p of paths) {
+      for (const ext of extensions) {
+        const fullPath = path.join(p, `${cmd}${ext}`);
+        try {
+          if (fs2.existsSync(fullPath) && fs2.statSync(fullPath).isFile()) {
+            return fullPath;
+          }
+        } catch (e) {
+        }
+      }
+    }
+    return null;
+  }
+};
+
 // src/krnl/core/K_ENT_Krnl_System_Entity_Base.ts
 import http2 from "http";
-import fs2 from "fs";
-import path from "path";
+import net from "net";
+import fs3 from "fs";
+import path2 from "path";
 import { fileURLToPath } from "url";
 import { zodToJsonSchema } from "zod-to-json-schema";
 var krnlSystemEntityBase = class extends krnlEntityBase {
@@ -2254,6 +2324,16 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
   beaconInterval;
   /** portRegistry: serviceName → port  (P_local ⊆ ℕ) */
   portRegistry;
+  /** Registered service configurations for external processes. */
+  _serviceConfigs = [];
+  /** Active handles for managed services. */
+  _managedServices = /* @__PURE__ */ new Map();
+  /**
+   * _preferredPort — the port hint supplied at construction.
+   * Write-once. Never published externally. The actual bound port is commPort
+   * (set by finalizeCommPort after a successful server.listen()).
+   */
+  _preferredPort;
   /** Directory where {entityName}.ports.json is written. */
   _entityDataDir;
   /** True once gracefulShutdown has been triggered — prevents re-entry. */
@@ -2286,12 +2366,12 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     this.serviceSuites = /* @__PURE__ */ new Map();
     this.unifiedHttpAdapter = new krnlUnifiedHttpAdapter(this, commPort, host);
     this.portRegistry = /* @__PURE__ */ new Map();
-    this.portRegistry.set("_krnl_system", commPort);
+    this._preferredPort = commPort;
     let dataDir = process.cwd();
     if (options.sourcePath) {
       try {
         const resolved = options.sourcePath.startsWith("file:") ? fileURLToPath(options.sourcePath) : options.sourcePath;
-        dataDir = path.dirname(resolved);
+        dataDir = path2.dirname(resolved);
       } catch (_) {
       }
     }
@@ -2370,7 +2450,8 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
       entity: this.entityName,
       timestamp: Date.now(),
       subsystems: {
-        comm: { status: "active", port: this.commPort },
+        // preferredPort is the constructor hint; actual bound port is set later by finalizeCommPort
+        comm: { status: "pending", preferredPort: this._preferredPort },
         discovery: { status: this.isDiscoveryAvailable() ? "available" : "unavailable" }
       },
       flags: this.getSystemFlags(),
@@ -2423,36 +2504,97 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
   // ── Port Snapshot File ────────────────────────────────────────────────────
   /** Absolute path of the JSON port snapshot co-located with the assembler. */
   _getPortsFilePath() {
-    return path.join(this._entityDataDir, `${this.entityName}.ports.json`);
+    return path2.join(this._entityDataDir, `${this.entityName}.ports.json`);
   }
   /**
-   * _writePortsFile — persists portRegistry to disk (fire-and-forget).
+   * _writePortsFile — atomically persists portRegistry to disk.
    *
-   * Written to: {_entityDataDir}/{entityName}.ports.json
-   * Shape: { entity, timestamp, ports: Record<serviceName, port> }
+   * Write strategy: write to {path}.tmp → fs.rename to final path.
+   * fs.rename is atomic on POSIX (single-filesystem) and effectively
+   * atomic on Windows via ReplaceFile.  A partial write never corrupts
+   * the visible file.
    *
-   * Called on every registerPort / unregisterPort / server start.
-   * External tools (process monitors, other apps) can read this file to
-   * discover which ports this app occupies without querying over the network.
+   * Only called by finalizeCommPort() — never from constructor state.
    */
   _writePortsFile() {
-    const snapshot = {
+    const filePath = this._getPortsFilePath();
+    const tmpPath = `${filePath}.tmp`;
+    const snapshot = JSON.stringify({
       entity: this.entityName,
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
       ports: this.getRegisteredPorts()
-    };
-    fs2.writeFile(
-      this._getPortsFilePath(),
-      JSON.stringify(snapshot, null, 2),
-      (err) => {
-        if (err) Logger.error(`[${this.entityName}] Failed to write ports file:`, err);
+      // derived from live portRegistry, not from hint
+    }, null, 2);
+    fs3.writeFile(tmpPath, snapshot, (writeErr) => {
+      if (writeErr) {
+        Logger.error(`[${this.entityName}] Ports file write failed:`, writeErr);
+        return;
       }
-    );
+      fs3.rename(tmpPath, filePath, (renameErr) => {
+        if (renameErr) Logger.error(`[${this.entityName}] Ports file rename failed:`, renameErr);
+      });
+    });
   }
   /** Remove the ports snapshot file on shutdown. */
   _deletePortsFile() {
-    fs2.unlink(this._getPortsFilePath(), () => {
+    const filePath = this._getPortsFilePath();
+    const tmpPath = `${filePath}.tmp`;
+    fs3.unlink(filePath, () => {
     });
+    fs3.unlink(tmpPath, () => {
+    });
+  }
+  // ── Port Probe ────────────────────────────────────────────────────────────
+  /**
+   * _probeAvailablePort — find the first bindable port starting from preferred.
+   *
+   * Algorithm:
+   *   for p in [preferred, preferred+100] ∩ [1, 65535]:
+   *     try net.createServer().listen(p, host)
+   *     if success  → close probe, return p
+   *     if EADDRINUSE → continue
+   *   throw if none found
+   *
+   * The probe server is closed before returning so the actual server can bind.
+   * There is an inherent TOCTOU (time-of-check/time-of-use) window between
+   * probe close and real listen, but this is unavoidable without SO_REUSEPORT
+   * and is acceptable for the port-drift bug class we are eliminating.
+   */
+  async _probeAvailablePort(preferred, host) {
+    const cap = Math.min(preferred + 100, 65535);
+    for (let port = preferred; port <= cap; port++) {
+      const available = await new Promise((resolve) => {
+        const probe = net.createServer();
+        probe.once("error", () => resolve(false));
+        probe.listen(port, host, () => probe.close(() => resolve(true)));
+      });
+      if (available) return port;
+    }
+    throw new Error(
+      `[${this.entityName}] No available port in [${preferred}, ${cap}]. Cannot start server.`
+    );
+  }
+  // ── Single Source of Truth for Port Assignment ────────────────────────────
+  /**
+   * finalizeCommPort — the only method that writes port state.
+   *
+   * Called once, from _startSharedServer, after server.listen() succeeds.
+   * Never called from the constructor.
+   *
+   * Updates (atomically from caller's perspective):
+   *   this.commPort                    ← actualPort
+   *   this.commComponent.listenPort    ← actualPort
+   *   this.unifiedHttpAdapter.port     ← actualPort
+   *   portRegistry['_krnl_system']     ← actualPort
+   *   ports snapshot file              ← written atomically
+   */
+  finalizeCommPort(actualPort) {
+    this.commPort = actualPort;
+    this.commComponent.listenPort = actualPort;
+    this.unifiedHttpAdapter.port = actualPort;
+    this.portRegistry.set("_krnl_system", actualPort);
+    this._writePortsFile();
+    Logger.log(`[${this.entityName}] commPort finalized \u2192 ${actualPort}`);
   }
   // ── Graceful Shutdown ─────────────────────────────────────────────────────
   /**
@@ -2461,10 +2603,11 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
    * Sequence:
    *   1. Signal all owned entities (microservices).
    *      - Calls gracefulShutdown() if available, else dispose().
-   *   2. Await all shutdowns (parallel, bounded by timeoutMs).
-   *   3. Delete ports snapshot file.
-   *   4. Dispose self (server, sockets, intervals).
-   *   5. Exit process.
+   *   2. Stop managed external processes.
+   *   3. Await all shutdowns (parallel, bounded by timeoutMs).
+   *   4. Delete ports snapshot file.
+   *   5. Dispose self (server, sockets, intervals).
+   *   6. Exit process.
    *
    * @param opts.timeoutMs  Max wait for owned services (default 10 000 ms).
    */
@@ -2487,8 +2630,17 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
         console.error(`[${this.entityName}] \u2717 '${label}' shutdown error: ${err?.message ?? err}`);
       }
     };
+    const stopManaged = async () => {
+      for (const [name, handle] of this._managedServices) {
+        if (handle.processHandle && handle.status !== "stopped") {
+          Logger.log(`[${this.entityName}] Stopping managed service '${name}' (PID: ${handle.pid})...`);
+          handle.processHandle.kill("SIGTERM");
+          handle.status = "stopped";
+        }
+      }
+    };
     await Promise.race([
-      Promise.allSettled(owned.map(shutdownOne)),
+      Promise.allSettled([...owned.map(shutdownOne), stopManaged()]),
       new Promise((res) => setTimeout(res, timeoutMs))
     ]);
     this._deletePortsFile();
@@ -2541,6 +2693,85 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     };
     if (accessKey) config.accessKey = accessKey;
     this.addLocal(config);
+  }
+  // ── Managed Services ──────────────────────────────────────────────────────
+  /**
+   * registerManagedService
+   * Adds an external process configuration to the system's startup sequence.
+   * Services are started in the order they are registered.
+   */
+  registerManagedService(config) {
+    if (this._serviceConfigs.some((c) => c.name === config.name)) {
+      throw new Error(`[${this.entityName}] Managed service '${config.name}' is already registered.`);
+    }
+    this._serviceConfigs.push(config);
+  }
+  /**
+   * startManagedServices
+   * Sequentially launches all registered external processes.
+   * Assigns dynamic ports, injects them into process environment, and updates the port registry.
+   */
+  async startManagedServices() {
+    for (const config of this._serviceConfigs) {
+      if (this._managedServices.has(config.name)) continue;
+      const preferred = config.env?.PORT ? parseInt(config.env.PORT) : 1e4;
+      const assignedPort = await this._probeAvailablePort(preferred, "0.0.0.0");
+      const env = {
+        ...process.env,
+        ...config.env || {},
+        [config.portEnvVar || "PORT"]: assignedPort.toString()
+      };
+      Logger.log(`[${this.entityName}] Starting managed service '${config.name}' on port ${assignedPort}...`);
+      const handle = KrnlShell.spawn(config.command, config.args || [], {
+        cwd: config.cwd,
+        env,
+        stdio: "inherit"
+      });
+      const serviceHandle = {
+        config,
+        port: assignedPort,
+        processHandle: handle,
+        pid: handle.pid,
+        status: "starting"
+      };
+      this._managedServices.set(config.name, serviceHandle);
+      this.registerPort(config.name, assignedPort);
+      if (config.waitForStartup) {
+        const timeout = config.startupTimeoutMs || 3e4;
+        const start = Date.now();
+        let ready = false;
+        while (Date.now() - start < timeout) {
+          ready = await new Promise((resolve) => {
+            const probe = net.connect(assignedPort, "127.0.0.1");
+            probe.on("connect", () => {
+              probe.destroy();
+              resolve(true);
+            });
+            probe.on("error", () => {
+              resolve(false);
+            });
+          });
+          if (ready) break;
+          if (serviceHandle.status === "failed") break;
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        if (ready) {
+          serviceHandle.status = "running";
+          Logger.log(`[${this.entityName}] Managed service '${config.name}' is READY.`);
+        } else {
+          serviceHandle.status = "failed";
+          Logger.error(`[${this.entityName}] Managed service '${config.name}' FAILED to start within ${timeout}ms.`);
+        }
+      } else {
+        serviceHandle.status = "running";
+      }
+      handle.promise.then(({ code, signal }) => {
+        if (serviceHandle.status !== "stopped") {
+          serviceHandle.status = "failed";
+          Logger.error(`[${this.entityName}] Managed service '${config.name}' exited unexpectedly (code: ${code}, signal: ${signal})`);
+        }
+      });
+    }
   }
   reserveFor(serviceName = "unknown") {
     this.reservation = {
@@ -2710,16 +2941,16 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
   }
   async _startSharedServer() {
     if (this._sharedServer) return;
+    const resolvedPort = await this._probeAvailablePort(this._preferredPort, this.host);
     this._sharedServer = http2.createServer();
     await this.unifiedHttpAdapter.start(this._sharedServer);
     this.serviceSuites.set("UNIFIED_HTTP", this.unifiedHttpAdapter);
     await this.commComponent.startWsServer(this._sharedServer);
     return new Promise((resolve, reject) => {
-      this._sharedServer.listen(this.commPort, this.host, () => {
-        console.log(`[${this.entityName}] Unified port active on http://${this.host}:${this.commPort} (WS + REST + MCP + ACP)`);
-        const portSnapshot = this.getRegisteredPorts();
-        console.log(`[${this.entityName}] Port registry: ${JSON.stringify(portSnapshot)}`);
-        this._writePortsFile();
+      this._sharedServer.listen(resolvedPort, this.host, () => {
+        const bound = this._sharedServer.address().port;
+        this.finalizeCommPort(bound);
+        console.log(`[${this.entityName}] Unified port active on http://${this.host}:${bound} (WS + REST + MCP + ACP)`);
         resolve();
       });
       this._sharedServer.on("error", (err) => {
@@ -2896,6 +3127,13 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     this._deletePortsFile();
     if (this.beaconInterval) clearInterval(this.beaconInterval);
     if (this.discoverySocket) this.discoverySocket.close();
+    for (const [name, handle] of this._managedServices) {
+      if (handle.processHandle && handle.status !== "stopped") {
+        Logger.log(`[${this.entityName}] Force killing managed service '${name}' (PID: ${handle.pid})...`);
+        handle.processHandle.kill("SIGKILL");
+      }
+    }
+    this._managedServices.clear();
     for (const [name, suite] of this.serviceSuites) {
       suite.stop();
     }
@@ -3491,8 +3729,8 @@ var StringKit = class _StringKit {
 };
 
 // src/krnl/tools/CacheKit.ts
-import fs3 from "fs";
-import path2 from "path";
+import fs4 from "fs";
+import path3 from "path";
 var LRUCache = class {
   maxSize;
   cache;
@@ -3579,20 +3817,20 @@ var FileCache = class {
   constructor(cacheDir) {
     this.cacheDir = cacheDir;
     try {
-      if (!fs3.existsSync(cacheDir)) {
-        fs3.mkdirSync(cacheDir, { recursive: true });
+      if (!fs4.existsSync(cacheDir)) {
+        fs4.mkdirSync(cacheDir, { recursive: true });
       }
     } catch (e) {
     }
   }
   getFilePath(key) {
-    return path2.join(this.cacheDir, `${encodeURIComponent(key)}.json`);
+    return path3.join(this.cacheDir, `${encodeURIComponent(key)}.json`);
   }
   get(key) {
     const file = this.getFilePath(key);
-    if (!fs3.existsSync(file)) return null;
+    if (!fs4.existsSync(file)) return null;
     try {
-      const content = fs3.readFileSync(file, "utf8");
+      const content = fs4.readFileSync(file, "utf8");
       return JSON.parse(content);
     } catch (e) {
       return null;
@@ -3601,24 +3839,24 @@ var FileCache = class {
   set(key, value) {
     const file = this.getFilePath(key);
     try {
-      fs3.writeFileSync(file, JSON.stringify(value, null, 2), "utf8");
+      fs4.writeFileSync(file, JSON.stringify(value, null, 2), "utf8");
     } catch (e) {
     }
   }
   delete(key) {
     const file = this.getFilePath(key);
-    if (fs3.existsSync(file)) {
+    if (fs4.existsSync(file)) {
       try {
-        fs3.unlinkSync(file);
+        fs4.unlinkSync(file);
       } catch (e) {
       }
     }
   }
   clear() {
     try {
-      const files = fs3.readdirSync(this.cacheDir);
+      const files = fs4.readdirSync(this.cacheDir);
       for (const file of files) {
-        fs3.unlinkSync(path2.join(this.cacheDir, file));
+        fs4.unlinkSync(path3.join(this.cacheDir, file));
       }
     } catch (e) {
     }
@@ -3626,14 +3864,14 @@ var FileCache = class {
 };
 
 // src/krnl/tools/KrnlFS.ts
-import fs4 from "fs";
+import fs5 from "fs";
 import fsp from "fs/promises";
-import path3 from "path";
+import path4 from "path";
 import os from "os";
 var FileLock = class _FileLock {
   static locks = /* @__PURE__ */ new Map();
   static async acquire(filePath) {
-    const resolvedPath = path3.resolve(filePath);
+    const resolvedPath = path4.resolve(filePath);
     const existing = _FileLock.locks.get(resolvedPath) || Promise.resolve();
     let release = () => {
     };
@@ -3660,14 +3898,14 @@ var KrnlFS = class _KrnlFS {
    * Atomic file writing via temp files.
    */
   static async writeFileAtomic(filePath, content) {
-    const dir = path3.dirname(filePath);
+    const dir = path4.dirname(filePath);
     await _KrnlFS.ensureDir(dir);
-    const tempFile = path3.join(dir, `.${path3.basename(filePath)}.tmp_${Date.now()}_${Math.random().toString(36).substring(7)}`);
+    const tempFile = path4.join(dir, `.${path4.basename(filePath)}.tmp_${Date.now()}_${Math.random().toString(36).substring(7)}`);
     try {
       await fsp.writeFile(tempFile, content);
       await fsp.rename(tempFile, filePath);
     } catch (e) {
-      if (fs4.existsSync(tempFile)) {
+      if (fs5.existsSync(tempFile)) {
         await fsp.unlink(tempFile).catch(() => {
         });
       }
@@ -3737,7 +3975,7 @@ var KrnlFS = class _KrnlFS {
   static async *walkDir(dirPath, filter) {
     const list = await _KrnlFS.listDir(dirPath);
     for (const item of list) {
-      const full = path3.join(dirPath, item);
+      const full = path4.join(dirPath, item);
       const stat = await _KrnlFS.getFileStat(full);
       if (stat.isDir) {
         yield* _KrnlFS.walkDir(full, filter);
@@ -3760,8 +3998,8 @@ var KrnlFS = class _KrnlFS {
     await _KrnlFS.ensureDir(dest);
     const list = await _KrnlFS.listDir(src);
     for (const item of list) {
-      const srcItem = path3.join(src, item);
-      const destItem = path3.join(dest, item);
+      const srcItem = path4.join(src, item);
+      const destItem = path4.join(dest, item);
       const stat = await _KrnlFS.getFileStat(srcItem);
       if (stat.isDir) {
         await _KrnlFS.copyDir(srcItem, destItem);
@@ -3772,29 +4010,29 @@ var KrnlFS = class _KrnlFS {
   }
   // --- Path utilities ---
   static join(...parts) {
-    return path3.join(...parts);
+    return path4.join(...parts);
   }
   static resolve(...parts) {
-    return path3.resolve(...parts);
+    return path4.resolve(...parts);
   }
   static relative(from, to) {
-    return path3.relative(from, to);
+    return path4.relative(from, to);
   }
   static basename(filePath, ext) {
-    return path3.basename(filePath, ext);
+    return path4.basename(filePath, ext);
   }
   static dirname(filePath) {
-    return path3.dirname(filePath);
+    return path4.dirname(filePath);
   }
   static extname(filePath) {
-    return path3.extname(filePath);
+    return path4.extname(filePath);
   }
   static normalize(filePath) {
-    return path3.normalize(filePath);
+    return path4.normalize(filePath);
   }
   static isSafe(filePath, root) {
-    const resolvedPath = path3.resolve(filePath);
-    const resolvedRoot = path3.resolve(root);
+    const resolvedPath = path4.resolve(filePath);
+    const resolvedRoot = path4.resolve(root);
     return resolvedPath.startsWith(resolvedRoot);
   }
   // --- Candidate resolution ---
@@ -3809,25 +4047,25 @@ var KrnlFS = class _KrnlFS {
   // --- Watching ---
   static watchFile(filePath, handler, debounceMs = 100) {
     let timer = null;
-    return fs4.watch(filePath, (event) => {
+    return fs5.watch(filePath, (event) => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => handler(event), debounceMs);
     });
   }
   static watchDir(dirPath, handler, debounceMs = 100) {
     let timer = null;
-    return fs4.watch(dirPath, (event, filename) => {
+    return fs5.watch(dirPath, (event, filename) => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => handler(event, filename), debounceMs);
     });
   }
   // --- Temp ---
   static createTempFile(prefix = "tmp-") {
-    return path3.join(os.tmpdir(), `${prefix}${Math.random().toString(36).substring(7)}.tmp`);
+    return path4.join(os.tmpdir(), `${prefix}${Math.random().toString(36).substring(7)}.tmp`);
   }
   static createTempDir(prefix = "tmp-dir-") {
-    const dir = path3.join(os.tmpdir(), `${prefix}${Math.random().toString(36).substring(7)}`);
-    fs4.mkdirSync(dir, { recursive: true });
+    const dir = path4.join(os.tmpdir(), `${prefix}${Math.random().toString(36).substring(7)}`);
+    fs5.mkdirSync(dir, { recursive: true });
     return dir;
   }
   static async withTempDir(fn, prefix = "tmp-") {
@@ -3842,8 +4080,8 @@ var KrnlFS = class _KrnlFS {
 };
 
 // src/krnl/tools/KrnlEnv.ts
-import fs5 from "fs";
-import path4 from "path";
+import fs6 from "fs";
+import path5 from "path";
 var KrnlEnv = class {
   /**
    * Reads a process environment variable with type coercion and defaults.
@@ -3886,10 +4124,10 @@ var KrnlEnv = class {
    * Loads a .env file and injects variables into process.env.
    */
   static load(filePath) {
-    const file = filePath || path4.join(process.cwd(), ".env");
-    if (!fs5.existsSync(file)) return;
+    const file = filePath || path5.join(process.cwd(), ".env");
+    if (!fs6.existsSync(file)) return;
     try {
-      const content = fs5.readFileSync(file, "utf8");
+      const content = fs6.readFileSync(file, "utf8");
       const lines = content.split(/\r?\n/);
       for (const line of lines) {
         const trimmed = line.trim();
@@ -3919,75 +4157,6 @@ var KrnlEnv = class {
     } catch (err) {
       throw new Error(`[KrnlEnvError] Environment validation failed: ${err.message || String(err)}`);
     }
-  }
-};
-
-// src/krnl/tools/KrnlShell.ts
-import { exec, spawn } from "child_process";
-import path5 from "path";
-import fs6 from "fs";
-var KrnlShell = class {
-  /**
-   * Promisified command execution.
-   */
-  static exec(cmd, opts = {}) {
-    const timeout = opts.timeout || 3e4;
-    return new Promise((resolve, reject) => {
-      exec(cmd, { ...opts, timeout }, (error, stdout, stderr) => {
-        if (error) {
-          reject(new Error(`[KrnlShellError] Command failed: ${cmd}
-Exit Code: ${error.code}
-Stderr: ${String(stderr)}`));
-        } else {
-          resolve({ stdout: String(stdout), stderr: String(stderr) });
-        }
-      });
-    });
-  }
-  /**
-   * Streaming command execution.
-   */
-  static spawn(cmd, args, opts = {}) {
-    const child = spawn(cmd, args, opts);
-    const promise = new Promise((resolve, reject) => {
-      child.on("close", (code, signal) => {
-        resolve({ code, signal });
-      });
-      child.on("error", (err) => {
-        reject(err);
-      });
-    });
-    return {
-      pid: child.pid,
-      kill: (signal) => child.kill(signal),
-      promise
-    };
-  }
-  /**
-   * Defines posix vs win32 specific commands.
-   */
-  static platform(routing) {
-    return process.platform === "win32" ? routing.win32 : routing.posix;
-  }
-  /**
-   * Resolves the full path of a binary.
-   */
-  static which(cmd) {
-    const envPath = process.env.PATH || "";
-    const paths = envPath.split(path5.delimiter);
-    const extensions = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
-    for (const p of paths) {
-      for (const ext of extensions) {
-        const fullPath = path5.join(p, `${cmd}${ext}`);
-        try {
-          if (fs6.existsSync(fullPath) && fs6.statSync(fullPath).isFile()) {
-            return fullPath;
-          }
-        } catch (e) {
-        }
-      }
-    }
-    return null;
   }
 };
 

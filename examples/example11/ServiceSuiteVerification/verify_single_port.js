@@ -15,11 +15,11 @@ async function test() {
     // This will start the shared server on 'port'
     await system.startDiscovery();
     
-    const baseUrl = `http://localhost:${port}`;
+    const baseUrl = `http://localhost:${system.commPort}`;
 
     try {
         // 1. Verify HTTP REST
-        console.log("\n[REST] Testing /call/ping on port", port);
+        console.log("\n[REST] Testing /call/ping on port", system.commPort);
         const restRes = await fetch(`${baseUrl}/call/ping`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -29,8 +29,8 @@ async function test() {
         console.log("REST Response:", restData);
 
         // 2. Verify WebSocket
-        console.log("\n[WS] Testing WebSocket connection on port", port);
-        const ws = new WebSocket(`ws://localhost:${port}`);
+        console.log("\n[WS] Testing WebSocket connection on port", system.commPort);
+        const ws = new WebSocket(`ws://localhost:${system.commPort}`);
         
         await new Promise((resolve, reject) => {
             ws.on('open', () => {

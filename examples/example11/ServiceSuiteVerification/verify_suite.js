@@ -14,7 +14,7 @@ async function test() {
     console.log("--- Starting Service Suite ---");
     await system.startDiscovery();
     
-    const baseUrl = "http://localhost:10099";
+    const baseUrl = `http://localhost:${system.commPort}`;
 
     try {
         // 1. Test REST

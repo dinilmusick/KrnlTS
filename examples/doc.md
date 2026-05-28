@@ -49,7 +49,12 @@ Demonstrates the fix for detail-preservation when throwing plain objects or erro
 Automated verification scripts to ensure the Unified Service Suite stays stable and single-port connectivity remains robust.
 - **Concepts**: Single-Port Validation, Multi-Protocol Verification.
 
+### 12. [Managed Services Orchestration](./example15/doc.md)
+Demonstrates how to register and orchestrate external micro-server processes with dynamic port assignment and startup sequencing.
+- **Concepts**: Process Orchestration, Startup Synchronization, Dynamic Environment Injection.
+
 ---
+
 
 ## How to explore
 Each example folder contains its own `doc.md` with specific details and instructions on how to run it.

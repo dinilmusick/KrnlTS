@@ -71,3 +71,41 @@ export interface KrnlEndpointAccessPolicy {
 export type EndpointCategory =
   | { kind: 'internal_endpoint' }
   | { kind: 'external_endpoint'; access: 'free' | 'keyed'; accessKey?: string };
+
+// ── Managed Services ──────────────────────────────────────────────────────
+
+/**
+ * KrnlManagedServiceConfig
+ * Configuration for an external process (micro-server) managed by the system.
+ */
+export interface KrnlManagedServiceConfig {
+  /** Unique name for the service. */
+  name: string;
+  /** Working directory for the process. */
+  cwd: string;
+  /** Command to execute (e.g., 'node', 'npm'). */
+  command: string;
+  /** Arguments for the command. */
+  args?: string[];
+  /** Environment variables to inject. */
+  env?: Record<string, string>;
+  /** The environment variable name used to pass the assigned port (default: 'PORT'). */
+  portEnvVar?: string;
+  /** If true, the system waits for the service to start (port check) before proceeding. */
+  waitForStartup?: boolean;
+  /** Maximum time to wait for startup in milliseconds (default: 30000). */
+  startupTimeoutMs?: number;
+}
+
+/**
+ * KrnlManagedServiceHandle
+ * Runtime handle for a managed service instance.
+ */
+export interface KrnlManagedServiceHandle {
+  config: KrnlManagedServiceConfig;
+  port: number;
+  status: 'starting' | 'running' | 'failed' | 'stopped';
+  processHandle?: any; // SpawnHandle
+  pid?: number;
+}
+

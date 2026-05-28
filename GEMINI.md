@@ -225,3 +225,73 @@ system.addLocal({
 //   POST /call/shutdown  { timeoutMs?: number }
 //   → { status: 'acknowledged', message, entity, timeoutMs }
 //   Server shuts down 200ms after response.
+
+// v2.4.0 — MANAGED EXTERNAL SERVICES (2026-05-29)
+// Added mechanism to register and orchestrate external micro-server processes.
+// Files changed:
+//   types.ts                           → +KrnlManagedServiceConfig, +KrnlManagedServiceHandle
+//   K_ENT_Krnl_System_Entity_Base.ts:
+//     + registerManagedService(config) → appends to _serviceConfigs (ordered)
+//     + startManagedServices()        → sequential startup:
+//         1. Probe free port
+//         2. Inject port into process.env[config.portEnvVar || 'PORT']
+//         3. KrnlShell.spawn() with inherited stdio
+//         4. registerPort(config.name, assignedPort)
+//         5. If waitForStartup: poll TCP port until reachable or timeout
+//     + gracefulShutdown()            → sends SIGTERM to all managed processes
+//     + dispose()                     → sends SIGKILL to remaining managed processes
+//
+// Usage:
+//   system.registerManagedService({
+//     name: 'auth-provider',
+//     cwd: './services/auth',
+//     command: 'node',
+//     args: ['index.js'],
+//     waitForStartup: true
+//   });
+//   await system.startManagedServices();
+
+
+// v2.4.0 — PORT STATE SINGLE SOURCE OF TRUTH (2026-05-29)
+// Eliminates the bug class where portRegistry / snapshot could diverge from the
+// OS-bound port because constructor state was used instead of server.address().
+//
+// Root cause removed:
+//   BEFORE: portRegistry.set('_krnl_system', commPort) in constructor
+//           → stale if OS assigns a different port (fallback scenario)
+//   AFTER:  portRegistry is EMPTY at construction.
+//           _krnl_system is written only by finalizeCommPort(), called after
+//           server.listen() succeeds, using server.address().port as truth.
+//
+// Files changed:
+//   K_ENT_Krnl_System_Entity_Base.ts:
+//     + import net
+//     + _preferredPort: number field  (constructor hint, write-once, never published)
+//     - portRegistry.set('_krnl_system', commPort) removed from constructor
+//     + _probeAvailablePort(preferred, host): Promise<number>
+//         net.createServer probe loop: preferred, preferred+1 ... preferred+100
+//         returns first port where bind succeeds; sequential serial probes
+//     + finalizeCommPort(actualPort): void    ← THE ONLY PORT WRITE GATE
+//         this.commPort                = actualPort
+//         this.commComponent.listenPort = actualPort
+//         this.unifiedHttpAdapter.port  = actualPort
+//         portRegistry['_krnl_system'] = actualPort
+//         _writePortsFile()            (atomic, derived from live portRegistry)
+//     ~ _writePortsFile(): now atomic: write .tmp → fs.rename → final
+//         _deletePortsFile(): also removes orphaned .tmp
+//     ~ _startSharedServer():
+//         resolvedPort = await _probeAvailablePort(_preferredPort, host)
+//         server.listen(resolvedPort, ...)
+//         bound = server.address().port   ← authoritative OS source
+//         finalizeCommPort(bound)
+//     ~ _emitStartupDiagnostics: logs preferredPort, not commPort (port not final yet)
+//   src/krnl/tests/port_registry.test.ts  (NEW)
+//     Regression test covering:
+//       1. System falls back from blocked preferred port to preferred+N
+//       2. commPort === portRegistry._krnl_system
+//       3. commComponent.listenPort and unifiedHttpAdapter.port agree
+//       4. ports.json contains actual bound port, NOT the blocked preferred port
+//
+// Usage — no change for app code.
+//   Pass options.sourcePath = import.meta.url for snapshot co-location.
+//   System transparently finds and uses the next free port if preferred is taken.
