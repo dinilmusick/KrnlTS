@@ -189,3 +189,39 @@ system.addLocal({
 //     unlisted            → default_connection_behaviour(p, k)
 //   callerPort = req.socket.remotePort  (HTTP); absent on in-memory calls → gate skipped (trusted path)
 //   accessKey  = req.headers['x-krnl-access-key']
+
+// v2.3.0 — PORT SNAPSHOT FILE + GRACEFUL SHUTDOWN (2026-05-29)
+// Added persistent port snapshot file, startup port audit, and graceful shutdown sequence.
+// Files changed:
+//   K_ENT_Krnl_System_Entity_Base.ts:
+//     + import fs, path, fileURLToPath
+//     + options.sourcePath constructor param → resolves _entityDataDir (default: process.cwd())
+//     + _shuttingDown: boolean field (re-entry guard)
+//     + _getPortsFilePath()  → {_entityDataDir}/{entityName}.ports.json
+//     + _writePortsFile()    → fire-and-forget JSON write; shape: { entity, timestamp, ports }
+//                              called on: registerPort(), unregisterPort(), _startSharedServer() listen
+//     + _deletePortsFile()   → unlink on shutdown
+//     + gracefulShutdown({ timeoutMs=10000 }):
+//         1. _shuttingDown guard
+//         2. getAllOwnedComponentEntities() → gracefulShutdown() | dispose() in parallel
+//         3. Promise.race(allSettled, timeout)
+//         4. _deletePortsFile()
+//         5. dispose()
+//         6. process.exit(0) after 100ms
+//     + _startSharedServer: after listen → log port registry + _writePortsFile()
+//     + _setupBaseFunctionalities: +shutdown endpoint (shutdownApi)
+//     + bindProcessSignals: SIGINT/SIGTERM/uncaughtException/unhandledRejection → gracefulShutdown()
+//   K_LIB_Krnl_System_Base_Functionality_APIs.ts:
+//     + shutdownApi(entity) → responds immediately, fires gracefulShutdown after 200ms
+
+// Port snapshot file usage:
+//   Pass options.sourcePath = import.meta.url in the assembler:
+//     const system = new MySystem('AppName', null, 10099, '0.0.0.0', { sourcePath: import.meta.url });
+//   Written to: {assembler_directory}/AppName.ports.json
+//   Shape: { entity: string, timestamp: ISO8601, ports: Record<serviceName, port> }
+//   Deleted on: gracefulShutdown() completion
+
+// Shutdown endpoint usage:
+//   POST /call/shutdown  { timeoutMs?: number }
+//   → { status: 'acknowledged', message, entity, timeoutMs }
+//   Server shuts down 200ms after response.

@@ -187,3 +187,41 @@ export function findFreePortsApi(entity: any) {
     return { freePorts, queriedPeers: peers.length, totalUsedCount: usedSet.size, usedByPeer };
   };
 }
+
+// ── Graceful Shutdown API ──────────────────────────────────────────────────
+
+/**
+ * shutdownApi
+ *
+ * Default `shutdown` endpoint registered on every krnlSystemEntityBase.
+ *
+ * Responds immediately with an acknowledgement, then fires
+ * entity.gracefulShutdown() asynchronously:
+ *
+ *   shutdown sequence:
+ *     forEach owned ∈ hierarchy  →  gracefulShutdown() | dispose()   (parallel, timeoutMs)
+ *     → _deletePortsFile()
+ *     → dispose()
+ *     → process.exit(0)
+ *
+ * Input:  { timeoutMs? }   (ms to wait for each microservice; default 10 000)
+ * Output: { status, message, entity, timeoutMs }
+ */
+export function shutdownApi(entity: any) {
+  return ({ timeoutMs = 10_000 }: { timeoutMs?: number } = {}) => {
+    // Fire async — response must leave before the server closes
+    setTimeout(() => {
+      entity.gracefulShutdown({ timeoutMs }).catch((err: any) => {
+        console.error(`[${entity.entityName}] gracefulShutdown error:`, err?.message ?? err);
+        process.exit(1);
+      });
+    }, 200);
+
+    return {
+      status:    'acknowledged',
+      message:   `Graceful shutdown initiated for '${entity.entityName}' and all owned microservices.`,
+      entity:    entity.entityName,
+      timeoutMs,
+    };
+  };
+}

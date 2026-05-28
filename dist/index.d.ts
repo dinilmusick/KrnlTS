@@ -767,6 +767,10 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
     beaconInterval: any | null;
     /** portRegistry: serviceName → port  (P_local ⊆ ℕ) */
     portRegistry: Map<string, number>;
+    /** Directory where {entityName}.ports.json is written. */
+    _entityDataDir: string;
+    /** True once gracefulShutdown has been triggered — prevents re-entry. */
+    _shuttingDown: boolean;
     /**
      * @param name
      * @param owner
@@ -806,6 +810,37 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
     unregisterPort(serviceName: string): void;
     /** Return a plain-object snapshot of portRegistry: Record<serviceName, port>. */
     getRegisteredPorts(): Record<string, number>;
+    /** Absolute path of the JSON port snapshot co-located with the assembler. */
+    _getPortsFilePath(): string;
+    /**
+     * _writePortsFile — persists portRegistry to disk (fire-and-forget).
+     *
+     * Written to: {_entityDataDir}/{entityName}.ports.json
+     * Shape: { entity, timestamp, ports: Record<serviceName, port> }
+     *
+     * Called on every registerPort / unregisterPort / server start.
+     * External tools (process monitors, other apps) can read this file to
+     * discover which ports this app occupies without querying over the network.
+     */
+    _writePortsFile(): void;
+    /** Remove the ports snapshot file on shutdown. */
+    _deletePortsFile(): void;
+    /**
+     * gracefulShutdown
+     *
+     * Sequence:
+     *   1. Signal all owned entities (microservices).
+     *      - Calls gracefulShutdown() if available, else dispose().
+     *   2. Await all shutdowns (parallel, bounded by timeoutMs).
+     *   3. Delete ports snapshot file.
+     *   4. Dispose self (server, sockets, intervals).
+     *   5. Exit process.
+     *
+     * @param opts.timeoutMs  Max wait for owned services (default 10 000 ms).
+     */
+    gracefulShutdown({ timeoutMs }?: {
+        timeoutMs?: number;
+    }): Promise<void>;
     /**
      * addInternalEndpoint
      *

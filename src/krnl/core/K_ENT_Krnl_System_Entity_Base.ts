@@ -17,10 +17,14 @@ import {
   telemetryApi,
   getUsedPortsApi,
   findFreePortsApi,
+  shutdownApi,
 } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
 import { Logger } from "./K_LIB_Krnl_Base_Concepts.js";
 import { krnlUnifiedHttpAdapter } from "./K_LIB_Krnl_System_Unified_Http_Adapter.js";
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -50,6 +54,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   beaconInterval: any | null;
   /** portRegistry: serviceName → port  (P_local ⊆ ℕ) */
   portRegistry: Map<string, number>;
+  /** Directory where {entityName}.ports.json is written. */
+  _entityDataDir: string;
+  /** True once gracefulShutdown has been triggered — prevents re-entry. */
+  _shuttingDown: boolean = false;
 
   /**
    * @param name
@@ -88,6 +96,20 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     // P_local = { _krnl_system → commPort } at construction time
     this.portRegistry = new Map<string, number>();
     this.portRegistry.set('_krnl_system', commPort);
+
+    // ── Data directory for port snapshot file ─────────────────────────
+    // Pass options.sourcePath = import.meta.url (ESM) or __filename (CJS)
+    // from the assembler to co-locate {entityName}.ports.json with the app.
+    let dataDir = process.cwd();
+    if (options.sourcePath) {
+      try {
+        const resolved = (options.sourcePath as string).startsWith('file:')
+          ? fileURLToPath(options.sourcePath)
+          : options.sourcePath;
+        dataDir = path.dirname(resolved);
+      } catch (_) { /* fall back to cwd */ }
+    }
+    this._entityDataDir = dataDir;
 
     // ── Protocol Unification & Decoration ──────────────────────────────
     this._documentationProvider = null;
@@ -221,6 +243,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       }
     }
     this.portRegistry.set(serviceName, port);
+    this._writePortsFile();
   }
 
   /** Remove a service port registration. */
@@ -229,11 +252,105 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       throw new Error(`[${this.entityName}] Cannot unregister the system port '_krnl_system'.`);
     }
     this.portRegistry.delete(serviceName);
+    this._writePortsFile();
   }
 
   /** Return a plain-object snapshot of portRegistry: Record<serviceName, port>. */
   getRegisteredPorts(): Record<string, number> {
     return Object.fromEntries(this.portRegistry.entries());
+  }
+
+  // ── Port Snapshot File ────────────────────────────────────────────────────
+
+  /** Absolute path of the JSON port snapshot co-located with the assembler. */
+  _getPortsFilePath(): string {
+    return path.join(this._entityDataDir, `${this.entityName}.ports.json`);
+  }
+
+  /**
+   * _writePortsFile — persists portRegistry to disk (fire-and-forget).
+   *
+   * Written to: {_entityDataDir}/{entityName}.ports.json
+   * Shape: { entity, timestamp, ports: Record<serviceName, port> }
+   *
+   * Called on every registerPort / unregisterPort / server start.
+   * External tools (process monitors, other apps) can read this file to
+   * discover which ports this app occupies without querying over the network.
+   */
+  _writePortsFile(): void {
+    const snapshot = {
+      entity:    this.entityName,
+      timestamp: new Date().toISOString(),
+      ports:     this.getRegisteredPorts(),
+    };
+    fs.writeFile(
+      this._getPortsFilePath(),
+      JSON.stringify(snapshot, null, 2),
+      (err) => { if (err) Logger.error(`[${this.entityName}] Failed to write ports file:`, err); }
+    );
+  }
+
+  /** Remove the ports snapshot file on shutdown. */
+  _deletePortsFile(): void {
+    fs.unlink(this._getPortsFilePath(), () => { /* silent — file may not exist */ });
+  }
+
+  // ── Graceful Shutdown ─────────────────────────────────────────────────────
+
+  /**
+   * gracefulShutdown
+   *
+   * Sequence:
+   *   1. Signal all owned entities (microservices).
+   *      - Calls gracefulShutdown() if available, else dispose().
+   *   2. Await all shutdowns (parallel, bounded by timeoutMs).
+   *   3. Delete ports snapshot file.
+   *   4. Dispose self (server, sockets, intervals).
+   *   5. Exit process.
+   *
+   * @param opts.timeoutMs  Max wait for owned services (default 10 000 ms).
+   */
+  async gracefulShutdown({ timeoutMs = 10_000 }: { timeoutMs?: number } = {}): Promise<void> {
+    if (this._shuttingDown) return;
+    this._shuttingDown = true;
+
+    console.log(`\n[${this.entityName}] ── Graceful shutdown initiated ──`);
+
+    // 1. Collect owned microservices
+    const owned: any[] = (this as any).hierarchyManager.getAllOwnedComponentEntities?.() ?? [];
+
+    // 2. Signal each owned entity and await (parallel, with timeout)
+    const shutdownOne = async (child: any) => {
+      const label = child.entityName ?? '(unknown)';
+      try {
+        if (typeof child.gracefulShutdown === 'function') {
+          await child.gracefulShutdown({ timeoutMs });
+        } else {
+          child.dispose();
+        }
+        console.log(`[${this.entityName}] ✓ '${label}' stopped.`);
+      } catch (err: any) {
+        console.error(`[${this.entityName}] ✗ '${label}' shutdown error: ${err?.message ?? err}`);
+      }
+    };
+
+    await Promise.race([
+      Promise.allSettled(owned.map(shutdownOne)),
+      new Promise<void>(res => setTimeout(res, timeoutMs)),
+    ]);
+
+    // 3. Remove ports snapshot
+    this._deletePortsFile();
+
+    // 4. Dispose self
+    this.dispose();
+
+    console.log(`[${this.entityName}] ── Shutdown complete ──`);
+
+    // 5. Exit
+    if (typeof process !== 'undefined' && process.exit) {
+      setTimeout(() => process.exit(0), 100);
+    }
   }
 
   // ── Endpoint Category Helpers ─────────────────────────────────────────────
@@ -478,6 +595,12 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     return new Promise((resolve, reject) => {
       this._sharedServer!.listen(this.commPort, this.host, () => {
         console.log(`[${this.entityName}] Unified port active on http://${this.host}:${this.commPort} (WS + REST + MCP + ACP)`);
+
+        // ── Startup port audit ────────────────────────────────────────
+        const portSnapshot = this.getRegisteredPorts();
+        console.log(`[${this.entityName}] Port registry: ${JSON.stringify(portSnapshot)}`);
+        this._writePortsFile();
+
         resolve();
       });
       this._sharedServer!.on('error', (err: any) => {
@@ -631,6 +754,12 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       id: 'findFreePorts',
       api: findFreePortsApi(this as any)
     });
+
+    this.addLocal({
+      id: 'shutdown',
+      description: 'Gracefully shut down all owned microservices then self. Responds immediately; shutdown runs async.',
+      api: shutdownApi(this as any),
+    });
   }
 
   _setupBaseInterface(): void {
@@ -647,28 +776,28 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   bindProcessSignals(): void {
     if (typeof process === 'undefined' || !process.on) return;
 
-    const handleSignal = (signal: string) => {
-      console.log(`\n[${this.entityName}] OS Signal ${signal} received. Cleaning up...`);
-      this.dispose();
-      process.exit(0);
-    };
+    process.on('SIGINT',  () => {
+      console.log(`\n[${this.entityName}] SIGINT received.`);
+      this.gracefulShutdown().catch(() => process.exit(1));
+    });
 
-    process.on('SIGINT', () => handleSignal('SIGINT'));
-    process.on('SIGTERM', () => handleSignal('SIGTERM'));
+    process.on('SIGTERM', () => {
+      console.log(`\n[${this.entityName}] SIGTERM received.`);
+      this.gracefulShutdown().catch(() => process.exit(1));
+    });
+
     process.on('SIGHUP', () => {
       console.log(`[${this.entityName}] SIGHUP received. Ignoring to maintain background persistence.`);
     });
 
     process.on('uncaughtException', (err) => {
       Logger.error(`UNCAUGHT EXCEPTION in ${this.entityName}:`, err);
-      this.dispose();
-      process.exit(1);
+      this.gracefulShutdown({ timeoutMs: 3000 }).catch(() => process.exit(1));
     });
 
     process.on('unhandledRejection', (reason) => {
       Logger.error(`UNHANDLED REJECTION in ${this.entityName}:`, reason);
-      this.dispose();
-      process.exit(1);
+      this.gracefulShutdown({ timeoutMs: 3000 }).catch(() => process.exit(1));
     });
 
     process.on('exit', (code) => {
@@ -677,6 +806,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   dispose(): void {
+    this._deletePortsFile();
     if (this.beaconInterval) clearInterval(this.beaconInterval);
     if (this.discoverySocket) this.discoverySocket.close();
     
