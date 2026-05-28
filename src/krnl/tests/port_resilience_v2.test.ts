@@ -119,7 +119,7 @@ async function runTest(): Promise<void> {
       await closeServer(blocker);
     }
     // Final cleanup of any orphaned files
-    [portsFile, `${portsFile}.tmp`].forEach(f => {
+    [portsFile].forEach(f => {
       if (fs.existsSync(f)) fs.unlinkSync(f);
     });
   }

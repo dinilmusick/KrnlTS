@@ -100,7 +100,7 @@ async function runTest(): Promise<void> {
   } finally {
     if (system)  system.dispose();
     if (blocker) await closeServer(blocker);
-    for (const f of [portsFile, `${portsFile}.tmp`]) {
+    for (const f of [portsFile]) {
       try { fs.unlinkSync(f); } catch (_) {}
     }
   }

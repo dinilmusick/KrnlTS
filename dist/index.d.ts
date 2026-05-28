@@ -815,6 +815,12 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
     /** True once gracefulShutdown has been triggered — prevents re-entry. */
     _shuttingDown: boolean;
     /**
+     * Internal readiness signaling.
+     * Resolves after _startSharedServer successfully binds and finalizeCommPort is called.
+     */
+    private _readyPromise;
+    private _resolveReady;
+    /**
      * @param name
      * @param owner
      * @param commPort - WS listen port for the commComponent.
@@ -822,6 +828,12 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
      * @param options - Entity options.
      */
     constructor(name: string, owner?: krnlEntityBase | null, commPort?: number, host?: string, options?: any);
+    /**
+     * whenReady
+     * Await this promise to ensure the system has bound to its final port,
+     * written its snapshot file, and is fully operational.
+     */
+    whenReady(): Promise<void>;
     /**
      * Registers a documentation provider to enable automatic result decoration across all protocols.
      */
@@ -848,24 +860,19 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
      * registerPort(name, p) → portRegistry[name] = p
      * Throws if the port is already claimed by a different service.
      */
-    registerPort(serviceName: string, port: number): void;
+    registerPort(serviceName: string, port: number): Promise<void>;
     /** Remove a service port registration. */
-    unregisterPort(serviceName: string): void;
+    unregisterPort(serviceName: string): Promise<void>;
     /** Return a plain-object snapshot of portRegistry: Record<serviceName, port>. */
     getRegisteredPorts(): Record<string, number>;
     /** Absolute path of the JSON port snapshot co-located with the assembler. */
     _getPortsFilePath(): string;
     /**
-     * _writePortsFile — atomically persists portRegistry to disk.
-     *
-     * Write strategy: write to {path}.tmp → fs.rename to final path.
-     * fs.rename is atomic on POSIX (single-filesystem) and effectively
-     * atomic on Windows via ReplaceFile.  A partial write never corrupts
-     * the visible file.
+     * _writePortsFile — persists portRegistry to disk.
      *
      * Only called by finalizeCommPort() — never from constructor state.
      */
-    _writePortsFile(): void;
+    _writePortsFile(): Promise<void>;
     /** Remove the ports snapshot file on shutdown. */
     _deletePortsFile(): void;
     /**
@@ -896,8 +903,9 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
      *   this.unifiedHttpAdapter.port     ← actualPort
      *   portRegistry['_krnl_system']     ← actualPort
      *   ports snapshot file              ← written atomically
+     *   _readyPromise                    ← resolved
      */
-    finalizeCommPort(actualPort: number): void;
+    finalizeCommPort(actualPort: number): Promise<void>;
     /**
      * gracefulShutdown
      *

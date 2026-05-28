@@ -307,27 +307,25 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   /**
-   * _writePortsFile — atomically persists portRegistry to disk.
-   *
-   * Write strategy: write to {path}.tmp → fs.rename to final path.
-   * fs.rename is atomic on POSIX (single-filesystem) and effectively
-   * atomic on Windows via ReplaceFile.  A partial write never corrupts
-   * the visible file.
+   * _writePortsFile — persists portRegistry to disk.
    *
    * Only called by finalizeCommPort() — never from constructor state.
    */
   async _writePortsFile(): Promise<void> {
     const filePath = this._getPortsFilePath();
-    const tmpPath  = `${filePath}.tmp`;
     const snapshot = JSON.stringify({
       entity:    this.entityName,
       timestamp: new Date().toISOString(),
-      ports:     this.getRegisteredPorts(),  // derived from live portRegistry, not from hint
+      ports:     this.getRegisteredPorts(),
     }, null, 2);
 
     try {
-      await fs.promises.writeFile(tmpPath, snapshot);
-      await fs.promises.rename(tmpPath, filePath);
+      const dir = path.dirname(filePath);
+      if (!fs.existsSync(dir)) {
+        await fs.promises.mkdir(dir, { recursive: true });
+      }
+      // Direct write ensures we don't try to rename a file that was never written
+      await fs.promises.writeFile(filePath, snapshot);
     } catch (err) {
       Logger.error(`[${this.entityName}] Ports file write failed:`, err);
     }
@@ -336,10 +334,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   /** Remove the ports snapshot file on shutdown. */
   _deletePortsFile(): void {
     const filePath = this._getPortsFilePath();
-    const tmpPath  = `${filePath}.tmp`;
     try {
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      if (fs.existsSync(tmpPath))  fs.unlinkSync(tmpPath);  // clean up any orphaned tmp
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     } catch (_) {}
   }
 

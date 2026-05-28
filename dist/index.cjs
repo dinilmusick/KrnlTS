@@ -2424,6 +2424,12 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
   _entityDataDir;
   /** True once gracefulShutdown has been triggered — prevents re-entry. */
   _shuttingDown = false;
+  /** 
+   * Internal readiness signaling. 
+   * Resolves after _startSharedServer successfully binds and finalizeCommPort is called.
+   */
+  _readyPromise;
+  _resolveReady;
   /**
    * @param name
    * @param owner
@@ -2442,6 +2448,9 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
       reservedAt: null
     };
     this.peerTtlMs = 6e4;
+    this._readyPromise = new Promise((resolve) => {
+      this._resolveReady = resolve;
+    });
     this.commPort = commPort;
     this.host = host;
     this.commComponent = new krnlSystemCommComponent(this, commPort, host);
@@ -2464,6 +2473,14 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     this._entityDataDir = dataDir;
     this._documentationProvider = null;
     this._emitStartupDiagnostics();
+  }
+  /**
+   * whenReady
+   * Await this promise to ensure the system has bound to its final port,
+   * written its snapshot file, and is fully operational.
+   */
+  async whenReady() {
+    return this._readyPromise;
   }
   /**
    * Registers a documentation provider to enable automatic result decoration across all protocols.
@@ -2564,7 +2581,7 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
    * registerPort(name, p) → portRegistry[name] = p
    * Throws if the port is already claimed by a different service.
    */
-  registerPort(serviceName, port) {
+  async registerPort(serviceName, port) {
     for (const [existingName, existingPort] of this.portRegistry.entries()) {
       if (existingPort === port && existingName !== serviceName) {
         throw new Error(
@@ -2573,15 +2590,15 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
       }
     }
     this.portRegistry.set(serviceName, port);
-    this._writePortsFile();
+    await this._writePortsFile();
   }
   /** Remove a service port registration. */
-  unregisterPort(serviceName) {
+  async unregisterPort(serviceName) {
     if (serviceName === "_krnl_system") {
       throw new Error(`[${this.entityName}] Cannot unregister the system port '_krnl_system'.`);
     }
     this.portRegistry.delete(serviceName);
-    this._writePortsFile();
+    await this._writePortsFile();
   }
   /** Return a plain-object snapshot of portRegistry: Record<serviceName, port>. */
   getRegisteredPorts() {
@@ -2593,42 +2610,36 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     return import_path2.default.join(this._entityDataDir, `${this.entityName}.ports.json`);
   }
   /**
-   * _writePortsFile — atomically persists portRegistry to disk.
-   *
-   * Write strategy: write to {path}.tmp → fs.rename to final path.
-   * fs.rename is atomic on POSIX (single-filesystem) and effectively
-   * atomic on Windows via ReplaceFile.  A partial write never corrupts
-   * the visible file.
+   * _writePortsFile — persists portRegistry to disk.
    *
    * Only called by finalizeCommPort() — never from constructor state.
    */
-  _writePortsFile() {
+  async _writePortsFile() {
     const filePath = this._getPortsFilePath();
-    const tmpPath = `${filePath}.tmp`;
     const snapshot = JSON.stringify({
       entity: this.entityName,
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
       ports: this.getRegisteredPorts()
-      // derived from live portRegistry, not from hint
     }, null, 2);
-    import_fs3.default.writeFile(tmpPath, snapshot, (writeErr) => {
-      if (writeErr) {
-        Logger.error(`[${this.entityName}] Ports file write failed:`, writeErr);
-        return;
+    try {
+      const dir = import_path2.default.dirname(filePath);
+      if (!import_fs3.default.existsSync(dir)) {
+        await import_fs3.default.promises.mkdir(dir, { recursive: true });
       }
-      import_fs3.default.rename(tmpPath, filePath, (renameErr) => {
-        if (renameErr) Logger.error(`[${this.entityName}] Ports file rename failed:`, renameErr);
-      });
-    });
+      await import_fs3.default.promises.writeFile(filePath, snapshot);
+    } catch (err) {
+      Logger.error(`[${this.entityName}] Ports file write failed:`, err);
+    }
   }
   /** Remove the ports snapshot file on shutdown. */
   _deletePortsFile() {
     const filePath = this._getPortsFilePath();
-    const tmpPath = `${filePath}.tmp`;
-    import_fs3.default.unlink(filePath, () => {
-    });
-    import_fs3.default.unlink(tmpPath, () => {
-    });
+    try {
+      if (import_fs3.default.existsSync(filePath)) {
+        import_fs3.default.unlinkSync(filePath);
+      }
+    } catch (_) {
+    }
   }
   // ── Port Probe ────────────────────────────────────────────────────────────
   /**
@@ -2673,13 +2684,15 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
    *   this.unifiedHttpAdapter.port     ← actualPort
    *   portRegistry['_krnl_system']     ← actualPort
    *   ports snapshot file              ← written atomically
+   *   _readyPromise                    ← resolved
    */
-  finalizeCommPort(actualPort) {
+  async finalizeCommPort(actualPort) {
     this.commPort = actualPort;
     this.commComponent.listenPort = actualPort;
     this.unifiedHttpAdapter.port = actualPort;
     this.portRegistry.set("_krnl_system", actualPort);
-    this._writePortsFile();
+    await this._writePortsFile();
+    this._resolveReady();
     Logger.log(`[${this.entityName}] commPort finalized \u2192 ${actualPort}`);
   }
   // ── Graceful Shutdown ─────────────────────────────────────────────────────
@@ -2821,7 +2834,7 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
         status: "starting"
       };
       this._managedServices.set(config.name, serviceHandle);
-      this.registerPort(config.name, assignedPort);
+      await this.registerPort(config.name, assignedPort);
       if (config.waitForStartup) {
         const timeout = config.startupTimeoutMs || 3e4;
         const start = Date.now();
@@ -3011,8 +3024,9 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
       this.discoverySocket.setBroadcast(true);
       console.log(`[${this.entityName}] Discovery active on ${this.host}:${discoveryPort} (broadcast to ${discoveryHost})`);
     });
-    this.beaconInterval = setInterval(() => {
+    this.beaconInterval = setInterval(async () => {
       if (!this.discoverable) return;
+      await this.whenReady();
       const beacon = JSON.stringify({
         type: "KRNL_BEACON",
         id: this.entityName,
@@ -3021,7 +3035,9 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
         busy: this.reservation.busy,
         reservedBy: this.reservation.reservedBy
       });
-      this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, discoveryHost);
+      if (this.discoverySocket) {
+        this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, discoveryHost);
+      }
     }, 5e3);
     await this._startSharedServer();
   }
@@ -3033,9 +3049,9 @@ var krnlSystemEntityBase = class extends krnlEntityBase {
     this.serviceSuites.set("UNIFIED_HTTP", this.unifiedHttpAdapter);
     await this.commComponent.startWsServer(this._sharedServer);
     return new Promise((resolve, reject) => {
-      this._sharedServer.listen(resolvedPort, this.host, () => {
+      this._sharedServer.listen(resolvedPort, this.host, async () => {
         const bound = this._sharedServer.address().port;
-        this.finalizeCommPort(bound);
+        await this.finalizeCommPort(bound);
         console.log(`[${this.entityName}] Unified port active on http://${this.host}:${bound} (WS + REST + MCP + ACP)`);
         resolve();
       });
