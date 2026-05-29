@@ -13,7 +13,8 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema",
-    "sync": "pnpm install"
+    "sync": "pnpm install",
+    "prepare": "npm run build"
   },
   "files": [
     "dist"
