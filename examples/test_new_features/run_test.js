@@ -3,7 +3,6 @@ import path from "path";
 import fs from "fs";
 import { z } from "zod";
 import {
-  KrnlResult,
   ObjectKit,
   AsyncKit,
   StringKit,
@@ -22,23 +21,6 @@ function assert(condition, message) {
   if (!condition) {
     throw new Error(`Assertion failed: ${message}`);
   }
-}
-
-async function testKrnlResult() {
-  console.log("-> Testing KrnlResult...");
-  const success = KrnlResult.ok({ value: 42 });
-  assert(success.status === "success", "Expected success status");
-  assert(success.data.value === 42, "Expected success data");
-  assert(success.isSuccess() === true, "Expected isSuccess true");
-  assert(success.isError() === false, "Expected isError false");
-
-  const failure = KrnlResult.fail("Something went wrong", 400);
-  assert(failure.status === "error", "Expected error status");
-  assert(failure.message === "Something went wrong", "Expected failure message");
-  assert(failure.code === 400, "Expected failure code 400");
-  assert(failure.isSuccess() === false, "Expected isSuccess false");
-  assert(failure.isError() === true, "Expected isError true");
-  console.log("✅ KrnlResult passed.");
 }
 
 async function testObjectKit() {
@@ -312,12 +294,12 @@ async function testKrnlHTTP() {
     const client = KrnlHTTP.createClient(`http://localhost:${port}`);
     // GET test
     const getRes = await client.get("/api/test");
-    assert(getRes.isSuccess() === true, "Expected successful GET request");
+    assert(getRes.status === "success", "Expected successful GET request");
     assert(getRes.data.message === "got-it", "GET response message check");
 
     // POST test
     const postRes = await client.post("/api/test", { greeting: "hello" });
-    assert(postRes.isSuccess() === true, "Expected successful POST request");
+    assert(postRes.status === "success", "Expected successful POST request");
     assert(postRes.data.echo.greeting === "hello", "POST echo message check");
   } finally {
     await new Promise(resolve => server.close(resolve));
@@ -340,7 +322,6 @@ async function runAll() {
   console.log("   KRNL-TOOLS NEW FEATURES TEST SUITE     ");
   console.log("==========================================");
   
-  await testKrnlResult();
   await testObjectKit();
   await testAsyncKit();
   await testStringKit();

@@ -8,7 +8,7 @@ import { krnlInterface } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { krnlEntityCompositionalHierarchyManager } from "./K_LIB_Krnl_Entity_Compositional_Hierarchy.js";
 import { krnlLocalFunctionality, krnlRemoteFunctionality } from "./K_LIB_Krnl_Functionality_Types.js";
 import { krnlError, krnlErrorCodes } from "./K_LIB_Krnl_Error_Concepts.js";
-import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
+import { telemetry, KrnlTelemetry } from "./K_LIB_Krnl_Telemetry.js";
 
 /**
  * KRNL ENTITY BASE
@@ -21,11 +21,12 @@ export class krnlEntityBase {
   Singleton: boolean;
   baseName: string;
   instanceNumber: number;
+  telemetry: KrnlTelemetry;
   _telemetryEnabled: boolean = false;
   get telemetryEnabled(): boolean { return this._telemetryEnabled; }
   set telemetryEnabled(val: boolean) {
     this._telemetryEnabled = val;
-    telemetry.enabled = val; 
+    this.telemetry.enabled = val; 
   }
   systemType: string = "BaseEntity";
 
@@ -55,6 +56,7 @@ export class krnlEntityBase {
     this.Singleton = options.Singleton ?? (this.constructor as any).Singleton ?? true;
     this.baseName = options.baseName || this.entityName;
     this.instanceNumber = options.instanceNumber || 1;
+    this.telemetry = new KrnlTelemetry();
     this.telemetryEnabled = options.telemetryEnabled || false;
 
     // 2. Messaging Infrastructure (The IO Hub).
@@ -197,7 +199,7 @@ export class krnlEntityBase {
       result = await this._decorateResult(result, fid, input);
 
       // Backward compatibility: If it's a standard Krnl success envelope, unwrap it.
-      if (unwrap && result && typeof result === 'object' && result.status === 'success' && 'payload' in result && !result.preemptiveDocumentation) {
+      if (unwrap && result && typeof result === 'object' && result.status === 'success' && 'payload' in result && !result.skipUnwrap) {
         return result.payload;
       }
 
@@ -229,7 +231,13 @@ export class krnlEntityBase {
       return this.localFunctionalities.get(fid);
     }
     let current: any = this.remoteFunctionalities.get(fid);
+    const visited = new Set<any>();
     while (current) {
+      if (visited.has(current)) {
+        break;
+      }
+      visited.add(current);
+
       if (current.isLocal) {
         return current;
       }
@@ -256,7 +264,7 @@ export class krnlEntityBase {
     return {
       entity: this.entityName,
       timestamp: Date.now(),
-      metrics: telemetry.getSummary()
+      metrics: this.telemetry.getSummary()
     };
   }
 

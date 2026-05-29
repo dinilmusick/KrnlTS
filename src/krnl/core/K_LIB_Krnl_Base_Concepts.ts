@@ -91,8 +91,15 @@ export const krnlServiceSuitePorts = Object.freeze({
 //////////////////////////////////////// KRNL PRIMITIVE DATA TYPES ////////////////////////////////////////
 export const krnlPrimitiveDataTypes = createEnum(["audio", "control-signal", "video", "MIDI", "OSC", "text", "trigger"]);
 
+export interface KrnlTraceContext {
+  sourceEmitterAddress: string | null;
+  targetCollectorAddress: string | null;
+  traceCorrelationId: string | null;
+  originSystemAddress: string | null;
+}
+
 //////////////////////////////////////// KRNL DATA ////////////////////////////////////////
-export class krnlData {
+export class krnlData implements KrnlTraceContext {
   // --- Transport semantics ---
   isSignal: boolean = false; 
   dataType: number = 0; 
@@ -268,7 +275,10 @@ export class KrnlPolicy {
   backoffStrategy: "LINEAR" | "EXPONENTIAL" = "LINEAR";
 
   constructor(opts: Partial<KrnlPolicy> = {}) {
-    Object.assign(this, opts);
+    if (opts.maxRetries !== undefined) this.maxRetries = opts.maxRetries;
+    if (opts.timeoutMs !== undefined) this.timeoutMs = opts.timeoutMs;
+    if (opts.retryDelayMs !== undefined) this.retryDelayMs = opts.retryDelayMs;
+    if (opts.backoffStrategy !== undefined) this.backoffStrategy = opts.backoffStrategy;
   }
 
   static default(): KrnlPolicy {

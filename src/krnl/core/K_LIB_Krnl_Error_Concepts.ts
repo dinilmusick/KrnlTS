@@ -92,6 +92,8 @@ export const krnlErrorMessages: Record<number, string> = Object.freeze({
     "ERR_COM_INGRESS_ROUTE_NOT_FOUND",
 });
 
+export const CUSTOM_ERROR_CODE = -999;
+
 //////////////////////////////////////// KRNL ERROR ////////////////////////////////////////
 /**
  * Typed error class for the Krnl system.
@@ -102,7 +104,7 @@ export class krnlError extends Error {
 
   constructor(code: number | string) {
     const isNumeric = typeof code === 'number';
-    const numericCode = isNumeric ? code : -1;
+    const numericCode = isNumeric ? code : CUSTOM_ERROR_CODE;
     const message = isNumeric ? (krnlErrorMessages[numericCode] ?? `Error: ${code}`) : code;
     super(message);
     this.code = numericCode;

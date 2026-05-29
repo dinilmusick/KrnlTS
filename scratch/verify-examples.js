@@ -22,7 +22,9 @@ const examples = [
     { num: 11, script: 'ServiceSuiteVerification/verify_suite.js' },
     { num: 11, script: 'ServiceSuiteVerification/verify_single_port.js' },
     { num: 12, script: 'RouteVerification/run_test.js' },
-    { num: 13, script: 'run_test.js' }
+    { num: 13, script: 'run_test.js' },
+    { num: 14, script: 'run_test.js' },
+    { num: 15, script: 'run_test.js' }
 ];
 
 const standaloneTests = [

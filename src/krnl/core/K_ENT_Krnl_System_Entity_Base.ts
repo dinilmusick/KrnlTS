@@ -655,39 +655,43 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     const eventsNames: string[] = [];
     const api: any = {};
 
-    this.localFunctionalities.forEach((f: any) => {
+    const serializeSchema = (schema: any) => {
+      if (!schema) return undefined;
+      try {
+        return zodToJsonSchema(schema);
+      } catch (e) {
+        return { type: "custom", message: "Non-Zod or complex schema" };
+      }
+    };
+
+    const buildFManifest = (f: any, type: 'local' | 'remote', resolved: any) => {
       const fManifest: any = {
         id: f.id,
-        type: 'local',
-        visibility: f.visibility,
-        sourcePath: f.sourcePath, 
+        type,
+        visibility: resolved.visibility,
+        sourcePath: resolved.sourcePath, 
         events: [] 
       };
-      f.emitters.forEach((_: any, eid: string) => {
+      resolved.emitters.forEach((_: any, eid: string) => {
         const eventId = `${f.id}:${eid}`;
         fManifest.events.push(eventId);
         eventsNames.push(eventId);
       });
 
-      if (f.schema) {
+      if (resolved.schema) {
         fManifest.schema = {};
-        if (f.schema.input) {
-          try {
-            fManifest.schema.input = zodToJsonSchema(f.schema.input);
-          } catch (e) {
-             fManifest.schema.input = { type: "custom", message: "Non-Zod or complex schema" };
-          }
+        if (resolved.schema.input) {
+          fManifest.schema.input = serializeSchema(resolved.schema.input);
         }
-        if (f.schema.output) {
-          try {
-            fManifest.schema.output = zodToJsonSchema(f.schema.output);
-          } catch (e) {
-            fManifest.schema.output = { type: "custom", message: "Non-Zod or complex schema" };
-          }
+        if (resolved.schema.output) {
+          fManifest.schema.output = serializeSchema(resolved.schema.output);
         }
       }
+      return fManifest;
+    };
 
-      api[f.id] = fManifest;
+    this.localFunctionalities.forEach((f: any) => {
+      api[f.id] = buildFManifest(f, 'local', f);
       apiNames.push(f.id);
     });
 
@@ -695,37 +699,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       if (!api[f.id]) {
         const resolved = (this as any).resolveLocalFunctionality(f.id);
         if (resolved) {
-          const fManifest: any = {
-            id: f.id,
-            type: 'remote',
-            visibility: resolved.visibility,
-            sourcePath: resolved.sourcePath, 
-            events: [] 
-          };
-          resolved.emitters.forEach((_: any, eid: string) => {
-            const eventId = `${f.id}:${eid}`;
-            fManifest.events.push(eventId);
-            eventsNames.push(eventId);
-          });
-
-          if (resolved.schema) {
-            fManifest.schema = {};
-            if (resolved.schema.input) {
-              try {
-                fManifest.schema.input = zodToJsonSchema(resolved.schema.input);
-              } catch (e) {
-                fManifest.schema.input = { type: "custom", message: "Non-Zod or complex schema" };
-              }
-            }
-            if (resolved.schema.output) {
-              try {
-                fManifest.schema.output = zodToJsonSchema(resolved.schema.output);
-              } catch (e) {
-                fManifest.schema.output = { type: "custom", message: "Non-Zod or complex schema" };
-              }
-            }
-          }
-          api[f.id] = fManifest;
+          api[f.id] = buildFManifest(f, 'remote', resolved);
         } else {
           api[f.id] = { id: f.id, type: 'remote' };
         }
@@ -820,7 +794,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     await this.unifiedHttpAdapter.start(this._sharedServer);
     this.serviceSuites.set("UNIFIED_HTTP", this.unifiedHttpAdapter);
 
-    await (this.commComponent as any).startWsServer(this._sharedServer);
+    await this.commComponent.startWsServer(this._sharedServer);
 
     return new Promise((resolve, reject) => {
       this._sharedServer!.listen(resolvedPort, this.host, async () => {
@@ -857,7 +831,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     if (!peer) return null;
     return {
       call: async (fid: string, data: any) => {
-        return await (this.commComponent as any).callWsRpc(peer.address, 'call', { fid, data });
+        return await this.commComponent.callWsRpc(peer.address, 'call', { fid, data });
       }
     };
   }
@@ -870,7 +844,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     const { localOutput, remoteInput, remoteOutput, localInput, connectionPolicy = {} } = options;
 
     if (localOutput && remoteInput) {
-      await (this.commComponent as any).wireViaWs(localOutput, peer.address, remoteInput, peer.name, {
+      await this.commComponent.wireViaWs(localOutput, peer.address, remoteInput, peer.name, {
         managedBy: connectionPolicy.managedBy || this.entityName,
         externallyMutable: connectionPolicy.externallyMutable !== false,
         metadata: connectionPolicy.metadata || {},
@@ -878,7 +852,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     }
 
     if (remoteOutput && localInput) {
-      await (this.commComponent as any).callWsRpc(peer.address, 'wire-output-to-me', {
+      await this.commComponent.callWsRpc(peer.address, 'wire-output-to-me', {
         remoteOutput: remoteOutput,
         localInput: localInput,
         myAddress: `${this.host}:${this.commPort}`,
@@ -889,26 +863,26 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   _setupRpcHandlers(): void {
-    (this.commComponent as any).defineRpc('get-manifest', async () => {
+    this.commComponent.defineRpc('get-manifest', async () => {
       return this.getManifest();
     });
 
-    (this.commComponent as any).defineRpc('wire-output-to-me', async (params: any) => {
+    this.commComponent.defineRpc('wire-output-to-me', async (params: any) => {
       const { remoteOutput, localInput, myAddress, myName, connectionPolicy = {} } = params;
       this._assertAvailableForRemoteAccess(myName);
-      return await (this.commComponent as any).wireViaWs(remoteOutput, myAddress, localInput, myName, {
+      return await this.commComponent.wireViaWs(remoteOutput, myAddress, localInput, myName, {
         managedBy: connectionPolicy.managedBy || myName,
         externallyMutable: connectionPolicy.externallyMutable !== false,
         metadata: connectionPolicy.metadata || {},
       });
     });
 
-    (this.commComponent as any).defineRpc('call', async ({ fid, data }: any, { callerPort }: any = {}) => {
+    this.commComponent.defineRpc('call', async ({ fid, data }: any, { callerPort }: any = {}) => {
       this._assertAvailableForRemoteAccess(data?.meta?.requester || null);
       return await this.call(fid, data, { callerPort, accessKey: data?.meta?.accessKey });
     });
 
-    (this.commComponent as any).defineRpc('set-entity-flags', async ({ discoverable, busy, reservedBy, requester }: any) => {
+    this.commComponent.defineRpc('set-entity-flags', async ({ discoverable, busy, reservedBy, requester }: any) => {
       this._assertAvailableForRemoteAccess(requester || null);
       if (typeof discoverable === 'boolean') this.setDiscoverable(discoverable);
       if (typeof busy === 'boolean') {
@@ -918,19 +892,19 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       return this.getSystemFlags();
     });
 
-    (this.commComponent as any).defineRpc('list-routes', async () => {
-      return (this.commComponent as any).listRoutes();
+    this.commComponent.defineRpc('list-routes', async () => {
+      return this.commComponent.listRoutes();
     });
 
-    (this.commComponent as any).defineRpc('disconnect-route', async ({ routeId, requester, force = false }: any) => {
+    this.commComponent.defineRpc('disconnect-route', async ({ routeId, requester, force = false }: any) => {
       this._assertAvailableForRemoteAccess(requester || null);
-      (this.commComponent as any).disconnectRoute(routeId, { requester, force });
+      this.commComponent.disconnectRoute(routeId, { requester, force });
       return { ok: true, routeId };
     });
 
-    (this.commComponent as any).defineRpc('connect-to-target', async ({ sourceEmitter, targetAddress, targetCollector, targetName, requester, connectionPolicy = {} }: any) => {
+    this.commComponent.defineRpc('connect-to-target', async ({ sourceEmitter, targetAddress, targetCollector, targetName, requester, connectionPolicy = {} }: any) => {
       this._assertAvailableForRemoteAccess(requester || null);
-      return await (this.commComponent as any).wireViaWs(sourceEmitter, targetAddress, targetCollector, targetName, {
+      return await this.commComponent.wireViaWs(sourceEmitter, targetAddress, targetCollector, targetName, {
         managedBy: connectionPolicy.managedBy || requester || this.entityName,
         externallyMutable: connectionPolicy.externallyMutable !== false,
         metadata: connectionPolicy.metadata || {},
@@ -1059,7 +1033,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
         this._sharedServer = null;
     }
 
-    (this.commComponent as any).dispose();
+    this.commComponent.dispose();
     super.dispose();
   }
 }

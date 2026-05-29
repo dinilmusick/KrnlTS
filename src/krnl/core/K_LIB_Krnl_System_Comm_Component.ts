@@ -280,46 +280,68 @@ export class krnlSystemCommComponent {
         this._introspectionProvider = providerFn;
     }
 
-    async callWsRpc(remoteAddress: string, method: string, params: any = {}, policy: KrnlPolicy = KrnlPolicy.default()): Promise<any> {
+    async _getWsRpcClient(remoteAddress: string): Promise<any> {
         const { WebSocket } = await _loadWs();
+        let ws = this._wsClients.get(remoteAddress);
+        if (ws && (ws.readyState === 1 || ws.readyState === 0)) { // 1 = OPEN, 0 = CONNECTING
+            return ws;
+        }
+        
+        ws = new WebSocket(`ws://${remoteAddress}`);
+        this._wsClients.set(remoteAddress, ws);
+        
+        ws.on('error', (err: any) => {
+            Logger.error(`[CommComponent:${this.ownerEntity.entityName}] WS error to ${remoteAddress}:`, err.message);
+            this._wsClients.delete(remoteAddress);
+        });
+        
+        ws.on('close', () => {
+            this._wsClients.delete(remoteAddress);
+        });
+
+        ws.on('message', (raw: Buffer) => {
+            try {
+                const msg = JSON.parse(raw.toString());
+                if (msg.kind === 'rpc-response') {
+                    this._handleRpcResponse(msg);
+                }
+            } catch (_) { }
+        });
+
+        await new Promise((resolve, reject) => {
+            const connTimeout = setTimeout(() => {
+                ws.close();
+                reject(new Error("ERR_NET_CONNECTION_TIMEOUT"));
+            }, 5000);
+
+            ws.once('open', () => {
+                clearTimeout(connTimeout);
+                resolve(true);
+            });
+            ws.once('error', (err: any) => {
+                clearTimeout(connTimeout);
+                reject(err);
+            });
+        });
+
+        return ws;
+    }
+
+    async callWsRpc(remoteAddress: string, method: string, params: any = {}, policy: KrnlPolicy = KrnlPolicy.default()): Promise<any> {
         let lastError: any = null;
 
         for (let attempt = 0; attempt <= policy.maxRetries; attempt++) {
             try {
                 const requestId = `rpc_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-                const ws = new WebSocket(`ws://${remoteAddress}`);
-
-                await new Promise((resolve, reject) => {
-                    const connTimeout = setTimeout(() => {
-                        ws.close();
-                        reject(new Error("ERR_NET_CONNECTION_TIMEOUT"));
-                    }, policy.timeoutMs);
-
-                    ws.once('open', () => {
-                        clearTimeout(connTimeout);
-                        resolve(true);
-                    });
-                    ws.once('error', (err: any) => {
-                        clearTimeout(connTimeout);
-                        reject(err);
-                    });
-                });
+                const ws = await this._getWsRpcClient(remoteAddress);
 
                 const result = await new Promise((resolve, reject) => {
                     const timeoutId = setTimeout(() => {
                         this._wsPendingRpc.delete(requestId);
-                        ws.close();
                         reject({ code: krnlErrorCodes.ERR_NET_RPC_TIMEOUT_EXCEEDED, message: "ERR_NET_RPC_TIMEOUT_EXCEEDED" });
                     }, policy.timeoutMs);
 
                     this._wsPendingRpc.set(requestId, { resolve, reject, timeoutId, ws });
-
-                    ws.on('message', (raw: Buffer) => {
-                        try {
-                            const msg = JSON.parse(raw.toString());
-                            if (msg.kind === 'rpc-response') this._handleRpcResponse(msg);
-                        } catch (_) { }
-                    });
 
                     ws.send(JSON.stringify({
                         kind: 'rpc-request',
@@ -410,7 +432,6 @@ export class krnlSystemCommComponent {
         if (!pending) return;
         clearTimeout(pending.timeoutId);
         this._wsPendingRpc.delete(msg.requestId);
-        pending.ws?.close();
 
         if (msg.ok) pending.resolve(msg.result);
         else pending.reject(new Error(msg.error || 'RPC error'));

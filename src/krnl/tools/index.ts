@@ -1,4 +1,3 @@
-export * from "./KrnlResult.js";
 export * from "./ObjectKit.js";
 export * from "./AsyncKit.js";
 export * from "./StringKit.js";

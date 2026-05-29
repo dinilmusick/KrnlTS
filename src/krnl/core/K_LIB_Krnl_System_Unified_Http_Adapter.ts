@@ -228,18 +228,17 @@ export class krnlUnifiedHttpAdapter {
             res.write(`data: ${JSON.stringify(msg.data)}\n\n`);
         });
 
-        req.on('close', () => {
-            if (unsubscribe) unsubscribe();
-            res.end();
-        });
-
         const interval = setInterval(() => {
             if (res.writable) {
                 res.write(': keepalive\n\n');
             }
         }, 15000);
 
-        req.on('close', () => clearInterval(interval));
+        req.on('close', () => {
+            if (unsubscribe) unsubscribe();
+            clearInterval(interval);
+            res.end();
+        });
     }
 
     _sendJson(res: http.ServerResponse, status: number, data: any): void {

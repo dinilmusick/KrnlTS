@@ -70,6 +70,12 @@ export class krnlEntityCompositionalHierarchyManager {
   addComponentEntityInstance(instance: any): void {
     this.ownedComponents.set(instance.id, instance);
     instance.hierarchyManager.owner = this.self;
+    
+    const base = instance.baseName || instance.id;
+    const group = this.componentBaseNames.get(base) || [];
+    group.push(instance);
+    this.componentBaseNames.set(base, group);
+
     if (instance._promoteAllExistingFunctionalities) {
       instance._promoteAllExistingFunctionalities();
     }

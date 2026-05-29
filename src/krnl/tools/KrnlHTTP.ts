@@ -3,12 +3,18 @@
  * @description Safe, type-safe HTTP client wrapper.
  */
 
-import { KrnlResult } from "./KrnlResult.js";
 import { AsyncKit } from "./AsyncKit.js";
 
 export interface KrnlHTTPOptions extends RequestInit {
   timeout?: number;
   retries?: number;
+}
+
+export interface KrnlResult<T> {
+  status: "success" | "error";
+  data?: T;
+  message?: string;
+  code?: number;
 }
 
 export class KrnlHTTP {
@@ -42,12 +48,12 @@ export class KrnlHTTP {
     try {
       const res = await KrnlHTTP.requestRaw(url, opts);
       if (!res.ok) {
-        return KrnlResult.fail<T>(`HTTP Error ${res.status}: ${res.statusText}`, res.status);
+        return { status: "error", message: `HTTP Error ${res.status}: ${res.statusText}`, code: res.status };
       }
       const data = await res.json() as T;
-      return KrnlResult.ok<T>(data);
+      return { status: "success", data };
     } catch (e: any) {
-      return KrnlResult.fail<T>(e.message || String(e));
+      return { status: "error", message: e.message || String(e) };
     }
   }
 

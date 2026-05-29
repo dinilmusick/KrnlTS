@@ -8,11 +8,13 @@ import { krnlEmitter } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
 import type { KrnlEndpointAccessPolicy } from "./types.js";
 
+import { ObjectKit } from "../tools/ObjectKit.js";
+
 /**
  * Helper to ensure state isolation.
  */
 function cloneState(source: any): any {
-  return JSON.parse(JSON.stringify(source));
+  return ObjectKit.deepClone(source);
 }
 
 /**
@@ -126,11 +128,15 @@ export class krnlLocalFunctionality {
 
   _createObservedState(initialState: any): any {
     const self = this;
+    const proxyCache = new WeakMap();
     const handler: ProxyHandler<any> = {
       get(target, prop, receiver) {
         const value = Reflect.get(target, prop, receiver);
         if (typeof value === 'object' && value !== null) {
-          return new Proxy(value, handler);
+          if (!proxyCache.has(value)) {
+            proxyCache.set(value, new Proxy(value, handler));
+          }
+          return proxyCache.get(value);
         }
         return value;
       },
@@ -293,8 +299,9 @@ export class krnlLocalFunctionality {
   async execute(input: any, opts: any = {}): Promise<any> {
     const caller = opts.caller || 'default';
     const activeState = this.state;
-    const trace = (telemetry.enabled) 
-      ? telemetry.startTrace(this.id) 
+    const activeTelemetry = this.hostEntity?.telemetry || telemetry;
+    const trace = (activeTelemetry.enabled) 
+      ? activeTelemetry.startTrace(this.id) 
       : null;
 
     // ── ACCESS CONTROL GATE ──────────────────────────────────────────
@@ -303,7 +310,7 @@ export class krnlLocalFunctionality {
     if (this.accessPolicy && opts.callerPort !== undefined) {
       const access = this.checkAccess(opts.callerPort as number, opts.accessKey as string | undefined);
       if (!access.allowed) {
-        if (trace) telemetry.endTrace(this.id, trace, false);
+        if (trace) activeTelemetry.endTrace(this.id, trace, false);
         return { status: 'error', message: `[AccessDenied] ${access.reason}`, payload: null };
       }
     }
@@ -357,7 +364,7 @@ export class krnlLocalFunctionality {
       }
 
       // --- TELEMETRY END (SUCCESS) ---
-      if (trace) telemetry.endTrace(this.id, trace, true);
+      if (trace) activeTelemetry.endTrace(this.id, trace, true);
 
       return {
         status: 'success',
@@ -365,7 +372,7 @@ export class krnlLocalFunctionality {
       };
     } catch (err: any) {
       // --- TELEMETRY END (ERROR) ---
-      if (trace) telemetry.endTrace(this.id, trace, false);
+      if (trace) activeTelemetry.endTrace(this.id, trace, false);
 
       if (typeof this.lifecycle.failure === "function") {
         this.lifecycle.failure({ error: err, input, caller });
