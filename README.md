@@ -63,7 +63,7 @@ For detailed guides on architectural patterns, networking, and advanced features
 To create a networked system:
 
 ```javascript
-import { krnlSystemEntityBase } from "krnljs";
+import { krnlSystemEntityBase } from "krnlts";
 
 export class MySystem extends krnlSystemEntityBase {
     constructor(port = 10091) {
@@ -126,7 +126,7 @@ Use `krnlNetworkOrchestratorEntityBase` when you need a third-party manager serv
 - disconnect managed routes while honoring immutable route policy.
 
 ```javascript
-import { krnlNetworkOrchestratorEntityBase } from "krnljs";
+import { krnlNetworkOrchestratorEntityBase } from "krnlts";
 
 class MyOrchestrator extends krnlNetworkOrchestratorEntityBase {}
 const orchestrator = new MyOrchestrator("MyOrchestrator", null, 10123);
@@ -139,6 +139,51 @@ const orchestrator = new MyOrchestrator("MyOrchestrator", null, 10123);
 ```
 
 Runnable example: `examples/example7/OrchestratorSystem/OrchestratorSystem.js`.
+
+## ⚙️ Dynamic Ports & Graceful Shutdown
+
+### Dynamic Port Allocation
+
+Pass `0` as the port to let the OS assign a free port. Await `whenReady()` before reading `system.port` — the value is not final until the server has bound.
+
+```javascript
+import { krnlSystemEntityBase } from "krnlts";
+
+const system = new krnlSystemEntityBase("MySystem", null, 0);
+await system.startDiscovery();
+await system.whenReady();
+
+console.log(system.port); // OS-assigned port, e.g. 52341
+```
+
+> **Always use `system.port`** — it is the canonical, stable accessor. Do not read `system.commPort` or `system.commComponent.listenPort` directly; those are internal and may diverge before `whenReady()` resolves.
+
+### Graceful Shutdown
+
+Call `await system.shutdown()` to stop all owned microservices, managed processes, and the system itself in order.
+
+```javascript
+const system = new krnlSystemEntityBase("MySystem", null, 10099);
+await system.startDiscovery();
+
+// Clean shutdown from anywhere:
+await system.shutdown();               // default 10 s timeout
+await system.shutdown({ timeoutMs: 5000 }); // custom timeout
+```
+
+### Signal Handling (Recommended Pattern)
+
+Bind OS signals once via the built-in helper so the system shuts down cleanly on `SIGINT`/`SIGTERM`:
+
+```javascript
+const system = new krnlSystemEntityBase("MySystem", null, 10099);
+await system.startDiscovery();
+await system.whenReady();
+
+system.bindProcessSignals(); // handles SIGINT, SIGTERM, SIGHUP, uncaughtException
+```
+
+---
 
 ## 📜 License
 MIT

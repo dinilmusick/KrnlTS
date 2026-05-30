@@ -157,6 +157,15 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   /**
+   * port — stable public accessor for the active bound port.
+   * Mirrors commPort. Resolves to the OS-assigned value after finalizeCommPort().
+   * Use this instead of commPort or commComponent.listenPort.
+   */
+  get port(): number {
+    return this.commPort;
+  }
+
+  /**
    * Registers a documentation provider to enable automatic result decoration across all protocols.
    */
   setDocumentationProvider(provider: any): void {
@@ -473,6 +482,15 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     }
   }
 
+  /**
+   * shutdown — public alias for gracefulShutdown().
+   * Enables clean consumer code: await system.shutdown()
+   * No type-casting or feature detection required.
+   */
+  async shutdown(opts: { timeoutMs?: number } = {}): Promise<void> {
+    return this.gracefulShutdown(opts);
+  }
+
   // ── Endpoint Category Helpers ─────────────────────────────────────────────
 
   /**
@@ -755,9 +773,13 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       } catch (e) { }
     });
 
+    // 255.255.255.255 is not looped back through loopback-bound sockets on most OS stacks.
+    // Redirect broadcast target to 127.0.0.1 when the entity is bound to loopback.
+    const broadcastTarget = (this.host === '127.0.0.1') ? '127.0.0.1' : discoveryHost;
+
     this.discoverySocket.bind(discoveryPort, this.host, () => {
       this.discoverySocket.setBroadcast(true);
-      console.log(`[${this.entityName}] Discovery active on ${this.host}:${discoveryPort} (broadcast to ${discoveryHost})`);
+      console.log(`[${this.entityName}] Discovery active on ${this.host}:${discoveryPort} (broadcast to ${broadcastTarget})`);
     });
 
     this.beaconInterval = setInterval(async () => {
@@ -776,7 +798,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
         reservedBy: this.reservation.reservedBy
       });
       if (this.discoverySocket) {
-        this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, discoveryHost);
+        this.discoverySocket.send(beacon, 0, beacon.length, discoveryPort, broadcastTarget);
       }
     }, 5000);
 

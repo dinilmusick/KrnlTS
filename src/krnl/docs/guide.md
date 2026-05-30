@@ -62,7 +62,7 @@ Uses a **Transport Adapter** to forward calls.
 ### 📡 Transport-Agnostic RPC
 Entities are agnostic to where functionalities execute. You can swap adapters in the descriptor without changing runtime logic.
 ```javascript
-import { WebSocketTransportAdapter } from "krnljs";
+import { WebSocketTransportAdapter } from "krnlts";
 
 this.addRemote({
     id: "RemoteLogic",
