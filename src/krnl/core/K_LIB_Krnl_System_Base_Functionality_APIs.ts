@@ -225,3 +225,11 @@ export function shutdownApi(entity: any) {
     };
   };
 }
+
+export function getIngressNetworkTopologyApi(entity: any) {
+  return () => {
+    if (!entity._ingressNetwork) return null;
+    return entity.getIngressNetworkTopology();
+  };
+}
+

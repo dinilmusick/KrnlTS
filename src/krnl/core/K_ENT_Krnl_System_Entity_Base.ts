@@ -24,8 +24,12 @@ import { krnlUnifiedHttpAdapter } from "./K_LIB_Krnl_System_Unified_Http_Adapter
 import { KrnlShell } from "../tools/KrnlShell.js";
 import { 
   KrnlManagedServiceConfig, 
-  KrnlManagedServiceHandle 
+  KrnlManagedServiceHandle,
+  KrnlIngressNetworkMemberConfig
 } from "./types.js";
+import { KrnlIngressNetwork } from "./K_LIB_Krnl_System_Ingress_Network.js";
+import { getIngressNetworkTopologyApi } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
+
 import http from 'http';
 import net  from 'net';
 import fs   from 'fs';
@@ -38,6 +42,8 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export class krnlSystemEntityBase extends krnlEntityBase {
+  _isIngressNetworkMember: boolean = false;
+  _ingressNetwork: KrnlIngressNetwork | null = null;
   systemType: string;
   peers: Map<string, any>;
   discoverable: boolean;
@@ -155,6 +161,37 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   async whenReady(): Promise<void> {
     return this._readyPromise;
   }
+
+  async startIngressNetwork(members: KrnlIngressNetworkMemberConfig[]): Promise<void> {
+    this._ingressNetwork = new KrnlIngressNetwork();
+    for (const config of members) {
+      await this._ingressNetwork.addMember(this, config);
+    }
+    // Admin starts discovery and binds the single port
+    await this.startDiscovery(10101);
+  }
+
+  async joinIngressNetwork(config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase> {
+    if (!this._ingressNetwork) {
+      this._ingressNetwork = new KrnlIngressNetwork();
+    }
+    return await this._ingressNetwork.addMember(this, config);
+  }
+
+  getIngressNetworkTopology(): any {
+    if (!this._ingressNetwork) return null;
+    const members = Array.from(this._ingressNetwork.members.entries()).map(([prefix, entry]) => ({
+      prefix,
+      entityName: entry.entity.entityName,
+      addedAt: entry.addedAt
+    }));
+    return {
+      admin: this.entityName,
+      port: this.commPort,
+      members
+    };
+  }
+
 
   /**
    * port — stable public accessor for the active bound port.
@@ -284,7 +321,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    */
   async registerPort(serviceName: string, port: number): Promise<void> {
     for (const [existingName, existingPort] of this.portRegistry.entries()) {
-      if (existingPort === port && existingName !== serviceName) {
+      if (existingPort === port && port > 0 && existingName !== serviceName) {
         throw new Error(
           `[${this.entityName}] Port ${port} is already registered to '${existingName}'.`
         );
@@ -454,13 +491,18 @@ export class krnlSystemEntityBase extends krnlEntityBase {
 
     // 2.5 Stop managed processes
     const stopManaged = async () => {
+      const stopPromises: Promise<any>[] = [];
       for (const [name, handle] of this._managedServices) {
         if (handle.processHandle && handle.status !== 'stopped') {
           Logger.log(`[${this.entityName}] Stopping managed service '${name}' (PID: ${handle.pid})...`);
           handle.processHandle.kill('SIGTERM');
           handle.status = 'stopped';
+          if (handle.processHandle.promise) {
+            stopPromises.push(handle.processHandle.promise.catch(() => {}));
+          }
         }
       }
+      await Promise.all(stopPromises);
     };
 
     await Promise.race([
@@ -669,6 +711,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   getManifest() {
+    if (this._ingressNetwork) {
+      const hostVal = this.host === '0.0.0.0' ? 'localhost' : this.host;
+      return this._ingressNetwork.getGrossManifest(`http://${hostVal}:${this.commPort}`);
+    }
     const apiNames: string[] = [];
     const eventsNames: string[] = [];
     const api: any = {};
@@ -742,7 +788,9 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   async startDiscovery(discoveryPort: number = 10101, discoveryHost: string = '255.255.255.255'): Promise<void> {
+    if (this._isIngressNetworkMember) return;
     if (this.discoverySocket) return; 
+
     
     if (!this.isDiscoveryAvailable()) {
       console.warn(`[${this.entityName}] Discovery: UDP not supported in current environment.`);
@@ -806,6 +854,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   async _startSharedServer(): Promise<void> {
+    if (this._isIngressNetworkMember) return;
     if (this._sharedServer) return;
 
     // ── Port probe: find first bindable port from the preferred hint ──
@@ -985,6 +1034,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       id: 'shutdown',
       description: 'Gracefully shut down all owned microservices then self. Responds immediately; shutdown runs async.',
       api: shutdownApi(this as any),
+    });
+
+    this.addLocal({
+      id: 'getIngressNetworkTopology',
+      api: getIngressNetworkTopologyApi(this as any)
     });
   }
 

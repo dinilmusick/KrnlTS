@@ -109,3 +109,11 @@ export interface KrnlManagedServiceHandle {
   pid?: number;
 }
 
+export interface KrnlIngressNetworkMemberConfig {
+  ServiceClass: any;
+  prefix: string;
+  port?: number;
+  constructorArgs?: any[];
+}
+
+

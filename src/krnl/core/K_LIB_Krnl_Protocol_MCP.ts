@@ -17,6 +17,10 @@ export class KrnlMcpProtocol {
      * Returns the MCP Tools list based on system functionalities.
      */
     async listTools(): Promise<any> {
+        if (this.system._ingressNetwork) {
+            const tools = this.system._ingressNetwork.getAggregatedMcpTools();
+            return { tools };
+        }
         const manifest = (this.system as any).getManifest();
         const apiIds = Object.keys(manifest.inputs.api);
         
@@ -55,7 +59,20 @@ export class KrnlMcpProtocol {
         if (method === 'tools/call') {
             const { name, arguments: args } = params;
             try {
-                const result = await this.system.call(name, args, opts);
+                let result: any;
+                if (this.system._ingressNetwork && name.includes('.')) {
+                    const parts = name.split('.');
+                    const prefix = parts[0].toLowerCase();
+                    const toolName = parts.slice(1).join('.');
+                    const entry = this.system._ingressNetwork.members.get(prefix);
+                    if (entry) {
+                        result = await entry.entity.call(toolName, args, opts);
+                    } else {
+                        throw new Error(`Ingress member for prefix '${prefix}' not found.`);
+                    }
+                } else {
+                    result = await this.system.call(name, args, opts);
+                }
                 return {
                     jsonrpc: "2.0",
                     id,

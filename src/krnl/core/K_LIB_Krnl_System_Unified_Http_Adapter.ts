@@ -84,6 +84,17 @@ export class krnlUnifiedHttpAdapter {
             return;
         }
 
+        // Ingress Network routing
+        if (this.system._ingressNetwork) {
+            const segments = path.split('/').filter(Boolean);
+            const prefix = segments[0]?.toLowerCase();
+            if (prefix && this.system._ingressNetwork.members.has(prefix)) {
+                const subPath = '/' + segments.slice(1).join('/');
+                await this.system._ingressNetwork.routeHttpRequest(prefix, req, res, subPath);
+                return;
+            }
+        }
+
         const isKrnlRoute = path.startsWith('/call/') || 
                            path.startsWith('/sse/') || 
                            path.startsWith('/mcp') || 
@@ -195,7 +206,11 @@ export class krnlUnifiedHttpAdapter {
             }
 
             if (path === '/manifest') {
-                this._sendJson(res, 200, this.system.getManifest());
+                if (this.system._ingressNetwork) {
+                    this._sendJson(res, 200, this.system._ingressNetwork.getGrossManifest(`http://${req.headers.host}`));
+                } else {
+                    this._sendJson(res, 200, this.system.getManifest());
+                }
                 return;
             }
 

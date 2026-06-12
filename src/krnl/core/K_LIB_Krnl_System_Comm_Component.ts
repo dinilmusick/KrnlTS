@@ -373,6 +373,18 @@ export class krnlSystemCommComponent {
 
     async _handleRpcRequest(ws: any, msg: any, callerPort?: number): Promise<void> {
         const { requestId, method, params } = msg;
+
+        // Ingress network target routing
+        if (params?.target && this.ownerEntity._ingressNetwork) {
+            const member = this.ownerEntity._ingressNetwork.members.get(params.target.toLowerCase());
+            if (member) {
+                const { target, ...memberParams } = params;
+                const memberMsg = { ...msg, params: memberParams };
+                await member.entity.commComponent._handleRpcRequest(ws, memberMsg, callerPort);
+                return;
+            }
+        }
+
         const handler = this._wsRpcHandlers.get(method);
         if (!handler) {
             ws.send(JSON.stringify({

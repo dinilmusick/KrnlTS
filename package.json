@@ -1,6 +1,6 @@
 {
-  "name": "krnlts",
-  "version": "0.1.0",
+  "name": "@dinilmusick/krnlts",
+  "version": "1.0.0",
   "description": "The core library for the Krnl ecosystem, providing a uniform syntax and API across JavaScript projects.",
   "type": "module",
   "main": "dist/index.js",
@@ -10,6 +10,9 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "build": "tsup src/index.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema",

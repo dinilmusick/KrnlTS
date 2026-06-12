@@ -129,7 +129,8 @@ export class krnlEntityBase {
    * INTERFACE PROMOTION
    * Handles the automatic bubbling of component logic to the owner.
    */
-  _onComponentFunctionalityAdded(component: krnlEntityBase, functionality: any): void {
+  _onComponentFunctionalityAdded(component: any, functionality: any): void {
+    if (component._isIngressNetworkMember) return;
     // 1. Only promote 'public' functionalities from the component.
     if (functionality.visibility !== 'public') return;
 
