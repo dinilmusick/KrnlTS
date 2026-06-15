@@ -60,6 +60,7 @@ export class krnlLocalFunctionality {
   schema: any;
   description?: string;
   method?: string;
+  tests?: any[];
   /** Port-based access control policy. Absent = unrestricted. */
   accessPolicy?: KrnlEndpointAccessPolicy;
   /** Shared secret for allow_with_key / ask_key_unlisted gates. */
@@ -89,6 +90,7 @@ export class krnlLocalFunctionality {
       sourcePath = null,
       accessPolicy = null,
       accessKey = null,
+      tests = [],
     } = config;
 
     if (!id) throw new Error("LocalFunctionality requires an ID.");
@@ -103,6 +105,7 @@ export class krnlLocalFunctionality {
     this.schema = schema;
     this.description = config.description || '';
     this.method = config.method || 'POST';
+    this.tests = tests;
     if (accessPolicy) this.accessPolicy = accessPolicy;
     if (accessKey)    this.accessKey    = accessKey;
 
