@@ -167,8 +167,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     for (const config of members) {
       await this._ingressNetwork.addMember(this, config);
     }
-    // Admin starts discovery and binds the single port
-    await this.startDiscovery(10101);
+    // Derive a unique discovery port per instance from commPort offset
+    // so that multiple Forge instances on the same machine don't fight over UDP port 10101.
+    const discoveryPort = this.commPort > 0 ? this.commPort + 1000 : 10101;
+    await this.startDiscovery(discoveryPort);
   }
 
   async joinIngressNetwork(config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase> {
