@@ -84,8 +84,9 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    * Internal readiness signaling. 
    * Resolves after _startSharedServer successfully binds and finalizeCommPort is called.
    */
-  private _readyPromise: Promise<void>;
-  private _resolveReady!: () => void;
+  _readyPromise: Promise<void>;
+  _resolveReady!: () => void;
+  _magneticLoadPromise: Promise<void> | null = null;
 
   /**
    * @param name
@@ -151,6 +152,18 @@ export class krnlSystemEntityBase extends krnlEntityBase {
 
     // ── Startup Diagnostics ──────────────────────────────
     this._emitStartupDiagnostics();
+
+    // Start magnetic discovery of nested assets (Phase 1 & 2)
+    this._magneticLoadPromise = this._runMagneticLoader();
+  }
+
+  async _runMagneticLoader(): Promise<void> {
+    try {
+      const { KrnlMagneticLoader } = await import('./K_LIB_Krnl_System_Magnetic_Loader.js');
+      await KrnlMagneticLoader.loadAll(this as any, this._entityDataDir);
+    } catch (err) {
+      console.error(`[${this.entityName}] Magnetic loader error:`, err);
+    }
   }
 
   /**
@@ -159,7 +172,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    * written its snapshot file, and is fully operational.
    */
   async whenReady(): Promise<void> {
-    return this._readyPromise;
+    if (this._magneticLoadPromise) {
+      await this._magneticLoadPromise;
+    }
+    await this._readyPromise;
   }
 
   async startIngressNetwork(members: KrnlIngressNetworkMemberConfig[]): Promise<void> {

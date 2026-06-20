@@ -110,10 +110,12 @@ export interface KrnlManagedServiceHandle {
 }
 
 export interface KrnlIngressNetworkMemberConfig {
-  ServiceClass: any;
+  ServiceClass?: any;
   prefix: string;
   port?: number;
   constructorArgs?: any[];
+  isKrnl?: boolean;
+  entryPath?: string;
 }
 
 

@@ -18,15 +18,27 @@ export class KrnlIngressNetwork {
     }
 
     // 1. Instantiate the member entity
-    const ServiceClass = config.ServiceClass;
-    const memberPort = config.port ?? -1;
-    const args = config.constructorArgs ?? [];
-    
-    // We construct the entity. Note that its constructor might run startDiscovery or setup base functionalities.
-    const entity = new ServiceClass(memberPort, ...args);
+    let entity: krnlSystemEntityBase;
+    if (config.isKrnl === false || !config.ServiceClass) {
+      const { KrnlNonKrnlAppAdapter } = await import('./K_LIB_Krnl_System_App_Adapter.js');
+      const adapter = new KrnlNonKrnlAppAdapter(config.prefix, config.entryPath || '');
+      await adapter.startApp();
+      entity = adapter;
+    } else {
+      const ServiceClass = config.ServiceClass;
+      const memberPort = config.port ?? -1;
+      const args = config.constructorArgs ?? [];
+      entity = new ServiceClass(memberPort, ...args);
+      if ((entity as any)._magneticLoadPromise) {
+        await (entity as any)._magneticLoadPromise;
+      }
+    }
 
     // 2. Set internal flags to mark it as ingress member before adding to hierarchy/registering port
     entity._isIngressNetworkMember = true;
+    if (typeof (entity as any)._resolveReady === 'function') {
+      (entity as any)._resolveReady();
+    }
 
     // 3. Register in hierarchy for automated shutdown and cleanup
     admin.hierarchyManager.addComponentEntityInstance(entity);

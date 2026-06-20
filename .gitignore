@@ -8,3 +8,7 @@ target/
 *.ports.json
 *.tmp
 krnlts-guide/
+krnl-magnetic.d.ts
+scratch/
+
+
