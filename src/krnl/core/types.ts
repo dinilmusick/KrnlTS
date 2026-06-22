@@ -118,4 +118,12 @@ export interface KrnlIngressNetworkMemberConfig {
   entryPath?: string;
 }
 
+export interface KrnlFrontendOptions {
+  title?: string;
+  theme?: 'dark' | 'light';
+  logoUrl?: string;
+  enableMonitoringApi?: boolean;
+  customCss?: string;
+}
+
 

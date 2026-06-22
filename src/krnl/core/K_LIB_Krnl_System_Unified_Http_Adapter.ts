@@ -95,6 +95,16 @@ export class krnlUnifiedHttpAdapter {
             }
         }
 
+        if (path.startsWith('/frontend')) {
+            if (this.system._frontend) {
+                const subPath = path.slice('/frontend'.length) || '/';
+                await this.system._frontend.handleRequest(req, res, subPath);
+            } else {
+                this._sendJson(res, 404, { status: 'error', message: 'Frontend not enabled.' });
+            }
+            return;
+        }
+
         const isKrnlRoute = path.startsWith('/call/') || 
                            path.startsWith('/sse/') || 
                            path.startsWith('/mcp') || 

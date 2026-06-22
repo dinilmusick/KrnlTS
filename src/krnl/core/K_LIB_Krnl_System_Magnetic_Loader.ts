@@ -62,6 +62,21 @@ export class KrnlMagneticLoader {
         await entity.startIngressNetwork(subappConfigs);
       }
     }
+
+    // 4. Auto-enable frontend if frontend/ folder exists
+    const frontendDir = path.join(baseDir, 'frontend');
+    if (fs.existsSync(frontendDir)) {
+      const configPath = path.join(frontendDir, 'krnl-frontend.json');
+      let frontendOptions: any = { title: entity.entityName, theme: 'dark' };
+      if (fs.existsSync(configPath)) {
+        try {
+          const content = fs.readFileSync(configPath, 'utf-8');
+          frontendOptions = { ...frontendOptions, ...JSON.parse(content) };
+        } catch (_) {}
+      }
+      entity.enableFrontend(frontendOptions);
+      console.log(`[MagneticLoader] Auto-enabled frontend for '${entity.entityName}' (found frontend/ folder).`);
+    }
   }
 
   static async loadFunctionality(entity: krnlSystemEntityBase, funcDir: string, funcName: string): Promise<void> {

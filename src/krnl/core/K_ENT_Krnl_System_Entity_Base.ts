@@ -25,10 +25,12 @@ import { KrnlShell } from "../tools/KrnlShell.js";
 import { 
   KrnlManagedServiceConfig, 
   KrnlManagedServiceHandle,
-  KrnlIngressNetworkMemberConfig
+  KrnlIngressNetworkMemberConfig,
+  KrnlFrontendOptions
 } from "./types.js";
 import { KrnlIngressNetwork } from "./K_LIB_Krnl_System_Ingress_Network.js";
 import { getIngressNetworkTopologyApi } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
+import { KrnlFrontend } from "./K_LIB_Krnl_System_Frontend.js";
 
 import http from 'http';
 import net  from 'net';
@@ -44,6 +46,8 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 export class krnlSystemEntityBase extends krnlEntityBase {
   _isIngressNetworkMember: boolean = false;
   _ingressNetwork: KrnlIngressNetwork | null = null;
+  _frontendEnabled: boolean = false;
+  _frontend: KrnlFrontend | null = null;
   systemType: string;
   peers: Map<string, any>;
   discoverable: boolean;
@@ -155,6 +159,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
 
     // Start magnetic discovery of nested assets (Phase 1 & 2)
     this._magneticLoadPromise = this._runMagneticLoader();
+  }
+
+  enableFrontend(options?: KrnlFrontendOptions): void {
+    this._frontendEnabled = true;
+    this._frontend = new KrnlFrontend(this as any, options);
   }
 
   async _runMagneticLoader(): Promise<void> {
@@ -750,6 +759,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       const fManifest: any = {
         id: f.id,
         type,
+        method: resolved.method || 'POST',
         visibility: resolved.visibility,
         sourcePath: resolved.sourcePath, 
         events: [] 

@@ -199,6 +199,36 @@ export async function assembleNetwork(port = 10099, host = "0.0.0.0") {
 
 ---
 
+## Default Frontend System
+
+Every KrnlTS system entity can host a **self-contained, dynamically generated single-page application (SPA)** on the same port, reflecting its registered functionalities and sub-apps.
+
+### 1. Opt-In Folder Convention
+- If a `frontend/` directory is present in the root folder of an application, the `KrnlMagneticLoader` automatically calls `entity.enableFrontend(options)`.
+- A configuration file `frontend/krnl-frontend.json` can be created to customize the title and theme:
+  ```json
+  {
+    "title": "My Custom Dashboard",
+    "theme": "dark"
+  }
+  ```
+
+### 2. Served HTTP Routes
+The frontend UI and APIs are exposed on the system entity's own port:
+- `GET /frontend`: Serves the HTML SPA client.
+- `GET /frontend/manifest.json`: Serves the functionality metadata and ingress sub-app links.
+- `GET /frontend/history`: Serves the list of the last 50 user interactions triggered through the frontend API.
+- `GET /frontend/api/{fid}`: Proxy route for GET endpoints (with monitoring).
+- `POST /frontend/api/{fid}`: Proxy route for POST endpoints (with monitoring).
+- `GET /frontend/sse/{fid}`: SSE bridge to stream events from functionality `state:changed`.
+
+### 3. Monitoring-Aware Interaction Bubbling
+When a user calls an endpoint through `/frontend/api/{fid}`, the unified adapter executes the functionality and:
+1. Emits a `frontend:interaction` event to the functionality's `state:changed` event stream.
+2. Appends the event to the in-memory history log.
+
+---
+
 ## Common Mistakes & Guidance Rules
 
 > [!CAUTION] **HALT AND ASK RULE**
