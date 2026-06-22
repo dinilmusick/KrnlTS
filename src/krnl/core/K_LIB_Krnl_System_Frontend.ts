@@ -1052,7 +1052,44 @@ export class KrnlFrontend {
     function renderResult(data, container) {
       container.innerHTML = '';
       
-      const unwrap = data.unwrap !== undefined ? data.unwrap : (data.data !== undefined ? data.data : data);
+      // If error status, display the error message explicitly
+      if (data && data.status === 'error' && data.message) {
+        const errDiv = document.createElement('div');
+        errDiv.className = 'response-status-error';
+        errDiv.style.fontSize = '1.1rem';
+        errDiv.style.marginBottom = '1rem';
+        errDiv.innerText = '❌ Error: ' + data.message;
+        container.appendChild(errDiv);
+        
+        if (data.errorDocumentation) {
+          const docDiv = document.createElement('div');
+          docDiv.style.color = 'var(--text-muted)';
+          docDiv.style.fontSize = '0.9rem';
+          docDiv.style.marginTop = '0.5rem';
+          docDiv.innerText = 'Documentation: ' + data.errorDocumentation;
+          container.appendChild(docDiv);
+        }
+      } else if (data && data.status === 'success' && data.message) {
+        // If success status has a success message
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'response-status-ok';
+        msgDiv.style.fontSize = '1.1rem';
+        msgDiv.style.marginBottom = '1rem';
+        msgDiv.innerText = '✓ ' + data.message;
+        container.appendChild(msgDiv);
+      }
+
+      // Resolve actual payload
+      let unwrap = data;
+      if (data && typeof data === 'object') {
+        if (data.payload !== undefined) {
+          unwrap = data.payload;
+        } else if (data.unwrap !== undefined) {
+          unwrap = data.unwrap;
+        } else if (data.data !== undefined) {
+          unwrap = data.data;
+        }
+      }
       
       // If it looks like an image URL, show image preview
       if (typeof unwrap === 'string' && (unwrap.startsWith('http://') || unwrap.startsWith('https://') || unwrap.startsWith('data:image/')) && /\\.(jpeg|jpg|gif|png|svg)$/i.test(unwrap.split('?')[0])) {
@@ -1108,7 +1145,7 @@ export class KrnlFrontend {
 
       // Default JSON formatting
       const code = document.createElement('pre');
-      code.innerText = JSON.stringify(data, null, 2);
+      code.innerText = JSON.stringify(unwrap !== undefined ? unwrap : data, null, 2);
       container.appendChild(code);
     }
 
