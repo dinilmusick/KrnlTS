@@ -40,32 +40,37 @@ async function main() {
     await system.whenReady();
     console.log("System initialized successfully.");
 
-    console.log("\n1. Testing GET /frontend (HTML UI page)...");
-    const htmlRes = await requestText(`http://127.0.0.1:${port}/frontend`);
+    console.log("\n1. Testing GET /frontend/default/ (HTML UI page)...");
+    const htmlRes = await requestText(`http://127.0.0.1:${port}/frontend/default/`);
     console.log(`Response Status: ${htmlRes.status}`);
     console.log(`Content-Type: ${htmlRes.headers['content-type']}`);
     console.log(`Contains Title: ${htmlRes.body.includes("<title>KrnlTS Frontend Demo System")}`);
 
-    console.log("\n2. Testing GET /frontend/manifest.json...");
-    const manifestRes = await requestText(`http://127.0.0.1:${port}/frontend/manifest.json`);
+    console.log("\n1b. Testing GET /frontend/default (Redirect to trailing slash)...");
+    const redirectRes = await requestText(`http://127.0.0.1:${port}/frontend/default`);
+    console.log(`Response Status: ${redirectRes.status}`);
+    console.log(`Location Header: ${redirectRes.headers['location']}`);
+
+    console.log("\n2. Testing GET /frontend/default/manifest.json...");
+    const manifestRes = await requestText(`http://127.0.0.1:${port}/frontend/default/manifest.json`);
     console.log(`Response Status: ${manifestRes.status}`);
     const manifest = JSON.parse(manifestRes.body);
     console.log("Manifest Entity Name:", manifest.entityName);
     console.log("Available Endpoints:", Object.keys(manifest.inputs.api));
 
-    console.log("\n3. Testing GET /frontend/api/heartbeat...");
-    const hbRes = await requestText(`http://127.0.0.1:${port}/frontend/api/heartbeat`);
+    console.log("\n3. Testing GET /frontend/default/api/heartbeat...");
+    const hbRes = await requestText(`http://127.0.0.1:${port}/frontend/default/api/heartbeat`);
     console.log("Heartbeat Response:", hbRes.body);
 
-    console.log("\n4. Testing POST /frontend/api/createUser...");
-    const cuRes = await requestText(`http://127.0.0.1:${port}/frontend/api/createUser`, {
+    console.log("\n4. Testing POST /frontend/default/api/createUser...");
+    const cuRes = await requestText(`http://127.0.0.1:${port}/frontend/default/api/createUser`, {
         method: "POST",
         body: { username: "dinil", email: "dinil@example.com", age: 25, isAdmin: true }
     });
     console.log("CreateUser Response:", cuRes.body);
 
-    console.log("\n5. Testing GET /frontend/history...");
-    const histRes = await requestText(`http://127.0.0.1:${port}/frontend/history`);
+    console.log("\n5. Testing GET /frontend/default/history...");
+    const histRes = await requestText(`http://127.0.0.1:${port}/frontend/default/history`);
     console.log("History Response:", histRes.body);
 
     console.log("\nAll programmatic checks passed successfully!");

@@ -63,8 +63,8 @@ export class KrnlMagneticLoader {
       }
     }
 
-    // 4. Auto-enable frontend if frontend/ folder exists
-    const frontendDir = path.join(baseDir, 'frontend');
+    // 4. Auto-enable frontend if frontend/default folder exists
+    const frontendDir = path.join(baseDir, 'frontend', 'default');
     if (fs.existsSync(frontendDir)) {
       const configPath = path.join(frontendDir, 'krnl-frontend.json');
       let frontendOptions: any = { title: entity.entityName, theme: 'dark' };
@@ -75,7 +75,7 @@ export class KrnlMagneticLoader {
         } catch (_) {}
       }
       entity.enableFrontend(frontendOptions);
-      console.log(`[MagneticLoader] Auto-enabled frontend for '${entity.entityName}' (found frontend/ folder).`);
+      console.log(`[MagneticLoader] Auto-enabled default frontend for '${entity.entityName}' (found frontend/default folder).`);
     }
   }
 

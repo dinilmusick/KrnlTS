@@ -20,6 +20,12 @@ export class KrnlFrontend {
     const normalized = subpath.replace(/\/$/, '') || '/';
 
     if (normalized === '/' && req.method === 'GET') {
+      const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+      if (!url.pathname.endsWith('/')) {
+        res.writeHead(302, { 'Location': url.pathname + '/' + url.search });
+        res.end();
+        return;
+      }
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(this._generatePageHtml());
       return;
@@ -763,7 +769,7 @@ export class KrnlFrontend {
     // On Load
     window.addEventListener('DOMContentLoaded', async () => {
       try {
-        const res = await fetch('./frontend/manifest.json');
+        const res = await fetch('manifest.json');
         manifestData = await res.json();
         renderSidebar();
         renderIngressTopology();
@@ -772,6 +778,39 @@ export class KrnlFrontend {
         console.error("Failed to fetch manifest:", err);
         document.getElementById('welcome-details').innerText = "Failed to load manifest.json";
       }
+
+      // Check for dynamic updates of endpoints (live code reload)
+      setInterval(async () => {
+        try {
+          const res = await fetch('manifest.json');
+          const newManifest = await res.json();
+          
+          const oldStr = JSON.stringify(manifestData ? manifestData.inputs.api : {});
+          const newStr = JSON.stringify(newManifest.inputs.api);
+          
+          const oldIngress = JSON.stringify(manifestData ? manifestData.ingressMembers : []);
+          const newIngress = JSON.stringify(newManifest.ingressMembers);
+
+          if (oldStr !== newStr || oldIngress !== newIngress) {
+            console.log("[ControlPanel] Manifest changed, dynamically updating UI...");
+            manifestData = newManifest;
+            renderSidebar();
+            renderIngressTopology();
+            updateHeaderBadges();
+            
+            if (activeFid && !manifestData.inputs.api[activeFid]) {
+              activeFid = null;
+              disconnectSse();
+              document.getElementById('endpoint-panel').style.display = 'none';
+              document.getElementById('welcome-panel').style.display = 'block';
+            } else if (activeFid) {
+              selectEndpoint(activeFid);
+            }
+          }
+        } catch (err) {
+          console.warn("Failed to check manifest updates:", err);
+        }
+      }, 3000);
     });
 
     function updateHeaderBadges() {
@@ -839,7 +878,7 @@ export class KrnlFrontend {
           const card = document.createElement('a');
           card.className = 'ingress-card';
           // Navigate to target subapp's frontend
-          card.href = './' + member + '/frontend';
+          card.href = '../../' + member + '/frontend/default/';
           card.innerHTML = '<div class="ingress-card-title">🔷 ' + member.toUpperCase() + '</div>' +
             '<div class="ingress-card-link">Open Sub-App Panel →</div>';
           container.appendChild(card);
@@ -1018,7 +1057,7 @@ export class KrnlFrontend {
       }
 
       try {
-        let fetchUrl = './frontend/api/' + fid;
+        let fetchUrl = 'api/' + fid;
         let fetchOpts = {
           headers: {
             'Content-Type': 'application/json'
@@ -1180,7 +1219,7 @@ export class KrnlFrontend {
         btn.classList.remove('btn-secondary');
         btn.classList.add('btn-primary');
 
-        sseSource = new EventSource('./frontend/sse/' + fid);
+        sseSource = new EventSource('sse/' + fid);
         
         sseSource.onmessage = (event) => {
           let content = event.data;
