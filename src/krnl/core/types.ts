@@ -126,4 +126,17 @@ export interface KrnlFrontendOptions {
   customCss?: string;
 }
 
+export interface KrnlCustomFrontendOptions {
+  mode?: 'dev' | 'prod';
+  startupTimeoutMs?: number;
+  env?: Record<string, string>;
+}
+
+export interface KrnlFrontendMemberConfig {
+  name: string;
+  appPath: string;
+  options?: KrnlCustomFrontendOptions;
+}
+
+
 

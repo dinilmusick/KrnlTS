@@ -77,6 +77,28 @@ export class KrnlMagneticLoader {
       entity.enableFrontend(frontendOptions);
       console.log(`[MagneticLoader] Auto-enabled default frontend for '${entity.entityName}' (found frontend/default folder).`);
     }
+
+    // 5. Scan and load custom frontends under frontend/ (except 'default')
+    const generalFrontendDir = path.join(baseDir, 'frontend');
+    if (fs.existsSync(generalFrontendDir)) {
+      const entries = await fs.promises.readdir(generalFrontendDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory() && entry.name !== 'default') {
+          const appPath = path.join(generalFrontendDir, entry.name);
+          if (fs.existsSync(path.join(appPath, 'package.json')) || fs.existsSync(path.join(appPath, 'krnl-frontend.json'))) {
+            let options: any = {};
+            const configPath = path.join(appPath, 'krnl-frontend.json');
+            if (fs.existsSync(configPath)) {
+              try {
+                options = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+              } catch (_) {}
+            }
+            console.log(`[MagneticLoader] Detected custom frontend '${entry.name}' at '${appPath}'. Registering...`);
+            await entity.startCustomFrontend(entry.name, appPath, options);
+          }
+        }
+      }
+    }
   }
 
   static async loadFunctionality(entity: krnlSystemEntityBase, funcDir: string, funcName: string): Promise<void> {

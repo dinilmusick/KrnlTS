@@ -84,14 +84,28 @@ export class krnlUnifiedHttpAdapter {
             return;
         }
 
-        // Ingress Network routing
+        // Ingress Network routing (Sub-apps)
         if (this.system._ingressNetwork) {
             const segments = path.split('/').filter(Boolean);
             const prefix = segments[0]?.toLowerCase();
             if (prefix && this.system._ingressNetwork.members.has(prefix)) {
-                const subPath = '/' + segments.slice(1).join('/');
+                const subPath = '/' + segments.slice(1).join('/') + url.search;
                 await this.system._ingressNetwork.routeHttpRequest(prefix, req, res, subPath);
                 return;
+            }
+        }
+
+        // Ingress Network custom frontends check
+        if (this.system._ingressNetwork && path.startsWith('/frontend/')) {
+            const segments = path.split('/').filter(Boolean);
+            if (segments[0]?.toLowerCase() === 'frontend' && segments[1] && segments[1].toLowerCase() !== 'default') {
+                const frontendName = segments[1].toLowerCase();
+                const key = `frontend/${frontendName}`;
+                if (this.system._ingressNetwork.members.has(key)) {
+                    // Do NOT strip prefix for custom frontends; Next.js requires the full path to match basePath
+                    await this.system._ingressNetwork.routeHttpRequest(key, req, res, req.url || '/');
+                    return;
+                }
             }
         }
 

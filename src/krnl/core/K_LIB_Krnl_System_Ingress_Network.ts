@@ -1,15 +1,17 @@
 import { krnlSystemEntityBase } from "./K_ENT_Krnl_System_Entity_Base.js";
-import { KrnlIngressNetworkMemberConfig } from "./types.js";
+import { KrnlIngressNetworkMemberConfig, KrnlFrontendMemberConfig } from "./types.js";
 import http from 'http';
 
 export interface IngressMemberEntry {
   entity: krnlSystemEntityBase;
-  config: KrnlIngressNetworkMemberConfig;
+  config: KrnlIngressNetworkMemberConfig | KrnlFrontendMemberConfig;
   addedAt: number;
+  memberType?: 'subapp' | 'frontend';
 }
 
 export class KrnlIngressNetwork {
   members: Map<string, IngressMemberEntry> = new Map();
+
 
   async addMember(admin: krnlSystemEntityBase, config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase> {
     const prefix = config.prefix.toLowerCase();
@@ -50,10 +52,39 @@ export class KrnlIngressNetwork {
     this.members.set(prefix, {
       entity,
       config,
-      addedAt: Date.now()
+      addedAt: Date.now(),
+      memberType: 'subapp'
     });
 
     return entity;
+  }
+
+  async addFrontendMember(admin: krnlSystemEntityBase, config: KrnlFrontendMemberConfig): Promise<krnlSystemEntityBase> {
+    const key = `frontend/${config.name.toLowerCase()}`;
+    if (this.members.has(key)) {
+      throw new Error(`[IngressNetwork] Frontend member '${config.name}' is already registered.`);
+    }
+
+    const { KrnlFrontendAdapter } = await import('./K_LIB_Krnl_System_Frontend_Adapter.js');
+    const adapter = new KrnlFrontendAdapter(config.name, config.appPath, config.options);
+    await adapter.startApp();
+
+    adapter._isIngressNetworkMember = true;
+    if (typeof (adapter as any)._resolveReady === 'function') {
+      (adapter as any)._resolveReady();
+    }
+
+    admin.hierarchyManager.addComponentEntityInstance(adapter);
+    await admin.registerPort(key, -1);
+
+    this.members.set(key, {
+      entity: adapter,
+      config,
+      addedAt: Date.now(),
+      memberType: 'frontend'
+    });
+
+    return adapter;
   }
 
   async removeMember(admin: krnlSystemEntityBase, prefix: string): Promise<boolean> {

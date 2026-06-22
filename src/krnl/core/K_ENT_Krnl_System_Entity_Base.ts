@@ -26,7 +26,9 @@ import {
   KrnlManagedServiceConfig, 
   KrnlManagedServiceHandle,
   KrnlIngressNetworkMemberConfig,
-  KrnlFrontendOptions
+  KrnlFrontendOptions,
+  KrnlCustomFrontendOptions,
+  KrnlFrontendMemberConfig
 } from "./types.js";
 import { KrnlIngressNetwork } from "./K_LIB_Krnl_System_Ingress_Network.js";
 import { getIngressNetworkTopologyApi } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
@@ -158,7 +160,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this._emitStartupDiagnostics();
 
     // Start magnetic discovery of nested assets (Phase 1 & 2)
-    this._magneticLoadPromise = this._runMagneticLoader();
+    this._magneticLoadPromise = this._runMagneticLoader(options);
   }
 
   enableFrontend(options?: KrnlFrontendOptions): void {
@@ -166,7 +168,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this._frontend = new KrnlFrontend(this as any, options);
   }
 
-  async _runMagneticLoader(): Promise<void> {
+  async _runMagneticLoader(options: any = {}): Promise<void> {
+    if (options.disableMagneticLoading) {
+      return;
+    }
     try {
       const { KrnlMagneticLoader } = await import('./K_LIB_Krnl_System_Magnetic_Loader.js');
       await KrnlMagneticLoader.loadAll(this as any, this._entityDataDir);
@@ -203,6 +208,15 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       this._ingressNetwork = new KrnlIngressNetwork();
     }
     return await this._ingressNetwork.addMember(this, config);
+  }
+
+  async startCustomFrontend(name: string, appPath: string, options?: KrnlCustomFrontendOptions): Promise<krnlSystemEntityBase> {
+    if (!this._ingressNetwork) {
+      this._ingressNetwork = new KrnlIngressNetwork();
+      const discoveryPort = this.commPort > 0 ? this.commPort + 1000 : 10101;
+      await this.startDiscovery(discoveryPort);
+    }
+    return await this._ingressNetwork.addFrontendMember(this, { name, appPath, options });
   }
 
   getIngressNetworkTopology(): any {

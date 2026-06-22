@@ -16,6 +16,7 @@ export * from "./K_LIB_Krnl_System_Ingress_Network.js";
 export * from "./K_LIB_Krnl_System_Magnetic_Loader.js";
 export * from "./K_LIB_Krnl_System_App_Adapter.js";
 export * from "./K_LIB_Krnl_System_Frontend.js";
+export * from "./K_LIB_Krnl_System_Frontend_Adapter.js";
 export { telemetry } from "./K_LIB_Krnl_Telemetry.js";
 
 

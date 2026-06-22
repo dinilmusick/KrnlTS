@@ -228,6 +228,42 @@ When a user calls an endpoint through `/frontend/api/{fid}`, the unified adapter
 2. Appends the event to the in-memory history log.
 
 ---
+ 
+## Custom Frontend System (Next.js & Vite Wrappers)
+
+In addition to the default UI, KrnlTS allows mounting and proxying external frontend projects (like Next.js or Vite apps) directly under the `/frontend/{name}/` namespace. Custom frontends are integrated as first-class members of the Ingress Network, running in their own processes.
+
+### 1. Folder Convention
+- Place the frontend project inside `frontend/{name}/` (e.g., `frontend/dashboard/`).
+- The project **must** contain a `package.json` to be automatically discovered by the `KrnlMagneticLoader`.
+- You can optionally place a `krnl-frontend.json` config file inside the directory:
+  ```json
+  {
+    "mode": "dev",
+    "startupTimeoutMs": 60000,
+    "env": {
+      "CUSTOM_VAR": "value"
+    }
+  }
+  ```
+
+### 2. Framework Support & Auto-Configuration
+The `KrnlFrontendAdapter` automatically detects the framework:
+1. **Next.js**: Automatically detected if `next` is in `package.json` dependencies.
+   - **basePath Auto-Patching**: Next.js requires a matching `basePath` to serve assets and route pages correctly when nested. To ensure zero-config for the user, KrnlTS programmatically backs up `next.config.js` or `next.config.mjs` to `.original.js/.original.mjs` on startup, writes a temporary config injecting the prefix (e.g. `basePath: '/frontend/dashboard'`), and restores the original files cleanly on shutdown.
+2. **Vite**: Automatically detected if `vite` is in dependencies. Boots with the `--base /frontend/{name}/` flag.
+3. **Generic**: Runs `npm run dev` or `npm start` (with `PORT` env injected).
+
+### 3. Programmatic API
+You can also manually boot and register a custom frontend:
+```typescript
+await system.startCustomFrontend("dashboard", "./frontend/dashboard", {
+  mode: "dev",
+  startupTimeoutMs: 60000
+});
+```
+
+---
 
 ## Common Mistakes & Guidance Rules
 
