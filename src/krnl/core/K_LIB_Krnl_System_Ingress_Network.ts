@@ -65,8 +65,16 @@ export class KrnlIngressNetwork {
       throw new Error(`[IngressNetwork] Frontend member '${config.name}' is already registered.`);
     }
 
+    const options = { ...config.options };
+    if (!options.backendPort) {
+      options.backendPort = admin.commPort;
+    }
+    if (!options.backendHost) {
+      options.backendHost = admin.host;
+    }
+
     const { KrnlFrontendAdapter } = await import('./K_LIB_Krnl_System_Frontend_Adapter.js');
-    const adapter = new KrnlFrontendAdapter(config.name, config.appPath, config.options);
+    const adapter = new KrnlFrontendAdapter(config.name, config.appPath, options);
     await adapter.startApp();
 
     adapter._isIngressNetworkMember = true;

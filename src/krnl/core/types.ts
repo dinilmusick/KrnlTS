@@ -130,6 +130,8 @@ export interface KrnlCustomFrontendOptions {
   mode?: 'dev' | 'prod';
   startupTimeoutMs?: number;
   env?: Record<string, string>;
+  backendPort?: number;
+  backendHost?: string;
 }
 
 export interface KrnlFrontendMemberConfig {

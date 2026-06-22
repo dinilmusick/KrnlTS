@@ -2,9 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import http from 'http';
 import net from 'net';
+import { fileURLToPath } from 'url';
 import { krnlSystemEntityBase } from './K_ENT_Krnl_System_Entity_Base.js';
 import { KrnlShell } from '../tools/KrnlShell.js';
 import { KrnlCustomFrontendOptions } from './types.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export class KrnlFrontendAdapter extends krnlSystemEntityBase {
   childProcess: any = null;
@@ -23,6 +27,37 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
 
     // Override the unified HTTP adapter handleRequest to act as a reverse proxy
     this.unifiedHttpAdapter._handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
+      const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+      const pathname = url.pathname;
+
+      if (pathname.endsWith('/__krnl/config')) {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        const host = this.options.backendHost || '127.0.0.1';
+        const port = this.options.backendPort || 10099;
+        res.end(JSON.stringify({
+          wsUrl: `ws://${host}:${port}/ws`,
+          httpUrl: `http://${host}:${port}`,
+          basePath: `/frontend/${this.entityName.replace(/^frontend-/, '')}`,
+          name: this.entityName.replace(/^frontend-/, '')
+        }));
+        return;
+      }
+
+      if (pathname.endsWith('/__krnl/bridge.js')) {
+        const bridgePath = path.resolve(__dirname, '../../dist/K_LIB_Krnl_Frontend_Bridge_Bundle.global.js');
+        const fallbackPath = path.resolve(__dirname, '../../dist/K_LIB_Krnl_Frontend_Bridge_Bundle.js');
+        const finalPath = fs.existsSync(bridgePath) ? bridgePath : fallbackPath;
+
+        if (fs.existsSync(finalPath)) {
+          res.writeHead(200, { 'Content-Type': 'application/javascript', 'Access-Control-Allow-Origin': '*' });
+          res.end(fs.readFileSync(finalPath));
+        } else {
+          res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ status: 'error', message: `Bridge bundle not found. Checked: ${bridgePath} and ${fallbackPath}` }));
+        }
+        return;
+      }
+
       await this.proxyRequest(req, res, req.url || '/');
     };
   }
@@ -80,10 +115,14 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     }
 
     // 5. Spawn process with injected env vars
+    const host = this.options.backendHost || '127.0.0.1';
+    const port = this.options.backendPort || 10099;
     const env = {
       ...process.env,
       PORT: this.appPort.toString(),
       NEXT_PUBLIC_KRNL_BASE_PATH: basePath,
+      NEXT_PUBLIC_KRNL_WS_URL: `ws://${host}:${port}/ws`,
+      NEXT_PUBLIC_KRNL_HTTP_URL: `http://${host}:${port}`,
       ...this.options.env
     };
 
