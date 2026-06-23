@@ -7,8 +7,9 @@ import { krnlSystemEntityBase } from './K_ENT_Krnl_System_Entity_Base.js';
 import { KrnlShell } from '../tools/KrnlShell.js';
 import { KrnlCustomFrontendOptions } from './types.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const _metaUrl = typeof import.meta !== 'undefined' && import.meta.url ? import.meta.url : null;
+const _filename = _metaUrl ? fileURLToPath(_metaUrl) : '';
+const _dirname = _metaUrl ? path.dirname(_filename) : '';
 
 export class KrnlFrontendAdapter extends krnlSystemEntityBase {
   childProcess: any = null;
@@ -17,6 +18,9 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
   options: KrnlCustomFrontendOptions;
   originalConfigName: string | null = null;
   patchedConfigName: string | null = null;
+
+  registeredRoutes = new Set<string>();
+  routeWatcher: any = null;
 
   constructor(name: string, appPath: string, options: KrnlCustomFrontendOptions = {}) {
     // Custom frontend runs locally on a custom port
@@ -44,8 +48,8 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
       }
 
       if (pathname.endsWith('/__krnl/bridge.js')) {
-        const bridgePath = path.resolve(__dirname, '../../dist/K_LIB_Krnl_Frontend_Bridge_Bundle.global.js');
-        const fallbackPath = path.resolve(__dirname, '../../dist/K_LIB_Krnl_Frontend_Bridge_Bundle.js');
+        const bridgePath = path.resolve(_dirname, '../../dist/K_LIB_Krnl_Frontend_Bridge_Bundle.global.js');
+        const fallbackPath = path.resolve(_dirname, '../../dist/K_LIB_Krnl_Frontend_Bridge_Bundle.js');
         const finalPath = fs.existsSync(bridgePath) ? bridgePath : fallbackPath;
 
         if (fs.existsSync(finalPath)) {
@@ -62,7 +66,149 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     };
   }
 
+  async loadBridgesFromFolder(folderPath: string): Promise<void> {
+    if (!fs.existsSync(folderPath)) return;
+    const files = fs.readdirSync(folderPath);
+    for (const file of files) {
+      if (file.endsWith('.bridge.ts') || file.endsWith('.bridge.js')) {
+        const fullPath = path.resolve(folderPath, file);
+        try {
+          const module = await import(fullPath);
+          const bridgeDesc = module.bridge;
+          if (bridgeDesc && bridgeDesc.name) {
+            console.log(`[FrontendAdapter:${this.entityName}] Loaded bridge script: ${bridgeDesc.name}`);
+            if (this.options.backendPort === undefined && bridgeDesc.backendPort !== undefined) {
+              this.options.backendPort = bridgeDesc.backendPort;
+            }
+            if (this.options.backendHost === undefined && bridgeDesc.backendHost !== undefined) {
+              this.options.backendHost = bridgeDesc.backendHost;
+            }
+          }
+        } catch (err: any) {
+          console.error(`[FrontendAdapter:${this.entityName}] Failed to load bridge script ${file}:`, err.message);
+        }
+      }
+    }
+  }
+
+  async scanAndRegisterApiRoutes(): Promise<void> {
+    const pagesApiDir = path.join(this.appPath, 'pages', 'api');
+    const appDir = path.join(this.appPath, 'app');
+
+    const foundRoutes: string[] = [];
+
+    if (fs.existsSync(pagesApiDir)) {
+      this._findPagesRoutes(pagesApiDir, pagesApiDir, foundRoutes);
+    }
+    if (fs.existsSync(appDir)) {
+      this._findAppRoutes(appDir, appDir, foundRoutes);
+    }
+
+    for (const route of foundRoutes) {
+      if (!this.registeredRoutes.has(route)) {
+        this.registeredRoutes.add(route);
+        this.addLocal({
+          id: route,
+          api: async (input: any) => {
+            return new Promise((resolve, reject) => {
+              const reqData = JSON.stringify(input || {});
+              const req = http.request({
+                hostname: '127.0.0.1',
+                port: this.appPort,
+                path: `/${route}`,
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Content-Length': Buffer.byteLength(reqData)
+                }
+              }, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                  try {
+                    resolve(JSON.parse(data));
+                  } catch {
+                    resolve({ status: 'success', raw: data });
+                  }
+                });
+              });
+              req.on('error', err => reject(err));
+              req.write(reqData);
+              req.end();
+            });
+          }
+        });
+        console.log(`[FrontendAdapter:${this.entityName}] Dynamically registered route endpoint: ${route}`);
+      }
+    }
+
+    for (const route of Array.from(this.registeredRoutes)) {
+      if (!foundRoutes.includes(route)) {
+        this.localFunctionalities.delete(route);
+        this.registeredRoutes.delete(route);
+        console.log(`[FrontendAdapter:${this.entityName}] Dynamically removed route endpoint: ${route}`);
+      }
+    }
+  }
+
+  _findPagesRoutes(dir: string, baseDir: string, routes: string[]) {
+    const files = fs.readdirSync(dir);
+    for (const file of files) {
+      const fullPath = path.join(dir, file);
+      const stat = fs.statSync(fullPath);
+      if (stat.isDirectory()) {
+        this._findPagesRoutes(fullPath, baseDir, routes);
+      } else if (file.endsWith('.ts') || file.endsWith('.js') || file.endsWith('.tsx') || file.endsWith('.jsx')) {
+        const rel = path.relative(baseDir, fullPath);
+        const withoutExt = rel.substring(0, rel.lastIndexOf('.'));
+        const routePath = `api/${withoutExt.replace(/\\/g, '/')}`;
+        routes.push(routePath);
+      }
+    }
+  }
+
+  _findAppRoutes(dir: string, baseDir: string, routes: string[]) {
+    const files = fs.readdirSync(dir);
+    for (const file of files) {
+      const fullPath = path.join(dir, file);
+      const stat = fs.statSync(fullPath);
+      if (stat.isDirectory()) {
+        this._findAppRoutes(fullPath, baseDir, routes);
+      } else if ((file === 'route.ts' || file === 'route.js') && dir.includes('api')) {
+        const apiIndex = dir.indexOf('api');
+        const routePath = dir.substring(apiIndex).replace(/\\/g, '/');
+        routes.push(routePath);
+      }
+    }
+  }
+
+  setupApiRouteWatcher() {
+    if (this.options.mode === 'prod') return;
+    
+    const pagesApiDir = path.join(this.appPath, 'pages', 'api');
+    const appDir = path.join(this.appPath, 'app');
+
+    const onChange = () => {
+      this.scanAndRegisterApiRoutes().catch(console.error);
+    };
+
+    if (fs.existsSync(pagesApiDir)) {
+      this.routeWatcher = fs.watch(pagesApiDir, { recursive: true }, onChange);
+    } else if (fs.existsSync(appDir)) {
+      this.routeWatcher = fs.watch(appDir, { recursive: true }, onChange);
+    }
+  }
+
+
   async startApp(): Promise<void> {
+    // A. Discover bridges from wrapper directory (parent of appPath)
+    const wrapperDir = path.dirname(this.appPath);
+    await this.loadBridgesFromFolder(wrapperDir);
+
+    // B. Scan and register API routes
+    await this.scanAndRegisterApiRoutes();
+    this.setupApiRouteWatcher();
+
     // 1. Find a dynamic local port
     this.appPort = await this._probeAvailablePort(12000, '127.0.0.1');
 
@@ -252,6 +398,10 @@ module.exports = {
   }
 
   dispose(): void {
+    if (this.routeWatcher) {
+      this.routeWatcher.close();
+      this.routeWatcher = null;
+    }
     if (this.childProcess) {
       console.log(`[FrontendAdapter] Killing child process (PID: ${this.childProcess.pid}) for '${this.entityName}'`);
       this.childProcess.kill('SIGTERM');

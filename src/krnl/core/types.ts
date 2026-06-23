@@ -140,5 +140,14 @@ export interface KrnlFrontendMemberConfig {
   options?: KrnlCustomFrontendOptions;
 }
 
+export interface KrnlBridgeDescriptor {
+  name: string;
+  backendPort?: number;
+  backendHost?: string;
+  on?: Record<string, (data: any, adapter: any) => void>;
+  expose?: string[];
+}
+
+
 
 
