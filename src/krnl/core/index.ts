@@ -18,5 +18,13 @@ export * from "./K_LIB_Krnl_System_App_Adapter.js";
 export * from "./K_LIB_Krnl_System_Frontend.js";
 export * from "./K_LIB_Krnl_System_Frontend_Adapter.js";
 export { telemetry } from "./K_LIB_Krnl_Telemetry.js";
+export type {
+  KrnlIntentionFunctionality,
+  KrnlIntentionEntity,
+  KrnlIntentionLibrary,
+  KrnlIntentionLibraryCategory,
+  KrnlEventIntention,
+} from './K_LIB_Krnl_Intention_Types.js';
+export { buildEntityIntention } from './K_LIB_Krnl_Intention_Types.js';
 
 

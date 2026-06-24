@@ -9,6 +9,7 @@ import { krnlEntityCompositionalHierarchyManager } from "./K_LIB_Krnl_Entity_Com
 import { krnlLocalFunctionality, krnlRemoteFunctionality } from "./K_LIB_Krnl_Functionality_Types.js";
 import { krnlError, krnlErrorCodes } from "./K_LIB_Krnl_Error_Concepts.js";
 import { telemetry, KrnlTelemetry } from "./K_LIB_Krnl_Telemetry.js";
+import type { KrnlIntentionEntity } from "./K_LIB_Krnl_Intention_Types.js";
 
 /**
  * KRNL ENTITY BASE
@@ -35,6 +36,7 @@ export class krnlEntityBase {
   remoteFunctionalities: Map<string, krnlRemoteFunctionality>;
   collectors: Set<any>;
   hierarchyManager: krnlEntityCompositionalHierarchyManager;
+  intention?: KrnlIntentionEntity;
 
   // Extension points for decorators/middleware
   async _decorateResult(result: any, fid: string, input: any): Promise<any> {
@@ -58,6 +60,7 @@ export class krnlEntityBase {
     this.instanceNumber = options.instanceNumber || 1;
     this.telemetry = new KrnlTelemetry();
     this.telemetryEnabled = options.telemetryEnabled || false;
+    this.intention = options.intention || null;
 
     // 2. Messaging Infrastructure (The IO Hub).
     this.interface = new krnlInterface(this);

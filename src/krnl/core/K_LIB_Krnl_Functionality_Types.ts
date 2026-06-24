@@ -7,6 +7,7 @@
 import { krnlEmitter } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
 import type { KrnlEndpointAccessPolicy } from "./types.js";
+import type { KrnlIntentionFunctionality } from "./K_LIB_Krnl_Intention_Types.js";
 
 import { ObjectKit } from "../tools/ObjectKit.js";
 
@@ -74,6 +75,7 @@ export class krnlLocalFunctionality {
   };
   state: any;
   hostEntity: any;
+  intention?: KrnlIntentionFunctionality;
 
   constructor(config: any = {}) {
     const {
@@ -106,6 +108,7 @@ export class krnlLocalFunctionality {
     this.description = config.description || '';
     this.method = config.method || 'POST';
     this.tests = tests;
+    this.intention = config.intention || null;
     if (accessPolicy) this.accessPolicy = accessPolicy;
     if (accessKey)    this.accessKey    = accessKey;
 
