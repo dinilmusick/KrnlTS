@@ -234,6 +234,10 @@ export class KrnlMagneticLoader {
     // Non-KrnlTS sub-app detection (e.g., standard Node app)
     const packageJsonPath = path.join(appPath, 'package.json');
     if (fs.existsSync(packageJsonPath)) {
+      if (fs.existsSync(path.join(appPath, 'KrnlFrontendModule.ts'))) {
+        // Exclude wrapped frontend modules from sub-app detection
+        return null;
+      }
       return {
         prefix: appName.toLowerCase(),
         isKrnl: false,
