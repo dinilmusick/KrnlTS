@@ -48,16 +48,20 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
       }
 
       if (pathname.endsWith('/__krnl/bridge.js')) {
-        const bridgePath = path.resolve(_dirname, '../../dist/K_LIB_Krnl_Frontend_Bridge_Bundle.global.js');
-        const fallbackPath = path.resolve(_dirname, '../../dist/K_LIB_Krnl_Frontend_Bridge_Bundle.js');
-        const finalPath = fs.existsSync(bridgePath) ? bridgePath : fallbackPath;
+        const candidatePaths = [
+          path.resolve(_dirname, './K_LIB_Krnl_Frontend_Bridge_Bundle.global.js'),
+          path.resolve(_dirname, './K_LIB_Krnl_Frontend_Bridge_Bundle.js'),
+          path.resolve(_dirname, '../../dist/K_LIB_Krnl_Frontend_Bridge_Bundle.global.js'),
+          path.resolve(_dirname, '../../dist/K_LIB_Krnl_Frontend_Bridge_Bundle.js'),
+        ];
+        const finalPath = candidatePaths.find(p => fs.existsSync(p));
 
-        if (fs.existsSync(finalPath)) {
+        if (finalPath) {
           res.writeHead(200, { 'Content-Type': 'application/javascript', 'Access-Control-Allow-Origin': '*' });
           res.end(fs.readFileSync(finalPath));
         } else {
           res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          res.end(JSON.stringify({ status: 'error', message: `Bridge bundle not found. Checked: ${bridgePath} and ${fallbackPath}` }));
+          res.end(JSON.stringify({ status: 'error', message: `Bridge bundle not found. Tried paths: ${candidatePaths.join(', ')}` }));
         }
         return;
       }
