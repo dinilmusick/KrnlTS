@@ -207,9 +207,10 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
 
 
   async startApp(): Promise<void> {
-    // A. Discover bridges from wrapper directory (parent of appPath)
+    // A. Discover bridges from wrapper directory and its 'bridges' subdirectory
     const wrapperDir = path.dirname(this.appPath);
     await this.loadBridgesFromFolder(wrapperDir);
+    await this.loadBridgesFromFolder(path.join(wrapperDir, 'bridges'));
 
     // B. Scan and register API routes
     await this.scanAndRegisterApiRoutes();
