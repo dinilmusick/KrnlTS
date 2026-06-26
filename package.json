@@ -15,7 +15,7 @@
     "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/bin/krnlts-watch.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema && tsup src/krnl/core/K_LIB_Krnl_Frontend_Bridge_Bundle.ts --format iife --global-name KrnlBridge --minify --platform browser --out-dir dist",
+    "build": "tsup src/index.ts src/bin/krnlts-watch.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema && tsup src/krnl/core/K_LIB_Krnl_Frontend_Bridge_Bundle.ts --format iife --global-name KrnlBridgeModule --minify --platform browser --out-dir dist",
     "sync": "pnpm install",
     "prepare": "npm run build"
   },

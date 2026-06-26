@@ -36,7 +36,9 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
 
       if (pathname.endsWith('/__krnl/config')) {
         res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-        const host = this.options.backendHost || '127.0.0.1';
+        // Normalise bind-all addresses — '::' and '0.0.0.0' are not valid browser-reachable hostnames.
+        const rawHost = this.options.backendHost || '127.0.0.1';
+        const host = (rawHost === '::' || rawHost === '0.0.0.0' || rawHost === '') ? 'localhost' : rawHost;
         const port = this.options.backendPort || 10099;
         res.end(JSON.stringify({
           wsUrl: `ws://${host}:${port}/ws`,

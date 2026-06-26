@@ -70,7 +70,10 @@ export class KrnlIngressNetwork {
       options.backendPort = admin.commPort;
     }
     if (!options.backendHost) {
-      options.backendHost = admin.host;
+      // Resolve bind-any addresses to 'localhost' — using '::' or '0.0.0.0' directly
+      // in a WebSocket URL (e.g. ws://:::10099/ws) produces a malformed URL.
+      const rawHost = admin.host;
+      options.backendHost = (rawHost === '::' || rawHost === '0.0.0.0' || rawHost === '') ? 'localhost' : rawHost;
     }
 
     const { KrnlFrontendAdapter } = await import('./K_LIB_Krnl_System_Frontend_Adapter.js');
