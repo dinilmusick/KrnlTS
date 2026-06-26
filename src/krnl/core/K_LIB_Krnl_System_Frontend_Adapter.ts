@@ -217,7 +217,7 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     this.setupApiRouteWatcher();
 
     // 1. Find a dynamic local port
-    this.appPort = await this._probeAvailablePort(12000, '127.0.0.1');
+    this.appPort = await this._probeAvailablePort(12000, '0.0.0.0');
 
     // 2. Load package.json to detect framework
     let packageJson: any = {};
