@@ -43,8 +43,8 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
         res.end(JSON.stringify({
           wsUrl: `ws://${host}:${port}/ws`,
           httpUrl: `http://${host}:${port}`,
-          basePath: `/frontend/${this.entityName.replace(/^frontend-/, '')}`,
-          name: this.entityName.replace(/^frontend-/, '')
+          basePath: `/frontend/${this.entityName.replace(/^frontend-/, '').toLowerCase()}`,
+          name: this.entityName.replace(/^frontend-/, '').toLowerCase()
         }));
         return;
       }
@@ -234,7 +234,7 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     if (deps['next']) framework = 'nextjs';
     else if (deps['vite']) framework = 'vite';
 
-    const basePath = `/frontend/${this.entityName.replace(/^frontend-/, '')}`;
+    const basePath = `/frontend/${this.entityName.replace(/^frontend-/, '').toLowerCase()}`;
 
     // 3. Framework-specific programmatic configuration (basePath patching)
     if (framework === 'nextjs') {
