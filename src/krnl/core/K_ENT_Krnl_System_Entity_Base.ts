@@ -93,6 +93,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   _readyPromise: Promise<void>;
   _resolveReady!: () => void;
   _magneticLoadPromise: Promise<void> | null = null;
+  _registryClient: any;
+  _registryHeartbeatInterval: any = null;
+  _registryEvictionInterval: any = null;
+  _registryApps: Map<string, any> = new Map();
 
   /**
    * @param name
@@ -113,7 +117,13 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     };
     this.peerTtlMs = 60000; 
 
+    // Initialize registry client
+    import('./K_LIB_Krnl_Registry_Client.js').then(({ KrnlRegistryClient }) => {
+      this._registryClient = new KrnlRegistryClient(10099);
+    }).catch(() => {});
+
     // ── Readiness State ───────────────────────────────────────────────
+
     this._readyPromise = new Promise((resolve) => {
       this._resolveReady = resolve;
     });
@@ -486,8 +496,80 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     // Write snapshot file and wait for completion before signaling readiness
     await this._writePortsFile();
     
+    // Register with Central Registry (or self-boot if we are on 10099)
+    await this._registerWithRegistry(actualPort);
+
     this._resolveReady();
     Logger.log(`[${this.entityName}] commPort finalized → ${actualPort}`);
+  }
+
+  async _registerWithRegistry(actualPort: number): Promise<void> {
+    if (this._isIngressNetworkMember) return;
+    if (!this._registryClient) {
+      const { KrnlRegistryClient } = await import('./K_LIB_Krnl_Registry_Client.js');
+      this._registryClient = new KrnlRegistryClient(10099);
+    }
+
+    if (actualPort === 10099) {
+      // We are the registry server! Enable registry APIs
+      console.log(`[${this.entityName}] Self-promoting to central registry host.`);
+      this._registryApps = new Map();
+      const { registerAppApi, deregisterAppApi, heartbeatAppApi, lookupAppApi, listAppsApi } = await import('./K_LIB_Krnl_System_Base_Functionality_APIs.js');
+      
+      this.addLocal({ id: 'registerApp', api: registerAppApi(this as any) });
+      this.addLocal({ id: 'deregisterApp', api: deregisterAppApi(this as any) });
+      this.addLocal({ id: 'heartbeatApp', api: heartbeatAppApi(this as any) });
+      this.addLocal({ id: 'lookupApp', api: lookupAppApi(this as any) });
+      this.addLocal({ id: 'listApps', api: listAppsApi(this as any) });
+
+      // Evict expired heartbeats loop
+      this._registryEvictionInterval = setInterval(() => {
+        const now = Date.now();
+        for (const [name, app] of this._registryApps.entries()) {
+          if (now - app.lastHeartbeat > 30000) {
+            console.log(`[Registry] Evicting dead app "${name}" (no heartbeat for 30s)`);
+            this._registryApps.delete(name);
+          }
+        }
+      }, 5000);
+
+      return;
+    }
+
+    // Otherwise, we are an app. Register with the registry.
+    const registered = await this._registryClient.register(this.entityName, actualPort, typeof process !== 'undefined' ? process.pid : 0);
+    if (registered) {
+      // Start heartbeat
+      if (this._registryHeartbeatInterval) clearInterval(this._registryHeartbeatInterval);
+      this._registryHeartbeatInterval = setInterval(async () => {
+        await this._registryClient.heartbeat(this.entityName);
+      }, 10000);
+    }
+
+    // Start a long-running safety loop to re-register every 60s
+    // (if registry restarts, we refresh our state)
+    this._startReRegistrationSafetyLoop(actualPort);
+  }
+
+  _startReRegistrationSafetyLoop(actualPort: number): void {
+    setInterval(async () => {
+      const alive = await this._registryClient.isRegistryAlive();
+      if (alive) {
+        await this._registryClient.register(this.entityName, actualPort, typeof process !== 'undefined' ? process.pid : 0);
+      }
+    }, 60000);
+  }
+
+  async _deregisterFromRegistry(): Promise<void> {
+    if (this._registryHeartbeatInterval) clearInterval(this._registryHeartbeatInterval);
+    if (this._registryEvictionInterval) clearInterval(this._registryEvictionInterval);
+    
+    if (this.commPort === 10099) return; // Registry host shutdown
+    if (this._registryClient) {
+      try {
+        await this._registryClient.deregister(this.entityName);
+      } catch (_) {}
+    }
   }
 
   // ── Graceful Shutdown ─────────────────────────────────────────────────────
@@ -511,6 +593,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this._shuttingDown = true;
 
     console.log(`\n[${this.entityName}] ── Graceful shutdown initiated ──`);
+
+    try {
+      await this._deregisterFromRegistry();
+    } catch (_) {}
+
 
     // 1. Collect owned microservices
     const owned: any[] = (this as any).hierarchyManager.getAllOwnedComponentEntities?.() ?? [];
@@ -845,6 +932,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this.discoverySocket.on('message', (msg: Buffer, rinfo: any) => {
       try {
         const data = JSON.parse(msg.toString());
+        if (data.type === 'KRNL_REGISTRY_RESTART' && this.commPort !== 10099) {
+          console.log(`[${this.entityName}] Registry restart beacon received. Triggering immediate re-registration.`);
+          this._registerWithRegistry(this.commPort).catch(() => {});
+          return;
+        }
         if (data.type === 'KRNL_BEACON' && data.id !== this.entityName) {
           if (data.discoverable === false) {
             this.peers.delete(data.id);
@@ -892,8 +984,18 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       }
     }, 5000);
 
+    // If we are the registry, broadcast registry restart beacon immediately to inform listening peers
+    if (this.commPort === 10099) {
+      await this.whenReady();
+      const restartBeacon = JSON.stringify({ type: 'KRNL_REGISTRY_RESTART', port: 10099 });
+      if (this.discoverySocket) {
+        this.discoverySocket.send(restartBeacon, 0, restartBeacon.length, discoveryPort, broadcastTarget);
+      }
+    }
+
     await this._startSharedServer();
   }
+
 
   async _startSharedServer(): Promise<void> {
     if (this._isIngressNetworkMember) return;

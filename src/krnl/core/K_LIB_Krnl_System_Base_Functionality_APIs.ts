@@ -9,16 +9,22 @@ export function heartbeatApi(entity: any) {
 }
 
 export function telemetryApi(entity: any) {
-  return () => ({
-    entityName: entity.entityName,
-    systemType: entity.systemType,
-    flags: (entity as any).getSystemFlags(),
-    owner: (entity as any).hierarchyManager.getOwnerEntity()?.entityName || null,
-    ownedEntities: (entity as any).hierarchyManager.getAllOwnedComponentEntities().map((e: any) => e.entityName),
-    activeRoutes: (entity as any).commComponent.listRoutes(),
-    uptime: typeof process !== 'undefined' && process.uptime ? process.uptime() : null,
-    performance: telemetry.getSummary()
-  });
+  return () => {
+    const summary = telemetry.getSummary();
+    return {
+      entityName: entity.entityName,
+      systemType: entity.systemType,
+      flags: (entity as any).getSystemFlags(),
+      owner: (entity as any).hierarchyManager.getOwnerEntity()?.entityName || null,
+      ownedEntities: (entity as any).hierarchyManager.getAllOwnedComponentEntities().map((e: any) => e.entityName),
+      activeRoutes: (entity as any).commComponent.listRoutes(),
+      uptime: typeof process !== 'undefined' && process.uptime ? process.uptime() : null,
+      performance: summary.metrics || summary,
+      callLogs: summary.callLogs,
+      libraryUsage: summary.libraryUsage,
+      dataUsage: summary.dataUsage
+    };
+  };
 }
 
 export function adminCommandApi(entity: any) {
@@ -232,4 +238,74 @@ export function getIngressNetworkTopologyApi(entity: any) {
     return entity.getIngressNetworkTopology();
   };
 }
+
+// ── Registry Server APIs ───────────────────────────────────────────────────
+
+export function registerAppApi(entity: any) {
+  return ({ name, port, pid }: { name: string; port: number; pid: number }) => {
+    if (!entity._registryApps) {
+      entity._registryApps = new Map();
+    }
+    entity._registryApps.set(name, {
+      name,
+      port,
+      pid,
+      registeredAt: new Date().toISOString(),
+      lastHeartbeat: Date.now()
+    });
+    console.log(`[Registry] Registered app "${name}" on port ${port} (PID ${pid})`);
+    return { success: true };
+  };
+}
+
+export function deregisterAppApi(entity: any) {
+  return ({ name }: { name: string }) => {
+    if (entity._registryApps) {
+      const deleted = entity._registryApps.delete(name);
+      if (deleted) {
+        console.log(`[Registry] Deregistered app "${name}"`);
+      }
+    }
+    return { success: true };
+  };
+}
+
+export function heartbeatAppApi(entity: any) {
+  return ({ name }: { name: string }) => {
+    if (entity._registryApps && entity._registryApps.has(name)) {
+      const app = entity._registryApps.get(name);
+      app.lastHeartbeat = Date.now();
+      return { success: true };
+    }
+    return { success: false, error: `App "${name}" not registered` };
+  };
+}
+
+export function lookupAppApi(entity: any) {
+  return ({ name }: { name: string }) => {
+    if (entity._registryApps && entity._registryApps.has(name)) {
+      const app = entity._registryApps.get(name);
+      return {
+        name: app.name,
+        port: app.port,
+        pid: app.pid,
+        registeredAt: app.registeredAt
+      };
+    }
+    return { error: `App "${name}" not found` };
+  };
+}
+
+export function listAppsApi(entity: any) {
+  return () => {
+    if (!entity._registryApps) return [];
+    return Array.from(entity._registryApps.values()).map((app: any) => ({
+      name: app.name,
+      port: app.port,
+      pid: app.pid,
+      registeredAt: app.registeredAt
+    }));
+  };
+}
+
 

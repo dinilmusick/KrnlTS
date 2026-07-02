@@ -265,10 +265,14 @@ export class krnlEntityBase {
   }
 
   getTelemetry() {
+    const summary = this.telemetry.getSummary();
     return {
       entity: this.entityName,
       timestamp: Date.now(),
-      metrics: this.telemetry.getSummary()
+      metrics: summary.metrics,
+      callLogs: summary.callLogs,
+      libraryUsage: summary.libraryUsage,
+      dataUsage: summary.dataUsage
     };
   }
 

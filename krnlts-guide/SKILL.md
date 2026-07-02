@@ -120,8 +120,8 @@ const sseStream = KrnlHTTP.streamResponse("https://api.example.com/stream");
 
 ## System Entity Features
 
-### 1. Port Registry
-`krnlSystemEntityBase` maintains a registry of services and ports. The standard system port `_krnl_system` represents `commPort` pre-registered at construction.
+### 1. Port Registry & Port Discovery Fallback Chain
+`krnlSystemEntityBase` maintains a local registry of services and ports. The standard system port `_krnl_system` represents `commPort` pre-registered at construction.
 ```typescript
 system.registerPort('auth-service', 3001);
 system.registerPort('worker-service', 3002);
@@ -129,6 +129,16 @@ system.unregisterPort('worker-service');
 
 const ports = system.getRegisteredPorts(); // -> { _krnl_system: 10099, 'auth-service': 3001 }
 ```
+
+#### ⚠️ Dynamic Port Discovery & Fallback Chain
+To resolve the port of dynamically-bound KrnlTS system entities or child processes, all components MUST prioritize queries in the following strict order:
+1. **Primary: Central KrnlTS Registry (`http://localhost:10099`)**
+   - Check the central registry entity (stateless, in-memory registry self-bootstrapped on port `10099` by the first starting entity). Look up ports dynamically via registry HTTP calls.
+2. **Secondary fallback: UDP Peer Map Beacons**
+   - Scan the entity's internal `peers` map populated by background multicast UDP beacons.
+3. **Tertiary fallback: Filesystem `.ports.json` / `{entityName}.ports.json`**
+   - Fall back to reading the predictability located physical `.ports.json` file in the process's working directory or data directory. Keep this strictly as a last resort to maintain start-up speed and avoid race conditions.
+
 
 ### 2. Endpoint Access Control
 Endpoints support port-based access check gates using `KrnlEndpointAccessPolicy`:
