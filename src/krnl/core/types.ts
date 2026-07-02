@@ -148,6 +148,25 @@ export interface KrnlBridgeDescriptor {
   expose?: string[];
 }
 
+export interface BlockRoute {
+  path: string;
+  type: 'page' | 'layout' | 'api';
+}
+
+export interface BlockApiEndpoint {
+  path: string;
+  methods: string[];
+}
+
+export interface BlockDescriptor {
+  id: string;
+  name: string;
+  version?: string;
+  routes: BlockRoute[];
+  apis: BlockApiEndpoint[];
+}
+
+
 
 
 

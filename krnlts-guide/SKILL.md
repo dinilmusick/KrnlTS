@@ -1,7 +1,7 @@
 ---
 name: krnlts-guide
 description: >-
-  Guides agents in using the KrnlTS library correctly, detailing structural conventions, import restrictions, local/remote bubbling policies, utility tools, and port-based access control.
+  Guides agents in using the KrnlTS library correctly, detailing structural conventions, import restrictions, local/remote bubbling policies, utility tools, port-based access control, and the strict separation between subapps/ (backend microservices) and frontends/ (KrnlTS Frontend Modules / Block Containers).
 ---
 
 # KrnlTS Development & Architecture Reference
@@ -17,22 +17,28 @@ KrnlTS structures applications around an Atomic Entity Model where logic is isol
 All KrnlTS projects must follow this nested directory layout:
 ```
 ROOT/
-├── doc.md -> Root documentation
-├── src/ -> Canonical source files (.ts/esm)
-├── libraries/ -> Project-local submodules (NO external npm packages allowed here)
-├── entities/ -> Child nested orchestrators & component entities
+├── doc.md              → Root documentation
+├── src/                → Canonical source files (.ts/esm)
+├── libraries/          → Project-local submodules (NO external npm packages allowed here)
+├── entities/           → Child nested orchestrators & component entities
 │   └── MyEntity/
-│       ├── functionalities/ -> Encapsulated logic atoms
+│       ├── functionalities/  → Encapsulated logic atoms
 │       │   └── StockUpdate/
-│       │       ├── StockUpdateAtom.js -> Configuration/metadata descriptor
+│       │       ├── StockUpdateAtom.js    → Config/metadata descriptor
 │       │       ├── main_function/
-│       │       │   └── logic.js -> Core functionality implementation (export const main = ...)
+│       │       │   └── logic.js          → Core logic (export const main = ...)
 │       │       ├── state_data/
-│       │       │   └── state.js -> Initial state configuration (export const initialState = ...)
-│       │       └── helpers/ -> Supplemental private helper utilities
-│       └── MyEntity.js -> Composition assembler file
-└── assembler.js -> System entrypoint extending krnlSystemEntityBase
+│       │       │   └── state.js          → Initial state (export const initialState = ...)
+│       │       └── helpers/              → Supplemental private helper utilities
+│       └── MyEntity.js                   → Composition assembler file
+├── subapps/            → [BACKEND ONLY] Other KrnlTS apps as microservices (see below)
+├── frontends/          → [FRONTEND ONLY] KrnlTS Frontend Modules / Block Containers (see below)
+└── assembler.js        → System entrypoint extending krnlSystemEntityBase
 ```
+
+> [!CAUTION]
+> **`subapps/` and `frontends/` are FUNDAMENTALLY DIFFERENT folders with completely different purposes.**
+> Never confuse them. See the dedicated section below for the full distinction.
 
 ### Import Restrictions
 - **Descriptor Files** (`Entity.js`, `Func.js`, `StockUpdateAtom.js`): Strictly declarative configuration only. No library imports.
@@ -340,4 +346,60 @@ To enable editor autocompletion and prevent TypeScript errors for dynamically in
 npx krnlts-watch
 ```
 This utility monitors the project folder and generates/updates `krnl-magnetic.d.ts` at the root, mapping all discovered helpers and events to the global scope.
+
+---
+
+## ⚠️ CRITICAL: `subapps/` vs `frontends/` — They Are NOT Interchangeable
+
+This is one of the most important architectural distinctions in the KrnlTS ecosystem.
+
+### `subapps/` — Backend Microservices ONLY
+
+```
+myKrnlApp/
+  subapps/
+    AuthService/      ← another KrnlTS app (has assembler.js) = backend microservice
+    DataProcessor/    ← another KrnlTS app or Express app      = backend microservice
+```
+
+- Contains **other KrnlTS apps** (or non-KrnlTS Express/HTTP apps) acting as **backend microservices**.
+- Booted as **Ingress Network members**: each sub-app runs in-process or as a child process and is reverse-proxied under a path prefix.
+- If it has `assembler.js` → booted as a full KrnlTS system entity.
+- If it does NOT → treated as a generic HTTP server (`KrnlNonKrnlAppAdapter` spawns it).
+- **These are purely backend services.** They expose KRNLTS endpoints, not UIs.
+- **Never place a frontend project here.**
+
+### `frontends/` — KrnlTS Frontend Modules ONLY
+
+```
+myKrnlApp/
+  frontends/
+    dashboard/        ← a KrnlTS Frontend Module (Block Container)
+    notes/            ← another KrnlTS Frontend Module
+```
+
+- Contains **KrnlTS Frontend Modules** (also called **Block Containers** in the WEPR ecosystem).
+- Each subdirectory name is its **unique routing prefix** — directly used in HTTP routing: `/frontend/dashboard/`, `/frontend/notes/`.
+- Each module is a standalone package extending `KrnlFrontendAdapter` or `KrnlBlockContainerAdapter`.
+- The `KrnlMagneticLoader` discovers them automatically if a `package.json` is present.
+- They proxy requests to their internal Next.js / Vite process via the adapter.
+- **These are purely frontend concerns.** They serve UI, not backend logic.
+- **Never place a KRNLTS backend app here.**
+
+### Summary Table
+
+| | `subapps/` | `frontends/` |
+|---|---|---|
+| **Purpose** | Backend microservices | Frontend UI modules |
+| **Contents** | KrnlTS apps / Express apps | KrnlFrontendAdapter / KrnlBlockContainerAdapter instances |
+| **Routing prefix** | `/subapp/{name}/` (ingress) | `/frontend/{name}/` |
+| **Folder name used in URL?** | Yes (ingress prefix) | Yes (routing prefix) — must be unique |
+| **Has `assembler.js`?** | Usually yes (KrnlTS) or no (generic) | No — has `KrnlFrontendModule.ts` / `KrnlBlockContainer.ts` |
+| **Serves HTML/UI?** | No | Yes |
+| **Exposes KrnlTS endpoints?** | Yes | No (proxied to backend via bridge script) |
+
+> [!CAUTION]
+> **Do NOT place a KrnlTS Frontend Module inside `subapps/`.** It will be treated as a backend microservice and its HTTP proxy / basePath logic will not work correctly.
+>
+> **Do NOT place a KrnlTS backend app inside `frontends/`.** The `KrnlMagneticLoader` will attempt to boot it as a frontend adapter, which will fail.
 
