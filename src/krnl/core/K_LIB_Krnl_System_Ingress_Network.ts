@@ -30,10 +30,14 @@ export class KrnlIngressNetwork {
       const ServiceClass = config.ServiceClass;
       const memberPort = config.port ?? -1;
       const args = config.constructorArgs ?? [];
-      entity = new ServiceClass(memberPort, ...args);
-      if ((entity as any)._magneticLoadPromise) {
-        await (entity as any)._magneticLoadPromise;
-      }
+      const { subappLocalStorage } = await import('./K_LIB_Krnl_System_Magnetic_Loader.js');
+      entity = await subappLocalStorage.run(true, async () => {
+        const ent = new ServiceClass(memberPort, ...args);
+        if ((ent as any)._magneticLoadPromise) {
+          await (ent as any)._magneticLoadPromise;
+        }
+        return ent;
+      });
     }
 
     // 2. Set internal flags to mark it as ingress member before adding to hierarchy/registering port

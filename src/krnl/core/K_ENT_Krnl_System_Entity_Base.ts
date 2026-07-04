@@ -205,7 +205,17 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   async startIngressNetwork(members: KrnlIngressNetworkMemberConfig[]): Promise<void> {
     this._ingressNetwork = new KrnlIngressNetwork();
     for (const config of members) {
-      await this._ingressNetwork.addMember(this, config);
+      try {
+        await this._ingressNetwork.addMember(this, config);
+      } catch (err: any) {
+        const errMsg = err.message || String(err);
+        console.error(`[IngressNetwork] Failed to add subapp '${config.prefix}':`, errMsg);
+        (this as any)._subappErrors = (this as any)._subappErrors || [];
+        (this as any)._subappErrors.push({
+          subapp: config.prefix,
+          error: errMsg
+        });
+      }
     }
     // Derive a unique discovery port per instance from commPort offset
     // so that multiple Forge instances on the same machine don't fight over UDP port 10101.

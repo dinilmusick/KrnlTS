@@ -9,6 +9,11 @@ export const magneticStorage = new AsyncLocalStorage<{
   events: Record<string, any>;
 }>();
 
+if (!(globalThis as any).__krnlSubAppLocalStorage) {
+  (globalThis as any).__krnlSubAppLocalStorage = new AsyncLocalStorage<boolean>();
+}
+export const subappLocalStorage = (globalThis as any).__krnlSubAppLocalStorage;
+
 export interface KrnlSubAppConfig {
   ServiceClass: any;
   prefix: string;
@@ -45,12 +50,17 @@ export class KrnlMagneticLoader {
 
     // 3. Scan and load subapps for automatic Ingress Network mapping
     const subappsDir = path.join(baseDir, 'subapps');
-    if (fs.existsSync(subappsDir)) {
+    const isSubApp = subappLocalStorage.getStore();
+    if (fs.existsSync(subappsDir) && !isSubApp) {
       const apps = await fs.promises.readdir(subappsDir, { withFileTypes: true });
       const subappConfigs: any[] = [];
       for (const dirent of apps) {
         if (dirent.isDirectory()) {
           const appPath = path.join(subappsDir, dirent.name);
+          const buildOk = await this.ensureSubAppBuilt(appPath, dirent.name, entity);
+          if (!buildOk) {
+            continue;
+          }
           const config = await this.detectSubApp(appPath, dirent.name);
           if (config) {
             subappConfigs.push(config);
@@ -215,18 +225,86 @@ export class KrnlMagneticLoader {
     }
   }
 
-  static async detectSubApp(appPath: string, appName: string): Promise<any | null> {
-    // Standard KrnlTS sub-app detection (has an assembler file)
+  static async ensureSubAppBuilt(appPath: string, appName: string, entity: any): Promise<boolean> {
+    const packageJsonPath = path.join(appPath, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+      return true;
+    }
+
     const assemblerPath = path.join(appPath, 'assembler.js');
+    const distPath = path.join(appPath, 'dist', `${appName}.js`);
+
+    if (!fs.existsSync(assemblerPath) || !fs.existsSync(distPath)) {
+      console.log(`[MagneticLoader] Sub-app '${appName}' is missing build artifacts or assembler.js. Initiating auto-build...`);
+      try {
+        const pkgJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+        const hasBuildScript = pkgJson.scripts && pkgJson.scripts.build;
+        if (!hasBuildScript) {
+          throw new Error(`package.json is missing a 'build' script.`);
+        }
+
+        const nodeModulesPath = path.join(appPath, 'node_modules');
+        if (!fs.existsSync(nodeModulesPath)) {
+          let installCmd = 'npm install --no-audit --no-fund';
+          if (fs.existsSync(path.join(appPath, 'pnpm-lock.yaml'))) {
+            installCmd = 'pnpm install';
+          } else if (fs.existsSync(path.join(appPath, 'yarn.lock'))) {
+            installCmd = 'yarn install';
+          }
+          console.log(`[MagneticLoader] Installing dependencies for '${appName}' using '${installCmd}'...`);
+          const { exec } = await import('child_process');
+          const { promisify } = await import('util');
+          const execPromise = promisify(exec);
+          await execPromise(installCmd, { cwd: appPath });
+        }
+
+        let buildCmd = 'npm run build';
+        if (fs.existsSync(path.join(appPath, 'pnpm-lock.yaml'))) {
+          buildCmd = 'pnpm run build';
+        } else if (fs.existsSync(path.join(appPath, 'yarn.lock'))) {
+          buildCmd = 'yarn build';
+        }
+        console.log(`[MagneticLoader] Building '${appName}' using '${buildCmd}'...`);
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execPromise = promisify(exec);
+        await execPromise(buildCmd, { cwd: appPath });
+
+        if (!fs.existsSync(assemblerPath)) {
+          console.log(`[MagneticLoader] Automatically generating assembler.js for '${appName}'...`);
+          const code = `export { ${appName} as default } from "./dist/${appName}.js";\n`;
+          fs.writeFileSync(assemblerPath, code, 'utf-8');
+        }
+        console.log(`[MagneticLoader] Sub-app '${appName}' successfully built and prepared.`);
+      } catch (err: any) {
+        const errMsg = err.message || String(err);
+        console.error(`[MagneticLoader] Failed to build sub-app '${appName}':`, errMsg);
+        entity._subappErrors = entity._subappErrors || [];
+        entity._subappErrors.push({
+          subapp: appName,
+          error: errMsg
+        });
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static async detectSubApp(appPath: string, appName: string): Promise<any | null> {
+    const assemblerPath = path.join(appPath, "assembler.js");
     if (fs.existsSync(assemblerPath)) {
       const mod = await import(pathToFileURL(assemblerPath).href);
       const ServiceClass = mod[appName] || mod.default;
       if (ServiceClass) {
+        const isKrnlSubclass = ServiceClass.prototype && (
+          ServiceClass.prototype instanceof krnlSystemEntityBase ||
+          typeof ServiceClass.prototype.boot === 'function'
+        );
         return {
           ServiceClass,
           prefix: appName.toLowerCase(),
-          isKrnl: true,
-          entryPath: assemblerPath
+          isKrnl: !!isKrnlSubclass,
+          entryPath: isKrnlSubclass ? assemblerPath : appPath
         };
       }
     }

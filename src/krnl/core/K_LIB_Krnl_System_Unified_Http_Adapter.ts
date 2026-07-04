@@ -207,7 +207,12 @@ export class krnlUnifiedHttpAdapter {
             }
 
             if (path === '/health') {
-                this._sendJson(res, 200, { status: "ok", entity: this.system.entityName });
+                const healthData: any = { status: "ok", entity: this.system.entityName };
+                if (this.system._subappErrors && this.system._subappErrors.length > 0) {
+                    healthData.status = "issues";
+                    healthData.issues = this.system._subappErrors;
+                }
+                this._sendJson(res, 200, healthData);
                 return;
             }
 
