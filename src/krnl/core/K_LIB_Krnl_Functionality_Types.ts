@@ -372,6 +372,29 @@ export class krnlLocalFunctionality {
       // --- TELEMETRY END (SUCCESS) ---
       if (trace) activeTelemetry.endTrace(this.id, trace, true);
 
+      // --- RECORD & BROADCAST INTERACTION ---
+      const interactionEvent = {
+        type: 'frontend:interaction',
+        fid: this.id,
+        timestamp: Date.now(),
+        input,
+        output: result
+      };
+      const stateEmitter = this.emitters.get('state:changed');
+      stateEmitter?.pushDataStreamToEmitter(interactionEvent);
+
+      let rootSystem: any = this.hostEntity;
+      while (rootSystem && !rootSystem._frontend) {
+        rootSystem = rootSystem.hierarchyManager?.getOwnerEntity?.();
+      }
+      const frontend = rootSystem?._frontend;
+      if (frontend) {
+        frontend.interactionsHistory.push(interactionEvent);
+        if (frontend.interactionsHistory.length > 50) {
+          frontend.interactionsHistory.shift();
+        }
+      }
+
       return {
         status: 'success',
         payload: result
@@ -379,6 +402,29 @@ export class krnlLocalFunctionality {
     } catch (err: any) {
       // --- TELEMETRY END (ERROR) ---
       if (trace) activeTelemetry.endTrace(this.id, trace, false);
+
+      // --- RECORD & BROADCAST ERROR INTERACTION ---
+      const interactionEvent = {
+        type: 'frontend:interaction',
+        fid: this.id,
+        timestamp: Date.now(),
+        input,
+        output: { status: 'error', message: err.message, payload: null }
+      };
+      const stateEmitter = this.emitters.get('state:changed');
+      stateEmitter?.pushDataStreamToEmitter(interactionEvent);
+
+      let rootSystem: any = this.hostEntity;
+      while (rootSystem && !rootSystem._frontend) {
+        rootSystem = rootSystem.hierarchyManager?.getOwnerEntity?.();
+      }
+      const frontend = rootSystem?._frontend;
+      if (frontend) {
+        frontend.interactionsHistory.push(interactionEvent);
+        if (frontend.interactionsHistory.length > 50) {
+          frontend.interactionsHistory.shift();
+        }
+      }
 
       if (typeof this.lifecycle.failure === "function") {
         this.lifecycle.failure({ error: err, input, caller });

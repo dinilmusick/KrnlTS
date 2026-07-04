@@ -79,23 +79,6 @@ export class KrnlFrontend {
           callerPort: req.socket?.remotePort,
           accessKey: req.headers['x-krnl-access-key'] as string | undefined,
         });
-
-        // Broadcast monitoring interaction event
-        const stateEmitter = functionality.emitters?.get('state:changed');
-        const interactionEvent = {
-          type: 'frontend:interaction',
-          fid,
-          timestamp: Date.now(),
-          input: body,
-          output: result
-        };
-        stateEmitter?.pushDataStreamToEmitter(interactionEvent);
-
-        this.interactionsHistory.push(interactionEvent);
-        if (this.interactionsHistory.length > 50) {
-          this.interactionsHistory.shift();
-        }
-
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
       } catch (e: any) {
