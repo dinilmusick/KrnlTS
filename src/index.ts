@@ -7,3 +7,4 @@ export { krnlEntityBase } from "./krnl/core/K_ENT_Krnl_Entity_Base.js";
 export { krnlSystemEntityBase } from "./krnl/core/K_ENT_Krnl_System_Entity_Base.js";
 export { krnlNetworkOrchestratorEntityBase } from "./krnl/core/K_ENT_Krnl_Network_Orchestrator_Entity_Base.js";
 export { KrnlBlockContainerAdapter } from "./krnl/core/K_LIB_Krnl_Block_Container_Adapter.js";
+export { PocerBlock } from "./krnl/core/K_LIB_Pocer_Block.js";
