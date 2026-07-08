@@ -132,6 +132,7 @@ export interface KrnlCustomFrontendOptions {
   env?: Record<string, string>;
   backendPort?: number;
   backendHost?: string;
+  frontendPrefix?: string;
 }
 
 export interface KrnlFrontendMemberConfig {

@@ -40,10 +40,11 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
         const rawHost = this.options.backendHost || '127.0.0.1';
         const host = (rawHost === '::' || rawHost === '0.0.0.0' || rawHost === '') ? 'localhost' : rawHost;
         const port = this.options.backendPort || 10099;
+        const prefix = this.options.frontendPrefix || 'frontend';
         res.end(JSON.stringify({
           wsUrl: `ws://${host}:${port}/ws`,
           httpUrl: `http://${host}:${port}`,
-          basePath: `/frontend/${this.entityName.replace(/^frontend-/, '').toLowerCase()}`,
+          basePath: `/${prefix}/${this.entityName.replace(/^frontend-/, '').toLowerCase()}`,
           name: this.entityName.replace(/^frontend-/, '').toLowerCase()
         }));
         return;
@@ -234,7 +235,8 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     if (deps['next']) framework = 'nextjs';
     else if (deps['vite']) framework = 'vite';
 
-    const basePath = `/frontend/${this.entityName.replace(/^frontend-/, '').toLowerCase()}`;
+    const prefix = this.options.frontendPrefix || 'frontend';
+    const basePath = `/${prefix}/${this.entityName.replace(/^frontend-/, '').toLowerCase()}`;
 
     // 3. Framework-specific programmatic configuration (basePath patching)
     if (framework === 'nextjs') {
@@ -310,10 +312,24 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
   }
 
   async _patchNextConfig(basePath: string, isEsm: boolean): Promise<void> {
+    const configTs = path.join(this.appPath, 'next.config.ts');
     const configMjs = path.join(this.appPath, 'next.config.mjs');
     const configJs = path.join(this.appPath, 'next.config.js');
 
-    if (fs.existsSync(configMjs)) {
+    if (fs.existsSync(configTs)) {
+      this.originalConfigName = 'next.config.original.ts';
+      this.patchedConfigName = 'next.config.ts';
+      fs.renameSync(configTs, path.join(this.appPath, this.originalConfigName));
+      
+      const newConfigContent = `import original from './next.config.original.ts';
+const config = {
+  ...original,
+  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || (original as any).basePath || '',
+};
+export default config;
+`;
+      fs.writeFileSync(configTs, newConfigContent, 'utf8');
+    } else if (fs.existsSync(configMjs)) {
       this.originalConfigName = 'next.config.original.mjs';
       this.patchedConfigName = 'next.config.mjs';
       fs.renameSync(configMjs, path.join(this.appPath, this.originalConfigName));

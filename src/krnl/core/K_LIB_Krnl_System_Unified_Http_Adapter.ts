@@ -95,14 +95,12 @@ export class krnlUnifiedHttpAdapter {
             }
         }
 
-        // Ingress Network custom frontends check
-        if (this.system._ingressNetwork && path.startsWith('/frontend/')) {
+        // Ingress Network custom/arbitrary frontends check
+        if (this.system._ingressNetwork) {
             const segments = path.split('/').filter(Boolean);
-            if (segments[0]?.toLowerCase() === 'frontend' && segments[1] && segments[1].toLowerCase() !== 'default') {
-                const frontendName = segments[1].toLowerCase();
-                const key = `frontend/${frontendName}`;
+            if (segments[0] && segments[1] && segments[0].toLowerCase() !== 'default') {
+                const key = `${segments[0].toLowerCase()}/${segments[1].toLowerCase()}`;
                 if (this.system._ingressNetwork.members.has(key)) {
-                    // Do NOT strip prefix for custom frontends; Next.js requires the full path to match basePath
                     await this.system._ingressNetwork.routeHttpRequest(key, req, res, req.url || '/');
                     return;
                 }

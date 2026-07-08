@@ -64,7 +64,8 @@ export class KrnlIngressNetwork {
   }
 
   async addFrontendMember(admin: krnlSystemEntityBase, config: KrnlFrontendMemberConfig): Promise<krnlSystemEntityBase> {
-    const key = `frontend/${config.name.toLowerCase()}`;
+    const prefix = config.options?.frontendPrefix || 'frontend';
+    const key = `${prefix}/${config.name.toLowerCase()}`;
     if (this.members.has(key)) {
       throw new Error(`[IngressNetwork] Frontend member '${config.name}' is already registered.`);
     }
