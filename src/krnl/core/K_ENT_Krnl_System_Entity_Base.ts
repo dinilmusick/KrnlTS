@@ -872,6 +872,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
         method: resolved.method || 'POST',
         visibility: resolved.visibility,
         sourcePath: resolved.sourcePath, 
+        examples: resolved.examples || f.examples || null,
         events: [] 
       };
       resolved.emitters.forEach((_: any, eid: string) => {

@@ -62,6 +62,7 @@ export class krnlLocalFunctionality {
   description?: string;
   method?: string;
   tests?: any[];
+  examples?: any[];
   /** Port-based access control policy. Absent = unrestricted. */
   accessPolicy?: KrnlEndpointAccessPolicy;
   /** Shared secret for allow_with_key / ask_key_unlisted gates. */
@@ -108,6 +109,7 @@ export class krnlLocalFunctionality {
     this.description = config.description || '';
     this.method = config.method || 'POST';
     this.tests = tests;
+    this.examples = config.examples || null;
     this.intention = config.intention || null;
     if (accessPolicy) this.accessPolicy = accessPolicy;
     if (accessKey)    this.accessKey    = accessKey;

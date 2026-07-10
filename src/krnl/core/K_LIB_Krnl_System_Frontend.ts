@@ -956,6 +956,24 @@ export class KrnlFrontend {
           '</div>';
       }
 
+      let examplesHtml = '';
+      const examples = api.examples || [];
+      const mockExample = generateMockFromSchema(inputSchema);
+      const showMock = mockExample && Object.keys(mockExample).length > 0;
+      if (examples.length > 0 || showMock) {
+        examplesHtml = '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px;">' +
+          '<div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem; letter-spacing: 0.05em;">Load Example Payload:</div>' +
+          '<div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">';
+        if (showMock) {
+          examplesHtml += '<button type="button" class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="loadExample(' + JSON.stringify(mockExample).replace(/"/g, '&quot;') + ')">✨ Schema Mock</button>';
+        }
+        examples.forEach((ex, idx) => {
+          const label = ex.label || ('Example ' + (idx + 1));
+          examplesHtml += '<button type="button" class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="loadExample(' + JSON.stringify(ex.input).replace(/"/g, '&quot;') + ')">📋 ' + label + '</button>';
+        });
+        examplesHtml += '</div></div>';
+      }
+
       panel.innerHTML = '<div class="card-header">' +
         '<div class="card-title-area">' +
         '<h2>' + fid + '</h2>' +
@@ -964,6 +982,7 @@ export class KrnlFrontend {
         '<span class="badge badge-primary">' + method + '</span>' +
         '</div>' +
         '<form id="endpoint-call-form" onsubmit="handleCall(event, \\'' + fid + '\\', \\'' + method + '\\')">' +
+        examplesHtml +
         inputsHtml +
         '<div style="margin-top: 1.5rem; display: flex; gap: 1rem;">' +
         '<button type="submit" class="btn btn-primary">⚡ Send Request</button>' +
@@ -1233,6 +1252,74 @@ export class KrnlFrontend {
           btn.classList.remove('btn-primary');
           btn.classList.add('btn-secondary');
         };
+      }
+    }
+
+    function generateMockFromSchema(schema) {
+      if (!schema) return null;
+      if (schema.type === 'object') {
+        const obj = {};
+        if (schema.properties) {
+          for (const [key, prop] of Object.entries(schema.properties)) {
+            obj[key] = generateMockFromSchema(prop);
+          }
+        }
+        return obj;
+      }
+      if (schema.type === 'array') {
+        return [generateMockFromSchema(schema.items || {})];
+      }
+      if (schema.type === 'string') {
+        if (schema.enum && schema.enum.length > 0) return schema.enum[0];
+        return "example_" + (schema.title || "string");
+      }
+      if (schema.type === 'number' || schema.type === 'integer') {
+        return 1;
+      }
+      if (schema.type === 'boolean') {
+        return true;
+      }
+      return null;
+    }
+
+    function loadExample(inputData) {
+      if (!inputData) return;
+      const api = manifestData.inputs.api[activeFid];
+      const method = api.method || 'POST';
+      const inputSchema = api.schema && api.schema.input;
+      
+      if (method === 'POST') {
+        if (inputSchema && inputSchema.properties) {
+          for (const key of Object.keys(inputSchema.properties)) {
+            const el = document.getElementById('input-' + key);
+            if (!el) continue;
+            const val = inputData[key];
+            if (val === undefined) {
+              if (el.type === 'checkbox') el.checked = false;
+              else el.value = '';
+            } else if (el.type === 'checkbox') {
+              el.checked = !!val;
+            } else if (typeof val === 'object') {
+              el.value = JSON.stringify(val, null, 2);
+            } else {
+              el.value = val;
+            }
+          }
+        } else {
+          const el = document.getElementById('raw-json-input');
+          if (el) {
+            el.value = JSON.stringify(inputData, null, 2);
+          }
+        }
+      } else {
+        if (inputSchema && inputSchema.properties) {
+          for (const key of Object.keys(inputSchema.properties)) {
+            const el = document.getElementById('input-' + key);
+            if (el) {
+              el.value = inputData[key] !== undefined ? inputData[key] : '';
+            }
+          }
+        }
       }
     }
   </script>
