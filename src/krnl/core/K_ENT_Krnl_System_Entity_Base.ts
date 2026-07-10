@@ -50,6 +50,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   _ingressNetwork: KrnlIngressNetwork | null = null;
   _frontendEnabled: boolean = false;
   _frontend: KrnlFrontend | null = null;
+  _isSubApp: boolean = false;
   systemType: string;
   peers: Map<string, any>;
   discoverable: boolean;
@@ -168,6 +169,8 @@ export class krnlSystemEntityBase extends krnlEntityBase {
 
     // ── Startup Diagnostics ──────────────────────────────
     this._emitStartupDiagnostics();
+
+    this._isSubApp = (globalThis as any).__krnlSubAppLocalStorage?.getStore() === true;
 
     // Start magnetic discovery of nested assets (Phase 1 & 2)
     this._magneticLoadPromise = this._runMagneticLoader(options);

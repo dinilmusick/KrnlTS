@@ -50,7 +50,7 @@ export class KrnlMagneticLoader {
 
     // 3. Scan and load subapps for automatic Ingress Network mapping
     const subappsDir = path.join(baseDir, 'subapps');
-    const isSubApp = subappLocalStorage.getStore();
+    const isSubApp = subappLocalStorage.getStore() || (entity as any)._isSubApp || (entity as any)._isIngressNetworkMember;
     if (fs.existsSync(subappsDir) && !isSubApp) {
       const apps = await fs.promises.readdir(subappsDir, { withFileTypes: true });
       const subappConfigs: any[] = [];
