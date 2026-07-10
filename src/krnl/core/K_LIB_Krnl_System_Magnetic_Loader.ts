@@ -232,7 +232,15 @@ export class KrnlMagneticLoader {
     }
 
     const assemblerPath = path.join(appPath, 'assembler.js');
-    const distPath = path.join(appPath, 'dist', `${appName}.js`);
+    let distPath = path.join(appPath, 'dist', `${appName}.js`);
+    if (fs.existsSync(packageJsonPath)) {
+      try {
+        const pkgJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+        if (pkgJson.main) {
+          distPath = path.resolve(appPath, pkgJson.main);
+        }
+      } catch (_) {}
+    }
 
     if (!fs.existsSync(assemblerPath) || !fs.existsSync(distPath)) {
       console.log(`[MagneticLoader] Sub-app '${appName}' is missing build artifacts or assembler.js. Initiating auto-build...`);
