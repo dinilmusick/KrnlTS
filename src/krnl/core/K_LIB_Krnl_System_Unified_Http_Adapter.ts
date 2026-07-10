@@ -89,7 +89,15 @@ export class krnlUnifiedHttpAdapter {
             const segments = path.split('/').filter(Boolean);
             const prefix = segments[0]?.toLowerCase();
             if (prefix && this.system._ingressNetwork.members.has(prefix)) {
-                const subPath = '/' + segments.slice(1).join('/') + url.search;
+                if (segments.length === 3 && segments[1] === 'frontend' && segments[2] === 'default' && !path.endsWith('/')) {
+                    res.writeHead(302, { 'Location': path + '/' + url.search });
+                    res.end();
+                    return;
+                }
+                let subPath = '/' + segments.slice(1).join('/') + url.search;
+                if (path.endsWith('/') && !subPath.endsWith('/')) {
+                    subPath += '/';
+                }
                 await this.system._ingressNetwork.routeHttpRequest(prefix, req, res, subPath);
                 return;
             }

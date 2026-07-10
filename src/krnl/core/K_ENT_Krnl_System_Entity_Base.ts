@@ -852,10 +852,6 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   getManifest() {
-    if (this._ingressNetwork) {
-      const hostVal = this.host === '0.0.0.0' ? 'localhost' : this.host;
-      return this._ingressNetwork.getGrossManifest(`http://${hostVal}:${this.commPort}`);
-    }
     const apiNames: string[] = [];
     const eventsNames: string[] = [];
     const api: any = {};
