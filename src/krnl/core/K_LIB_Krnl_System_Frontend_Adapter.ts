@@ -294,12 +294,19 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     const start = Date.now();
     while (Date.now() - start < timeout) {
       ready = await new Promise<boolean>((resolve) => {
-        const socket = net.connect(this.appPort, '127.0.0.1');
+        const socket = net.connect(this.appPort, 'localhost');
         socket.on('connect', () => {
           socket.destroy();
           resolve(true);
         });
-        socket.on('error', () => resolve(false));
+        socket.on('error', () => {
+          const socket2 = net.connect(this.appPort, '127.0.0.1');
+          socket2.on('connect', () => {
+            socket2.destroy();
+            resolve(true);
+          });
+          socket2.on('error', () => resolve(false));
+        });
       });
       if (ready) break;
       await new Promise((r) => setTimeout(r, 200));
