@@ -202,6 +202,31 @@ export class krnlUnifiedHttpAdapter {
                 return;
             }
 
+            if (path === '/ai') {
+                const { message } = await this._readJsonBody(req);
+                if (!this.system._aiOrchestrator) {
+                    const { KrnlAikoClient } = await import("./K_LIB_Krnl_Aiko_Client.js");
+                    this._sendJson(res, 200, {
+                        status: "error",
+                        message: KrnlAikoClient.getNotRunningMessage()
+                    });
+                    return;
+                }
+                const result = await this.system._aiOrchestrator.handle(message);
+                this._sendJson(res, 200, result);
+                return;
+            }
+
+            if (path === '/ai/manifest') {
+                const agents = this.system._aiOrchestrator?.getAgentSummaries() ?? [];
+                this._sendJson(res, 200, { 
+                    aiEnabled: !!this.system._aiOrchestrator, 
+                    aikoAlive: this.system.isAikoAlive(),
+                    endpoints: agents 
+                });
+                return;
+            }
+
             if (path === '/mcp') {
                 const body = await this._readJsonBody(req);
                 const result = await (this.mcp as any).handleRequest(body, {

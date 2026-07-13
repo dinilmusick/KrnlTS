@@ -77,6 +77,7 @@ export class krnlLocalFunctionality {
   state: any;
   hostEntity: any;
   intention?: KrnlIntentionFunctionality;
+  ai?: any;
 
   constructor(config: any = {}) {
     const {

@@ -689,6 +689,7 @@ export class KrnlFrontend {
     </div>
     <div style="display: flex; align-items: center; gap: 1rem;">
       <div class="meta-badges">
+        <span class="badge" id="aiko-status-badge" style="background-color: #ef4444; color: white;">Aiko: Offline</span>
         <span class="badge badge-primary" id="system-type-badge">System</span>
         <span class="badge" id="port-badge">Port: ...</span>
       </div>
@@ -732,6 +733,44 @@ export class KrnlFrontend {
         <div id="endpoint-panel" class="detail-card" style="display: none;">
           <!-- Loaded dynamically -->
         </div>
+
+        <div id="ai-settings-panel" class="detail-card" style="display: none; margin-top: 2rem;">
+          <div class="card-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.5rem;">
+             <h3 style="font-size: 1.25rem; font-weight: 700;">🤖 Endpoint Agent AI Profile Settings</h3>
+             <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="refreshAikoCatalog()">🔄 Refresh Catalog</button>
+          </div>
+          <form id="ai-settings-form" onsubmit="saveAiSettings(event)">
+             <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                   <input type="checkbox" id="ai-enabled-toggle"> <span>Enable Endpoint Agent</span>
+                </label>
+             </div>
+             <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label">Endpoint Agent Grade Profile</label>
+                <select class="form-input" id="ai-grade-select" style="background: var(--bg-surface); color: var(--text-main);">
+                   <option value="endpoint-grade-1">endpoint-grade-1 (Nano — simple CRUD)</option>
+                   <option value="endpoint-grade-2">endpoint-grade-2 (Mini — standard ops)</option>
+                   <option value="endpoint-grade-3">endpoint-grade-3 (Standard — moderate logic)</option>
+                   <option value="endpoint-grade-4">endpoint-grade-4 (Large — complex reasoning)</option>
+                   <option value="endpoint-grade-5">endpoint-grade-5 (Expert — escalation handler)</option>
+                </select>
+             </div>
+             <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label">Agent Natural Language Description</label>
+                <input type="text" class="form-input" id="ai-desc-input" placeholder="e.g. Stores secret key vault values.">
+             </div>
+             <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label">Dynamic Watch Variables (comma separated)</label>
+                <input type="text" class="form-input" id="ai-dyn-vars" placeholder="e.g. vault, keys">
+             </div>
+             <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label class="form-label">System Instructions (Prompts override)</label>
+                <textarea class="form-input form-textarea" id="ai-system-instructions" placeholder="e.g. Ensure input is formatted strictly..."></textarea>
+             </div>
+             <button type="submit" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.5rem 1.25rem;">Save Settings</button>
+             <span id="ai-save-status" style="margin-left: 1rem; font-size: 0.85rem; font-weight: 600;"></span>
+          </form>
+        </div>
       </div>
     </main>
   </div>
@@ -757,6 +796,7 @@ export class KrnlFrontend {
         renderSidebar();
         renderIngressTopology();
         updateHeaderBadges();
+        await checkAikoHealth();
       } catch (err) {
         console.error("Failed to fetch manifest:", err);
         document.getElementById('welcome-details').innerText = "Failed to load manifest.json";
@@ -786,15 +826,130 @@ export class KrnlFrontend {
               disconnectSse();
               document.getElementById('endpoint-panel').style.display = 'none';
               document.getElementById('welcome-panel').style.display = 'block';
+              document.getElementById('ai-settings-panel').style.display = 'none';
             } else if (activeFid) {
               selectEndpoint(activeFid);
             }
           }
+          await checkAikoHealth();
         } catch (err) {
           console.warn("Failed to check manifest updates:", err);
         }
-      }, 3000);
+      }, 5000);
     });
+
+    async function checkAikoHealth() {
+      try {
+        const res = await fetch('ai/manifest');
+        const data = await res.json();
+        const badge = document.getElementById('aiko-status-badge');
+        if (data && data.aiEnabled && data.aikoAlive) {
+          badge.innerText = 'Aiko: Online';
+          badge.style.backgroundColor = '#10b981';
+        } else {
+          badge.innerText = 'Aiko: Offline';
+          badge.style.backgroundColor = '#ef4444';
+        }
+      } catch (e) {
+        document.getElementById('aiko-status-badge').innerText = 'Aiko: Offline';
+        document.getElementById('aiko-status-badge').style.backgroundColor = '#ef4444';
+      }
+    }
+
+    async function refreshAikoCatalog() {
+      const statusSpan = document.getElementById('ai-save-status');
+      statusSpan.innerText = 'Refreshing catalog...';
+      statusSpan.style.color = 'var(--text-muted)';
+      try {
+        const res = await fetch('api/getAikoCatalog', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          statusSpan.innerText = 'Catalog refreshed!';
+          statusSpan.style.color = '#10b981';
+          
+          // Re-populate grade dropdown options if catalog data exists
+          const select = document.getElementById('ai-grade-select');
+          if (data.catalog && Object.keys(data.catalog).length > 0) {
+            select.innerHTML = '';
+            for (const [key, val] of Object.entries(data.catalog)) {
+              if (key.startsWith('endpoint-grade')) {
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.innerText = key + " (" + (val.description || "") + ")";
+                select.appendChild(opt);
+              }
+            }
+          }
+        } else {
+          statusSpan.innerText = 'Catalog refresh failed: ' + data.message;
+          statusSpan.style.color = '#ef4444';
+        }
+      } catch (e) {
+        statusSpan.innerText = 'Refresh failed.';
+        statusSpan.style.color = '#ef4444';
+      }
+      setTimeout(() => { statusSpan.innerText = ''; }, 3000);
+    }
+
+    async function loadAiSettings(fid) {
+      document.getElementById('ai-save-status').innerText = '';
+      try {
+        const res = await fetch('api/getEndpointAgentProfile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpointId: fid })
+        });
+        const data = await res.json();
+        const profile = data.profile || {};
+        
+        document.getElementById('ai-enabled-toggle').checked = !!profile.enabled;
+        document.getElementById('ai-grade-select').value = profile.grade || 'endpoint-grade-2';
+        document.getElementById('ai-desc-input').value = profile.description || '';
+        document.getElementById('ai-dyn-vars').value = (profile.dynamicWatchVars || []).join(', ');
+        document.getElementById('ai-system-instructions').value = profile.systemInstructions || '';
+      } catch (e) {
+        console.error("Failed to load AI settings for", fid, e);
+      }
+    }
+
+    async function saveAiSettings(event) {
+      event.preventDefault();
+      const statusSpan = document.getElementById('ai-save-status');
+      statusSpan.innerText = 'Saving...';
+      statusSpan.style.color = 'var(--text-muted)';
+      
+      const config = {
+        enabled: document.getElementById('ai-enabled-toggle').checked,
+        grade: document.getElementById('ai-grade-select').value,
+        description: document.getElementById('ai-desc-input').value,
+        dynamicWatchVars: document.getElementById('ai-dyn-vars').value.split(',').map(s => s.trim()).filter(Boolean),
+        systemInstructions: document.getElementById('ai-system-instructions').value
+      };
+
+      try {
+        const res = await fetch('api/setEndpointAgentProfile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpointId: activeFid, config })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          statusSpan.innerText = 'Settings saved and persisted!';
+          statusSpan.style.color = '#10b981';
+        } else {
+          statusSpan.innerText = 'Error: ' + data.message;
+          statusSpan.style.color = '#ef4444';
+        }
+      } catch (e) {
+        statusSpan.innerText = 'Save failed.';
+        statusSpan.style.color = '#ef4444';
+      }
+      setTimeout(() => { statusSpan.innerText = ''; }, 4000);
+    }
 
     function updateHeaderBadges() {
       if (!manifestData) return;
@@ -885,6 +1040,16 @@ export class KrnlFrontend {
       
       const panel = document.getElementById('endpoint-panel');
       panel.style.display = 'block';
+
+      // Load and show AI profile settings panel for this local endpoint (if local)
+      const isLocal = api && api.type === 'local';
+      const aiSettingsPanel = document.getElementById('ai-settings-panel');
+      if (isLocal && fid !== 'ai' && fid !== 'setEndpointAgentProfile' && fid !== 'getEndpointAgentProfile' && fid !== 'getAikoCatalog') {
+        aiSettingsPanel.style.display = 'block';
+        loadAiSettings(fid);
+      } else {
+        aiSettingsPanel.style.display = 'none';
+      }
 
       // Disconnect previous SSE stream
       disconnectSse();

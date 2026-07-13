@@ -44,6 +44,10 @@ export class KrnlTelemetry {
   dataUsage: Map<string, DataUsageStats>;
   enabled: boolean;
   ringBufferSize: number;
+  aiTraces: any[];
+  totalAiCalls: number;
+  totalAiRetries: number;
+  avgAiLatencyMs: number;
 
   constructor() {
     this.metrics = new Map<string, TelemetryStats>();
@@ -52,6 +56,20 @@ export class KrnlTelemetry {
     this.dataUsage = new Map<string, DataUsageStats>();
     this.enabled = false;
     this.ringBufferSize = 100;
+    this.aiTraces = [];
+    this.totalAiCalls = 0;
+    this.totalAiRetries = 0;
+    this.avgAiLatencyMs = 0;
+  }
+
+  recordAiTrace(trace: any): void {
+    if (this.aiTraces.length >= this.ringBufferSize) {
+      this.aiTraces.shift();
+    }
+    this.aiTraces.push(trace);
+    this.totalAiCalls++;
+    this.totalAiRetries += trace.retryCount || 0;
+    this.avgAiLatencyMs = (this.avgAiLatencyMs * (this.totalAiCalls - 1) + trace.latencyMs) / this.totalAiCalls;
   }
 
   /**

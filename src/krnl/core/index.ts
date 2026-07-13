@@ -29,4 +29,12 @@ export type {
 } from './K_LIB_Krnl_Intention_Types.js';
 export { buildEntityIntention } from './K_LIB_Krnl_Intention_Types.js';
 
+// AI Exports
+export { KrnlAikoClient } from "./K_LIB_Krnl_Aiko_Client.js";
+export { KrnlWatchVariablesTracker } from "./K_LIB_Krnl_Watch_Variables_Tracker.js";
+export { KrnlEndpointScheduler } from "./K_LIB_Krnl_Endpoint_Scheduler.js";
+export { KrnlEndpointAgent } from "./K_LIB_Krnl_Endpoint_Agent.js";
+export { KrnlApplicationOrchestrator } from "./K_LIB_Krnl_Application_Orchestrator.js";
+export { KrnlRuntimeStore } from "./K_LIB_Krnl_Runtime_Store.js";
+
 

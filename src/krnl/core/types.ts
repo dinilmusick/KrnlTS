@@ -167,6 +167,15 @@ export interface BlockDescriptor {
   apis: BlockApiEndpoint[];
 }
 
+export type {
+  KrnlAiEndpointConfig,
+  KrnlEndpointGrade,
+  KrnlOrchestratorGrade,
+  KrnlEndpointAgentSchema,
+  KrnlAiExecutionTrace,
+  KrnlWatchVariable
+} from "./K_LIB_Krnl_Ai_Concepts.js";
+
 
 
 

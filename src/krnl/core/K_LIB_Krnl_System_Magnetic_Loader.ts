@@ -109,6 +109,26 @@ export class KrnlMagneticLoader {
         }
       }
     }
+
+    // AI dynamic setup bootstrap hook
+    const hasAiConfig = [...entity.localFunctionalities.values()].some(f => (f as any).ai?.enabled);
+    
+    // Check local store config even if no functionalities have programmatic ai configs yet
+    let hasAiStore = false;
+    const storePath = path.join(baseDir, "krnl_runtime_state.db");
+    if (fs.existsSync(storePath)) {
+      try {
+        const storeContent = JSON.parse(fs.readFileSync(storePath, 'utf-8'));
+        if (storeContent?.endpointAgentProfiles && Object.keys(storeContent.endpointAgentProfiles).length > 0) {
+          hasAiStore = true;
+        }
+      } catch (e) {}
+    }
+
+    if (hasAiConfig || hasAiStore) {
+      console.log(`[MagneticLoader] Automatically initializing AI Layer on '${entity.entityName}'...`);
+      await entity.initializeAiLayer(baseDir);
+    }
   }
 
   static async loadFunctionality(entity: krnlSystemEntityBase, funcDir: string, funcName: string): Promise<void> {

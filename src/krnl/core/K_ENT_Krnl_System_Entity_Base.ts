@@ -34,6 +34,15 @@ import { KrnlIngressNetwork } from "./K_LIB_Krnl_System_Ingress_Network.js";
 import { getIngressNetworkTopologyApi } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
 import { KrnlFrontend } from "./K_LIB_Krnl_System_Frontend.js";
 
+// AI Imports
+import { KrnlAikoClient } from "./K_LIB_Krnl_Aiko_Client.js";
+import { KrnlWatchVariablesTracker } from "./K_LIB_Krnl_Watch_Variables_Tracker.js";
+import { KrnlEndpointScheduler } from "./K_LIB_Krnl_Endpoint_Scheduler.js";
+import { KrnlApplicationOrchestrator } from "./K_LIB_Krnl_Application_Orchestrator.js";
+import { KrnlRuntimeStore } from "./K_LIB_Krnl_Runtime_Store.js";
+import { KrnlEndpointAgent } from "./K_LIB_Krnl_Endpoint_Agent.js";
+import { KrnlEndpointAgentSchema } from "./K_LIB_Krnl_Ai_Concepts.js";
+
 import http from 'http';
 import net  from 'net';
 import fs   from 'fs';
@@ -54,6 +63,15 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   systemType: string;
   peers: Map<string, any>;
   discoverable: boolean;
+  
+  // AI Properties
+  _aiOrchestrator: KrnlApplicationOrchestrator | null = null;
+  _aiTracker: KrnlWatchVariablesTracker | null = null;
+  _aiScheduler: KrnlEndpointScheduler | null = null;
+  _aikoClient: KrnlAikoClient | null = null;
+  _aiProfilesStore: KrnlRuntimeStore | null = null;
+  _aikoCatalog: Record<string, any> = {};
+
   reservation: {
     busy: boolean;
     reservedBy: string | null;
@@ -1194,6 +1212,166 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       id: 'getIngressNetworkTopology',
       api: getIngressNetworkTopologyApi(this as any)
     });
+
+    this.addLocal({
+      id: 'setEndpointAgentProfile',
+      description: 'Sets and persists the AI config profile for an endpoint.',
+      api: async ({ endpointId, config }: any) => {
+        if (this._aiProfilesStore) {
+          await this._aiProfilesStore.setProfile(endpointId, config);
+          // Re-initialize AI layer to load the new config on-the-fly dynamically
+          await this.initializeAiLayer(this._entityDataDir);
+          return { status: 'success' };
+        }
+        return { status: 'error', message: 'AI Profiles Store not initialized.' };
+      }
+    });
+
+    this.addLocal({
+      id: 'getEndpointAgentProfile',
+      description: 'Retrieves the dynamic AI config profile for an endpoint.',
+      api: async ({ endpointId }: any) => {
+        if (this._aiProfilesStore) {
+          const profile = await this._aiProfilesStore.getProfile(endpointId);
+          return { status: 'success', profile };
+        }
+        return { status: 'error', message: 'AI Profiles Store not initialized.' };
+      }
+    });
+
+    this.addLocal({
+      id: 'getAikoCatalog',
+      description: 'Retrieves the cached or live agent profiles catalog from Aiko.',
+      api: async () => {
+        if (!this._aikoClient) {
+          return { status: 'error', message: 'Aiko client not initialized.' };
+        }
+        try {
+          this._aikoCatalog = await this._aikoClient.fetchCatalog();
+          return { status: 'success', catalog: this._aikoCatalog };
+        } catch (e: any) {
+          return { status: 'error', message: `Failed to fetch catalog: ${e.message}`, catalog: this._aikoCatalog };
+        }
+      }
+    });
+
+    this.addLocal({
+      id: 'ai',
+      description: 'Natural language gateway — routes to correct endpoint agent via Aiko.',
+      api: async ({ message }: any) => {
+        if (!this._aiOrchestrator) {
+          return { status: 'error', message: KrnlAikoClient.getNotRunningMessage() };
+        }
+        try {
+          return await this._aiOrchestrator.handle(message);
+        } catch (e: any) {
+          return { status: 'error', message: e.message };
+        }
+      }
+    });
+  }
+
+  isAikoAlive(): boolean {
+    const aikoPeer = this.peers.get('Aiko');
+    if (!aikoPeer) return false;
+    const TTL = 35000; // 35 seconds TTL
+    return (Date.now() - aikoPeer.lastSeen) < TTL;
+  }
+
+  async initializeAiLayer(appRoot: string): Promise<void> {
+    try {
+      this._aiProfilesStore = new KrnlRuntimeStore(appRoot);
+      await this._aiProfilesStore.load();
+
+      // Setup client. Fallback to localhost:10095 if not discovered passively
+      this._aikoClient = KrnlAikoClient.discover(this) || new KrnlAikoClient(10095);
+
+      // Passive availability check
+      const aikoActive = this.isAikoAlive() || await this._aikoClient.isAlive();
+      if (!aikoActive) {
+        console.warn(`[KrnlTS AI] ${KrnlAikoClient.getNotRunningMessage()}`);
+        // Do not fail startup, just yield warning
+      } else {
+        try {
+          this._aikoCatalog = await this._aikoClient.fetchCatalog();
+        } catch (e) {
+          console.warn("[KrnlTS AI] Failed to fetch profile catalog from Aiko:", e);
+        }
+      }
+
+      this._aiTracker = new KrnlWatchVariablesTracker();
+      this._aiScheduler = new KrnlEndpointScheduler(this._aiTracker);
+
+      const persistedConfigs = await this._aiProfilesStore.getAllProfiles();
+      const aiEndpoints: Map<string, KrnlEndpointAgent> = new Map();
+
+      // Scan and match AI-enabled functionalities
+      for (const [fid, fn] of this.localFunctionalities.entries()) {
+        if (fid === 'ai' || fid === 'setEndpointAgentProfile' || fid === 'getEndpointAgentProfile' || fid === 'getAikoCatalog') continue;
+        const codeConfig = (fn as any).ai;
+        const fileConfig = persistedConfigs[fid];
+        
+        const merged = { ...codeConfig, ...fileConfig };
+        if (!merged || !merged.enabled) continue;
+
+        // Build Zod input/output schemas to raw JSON schemas
+        let inputSchema = {};
+        let outputSchema = {};
+        if (fn.schema) {
+          if (fn.schema.input) {
+            try {
+              inputSchema = zodToJsonSchema(fn.schema.input);
+            } catch (e) {
+              inputSchema = { type: "object" };
+            }
+          }
+          if (fn.schema.output) {
+            try {
+              outputSchema = zodToJsonSchema(fn.schema.output);
+            } catch (e) {
+              outputSchema = { type: "object" };
+            }
+          }
+        }
+
+        const schema: KrnlEndpointAgentSchema = {
+          functionalityId: fid,
+          description: merged.description || fn.description || `Execute ${fid}`,
+          inputSchema,
+          outputSchema,
+          examples: merged.examples || fn.examples || [],
+          systemInstructions: merged.systemInstructions || "",
+          grade: merged.grade || 'endpoint-grade-2',
+          retryConfig: merged.retryConfig || { maxRetries: 4, timeoutMs: 12000, retryDelayMs: 500, backoffStrategy: "LINEAR" },
+          staticWatchVars: merged.staticWatchVars || [],
+          dynamicWatchVars: merged.dynamicWatchVars || [],
+          permissions: fn.accessPolicy || null
+        };
+
+        this._aiTracker.register(fid, merged, fn);
+
+        const agent = new KrnlEndpointAgent(schema, this._aikoClient, this._aiTracker, this);
+        aiEndpoints.set(fid, agent);
+      }
+
+      // Configure Orchestrator
+      const orchGrade = 'orchestrator-standard'; // default
+      this._aiOrchestrator = new KrnlApplicationOrchestrator(
+        this,
+        this._aikoClient,
+        this._aiTracker,
+        this._aiScheduler,
+        orchGrade
+      );
+
+      for (const [fid, agent] of aiEndpoints.entries()) {
+        this._aiOrchestrator.registerAgent(fid, agent);
+      }
+
+      console.log(`[KrnlTS AI] Initialized: ${aiEndpoints.size} endpoint agents connected.`);
+    } catch (e: any) {
+      console.error("[KrnlTS AI] Failed to initialize AI Layer:", e.message);
+    }
   }
 
   _setupBaseInterface(): void {
