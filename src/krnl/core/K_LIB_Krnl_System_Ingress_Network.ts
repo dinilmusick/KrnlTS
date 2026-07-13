@@ -1,6 +1,7 @@
 import { krnlSystemEntityBase } from "./K_ENT_Krnl_System_Entity_Base.js";
 import { KrnlIngressNetworkMemberConfig, KrnlFrontendMemberConfig } from "./types.js";
 import http from 'http';
+import path from 'path';
 
 export interface IngressMemberEntry {
   entity: krnlSystemEntityBase;
@@ -31,7 +32,8 @@ export class KrnlIngressNetwork {
       const memberPort = config.port ?? -1;
       const args = config.constructorArgs ?? [];
       const { subappLocalStorage } = await import('./K_LIB_Krnl_System_Magnetic_Loader.js');
-      entity = await subappLocalStorage.run(true, async () => {
+      const appDir = config.entryPath ? path.dirname(config.entryPath) : '';
+      entity = await subappLocalStorage.run({ appPath: appDir }, async () => {
         const ent = new ServiceClass(memberPort, ...args);
         if ((ent as any)._magneticLoadPromise) {
           await (ent as any)._magneticLoadPromise;

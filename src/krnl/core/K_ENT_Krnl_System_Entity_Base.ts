@@ -172,7 +172,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     // Pass options.sourcePath = import.meta.url (ESM) or __filename (CJS)
     // from the assembler to co-locate {entityName}.ports.json with the app.
     let dataDir = process.cwd();
-    if (options.sourcePath) {
+    const subappStore = (globalThis as any).__krnlSubAppLocalStorage?.getStore();
+    if (subappStore && typeof subappStore === 'object' && subappStore.appPath) {
+      dataDir = subappStore.appPath;
+    } else if (options.sourcePath) {
       try {
         const resolved = (options.sourcePath as string).startsWith('file:')
           ? fileURLToPath(options.sourcePath)
@@ -188,7 +191,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     // ── Startup Diagnostics ──────────────────────────────
     this._emitStartupDiagnostics();
 
-    this._isSubApp = (globalThis as any).__krnlSubAppLocalStorage?.getStore() === true;
+    this._isSubApp = !!subappStore;
 
     // Start magnetic discovery of nested assets (Phase 1 & 2)
     this._magneticLoadPromise = this._runMagneticLoader(options);
