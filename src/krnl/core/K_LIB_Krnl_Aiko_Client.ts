@@ -3,6 +3,7 @@ import { KrnlIntelligenceSpec } from "./K_LIB_Krnl_Ai_Concepts.js";
 
 export class KrnlAikoClient {
   private baseUrl: string;
+  public lastUsedModelId: string | null = null;
 
   constructor(aikoPort: number, aikoHost: string = 'localhost') {
     this.baseUrl = `http://${aikoHost}:${aikoPort}`;
@@ -36,9 +37,19 @@ export class KrnlAikoClient {
     });
 
     if (result && result.status === "success" && result.response) {
+      this.lastUsedModelId = result.modelId || null;
       return result.response;
     }
     throw new Error(result?.message || "Invalid or empty response from Aiko infer endpoint");
+  }
+
+  async downrankModel(modelId: string): Promise<void> {
+    try {
+      const client = KrnlHTTP.createClient(this.baseUrl);
+      await client.post("/call/downrankModel", { modelId });
+    } catch (e: any) {
+      console.error("[KrnlAikoClient] Failed to send downrank request to Aiko:", e.message);
+    }
   }
 
   async fetchCatalog(): Promise<Record<string, any>> {

@@ -87,6 +87,11 @@ export class KrnlApplicationOrchestrator {
       // If endpoint fails retries, escalate
       if (escalationObj.trace && escalationObj.error) {
         console.warn(`[Orchestrator] Endpoint agent "${endpointId}" failed execution. Initiating orchestrator escalation...`);
+        const badModelId = this.aikoClient.lastUsedModelId;
+        if (badModelId) {
+          console.log(`[Orchestrator] Model ${badModelId} failed to satisfy requirements. Submitting downrank report to Aiko...`);
+          await this.aikoClient.downrankModel(badModelId);
+        }
         return await this.escalate(endpointId, naturalLanguageRequest, escalationObj.error.message, escalationObj.trace);
       }
       throw escalationObj;
