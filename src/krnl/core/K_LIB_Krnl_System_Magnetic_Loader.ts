@@ -26,6 +26,7 @@ export class KrnlMagneticLoader {
    * Scans and dynamically loads entities, functionalities, and subapps for the given system entity.
    */
   static async loadAll(entity: krnlSystemEntityBase, baseDir: string): Promise<void> {
+    console.log(`[MagneticLoader] loadAll called for entity '${entity.entityName}' with baseDir '${baseDir}'`);
     // 1. Scan and load functionalities
     const functionalitiesDir = path.join(baseDir, 'functionalities');
     if (fs.existsSync(functionalitiesDir)) {

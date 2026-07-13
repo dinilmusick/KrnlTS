@@ -184,6 +184,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       } catch (_) { /* fall back to cwd */ }
     }
     this._entityDataDir = dataDir;
+    console.log(`[KRNL_DATA_DIR] Entity: ${this.entityName}, DataDir: ${this._entityDataDir}, subappStore: ${JSON.stringify(subappStore)}`);
 
     // ── Protocol Unification & Decoration ──────────────────────────────
     this._documentationProvider = null;
