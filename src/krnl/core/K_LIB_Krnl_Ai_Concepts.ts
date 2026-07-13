@@ -1,20 +1,27 @@
 import { KrnlPolicy } from "./K_LIB_Krnl_Base_Concepts.js";
 import { KrnlEndpointAccessPolicy } from "./types.js";
 
-export type KrnlEndpointGrade =
-  | 'endpoint-grade-1'
-  | 'endpoint-grade-2'
-  | 'endpoint-grade-3'
-  | 'endpoint-grade-4'
-  | 'endpoint-grade-5';
-
-export type KrnlOrchestratorGrade =
-  | 'orchestrator-standard'
-  | 'orchestrator-pro';
+export interface KrnlIntelligenceSpec {
+  reasoning: number;         // 0-10
+  planning: number;          // 0-10
+  toolUsage: number;         // 0-10
+  structuredOutput: number;  // 0-10
+  jsonStrictness: number;    // 0-10
+  coding: number;            // 0-10
+  extraction: number;        // 0-10
+  classification: number;    // 0-10
+  summarization: number;     // 0-10
+  creativity: number;        // 0-10
+  determinism: number;       // 0-10
+  context: number;           // 0-10
+  vision: number;            // 0-10
+  multimodal: number;        // 0-10
+  outputComplexity: number;  // 0-10
+}
 
 export interface KrnlAiEndpointConfig {
   enabled: boolean;
-  grade?: KrnlEndpointGrade;
+  intelligenceSpec?: KrnlIntelligenceSpec;
   description?: string;
   systemInstructions?: string;
   staticWatchVars?: string[];
@@ -30,7 +37,7 @@ export interface KrnlEndpointAgentSchema {
   outputSchema: any;
   examples: any[];
   systemInstructions: string;
-  grade: KrnlEndpointGrade;
+  intelligenceSpec: KrnlIntelligenceSpec;
   retryConfig: KrnlPolicy;
   staticWatchVars: string[];
   dynamicWatchVars: string[];
@@ -43,8 +50,7 @@ export interface KrnlAiExecutionTrace {
   timestamp: number;
   appName: string;
   endpointId: string;
-  endpointGrade: string;
-  orchestratorGrade: string;
+  intelligenceSpec: KrnlIntelligenceSpec;
   promptHash: string;
   retryCount: number;
   validationFailures: string[];
@@ -61,3 +67,4 @@ export interface KrnlWatchVariable {
   isStatic: boolean;
   currentValue: any;
 }
+

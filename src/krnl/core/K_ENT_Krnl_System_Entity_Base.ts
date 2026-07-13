@@ -888,20 +888,23 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     };
 
     const buildFManifest = (f: any, type: 'local' | 'remote', resolved: any) => {
-      const fManifest: any = {
-        id: f.id,
-        type,
-        method: resolved.method || 'POST',
-        visibility: resolved.visibility,
-        sourcePath: resolved.sourcePath, 
-        examples: resolved.examples || f.examples || null,
-        events: [] 
-      };
-      resolved.emitters.forEach((_: any, eid: string) => {
-        const eventId = `${f.id}:${eid}`;
-        fManifest.events.push(eventId);
-        eventsNames.push(eventId);
-      });
+       const fManifest: any = {
+         id: f.id,
+         type,
+         method: resolved.method || 'POST',
+         visibility: resolved.visibility,
+         sourcePath: resolved.sourcePath, 
+         examples: resolved.examples || f.examples || null,
+         events: [] 
+       };
+       if (resolved.intelligenceSpec) {
+         fManifest.intelligenceSpec = resolved.intelligenceSpec;
+       }
+       resolved.emitters.forEach((_: any, eid: string) => {
+         const eventId = `${f.id}:${eid}`;
+         fManifest.events.push(eventId);
+         eventsNames.push(eventId);
+       });
 
       if (resolved.schema) {
         fManifest.schema = {};
@@ -1338,6 +1341,12 @@ export class krnlSystemEntityBase extends krnlEntityBase {
           }
         }
 
+        const defaultEndpointSpec = {
+          reasoning: 3, planning: 1, toolUsage: 1, structuredOutput: 5, jsonStrictness: 5,
+          coding: 1, extraction: 3, classification: 3, summarization: 3, creativity: 3,
+          determinism: 5, context: 3, vision: 1, multimodal: 1, outputComplexity: 3
+        };
+
         const schema: KrnlEndpointAgentSchema = {
           functionalityId: fid,
           description: merged.description || fn.description || `Execute ${fid}`,
@@ -1345,7 +1354,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
           outputSchema,
           examples: merged.examples || fn.examples || [],
           systemInstructions: merged.systemInstructions || "",
-          grade: merged.grade || 'endpoint-grade-2',
+          intelligenceSpec: merged.intelligenceSpec || (fn as any).intelligenceSpec || defaultEndpointSpec,
           retryConfig: merged.retryConfig || { maxRetries: 4, timeoutMs: 12000, retryDelayMs: 500, backoffStrategy: "LINEAR" },
           staticWatchVars: merged.staticWatchVars || [],
           dynamicWatchVars: merged.dynamicWatchVars || [],
@@ -1359,13 +1368,27 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       }
 
       // Configure Orchestrator
-      const orchGrade = 'orchestrator-standard'; // default
+      const defaultRoutingSpec = {
+        reasoning: 5, planning: 3, toolUsage: 1, structuredOutput: 5, jsonStrictness: 5,
+        coding: 1, extraction: 3, classification: 8, summarization: 2, creativity: 1,
+        determinism: 7, context: 4, vision: 1, multimodal: 1, outputComplexity: 2
+      };
+      const defaultEscalationSpec = {
+        reasoning: 8, planning: 6, toolUsage: 2, structuredOutput: 8, jsonStrictness: 8,
+        coding: 2, extraction: 5, classification: 6, summarization: 4, creativity: 2,
+        determinism: 8, context: 6, vision: 2, multimodal: 2, outputComplexity: 6
+      };
+
+      const routingSpec = (this as any)._aiRoutingSpec || defaultRoutingSpec;
+      const escalationSpec = (this as any)._aiEscalationSpec || defaultEscalationSpec;
+
       this._aiOrchestrator = new KrnlApplicationOrchestrator(
         this,
         this._aikoClient,
         this._aiTracker,
         this._aiScheduler,
-        orchGrade
+        routingSpec,
+        escalationSpec
       );
 
       for (const [fid, agent] of aiEndpoints.entries()) {

@@ -1,4 +1,4 @@
-import { KrnlOrchestratorGrade, KrnlAiExecutionTrace, KrnlEndpointAgentSchema } from "./K_LIB_Krnl_Ai_Concepts.js";
+import { KrnlIntelligenceSpec, KrnlAiExecutionTrace } from "./K_LIB_Krnl_Ai_Concepts.js";
 import { KrnlAikoClient } from "./K_LIB_Krnl_Aiko_Client.js";
 import { KrnlWatchVariablesTracker } from "./K_LIB_Krnl_Watch_Variables_Tracker.js";
 import { KrnlEndpointScheduler } from "./K_LIB_Krnl_Endpoint_Scheduler.js";
@@ -10,7 +10,8 @@ export class KrnlApplicationOrchestrator {
   private aikoClient: KrnlAikoClient;
   private tracker: KrnlWatchVariablesTracker;
   private scheduler: KrnlEndpointScheduler;
-  private grade: KrnlOrchestratorGrade;
+  private routingSpec: KrnlIntelligenceSpec;
+  private escalationSpec: KrnlIntelligenceSpec;
   private endpointAgents: Map<string, KrnlEndpointAgent> = new Map();
 
   constructor(
@@ -18,13 +19,15 @@ export class KrnlApplicationOrchestrator {
     aikoClient: KrnlAikoClient,
     tracker: KrnlWatchVariablesTracker,
     scheduler: KrnlEndpointScheduler,
-    grade: KrnlOrchestratorGrade
+    routingSpec: KrnlIntelligenceSpec,
+    escalationSpec: KrnlIntelligenceSpec
   ) {
     this.system = system;
     this.aikoClient = aikoClient;
     this.tracker = tracker;
     this.scheduler = scheduler;
-    this.grade = grade;
+    this.routingSpec = routingSpec;
+    this.escalationSpec = escalationSpec;
   }
 
   registerAgent(endpointId: string, agent: KrnlEndpointAgent): void {
@@ -36,7 +39,7 @@ export class KrnlApplicationOrchestrator {
     for (const [fid, agent] of this.endpointAgents.entries()) {
       list.push({
         endpointId: fid,
-        grade: agent.schema.grade,
+        intelligenceSpec: agent.schema.intelligenceSpec,
         description: agent.schema.description,
         dynamicWatchVars: agent.schema.dynamicWatchVars,
         staticWatchVars: agent.schema.staticWatchVars,
@@ -95,7 +98,7 @@ export class KrnlApplicationOrchestrator {
     const userPrompt = `User Request: "${request}"\n\nWhich endpoint matches?`;
 
     try {
-      const response = await this.aikoClient.infer(this.grade, systemPrompt, userPrompt);
+      const response = await this.aikoClient.infer(this.routingSpec, systemPrompt, userPrompt);
       const selected = response.trim();
 
       if (this.endpointAgents.has(selected)) {
@@ -134,8 +137,7 @@ Reply with ONLY the exact endpoint name from the list above. Write nothing else.
     reason: string,
     failedTrace: KrnlAiExecutionTrace
   ): Promise<any> {
-    const upgradedGrade = "orchestrator-pro";
-    console.log(`[Orchestrator Escalation] Escalating to ${upgradedGrade} model to bypass endpoint failure...`);
+    console.log(`[Orchestrator Escalation] Escalating to escalationSpec model to bypass endpoint failure...`);
 
     const agent = this.endpointAgents.get(failedEndpointId);
     if (!agent) throw new Error("Agent not found for escalation");
@@ -149,7 +151,7 @@ ${JSON.stringify(agent.schema.inputSchema)}
 Live state variables:
 ${JSON.stringify(liveVars)}
 
-The previous endpoint grade attempt failed with reason: "${reason}".
+The previous attempt failed with reason: "${reason}".
 Your job is to override this, inspect the error, and generate a valid JSON payload matching the input schema.
 Output ONLY raw JSON.`;
 
@@ -157,7 +159,7 @@ Output ONLY raw JSON.`;
 
     try {
       const startTime = Date.now();
-      const response = await this.aikoClient.infer(upgradedGrade, systemPrompt, userPrompt);
+      const response = await this.aikoClient.infer(this.escalationSpec, systemPrompt, userPrompt);
       let parsedPayload = response.trim();
       if (parsedPayload.startsWith("```")) {
         parsedPayload = parsedPayload.replace(/^```(json)?\n/, "").replace(/\n```$/, "");
@@ -167,18 +169,21 @@ Output ONLY raw JSON.`;
       // Trigger standard API call
       const result = await this.system.call(failedEndpointId, payload, { unwrap: false });
 
-      // Self-Optimization: Auto-upgrade endpoint grade profile to prevent future regressions
-      const currentGrade = agent.schema.grade;
-      const index = Number(currentGrade.split("-").pop() || 2);
-      const upgradedEndpointGrade = `endpoint-grade-${Math.min(index + 1, 5)}` as any;
+      // Self-Optimization: Auto-upgrade endpoint intelligence spec to prevent future regressions
+      const currentSpec = agent.schema.intelligenceSpec;
+      const upgradedSpec: KrnlIntelligenceSpec = { ...currentSpec };
+      // Boost core metrics to increase capability for subsequent runs
+      if (upgradedSpec.reasoning < 10) upgradedSpec.reasoning += 1;
+      if (upgradedSpec.planning < 10) upgradedSpec.planning += 1;
+      if (upgradedSpec.jsonStrictness < 10) upgradedSpec.jsonStrictness += 1;
 
-      console.log(`[Orchestrator Self-Optimization] Upgrading endpoint "${failedEndpointId}" from ${currentGrade} to ${upgradedEndpointGrade} to prevent regression.`);
+      console.log(`[Orchestrator Self-Optimization] Upgrading endpoint "${failedEndpointId}" intelligence requirements to prevent regression.`);
       await this.system.call("setEndpointAgentProfile", {
         endpointId: failedEndpointId,
         config: {
           ...agent.schema,
           enabled: true,
-          grade: upgradedEndpointGrade
+          intelligenceSpec: upgradedSpec
         }
       });
 
@@ -190,7 +195,7 @@ Output ONLY raw JSON.`;
         payload,
         executionResult: result,
         latencyMs: totalLatency,
-        endpointGrade: upgradedEndpointGrade,
+        intelligenceSpec: upgradedSpec,
         failureReason: undefined
       };
 

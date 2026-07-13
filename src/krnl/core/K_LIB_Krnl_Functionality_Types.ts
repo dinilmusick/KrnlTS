@@ -8,6 +8,7 @@ import { krnlEmitter } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
 import type { KrnlEndpointAccessPolicy } from "./types.js";
 import type { KrnlIntentionFunctionality } from "./K_LIB_Krnl_Intention_Types.js";
+import type { KrnlIntelligenceSpec } from "./K_LIB_Krnl_Ai_Concepts.js";
 
 import { ObjectKit } from "../tools/ObjectKit.js";
 
@@ -63,6 +64,7 @@ export class krnlLocalFunctionality {
   method?: string;
   tests?: any[];
   examples?: any[];
+  intelligenceSpec?: KrnlIntelligenceSpec;
   /** Port-based access control policy. Absent = unrestricted. */
   accessPolicy?: KrnlEndpointAccessPolicy;
   /** Shared secret for allow_with_key / ask_key_unlisted gates. */
@@ -112,6 +114,7 @@ export class krnlLocalFunctionality {
     this.tests = tests;
     this.examples = config.examples || null;
     this.intention = config.intention || null;
+    this.intelligenceSpec = config.intelligenceSpec || null;
     if (accessPolicy) this.accessPolicy = accessPolicy;
     if (accessKey)    this.accessKey    = accessKey;
 

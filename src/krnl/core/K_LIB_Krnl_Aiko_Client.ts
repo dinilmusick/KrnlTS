@@ -1,4 +1,5 @@
 import { KrnlHTTP } from "../tools/index.js";
+import { KrnlIntelligenceSpec } from "./K_LIB_Krnl_Ai_Concepts.js";
 
 export class KrnlAikoClient {
   private baseUrl: string;
@@ -26,10 +27,10 @@ export class KrnlAikoClient {
     return null;
   }
 
-  async infer(profileTag: string, systemPrompt: string, userPrompt: string): Promise<string> {
+  async infer(intelligenceSpec: KrnlIntelligenceSpec, systemPrompt: string, userPrompt: string): Promise<string> {
     const client = KrnlHTTP.createClient(this.baseUrl);
     const result: any = await client.post("/call/infer", {
-      profileTag,
+      intelligenceSpec,
       systemPrompt,
       userPrompt
     });

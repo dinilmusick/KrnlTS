@@ -169,8 +169,7 @@ export interface BlockDescriptor {
 
 export type {
   KrnlAiEndpointConfig,
-  KrnlEndpointGrade,
-  KrnlOrchestratorGrade,
+  KrnlIntelligenceSpec,
   KrnlEndpointAgentSchema,
   KrnlAiExecutionTrace,
   KrnlWatchVariable

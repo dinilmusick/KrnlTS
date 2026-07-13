@@ -53,8 +53,7 @@ export class KrnlEndpointAgent {
         timestamp,
         appName: this.system.entityName,
         endpointId: this.schema.functionalityId,
-        endpointGrade: this.schema.grade,
-        orchestratorGrade: "orchestrator-standard",
+        intelligenceSpec: this.schema.intelligenceSpec,
         promptHash: this.getPromptHash(this.buildSystemPrompt(liveVars), naturalLanguageRequest),
         retryCount,
         validationFailures: failures,
@@ -73,8 +72,7 @@ export class KrnlEndpointAgent {
         timestamp,
         appName: this.system.entityName,
         endpointId: this.schema.functionalityId,
-        endpointGrade: this.schema.grade,
-        orchestratorGrade: "orchestrator-standard",
+        intelligenceSpec: this.schema.intelligenceSpec,
         promptHash: this.getPromptHash(this.buildSystemPrompt(liveVars), naturalLanguageRequest),
         retryCount: this.schema.retryConfig?.maxRetries || 4,
         validationFailures: [error.message],
@@ -93,6 +91,7 @@ export class KrnlEndpointAgent {
     return `You are an endpoint agent representing the raw endpoint "${this.schema.functionalityId}".
 Purpose: ${this.schema.description}
 Instructions: ${this.schema.systemInstructions}
+Intelligence Capability Spec: ${JSON.stringify(this.schema.intelligenceSpec)}
 
 Input Schema (JSON Schema format):
 ${JSON.stringify(this.schema.inputSchema, null, 2)}
@@ -149,7 +148,7 @@ Output ONLY raw, pure JSON. Do not write explanations, markdown blocks, formatti
       const aiCallStart = Date.now();
       let aiResponse = "";
       try {
-        aiResponse = await this.aikoClient.infer(this.schema.grade, systemPrompt, userPrompt);
+        aiResponse = await this.aikoClient.infer(this.schema.intelligenceSpec, systemPrompt, userPrompt);
       } catch (err: any) {
         aiTimeAccumulator += Date.now() - aiCallStart;
         failures.push(`Aiko connection failure: ${err.message}`);
