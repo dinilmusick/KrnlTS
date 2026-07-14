@@ -263,8 +263,34 @@ export class KrnlMagneticLoader {
       } catch (_) {}
     }
 
-    if (!fs.existsSync(assemblerPath) || !fs.existsSync(distPath) || !fs.existsSync(path.join(appPath, 'node_modules'))) {
-      console.log(`[MagneticLoader] Sub-app '${appName}' is missing build artifacts or assembler.js. Initiating auto-build...`);
+    let gitUpdated = false;
+    const gitDir = path.join(appPath, '.git');
+    if (fs.existsSync(gitDir)) {
+      console.log(`[MagneticLoader] Checking for git remote updates for sub-app '${appName}'...`);
+      try {
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execPromise = promisify(exec);
+        
+        // Fetch remote updates
+        await execPromise('git fetch', { cwd: appPath });
+        // Check if local branch is behind remote
+        const { stdout } = await execPromise('git status -uno', { cwd: appPath });
+        if (stdout.includes('Your branch is behind') || stdout.includes('can be fast-forwarded')) {
+          console.log(`[MagneticLoader] Remote updates found for sub-app '${appName}'. Pulling changes...`);
+          const pullResult = await execPromise('git pull', { cwd: appPath });
+          console.log(`[MagneticLoader] Git pull result for '${appName}':`, pullResult.stdout);
+          gitUpdated = true;
+        } else {
+          console.log(`[MagneticLoader] Sub-app '${appName}' git repository is up to date.`);
+        }
+      } catch (err: any) {
+        console.warn(`[MagneticLoader] Warning: git update check failed for '${appName}':`, err.message || err);
+      }
+    }
+
+    if (!fs.existsSync(assemblerPath) || !fs.existsSync(distPath) || !fs.existsSync(path.join(appPath, 'node_modules')) || gitUpdated) {
+      console.log(`[MagneticLoader] Sub-app '${appName}' ${gitUpdated ? 'was updated via git' : 'is missing build artifacts'}. Initiating auto-build...`);
       try {
         const pkgJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
         const hasBuildScript = pkgJson.scripts && pkgJson.scripts.build;
