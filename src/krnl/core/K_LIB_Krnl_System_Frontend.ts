@@ -1106,10 +1106,22 @@ export class KrnlFrontend {
 
     function updateHeaderBadges() {
       if (!manifestData) return;
-      document.getElementById('system-type-badge')!.innerText = (manifestData.systemType || 'System').toUpperCase();
-      const port = window.location.port || 'default';
-      document.getElementById('port-badge')!.innerText = 'PORT: ' + port;
-      document.getElementById('welcome-details')!.innerText = (manifestData.systemType || 'System').toUpperCase();
+      
+      const sysType = document.getElementById('system-type-badge');
+      if (sysType) {
+        sysType.innerText = (manifestData.systemType || 'System').toUpperCase();
+      }
+      
+      const portBadge = document.getElementById('port-badge');
+      if (portBadge) {
+        const port = window.location.port || 'default';
+        portBadge.innerText = 'PORT: ' + port;
+      }
+      
+      const welcomeDetails = document.getElementById('welcome-details');
+      if (welcomeDetails) {
+        welcomeDetails.innerText = (manifestData.systemType || 'System').toUpperCase();
+      }
     }
 
     function renderSidebar() {
@@ -1278,10 +1290,11 @@ export class KrnlFrontend {
       const nextItem = document.getElementById('nav-item-' + fid);
       if (nextItem) nextItem.classList.add('active');
 
-      document.getElementById('welcome-panel')!.style.display = 'none';
+      const welcomePanel = document.getElementById('welcome-panel');
+      if (welcomePanel) welcomePanel.style.display = 'none';
       
-      const panel = document.getElementById('endpoint-panel')!;
-      panel.style.display = 'block';
+      const panel = document.getElementById('endpoint-panel');
+      if (panel) panel.style.display = 'block';
 
       const api = (manifestData as any).inputs.api[fid];
       const method = api.method || 'POST';
@@ -1290,12 +1303,14 @@ export class KrnlFrontend {
       // Load and show AI profile settings panel for this local endpoint (if local and not disabled for Mer/Gemini apps)
       const isLocal = api && api.type === 'local';
       const isMerApp = (manifestData as any).entityName.toLowerCase().includes('mer') || (manifestData as any).entityName.toLowerCase().includes('gemini');
-      const aiSettingsPanel = document.getElementById('ai-settings-panel')!;
-      if (isLocal && !isMerApp && fid !== 'ai' && fid !== 'setEndpointAgentProfile' && fid !== 'getEndpointAgentProfile' && fid !== 'getAikoCatalog') {
-        aiSettingsPanel.style.display = 'block';
-        loadAiSettings(fid);
-      } else {
-        aiSettingsPanel.style.display = 'none';
+      const aiSettingsPanel = document.getElementById('ai-settings-panel');
+      if (aiSettingsPanel) {
+        if (isLocal && !isMerApp && fid !== 'ai' && fid !== 'setEndpointAgentProfile' && fid !== 'getEndpointAgentProfile' && fid !== 'getAikoCatalog') {
+          aiSettingsPanel.style.display = 'block';
+          loadAiSettings(fid);
+        } else {
+          aiSettingsPanel.style.display = 'none';
+        }
       }
 
       // Disconnect previous SSE stream
