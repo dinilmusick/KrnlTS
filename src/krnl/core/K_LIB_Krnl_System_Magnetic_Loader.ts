@@ -285,6 +285,28 @@ export class KrnlMagneticLoader {
           const { promisify } = await import('util');
           const execPromise = promisify(exec);
           await execPromise(installCmd, { cwd: appPath });
+        } else {
+          // If node_modules already exists, check if we need to update krnlts
+          const pkgJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+          const hasKrnlts = (pkgJson.dependencies && pkgJson.dependencies.krnlts) || 
+                            (pkgJson.devDependencies && pkgJson.devDependencies.krnlts);
+          if (hasKrnlts) {
+            let updateCmd = 'npm update krnlts';
+            if (fs.existsSync(path.join(appPath, 'pnpm-lock.yaml'))) {
+              updateCmd = 'pnpm update krnlts';
+            } else if (fs.existsSync(path.join(appPath, 'yarn.lock'))) {
+              updateCmd = 'yarn upgrade krnlts';
+            }
+            console.log(`[MagneticLoader] Automatically updating krnlts dependency for '${appName}' using '${updateCmd}'...`);
+            try {
+              const { exec } = await import('child_process');
+              const { promisify } = await import('util');
+              const execPromise = promisify(exec);
+              await execPromise(updateCmd, { cwd: appPath });
+            } catch (err: any) {
+              console.warn(`[MagneticLoader] Warning: auto-updating krnlts for '${appName}' failed:`, err.message || err);
+            }
+          }
         }
 
         let buildCmd = 'npm run build';
