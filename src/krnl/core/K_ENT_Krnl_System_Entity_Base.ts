@@ -985,6 +985,16 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     const dgram = await import('dgram').then(m => m.default || m);
     this.discoverySocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
 
+    this.discoverySocket.on('error', (err: any) => {
+      console.warn(`[${this.entityName}] Discovery socket error:`, err.message);
+      try {
+        if (this.discoverySocket) {
+          this.discoverySocket.close();
+        }
+      } catch (e) {}
+      this.discoverySocket = null;
+    });
+
     this.discoverySocket.on('message', (msg: Buffer, rinfo: any) => {
       try {
         const data = JSON.parse(msg.toString());
@@ -1015,10 +1025,21 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     // Redirect broadcast target to 127.0.0.1 when the entity is bound to loopback.
     const broadcastTarget = (this.host === '127.0.0.1') ? '127.0.0.1' : discoveryHost;
 
-    this.discoverySocket.bind(discoveryPort, this.host, () => {
-      this.discoverySocket.setBroadcast(true);
-      console.log(`[${this.entityName}] Discovery active on ${this.host}:${discoveryPort} (broadcast to ${broadcastTarget})`);
-    });
+    try {
+      this.discoverySocket.bind(discoveryPort, this.host, () => {
+        try {
+          if (this.discoverySocket) {
+            this.discoverySocket.setBroadcast(true);
+            console.log(`[${this.entityName}] Discovery active on ${this.host}:${discoveryPort} (broadcast to ${broadcastTarget})`);
+          }
+        } catch (err: any) {
+          console.warn(`[${this.entityName}] Discovery setBroadcast failed:`, err.message);
+        }
+      });
+    } catch (err: any) {
+      console.warn(`[${this.entityName}] Discovery bind failed:`, err.message);
+      this.discoverySocket = null;
+    }
 
     this.beaconInterval = setInterval(async () => {
       if (!this.discoverable) return;
