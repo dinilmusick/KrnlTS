@@ -144,7 +144,8 @@ async function runRealAiCalculator() {
   console.log("Trace Payload:", JSON.stringify(response.trace.payload));
 
   // Verify result correctness
-  if (response.result && response.result.result === 27) {
+  const actualVal = response.result?.result ?? response.result?.payload?.result;
+  if (actualVal === 27) {
     console.log("\n✅ SUCCESS: The pipeline works perfectly and resolved 12 + 15 = 27!");
   } else {
     console.error("\n❌ FAILURE: Pipeline resolved incorrect result:", response.result);

@@ -973,7 +973,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   async startDiscovery(discoveryPort: number = 10101, discoveryHost: string = '255.255.255.255'): Promise<void> {
-    if (this._isIngressNetworkMember) return;
+    if (this._isIngressNetworkMember || this._isSubApp) return;
     if (this.discoverySocket) return; 
 
     

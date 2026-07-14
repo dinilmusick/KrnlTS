@@ -36,11 +36,12 @@ export class KrnlAikoClient {
       userPrompt
     });
 
-    if (result && result.status === "success" && result.response) {
-      this.lastUsedModelId = result.modelId || null;
-      return result.response;
+    if (result && result.status === "success" && result.data && result.data.status === "success" && result.data.payload && result.data.payload.status === "success" && result.data.payload.response) {
+      this.lastUsedModelId = result.data.payload.modelId || null;
+      return result.data.payload.response;
     }
-    throw new Error(result?.message || "Invalid or empty response from Aiko infer endpoint");
+    const errMsg = result.status === "success" ? (result.data?.payload?.message || result.data?.message) : result.message;
+    throw new Error(errMsg || "Invalid or empty response from Aiko infer endpoint");
   }
 
   async downrankModel(modelId: string): Promise<void> {
@@ -57,8 +58,8 @@ export class KrnlAikoClient {
     const result: any = await client.post("/call/SessionManager/AgentProfileManager", {
       action: "list"
     });
-    if (result && result.status === "success" && result.profiles) {
-      return result.profiles;
+    if (result && result.status === "success" && result.data && result.data.status === "success" && result.data.profiles) {
+      return result.data.profiles;
     }
     // Fallback to basic manifest check or mock defaults if profiles state is empty
     return {
