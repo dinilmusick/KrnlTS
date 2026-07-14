@@ -1106,10 +1106,10 @@ export class KrnlFrontend {
 
     function updateHeaderBadges() {
       if (!manifestData) return;
-      document.getElementById('system-type-badge').innerText = manifestData.systemType || 'SystemOrchestrator';
+      document.getElementById('system-type-badge')!.innerText = (manifestData.systemType || 'System').toUpperCase();
       const port = window.location.port || 'default';
-      document.getElementById('port-badge').innerText = 'Port: ' + port;
-      document.getElementById('welcome-details').innerText = 'Entity: ' + manifestData.entityName + ' | Type: ' + (manifestData.systemType || 'System');
+      document.getElementById('port-badge')!.innerText = 'PORT: ' + port;
+      document.getElementById('welcome-details')!.innerText = (manifestData.systemType || 'System').toUpperCase();
     }
 
     function renderSidebar() {
