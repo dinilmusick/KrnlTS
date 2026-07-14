@@ -328,7 +328,8 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
       this.patchedConfigName = 'next.config.ts';
       fs.renameSync(configTs, path.join(this.appPath, this.originalConfigName));
       
-      const newConfigContent = `import original from './next.config.original.ts';
+      const newConfigContent = `import * as originalModule from './next.config.original.ts';
+const original = originalModule.default || originalModule;
 const config = {
   ...original,
   basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || (original as any).basePath || '',
