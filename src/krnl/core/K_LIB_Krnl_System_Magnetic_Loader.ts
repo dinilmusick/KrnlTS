@@ -89,8 +89,11 @@ export class KrnlMagneticLoader {
       console.log(`[MagneticLoader] Auto-enabled default frontend for '${entity.entityName}' (found frontend/default folder).`);
     }
 
-    // 5. Scan and load custom frontends under frontend/ (except 'default')
-    const generalFrontendDir = path.join(baseDir, 'frontend');
+    // 5. Scan and load custom frontends under frontend/ or frontends/ (except 'default')
+    let generalFrontendDir = path.join(baseDir, 'frontend');
+    if (!fs.existsSync(generalFrontendDir)) {
+      generalFrontendDir = path.join(baseDir, 'frontends');
+    }
     if (fs.existsSync(generalFrontendDir)) {
       const entries = await fs.promises.readdir(generalFrontendDir, { withFileTypes: true });
       for (const entry of entries) {
