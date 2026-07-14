@@ -1,4 +1,7 @@
 import { telemetry } from './K_LIB_Krnl_Telemetry.js';
+import { zodToJsonSchema } from 'zod-to-json-schema';
+import { KrnlEndpointDefinition } from './K_LIB_Krnl_Ai_Concepts.js';
+
 
 export function heartbeatApi(entity: any) {
   return () => ({
@@ -305,6 +308,158 @@ export function listAppsApi(entity: any) {
       pid: app.pid,
       registeredAt: app.registeredAt
     }));
+  };
+}
+
+export function buildEndpointDefinition(fn: any, entity: any, runtimeOverride: any = null, memory: string = ""): KrnlEndpointDefinition {
+  const isSystem = entity._krnlSystemEndpointIds?.has(fn.id) || fn.id === 'getEndpointDefinitions' || fn.id === 'setEndpointDefinition' || fn.id === 'getTelemetryLog';
+  
+  let inputSchema = {};
+  let outputSchema = {};
+  if (fn.schema) {
+    if (fn.schema.input) {
+      try {
+        inputSchema = zodToJsonSchema(fn.schema.input);
+      } catch (e) {
+        inputSchema = { type: "object" };
+      }
+    }
+    if (fn.schema.output) {
+      try {
+        outputSchema = zodToJsonSchema(fn.schema.output);
+      } catch (e) {
+        outputSchema = { type: "object" };
+      }
+    }
+  }
+
+  const defaultSpec = {
+    reasoning: 3, planning: 1, toolUsage: 1, structuredOutput: 5, jsonStrictness: 5,
+    coding: 1, extraction: 3, classification: 3, summarization: 3, creativity: 3,
+    determinism: 5, context: 3, vision: 1, multimodal: 1, outputComplexity: 3
+  };
+
+  const codeSpec = fn.ai?.intelligenceSpec || fn.intelligenceSpec || defaultSpec;
+  const mergedSpec = runtimeOverride?.intelligenceSpec || codeSpec;
+
+  const emittersList: string[] = [];
+  if (fn.emitters) {
+    fn.emitters.forEach((_: any, eid: string) => {
+      emittersList.push(`${fn.id}:${eid}`);
+    });
+  }
+
+  return {
+    id: fn.id,
+    category: isSystem ? 'krnl_system' : 'app',
+    method: fn.method || 'POST',
+    visibility: fn.visibility || 'public',
+    inputSchema,
+    outputSchema,
+    description: runtimeOverride?.description || fn.description || `Execute ${fn.id}`,
+    systemInstructions: runtimeOverride?.systemInstructions || fn.ai?.systemInstructions || "",
+    examples: runtimeOverride?.examples || fn.examples || [],
+    examplePayload: runtimeOverride?.examplePayload || fn.example || null,
+    intelligenceSpec: mergedSpec,
+    agentTools: runtimeOverride?.agentTools || fn.ai?.agentTools || [],
+    retryConfig: runtimeOverride?.retryConfig || fn.ai?.retryConfig || { maxRetries: 4, timeoutMs: 12000, retryDelayMs: 500, backoffStrategy: "LINEAR" },
+    staticWatchVars: runtimeOverride?.staticWatchVars || fn.ai?.staticWatchVars || [],
+    dynamicWatchVars: runtimeOverride?.dynamicWatchVars || fn.ai?.dynamicWatchVars || [],
+    accessPolicy: fn.accessPolicy || null,
+    emitters: emittersList,
+    sourcePath: fn.sourcePath || null,
+    memory: memory || "",
+    runtimeEdited: !!runtimeOverride
+  };
+}
+
+export function getEndpointDefinitionsApi(entity: any) {
+  return async () => {
+    const list: KrnlEndpointDefinition[] = [];
+    const store = entity._aiProfilesStore;
+    const overrides = store ? await store.getAllEndpointDefinitions() : {};
+    
+    const seen = new Set<string>();
+    
+    const processF = async (fn: any) => {
+      if (seen.has(fn.id)) return;
+      seen.add(fn.id);
+      const override = overrides[fn.id] || null;
+      const mem = store ? await store.getEndpointMemory(fn.id) : "";
+      list.push(buildEndpointDefinition(fn, entity, override, mem));
+    };
+
+    if (entity.localFunctionalities) {
+      for (const fn of entity.localFunctionalities.values()) {
+        await processF(fn);
+      }
+    }
+    if (entity.remoteFunctionalities) {
+      for (const fn of entity.remoteFunctionalities.values()) {
+        await processF(fn);
+      }
+    }
+
+    return list;
+  };
+}
+
+export function setEndpointDefinitionApi(entity: any) {
+  return async ({ id, override }: { id: string; override: any }) => {
+    const store = entity._aiProfilesStore;
+    if (!store) {
+      throw new Error("Runtime Store not initialized.");
+    }
+    const current = await store.getEndpointDefinition(id) || {};
+    const updated = { ...current, ...override };
+    await store.setEndpointDefinition(id, updated);
+    
+    if (typeof entity.initializeAiLayer === "function") {
+      await entity.initializeAiLayer(entity._entityDataDir);
+    }
+
+    const fn = entity.localFunctionalities.get(id) || entity.remoteFunctionalities.get(id);
+    if (!fn) {
+      throw new Error(`Endpoint ${id} not found.`);
+    }
+    const mem = await store.getEndpointMemory(id);
+    return buildEndpointDefinition(fn, entity, updated, mem);
+  };
+}
+
+export function getTelemetryLogApi(entity: any) {
+  return async ({ limit }: { limit?: number } = {}) => {
+    const store = entity._aiProfilesStore;
+    if (!store) return [];
+    return await store.getTelemetryLog(limit);
+  };
+}
+
+export function getAikoCatalogApi(entity: any) {
+  return async () => {
+    if (!entity._aikoClient) {
+      throw new Error("Aiko client not initialized.");
+    }
+    try {
+      entity._aikoCatalog = await entity._aikoClient.fetchCatalog();
+      return { status: 'success', catalog: entity._aikoCatalog };
+    } catch (e: any) {
+      return { status: 'error', message: `Failed to fetch catalog: ${e.message}`, catalog: entity._aikoCatalog };
+    }
+  };
+}
+
+export function aiOrchestrationApi(entity: any) {
+  return async ({ message }: { message: string }) => {
+    if (!entity._aiOrchestrator) {
+      const { KrnlAikoClient } = await import("./K_LIB_Krnl_Aiko_Client.js");
+      throw new Error(KrnlAikoClient.getNotRunningMessage());
+    }
+    try {
+      return await entity._aiOrchestrator.handle(message);
+    } catch (e: any) {
+      return { status: 'error', message: e.message };
+    }
   };
 }
 

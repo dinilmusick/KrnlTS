@@ -1,24 +1,27 @@
-import { KrnlEndpointAgentSchema, KrnlAiExecutionTrace } from "./K_LIB_Krnl_Ai_Concepts.js";
+import { KrnlEndpointDefinition, KrnlAiExecutionTrace } from "./K_LIB_Krnl_Ai_Concepts.js";
 import { KrnlAikoClient } from "./K_LIB_Krnl_Aiko_Client.js";
 import { KrnlWatchVariablesTracker } from "./K_LIB_Krnl_Watch_Variables_Tracker.js";
 import { krnlSystemEntityBase } from "./K_ENT_Krnl_System_Entity_Base.js";
 
 export class KrnlEndpointAgent {
-  readonly schema: KrnlEndpointAgentSchema;
+  readonly definition: KrnlEndpointDefinition;
   private aikoClient: KrnlAikoClient;
   private tracker: KrnlWatchVariablesTracker;
   private system: krnlSystemEntityBase;
+  private tools: Record<string, any>;
 
   constructor(
-    schema: KrnlEndpointAgentSchema,
+    definition: KrnlEndpointDefinition,
     aikoClient: KrnlAikoClient,
     tracker: KrnlWatchVariablesTracker,
-    system: krnlSystemEntityBase
+    system: krnlSystemEntityBase,
+    tools: Record<string, any> = {}
   ) {
-    this.schema = schema;
+    this.definition = definition;
     this.aikoClient = aikoClient;
     this.tracker = tracker;
     this.system = system;
+    this.tools = tools;
   }
 
   async executeFromNaturalLanguage(
@@ -26,7 +29,7 @@ export class KrnlEndpointAgent {
   ): Promise<{ result: any; trace: KrnlAiExecutionTrace }> {
     const traceId = `trace_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const timestamp = Date.now();
-    const liveVars = this.tracker.readLiveVars(this.schema.functionalityId);
+    const liveVars = this.tracker.readLiveVars(this.definition.id);
 
     const startTime = Date.now();
     let aiStartTime = Date.now();
@@ -42,7 +45,7 @@ export class KrnlEndpointAgent {
       const executionStart = Date.now();
 
       // system.call triggers Zod input/output validation and the execute() pipeline cleanly
-      const result = await this.system.call(this.schema.functionalityId, payload, {
+      const result = await this.system.call(this.definition.id, payload, {
         unwrap: false
       });
 
@@ -52,8 +55,8 @@ export class KrnlEndpointAgent {
         traceId,
         timestamp,
         appName: this.system.entityName,
-        endpointId: this.schema.functionalityId,
-        intelligenceSpec: this.schema.intelligenceSpec,
+        endpointId: this.definition.id,
+        intelligenceSpec: this.definition.intelligenceSpec,
         promptHash: this.getPromptHash(this.buildSystemPrompt(liveVars), naturalLanguageRequest),
         retryCount,
         validationFailures: failures,
@@ -71,10 +74,10 @@ export class KrnlEndpointAgent {
         traceId,
         timestamp,
         appName: this.system.entityName,
-        endpointId: this.schema.functionalityId,
-        intelligenceSpec: this.schema.intelligenceSpec,
+        endpointId: this.definition.id,
+        intelligenceSpec: this.definition.intelligenceSpec,
         promptHash: this.getPromptHash(this.buildSystemPrompt(liveVars), naturalLanguageRequest),
-        retryCount: this.schema.retryConfig?.maxRetries || 4,
+        retryCount: this.definition.retryConfig?.maxRetries || 4,
         validationFailures: [error.message],
         payload: null,
         executionResult: null,
@@ -88,19 +91,29 @@ export class KrnlEndpointAgent {
   }
 
   private buildSystemPrompt(liveVars: Record<string, any>): string {
-    return `You are an endpoint agent representing the raw endpoint "${this.schema.functionalityId}".
-Purpose: ${this.schema.description}
-Instructions: ${this.schema.systemInstructions}
-Intelligence Capability Spec: ${JSON.stringify(this.schema.intelligenceSpec)}
+    const toolsDesc = Object.entries(this.tools)
+      .map(([name, tool]) => `- ${name}: ${tool.description || "Agent helper tool"}`)
+      .join("\n");
+
+    return `You are an endpoint agent representing the raw endpoint "${this.definition.id}".
+Purpose: ${this.definition.description}
+Instructions: ${this.definition.systemInstructions}
+Intelligence Capability Spec: ${JSON.stringify(this.definition.intelligenceSpec)}
 
 Input Schema (JSON Schema format):
-${JSON.stringify(this.schema.inputSchema, null, 2)}
+${JSON.stringify(this.definition.inputSchema, null, 2)}
 
 Examples:
-${JSON.stringify(this.schema.examples, null, 2)}
+${JSON.stringify(this.definition.examples, null, 2)}
 
 Current live state variables:
 ${JSON.stringify(liveVars, null, 2)}
+
+Endpoint Memory (learned experiences from prior executions):
+${this.definition.memory || "No prior memories recorded yet."}
+
+Available Tools (you can call these internally if needed):
+${toolsDesc}
 
 Your primary job is to extract, convert, or infer parameters from user requests to produce a valid JSON payload matching the input schema.
 Output ONLY raw, pure JSON. Do not write explanations, markdown blocks, formatting or wrapping.`;
@@ -116,7 +129,7 @@ Output ONLY raw, pure JSON. Do not write explanations, markdown blocks, formatti
   }
 
   private validatePayload(payload: any): { valid: boolean; error?: string } {
-    const functionality = this.system.localFunctionalities.get(this.schema.functionalityId);
+    const functionality = this.system.localFunctionalities.get(this.definition.id);
     if (!functionality || !functionality.schema || !functionality.schema.input) {
       return { valid: true };
     }
@@ -138,7 +151,7 @@ Output ONLY raw, pure JSON. Do not write explanations, markdown blocks, formatti
     request: string,
     liveVars: Record<string, any>
   ): Promise<{ payload: any; retryCount: number; failures: string[]; aiTimeMs: number }> {
-    const maxRetries = this.schema.retryConfig?.maxRetries || 4;
+    const maxRetries = this.definition.retryConfig?.maxRetries || 4;
     const failures: string[] = [];
     let systemPrompt = this.buildSystemPrompt(liveVars);
     let userPrompt = request;
@@ -148,7 +161,7 @@ Output ONLY raw, pure JSON. Do not write explanations, markdown blocks, formatti
       const aiCallStart = Date.now();
       let aiResponse = "";
       try {
-        aiResponse = await this.aikoClient.infer(this.schema.intelligenceSpec, systemPrompt, userPrompt);
+        aiResponse = await this.aikoClient.infer(this.definition.intelligenceSpec, systemPrompt, userPrompt);
       } catch (err: any) {
         aiTimeAccumulator += Date.now() - aiCallStart;
         failures.push(`Aiko connection failure: ${err.message}`);

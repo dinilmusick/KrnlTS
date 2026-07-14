@@ -19,29 +19,55 @@ export interface KrnlIntelligenceSpec {
   outputComplexity: number;  // 0-10
 }
 
-export interface KrnlAiEndpointConfig {
-  enabled: boolean;
-  intelligenceSpec?: KrnlIntelligenceSpec;
-  description?: string;
-  systemInstructions?: string;
-  staticWatchVars?: string[];
-  dynamicWatchVars?: string[];
-  retryConfig?: Partial<KrnlPolicy>;
-  examples?: any[];
-}
+export interface KrnlEndpointDefinition {
+  // ── Identity ────────────────────────────────
+  id: string;
+  category: 'krnl_system' | 'app';   // system endpoints vs. user app endpoints
 
-export interface KrnlEndpointAgentSchema {
-  functionalityId: string;
-  description: string;
-  inputSchema: any;           // JSON Schema resolved from Zod via zodToJsonSchema
+  // ── Protocol ────────────────────────────────
+  method: 'GET' | 'POST';
+  visibility: 'public' | 'private';
+
+  // ── Schemas ─────────────────────────────────
+  inputSchema: any;    // zodToJsonSchema serialized, or {} if none
   outputSchema: any;
-  examples: any[];
-  systemInstructions: string;
+
+  // ── Natural Language Metadata ────────────────
+  description: string;            // NL: when/why/what this endpoint does
+  systemInstructions: string;     // Prompt override injected into EP agent
+
+  // ── Examples ────────────────────────────────
+  examples: Array<{ label?: string; input: any; output?: any }>;
+  examplePayload: any;            // Quick-fill single example for the frontend
+
+  // ── Agent Configuration ─────────────────────
   intelligenceSpec: KrnlIntelligenceSpec;
+  agentTools: string[];           // Tool IDs available to this EP's agent
+                                  // (built-ins always injected; this adds app-specific)
   retryConfig: KrnlPolicy;
+
+  // ── Context / Watch Variables ────────────────
   staticWatchVars: string[];
   dynamicWatchVars: string[];
-  permissions: KrnlEndpointAccessPolicy | null;
+
+  // ── Access Control ───────────────────────────
+  accessPolicy: KrnlEndpointAccessPolicy | null;
+
+  // ── Emitters / Events ────────────────────────
+  emitters: string[];             // emitter IDs registered on this endpoint
+  sourcePath: string | null;
+
+  // ── Persistent Memory ────────────────────────
+  memory: string;                 // Orchestrator-written learnings for this EP
+                                  // (freeform text; injected into EP agent context)
+
+  // ── Runtime State ────────────────────────────
+  runtimeEdited: boolean;         // true if any field has been overridden in KrnlRuntimeStore
+}
+
+export interface KrnlOrchestratorMemory {
+  memory: string;         // Freeform learnings written by the orchestrator
+  lastUpdated: number;    // timestamp
 }
 
 export interface KrnlAiExecutionTrace {

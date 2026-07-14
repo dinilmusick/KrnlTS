@@ -169,9 +169,9 @@ export interface BlockDescriptor {
 }
 
 export type {
-  KrnlAiEndpointConfig,
+  KrnlEndpointDefinition,
   KrnlIntelligenceSpec,
-  KrnlEndpointAgentSchema,
+  KrnlOrchestratorMemory,
   KrnlAiExecutionTrace,
   KrnlWatchVariable
 } from "./K_LIB_Krnl_Ai_Concepts.js";

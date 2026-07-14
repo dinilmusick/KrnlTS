@@ -18,6 +18,12 @@ import {
   getUsedPortsApi,
   findFreePortsApi,
   shutdownApi,
+  getIngressNetworkTopologyApi,
+  getEndpointDefinitionsApi,
+  setEndpointDefinitionApi,
+  getTelemetryLogApi,
+  getAikoCatalogApi,
+  aiOrchestrationApi,
 } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
 import { Logger } from "./K_LIB_Krnl_Base_Concepts.js";
 import { krnlUnifiedHttpAdapter } from "./K_LIB_Krnl_System_Unified_Http_Adapter.js";
@@ -31,7 +37,6 @@ import {
   KrnlFrontendMemberConfig
 } from "./types.js";
 import { KrnlIngressNetwork } from "./K_LIB_Krnl_System_Ingress_Network.js";
-import { getIngressNetworkTopologyApi } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
 import { KrnlFrontend } from "./K_LIB_Krnl_System_Frontend.js";
 
 // AI Imports
@@ -41,7 +46,6 @@ import { KrnlEndpointScheduler } from "./K_LIB_Krnl_Endpoint_Scheduler.js";
 import { KrnlApplicationOrchestrator } from "./K_LIB_Krnl_Application_Orchestrator.js";
 import { KrnlRuntimeStore } from "./K_LIB_Krnl_Runtime_Store.js";
 import { KrnlEndpointAgent } from "./K_LIB_Krnl_Endpoint_Agent.js";
-import { KrnlEndpointAgentSchema } from "./K_LIB_Krnl_Ai_Concepts.js";
 
 import http from 'http';
 import net  from 'net';
@@ -71,6 +75,22 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   _aikoClient: KrnlAikoClient | null = null;
   _aiProfilesStore: KrnlRuntimeStore | null = null;
   _aikoCatalog: Record<string, any> = {};
+  _krnlSystemEndpointIds: Set<string> = new Set([
+    'heartbeat',
+    'getTelemetry',
+    'adminCommand',
+    'discoverPeers',
+    'getManifest',
+    'getLastActionDocs',
+    'getFullDocumentation',
+    'getUsedPorts',
+    'findFreePorts',
+    'shutdown',
+    'getIngressNetworkTopology',
+    'getAikoCatalog',
+    'ai'
+  ]);
+
 
   reservation: {
     busy: boolean;
@@ -1222,60 +1242,33 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     });
 
     this.addLocal({
-      id: 'setEndpointAgentProfile',
-      description: 'Sets and persists the AI config profile for an endpoint.',
-      api: async ({ endpointId, config }: any) => {
-        if (this._aiProfilesStore) {
-          await this._aiProfilesStore.setProfile(endpointId, config);
-          // Re-initialize AI layer to load the new config on-the-fly dynamically
-          await this.initializeAiLayer(this._entityDataDir);
-          return { status: 'success' };
-        }
-        return { status: 'error', message: 'AI Profiles Store not initialized.' };
-      }
+      id: 'getEndpointDefinitions',
+      description: 'Aggregates and returns the full definitions of all endpoints in the system.',
+      api: getEndpointDefinitionsApi(this as any)
     });
 
     this.addLocal({
-      id: 'getEndpointAgentProfile',
-      description: 'Retrieves the dynamic AI config profile for an endpoint.',
-      api: async ({ endpointId }: any) => {
-        if (this._aiProfilesStore) {
-          const profile = await this._aiProfilesStore.getProfile(endpointId);
-          return { status: 'success', profile };
-        }
-        return { status: 'error', message: 'AI Profiles Store not initialized.' };
-      }
+      id: 'setEndpointDefinition',
+      description: 'Sets and persists runtime config overrides for an endpoint.',
+      api: setEndpointDefinitionApi(this as any)
+    });
+
+    this.addLocal({
+      id: 'getTelemetryLog',
+      description: 'Retrieves historical telemetry traces from the persistent store.',
+      api: getTelemetryLogApi(this as any)
     });
 
     this.addLocal({
       id: 'getAikoCatalog',
       description: 'Retrieves the cached or live agent profiles catalog from Aiko.',
-      api: async () => {
-        if (!this._aikoClient) {
-          return { status: 'error', message: 'Aiko client not initialized.' };
-        }
-        try {
-          this._aikoCatalog = await this._aikoClient.fetchCatalog();
-          return { status: 'success', catalog: this._aikoCatalog };
-        } catch (e: any) {
-          return { status: 'error', message: `Failed to fetch catalog: ${e.message}`, catalog: this._aikoCatalog };
-        }
-      }
+      api: getAikoCatalogApi(this as any)
     });
 
     this.addLocal({
       id: 'ai',
       description: 'Natural language gateway — routes to correct endpoint agent via Aiko.',
-      api: async ({ message }: any) => {
-        if (!this._aiOrchestrator) {
-          return { status: 'error', message: KrnlAikoClient.getNotRunningMessage() };
-        }
-        try {
-          return await this._aiOrchestrator.handle(message);
-        } catch (e: any) {
-          return { status: 'error', message: e.message };
-        }
-      }
+      api: aiOrchestrationApi(this as any)
     });
   }
 
@@ -1291,6 +1284,13 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       this._aiProfilesStore = new KrnlRuntimeStore(appRoot);
       await this._aiProfilesStore.load();
 
+      // Set runtime store in telemetry
+      import('./K_LIB_Krnl_Telemetry.js').then(({ telemetry }) => {
+        if (typeof (telemetry as any).setRuntimeStore === "function") {
+          (telemetry as any).setRuntimeStore(this._aiProfilesStore);
+        }
+      }).catch(() => {});
+
       // Setup client. Fallback to localhost:10095 if not discovered passively
       this._aikoClient = KrnlAikoClient.discover(this) || new KrnlAikoClient(10095);
 
@@ -1298,7 +1298,6 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       const aikoActive = this.isAikoAlive() || await this._aikoClient.isAlive();
       if (!aikoActive) {
         console.warn(`[KrnlTS AI] ${KrnlAikoClient.getNotRunningMessage()}`);
-        // Do not fail startup, just yield warning
       } else {
         try {
           this._aikoCatalog = await this._aikoClient.fetchCatalog();
@@ -1310,61 +1309,41 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       this._aiTracker = new KrnlWatchVariablesTracker();
       this._aiScheduler = new KrnlEndpointScheduler(this._aiTracker);
 
-      const persistedConfigs = await this._aiProfilesStore.getAllProfiles();
+      const overrides = await this._aiProfilesStore.getAllEndpointDefinitions();
       const aiEndpoints: Map<string, KrnlEndpointAgent> = new Map();
+
+      const { buildEndpointDefinition } = await import('./K_LIB_Krnl_System_Base_Functionality_APIs.js');
+      const { KrnlEpTools } = await import('./K_LIB_Krnl_Ep_Tools.js');
 
       // Scan and match AI-enabled functionalities
       for (const [fid, fn] of this.localFunctionalities.entries()) {
-        if (fid === 'ai' || fid === 'setEndpointAgentProfile' || fid === 'getEndpointAgentProfile' || fid === 'getAikoCatalog') continue;
-        const codeConfig = (fn as any).ai;
-        const fileConfig = persistedConfigs[fid];
+        if (fid === 'ai' || fid === 'setEndpointDefinition' || fid === 'getEndpointDefinitions' || fid === 'getTelemetryLog' || fid === 'getAikoCatalog') continue;
         
-        const merged = { ...codeConfig, ...fileConfig };
-        if (!merged || !merged.enabled) continue;
+        const override = overrides[fid] || null;
+        const isEnabled = override?.intelligenceSpec || (fn as any).ai?.enabled || (fn as any).ai;
+        if (!isEnabled) continue;
 
-        // Build Zod input/output schemas to raw JSON schemas
-        let inputSchema = {};
-        let outputSchema = {};
-        if (fn.schema) {
-          if (fn.schema.input) {
-            try {
-              inputSchema = zodToJsonSchema(fn.schema.input);
-            } catch (e) {
-              inputSchema = { type: "object" };
-            }
-          }
-          if (fn.schema.output) {
-            try {
-              outputSchema = zodToJsonSchema(fn.schema.output);
-            } catch (e) {
-              outputSchema = { type: "object" };
+        const mem = await this._aiProfilesStore.getEndpointMemory(fid);
+        const definition = buildEndpointDefinition(fn, this, override, mem);
+
+        this._aiTracker.register(fid, definition, fn);
+
+        const mergedTools: Record<string, any> = { ...KrnlEpTools };
+        if (definition.agentTools && Array.isArray(definition.agentTools)) {
+          for (const toolId of definition.agentTools) {
+            if (this.localFunctionalities.has(toolId) || this.remoteFunctionalities.has(toolId)) {
+              mergedTools[toolId] = {
+                id: toolId,
+                description: `Calls the sibling endpoint '${toolId}'.`,
+                execute: async (payload: any) => {
+                  return await this.call(toolId, payload, { unwrap: true });
+                }
+              };
             }
           }
         }
 
-        const defaultEndpointSpec = {
-          reasoning: 3, planning: 1, toolUsage: 1, structuredOutput: 5, jsonStrictness: 5,
-          coding: 1, extraction: 3, classification: 3, summarization: 3, creativity: 3,
-          determinism: 5, context: 3, vision: 1, multimodal: 1, outputComplexity: 3
-        };
-
-        const schema: KrnlEndpointAgentSchema = {
-          functionalityId: fid,
-          description: merged.description || fn.description || `Execute ${fid}`,
-          inputSchema,
-          outputSchema,
-          examples: merged.examples || fn.examples || [],
-          systemInstructions: merged.systemInstructions || "",
-          intelligenceSpec: merged.intelligenceSpec || (fn as any).intelligenceSpec || defaultEndpointSpec,
-          retryConfig: merged.retryConfig || { maxRetries: 4, timeoutMs: 12000, retryDelayMs: 500, backoffStrategy: "LINEAR" },
-          staticWatchVars: merged.staticWatchVars || [],
-          dynamicWatchVars: merged.dynamicWatchVars || [],
-          permissions: fn.accessPolicy || null
-        };
-
-        this._aiTracker.register(fid, merged, fn);
-
-        const agent = new KrnlEndpointAgent(schema, this._aikoClient, this._aiTracker, this);
+        const agent = new KrnlEndpointAgent(definition, this._aikoClient, this._aiTracker, this as any, mergedTools);
         aiEndpoints.set(fid, agent);
       }
 
@@ -1384,12 +1363,13 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       const escalationSpec = (this as any)._aiEscalationSpec || defaultEscalationSpec;
 
       this._aiOrchestrator = new KrnlApplicationOrchestrator(
-        this,
+        this as any,
         this._aikoClient,
         this._aiTracker,
         this._aiScheduler,
         routingSpec,
-        escalationSpec
+        escalationSpec,
+        this._aiProfilesStore
       );
 
       for (const [fid, agent] of aiEndpoints.entries()) {

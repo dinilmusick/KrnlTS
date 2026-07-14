@@ -4,6 +4,7 @@ import { KrnlWatchVariablesTracker } from "./K_LIB_Krnl_Watch_Variables_Tracker.
 import { KrnlEndpointScheduler } from "./K_LIB_Krnl_Endpoint_Scheduler.js";
 import { KrnlEndpointAgent } from "./K_LIB_Krnl_Endpoint_Agent.js";
 import { krnlSystemEntityBase } from "./K_ENT_Krnl_System_Entity_Base.js";
+import { KrnlRuntimeStore } from "./K_LIB_Krnl_Runtime_Store.js";
 
 export class KrnlApplicationOrchestrator {
   private system: krnlSystemEntityBase;
@@ -13,6 +14,7 @@ export class KrnlApplicationOrchestrator {
   private routingSpec: KrnlIntelligenceSpec;
   private escalationSpec: KrnlIntelligenceSpec;
   private endpointAgents: Map<string, KrnlEndpointAgent> = new Map();
+  private store: KrnlRuntimeStore;
 
   constructor(
     system: krnlSystemEntityBase,
@@ -20,7 +22,8 @@ export class KrnlApplicationOrchestrator {
     tracker: KrnlWatchVariablesTracker,
     scheduler: KrnlEndpointScheduler,
     routingSpec: KrnlIntelligenceSpec,
-    escalationSpec: KrnlIntelligenceSpec
+    escalationSpec: KrnlIntelligenceSpec,
+    store: KrnlRuntimeStore
   ) {
     this.system = system;
     this.aikoClient = aikoClient;
@@ -28,6 +31,7 @@ export class KrnlApplicationOrchestrator {
     this.scheduler = scheduler;
     this.routingSpec = routingSpec;
     this.escalationSpec = escalationSpec;
+    this.store = store;
   }
 
   registerAgent(endpointId: string, agent: KrnlEndpointAgent): void {
@@ -39,11 +43,11 @@ export class KrnlApplicationOrchestrator {
     for (const [fid, agent] of this.endpointAgents.entries()) {
       list.push({
         endpointId: fid,
-        intelligenceSpec: agent.schema.intelligenceSpec,
-        description: agent.schema.description,
-        dynamicWatchVars: agent.schema.dynamicWatchVars,
-        staticWatchVars: agent.schema.staticWatchVars,
-        systemInstructions: agent.schema.systemInstructions
+        intelligenceSpec: agent.definition.intelligenceSpec,
+        description: agent.definition.description,
+        dynamicWatchVars: agent.definition.dynamicWatchVars,
+        staticWatchVars: agent.definition.staticWatchVars,
+        systemInstructions: agent.definition.systemInstructions
       });
     }
     return list;
@@ -99,12 +103,20 @@ export class KrnlApplicationOrchestrator {
   }
 
   private async selectEndpoint(request: string): Promise<string | null> {
-    const systemPrompt = this.buildRoutingPrompt();
+    const orchMem = await this.store.getOrchestratorMemory();
+    const systemPrompt = this.buildRoutingPrompt(orchMem.memory);
     const userPrompt = `User Request: "${request}"\n\nWhich endpoint matches?`;
 
     try {
       const response = await this.aikoClient.infer(this.routingSpec, systemPrompt, userPrompt);
       const selected = response.trim();
+
+      // Record this decision into orchestrator memory
+      const logMsg = `Routed request "${request}" to "${selected}" at ${new Date().toISOString()}`;
+      const updatedMem = orchMem.memory ? orchMem.memory + "\n" + logMsg : logMsg;
+      // Cap memory size to prevent infinite growth (keep last 20 actions)
+      const memLines = updatedMem.split("\n").slice(-20).join("\n");
+      await this.store.setOrchestratorMemory(memLines);
 
       if (this.endpointAgents.has(selected)) {
         return selected;
@@ -122,7 +134,7 @@ export class KrnlApplicationOrchestrator {
     return null;
   }
 
-  private buildRoutingPrompt(): string {
+  private buildRoutingPrompt(orchestratorMemory: string): string {
     const summaries = this.getAgentSummaries().map(s => {
       return `- ${s.endpointId}: ${s.description}`;
     }).join("\n");
@@ -131,6 +143,9 @@ export class KrnlApplicationOrchestrator {
 
 Available endpoints:
 ${summaries}
+
+Orchestrator Memory (recent routing history & learnings):
+${orchestratorMemory || "No routing decisions recorded yet."}
 
 Response Rules:
 Reply with ONLY the exact endpoint name from the list above. Write nothing else. No punctuation, no wrapping.`;
@@ -150,9 +165,9 @@ Reply with ONLY the exact endpoint name from the list above. Write nothing else.
     const liveVars = this.tracker.readLiveVars(failedEndpointId);
     const systemPrompt = `You are the system orchestrator resolving a failure.
 Endpoint: ${failedEndpointId}
-Purpose: ${agent.schema.description}
+Purpose: ${agent.definition.description}
 Input Schema (JSON Schema):
-${JSON.stringify(agent.schema.inputSchema)}
+${JSON.stringify(agent.definition.inputSchema)}
 Live state variables:
 ${JSON.stringify(liveVars)}
 
@@ -174,8 +189,12 @@ Output ONLY raw JSON.`;
       // Trigger standard API call
       const result = await this.system.call(failedEndpointId, payload, { unwrap: false });
 
+      // Save a learning memory to the endpoint memory slot
+      const learning = `Request "${request}" failed due to "${reason}". Resolved with payload: ${JSON.stringify(payload)}`;
+      await this.store.appendEndpointMemory(failedEndpointId, learning);
+
       // Self-Optimization: Auto-upgrade endpoint intelligence spec to prevent future regressions
-      const currentSpec = agent.schema.intelligenceSpec;
+      const currentSpec = agent.definition.intelligenceSpec;
       const upgradedSpec: KrnlIntelligenceSpec = { ...currentSpec };
       // Boost core metrics to increase capability for subsequent runs
       if (upgradedSpec.reasoning < 10) upgradedSpec.reasoning += 1;
@@ -183,14 +202,15 @@ Output ONLY raw JSON.`;
       if (upgradedSpec.jsonStrictness < 10) upgradedSpec.jsonStrictness += 1;
 
       console.log(`[Orchestrator Self-Optimization] Upgrading endpoint "${failedEndpointId}" intelligence requirements to prevent regression.`);
-      await this.system.call("setEndpointAgentProfile", {
-        endpointId: failedEndpointId,
-        config: {
-          ...agent.schema,
-          enabled: true,
-          intelligenceSpec: upgradedSpec
-        }
-      });
+      
+      const defOverride = await this.store.getEndpointDefinition(failedEndpointId) || {};
+      defOverride.intelligenceSpec = upgradedSpec;
+      await this.store.setEndpointDefinition(failedEndpointId, defOverride);
+
+      // Trigger reload of AI layers in system
+      if (typeof (this.system as any).initializeAiLayer === "function") {
+        await (this.system as any).initializeAiLayer(this.system._entityDataDir);
+      }
 
       const totalLatency = Date.now() - startTime;
       const upgradedTrace: KrnlAiExecutionTrace = {
@@ -216,6 +236,8 @@ Output ONLY raw JSON.`;
       };
     } catch (e: any) {
       console.error("[Orchestrator Escalation] Escalation failed:", e.message);
+      const learning = `Request "${request}" failed due to "${reason}". Escalation also failed with "${e.message}".`;
+      await this.store.appendEndpointMemory(failedEndpointId, learning);
       throw e;
     }
   }

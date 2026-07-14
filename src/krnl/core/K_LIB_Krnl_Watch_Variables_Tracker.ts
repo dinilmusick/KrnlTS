@@ -1,12 +1,12 @@
-import { KrnlAiEndpointConfig } from "./K_LIB_Krnl_Ai_Concepts.js";
+import { KrnlEndpointDefinition } from "./K_LIB_Krnl_Ai_Concepts.js";
 
 export class KrnlWatchVariablesTracker {
   private registeredFunctionalities: Map<string, any> = new Map();
-  private endpointConfigs: Map<string, KrnlAiEndpointConfig> = new Map();
+  private endpointConfigs: Map<string, KrnlEndpointDefinition> = new Map();
 
   register(
     functionalityId: string,
-    config: KrnlAiEndpointConfig,
+    config: KrnlEndpointDefinition,
     functionality: any
   ): void {
     this.registeredFunctionalities.set(functionalityId, functionality);

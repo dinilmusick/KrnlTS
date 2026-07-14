@@ -48,6 +48,7 @@ export class KrnlTelemetry {
   totalAiCalls: number;
   totalAiRetries: number;
   avgAiLatencyMs: number;
+  private runtimeStore: any = null;
 
   constructor() {
     this.metrics = new Map<string, TelemetryStats>();
@@ -62,6 +63,10 @@ export class KrnlTelemetry {
     this.avgAiLatencyMs = 0;
   }
 
+  setRuntimeStore(store: any): void {
+    this.runtimeStore = store;
+  }
+
   recordAiTrace(trace: any): void {
     if (this.aiTraces.length >= this.ringBufferSize) {
       this.aiTraces.shift();
@@ -70,6 +75,18 @@ export class KrnlTelemetry {
     this.totalAiCalls++;
     this.totalAiRetries += trace.retryCount || 0;
     this.avgAiLatencyMs = (this.avgAiLatencyMs * (this.totalAiCalls - 1) + trace.latencyMs) / this.totalAiCalls;
+
+    if (this.runtimeStore) {
+      this.runtimeStore.appendTelemetry({
+        type: "ai_trace",
+        endpointId: trace.endpointId,
+        timestamp: trace.timestamp,
+        latencyMs: trace.latencyMs,
+        retryCount: trace.retryCount,
+        success: !trace.failureReason,
+        failures: trace.validationFailures
+      }).catch(() => {});
+    }
   }
 
   /**
@@ -138,6 +155,16 @@ export class KrnlTelemetry {
       if (logs.length > this.ringBufferSize) {
         logs.shift();
       }
+    }
+
+    if (this.runtimeStore) {
+      this.runtimeStore.appendTelemetry({
+        type: "standard_call",
+        endpointId: fid,
+        timestamp: Date.now(),
+        durationMs: latencyMs,
+        success
+      }).catch(() => {});
     }
   }
 
