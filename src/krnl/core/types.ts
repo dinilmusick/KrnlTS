@@ -6,6 +6,7 @@ export interface KrnlFunctionality<I = any, O = any> {
     schema?: z.ZodType<I>;
     visibility?: "public" | "private" | "protected";
     description?: string;
+    example?: any;
 }
 
 export interface KrnlPeer {

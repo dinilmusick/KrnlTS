@@ -24,7 +24,7 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
 
   constructor(name: string, appPath: string, options: KrnlCustomFrontendOptions = {}) {
     // Custom frontend runs locally on a custom port
-    super(`frontend-${name}`, null, -1, '127.0.0.1', { Singleton: true, disableMagneticLoading: true });
+    super(`frontend-${name}`, null, -1, '127.0.0.1', { Singleton: true, _skipMagneticLoading: true });
     this.appPath = appPath;
     this.options = options;
     this._isIngressNetworkMember = true;

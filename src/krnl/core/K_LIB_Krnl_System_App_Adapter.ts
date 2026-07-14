@@ -12,7 +12,7 @@ export class KrnlNonKrnlAppAdapter extends krnlSystemEntityBase {
 
   constructor(name: string, appPath: string) {
     // Non-Krnl app runs locally under a custom dynamic port, but exposes no external OS port
-    super(name, null, -1, '127.0.0.1', { Singleton: true, disableMagneticLoading: true });
+    super(name, null, -1, '127.0.0.1', { Singleton: true, _skipMagneticLoading: true });
     this.appPath = appPath;
     this._isIngressNetworkMember = true;
 

@@ -204,7 +204,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   async _runMagneticLoader(options: any = {}): Promise<void> {
-    if (options.disableMagneticLoading) {
+    if (options._skipMagneticLoading) {
       return;
     }
     try {
@@ -888,15 +888,16 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     };
 
     const buildFManifest = (f: any, type: 'local' | 'remote', resolved: any) => {
-       const fManifest: any = {
-         id: f.id,
-         type,
-         method: resolved.method || 'POST',
-         visibility: resolved.visibility,
-         sourcePath: resolved.sourcePath, 
-         examples: resolved.examples || f.examples || null,
-         events: [] 
-       };
+        const fManifest: any = {
+          id: f.id,
+          type,
+          method: resolved.method || 'POST',
+          visibility: resolved.visibility,
+          sourcePath: resolved.sourcePath, 
+          examples: resolved.examples || f.examples || null,
+          example: resolved.example || f.example || null,
+          events: [] 
+        };
        if (resolved.intelligenceSpec) {
          fManifest.intelligenceSpec = resolved.intelligenceSpec;
        }

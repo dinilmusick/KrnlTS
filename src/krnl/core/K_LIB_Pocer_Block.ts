@@ -25,7 +25,7 @@ export class PocerBlock extends krnlSystemEntityBase {
   private _dockerProvider: "colima" | "docker-desktop" | null = null;
 
   constructor(name: string, blockConfig: PocerBlockConfig) {
-    super(name, null, -1, "127.0.0.1", { Singleton: true, disableMagneticLoading: true });
+    super(name, null, -1, "127.0.0.1", { Singleton: true, _skipMagneticLoading: true });
     this.blockConfig = blockConfig;
     this._isIngressNetworkMember = true;
 

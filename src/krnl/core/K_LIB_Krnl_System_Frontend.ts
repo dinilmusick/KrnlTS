@@ -33,9 +33,19 @@ export class KrnlFrontend {
 
     if (normalized === '/manifest.json' && req.method === 'GET') {
       const manifest = this.system.getManifest();
+      const customFrontends = this.system._ingressNetwork
+        ? Array.from(this.system._ingressNetwork.members.entries())
+            .filter(([, entry]: any) => entry.memberType === 'frontend')
+            .map(([key, entry]: any) => ({
+              name: entry.config.name,
+              path: '/' + key + '/',
+              displayName: entry.config.options?.displayName || entry.config.name
+            }))
+        : [];
       const payload = {
         ...manifest,
         ingressMembers: this.system._ingressNetwork ? Array.from(this.system._ingressNetwork.members.keys()) : [],
+        customFrontends,
         interactionsHistory: this.interactionsHistory
       };
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -674,6 +684,69 @@ export class KrnlFrontend {
       margin-top: 0.5rem;
     }
 
+    /* Tabs & Custom Frontends UI */
+    .tab-bar {
+      display: flex;
+      gap: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+      padding-bottom: 0.5rem;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font-sans);
+      font-size: 1.1rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .tab-btn.active {
+      color: white;
+      background: var(--primary-gradient);
+    }
+    .custom-frontends-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .frontend-card {
+      background: var(--bg-surface);
+      backdrop-filter: var(--card-blur);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: var(--glass-shadow);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1rem;
+      transition: all 0.2s;
+    }
+    .frontend-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--primary);
+      box-shadow: 0 12px 40px rgba(59, 130, 246, 0.15);
+      background: var(--bg-surface-hover);
+    }
+    .frontend-card-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .frontend-card-path {
+      font-size: 0.85rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
     ${customCss}
   </style>
 </head>
@@ -713,7 +786,18 @@ export class KrnlFrontend {
     </aside>
 
     <main>
+      <div class="tab-bar">
+        <button class="tab-btn active" id="tab-endpoints-btn" onclick="switchTab('endpoints')">Endpoints</button>
+        <button class="tab-btn" id="tab-custom-btn" onclick="switchTab('custom')">Custom Frontends</button>
+      </div>
+
       <div class="main-grid" id="main-content">
+        <!-- Custom Frontends View Container -->
+        <div id="custom-frontends-view" style="display: none; width: 100%;">
+          <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Registered Custom Frontends</h3>
+          <div class="custom-frontends-grid" id="custom-frontends-container"></div>
+        </div>
+
         <!-- Sub-Apps (Ingress network) Section if any -->
         <div id="ingress-section" style="display: none; margin-bottom: 2rem;">
           <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem;">Sub-App Network Topology</h3>
@@ -1005,6 +1089,63 @@ export class KrnlFrontend {
       }
     }
 
+    function switchTab(tab) {
+      const endpointsBtn = document.getElementById('tab-endpoints-btn');
+      const customBtn = document.getElementById('tab-custom-btn');
+      const customView = document.getElementById('custom-frontends-view');
+      const welcomePanel = document.getElementById('welcome-panel');
+      const endpointPanel = document.getElementById('endpoint-panel');
+      const aiSettingsPanel = document.getElementById('ai-settings-panel');
+      const ingressSection = document.getElementById('ingress-section');
+
+      if (tab === 'endpoints') {
+        endpointsBtn.classList.add('active');
+        customBtn.classList.remove('active');
+        customView.style.display = 'none';
+        if (activeFid) {
+          endpointPanel.style.display = 'block';
+          // Only show AI settings if it is a local endpoint
+          const api = manifestData.inputs.api[activeFid];
+          if (api && api.type === 'local' && activeFid !== 'ai' && activeFid !== 'setEndpointAgentProfile' && activeFid !== 'getEndpointAgentProfile' && activeFid !== 'getAikoCatalog') {
+            aiSettingsPanel.style.display = 'block';
+          }
+        } else {
+          welcomePanel.style.display = 'block';
+        }
+        if (manifestData && manifestData.ingressMembers && manifestData.ingressMembers.length > 0) {
+          ingressSection.style.display = 'block';
+        }
+      } else {
+        customBtn.classList.add('active');
+        endpointsBtn.classList.remove('active');
+        customView.style.display = 'block';
+        welcomePanel.style.display = 'none';
+        endpointPanel.style.display = 'none';
+        aiSettingsPanel.style.display = 'none';
+        ingressSection.style.display = 'none';
+        renderCustomFrontends();
+      }
+    }
+
+    function renderCustomFrontends() {
+      const container = document.getElementById('custom-frontends-container');
+      container.innerHTML = '';
+      if (manifestData && manifestData.customFrontends && manifestData.customFrontends.length > 0) {
+        manifestData.customFrontends.forEach(fe => {
+          const card = document.createElement('div');
+          card.className = 'frontend-card';
+          card.innerHTML = '<div>' +
+            '<div class="frontend-card-title">🔷 ' + fe.displayName + '</div>' +
+            '<div class="frontend-card-path">' + fe.path + '</div>' +
+            '</div>' +
+            '<a href="../..' + fe.path + '" target="_blank" class="btn btn-primary" style="align-self: flex-start; text-decoration: none;">Launch Frontend →</a>';
+          container.appendChild(card);
+        });
+      } else {
+        container.innerHTML = '<div style="color: var(--text-muted); font-style: italic;">No custom frontends registered for this app.</div>';
+      }
+    }
+
     function renderIngressTopology() {
       const ingressSection = document.getElementById('ingress-section');
       const container = document.getElementById('ingress-container');
@@ -1024,6 +1165,7 @@ export class KrnlFrontend {
       } else {
         ingressSection.style.display = 'none';
       }
+      renderCustomFrontends();
     }
 
     function selectEndpoint(fid) {
@@ -1125,10 +1267,14 @@ export class KrnlFrontend {
       const examples = api.examples || [];
       const mockExample = generateMockFromSchema(inputSchema);
       const showMock = mockExample && Object.keys(mockExample).length > 0;
-      if (examples.length > 0 || showMock) {
+      const apiExample = api.example;
+      if (examples.length > 0 || showMock || apiExample) {
         examplesHtml = '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px;">' +
           '<div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem; letter-spacing: 0.05em;">Load Example Payload:</div>' +
           '<div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">';
+        if (apiExample) {
+          examplesHtml += '<button type="button" class="btn btn-primary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="loadExample(' + JSON.stringify(apiExample).replace(/"/g, '&quot;') + ')">✨ Example Payload</button>';
+        }
         if (showMock) {
           examplesHtml += '<button type="button" class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="loadExample(' + JSON.stringify(mockExample).replace(/"/g, '&quot;') + ')">✨ Schema Mock</button>';
         }
