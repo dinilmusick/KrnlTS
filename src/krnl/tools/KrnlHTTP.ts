@@ -22,7 +22,7 @@ export class KrnlHTTP {
    * Helper to perform fetch with timeout and retries.
    */
   private static async requestRaw(url: string, opts: KrnlHTTPOptions = {}): Promise<Response> {
-    const timeout = opts.timeout || 15000;
+    const timeout = opts.timeout || 60000;
     const retries = opts.retries || 0;
 
     const perform = async () => {

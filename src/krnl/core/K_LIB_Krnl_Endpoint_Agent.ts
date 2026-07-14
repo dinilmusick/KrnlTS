@@ -118,14 +118,26 @@ ${toolsDesc}
 Your primary job is to extract, convert, or infer parameters from user requests to produce a valid JSON payload matching the input schema.
 Output ONLY raw, pure JSON. Do not write explanations, markdown blocks, formatting or wrapping.`;
   }
-
   private parsePayload(aiResponse: string): any {
     let cleaned = aiResponse.trim();
-    // Strip markdown code fences if present
+    // Strip markdown code fences if present at boundary
     if (cleaned.startsWith("```")) {
       cleaned = cleaned.replace(/^```(json)?\n/, "").replace(/\n```$/, "");
     }
-    return JSON.parse(cleaned.trim());
+    cleaned = cleaned.trim();
+    try {
+      return JSON.parse(cleaned);
+    } catch (err) {
+      const match = cleaned.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+      if (match) {
+        try {
+          return JSON.parse(match[0].trim());
+        } catch (e) {
+          // ignore, throw original
+        }
+      }
+      throw err;
+    }
   }
 
   private validatePayload(payload: any): { valid: boolean; error?: string } {

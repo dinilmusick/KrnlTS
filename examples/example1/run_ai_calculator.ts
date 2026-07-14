@@ -22,6 +22,40 @@ async function runRealAiCalculator() {
     process.exit(1);
   }
   console.log("✓ Connected to Aiko server on port " + aikoPort);
+  
+  // Aiko setup: sync models, classify local model, and enable local preference
+  console.log("Triggering and awaiting Aiko ProviderSync...");
+  const aikoUrl = `http://localhost:${aikoPort}`;
+  const callAiko = async (fid: string, data: any) => {
+    const res = await fetch(`${aikoUrl}/call/${fid}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+    return await res.json();
+  };
+  await callAiko("ProviderSync", {});
+
+  console.log("Classifying the local Qwen model in Aiko registry...");
+  await callAiko("AgentProfileManager", {
+    action: "classify",
+    id: "merlocal:Qwen2.5-0.5B-Instruct-Q2_K.gguf",
+    status: "available",
+    intelligenceSpec: {
+      reasoning: 5, planning: 2, toolUsage: 1, structuredOutput: 8,
+      jsonStrictness: 8, coding: 1, extraction: 6, classification: 4,
+      summarization: 1, creativity: 1, determinism: 8, context: 5,
+      vision: 0, multimodal: 0, outputComplexity: 3
+    }
+  });
+
+  console.log("Setting Aiko preferences to prefer local models...");
+  await callAiko("UserPreferences", {
+    action: "update",
+    preferences: {
+      preferLocal: true
+    }
+  });
 
   // 2. Setup local system with Calculator functionality
   class CalcSystem extends krnlSystemEntityBase {
@@ -63,11 +97,10 @@ async function runRealAiCalculator() {
   const calcFunc = system.localFunctionalities.get("Calculator");
   calcFunc.state = stateObj; // bind state
 
-  // Define full intelligence specs
   const routingSpec: KrnlIntelligenceSpec = {
-    reasoning: 3, planning: 1, toolUsage: 0, structuredOutput: 5, jsonStrictness: 5,
-    coding: 0, extraction: 2, classification: 5, summarization: 1, creativity: 1,
-    determinism: 8, context: 3, vision: 0, multimodal: 0, outputComplexity: 2
+    reasoning: 7, planning: 7, toolUsage: 9, structuredOutput: 9, jsonStrictness: 8,
+    coding: 7, extraction: 9, classification: 9, summarization: 9, creativity: 8,
+    determinism: 7, context: 9, vision: 9, multimodal: 9, outputComplexity: 8
   };
 
   const endpointSpec: KrnlIntelligenceSpec = {
