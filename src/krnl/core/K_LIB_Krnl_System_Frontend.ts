@@ -821,14 +821,13 @@ export class KrnlFrontend {
       <div class="brand-logo">🔷</div>
       <div>
         <h1 class="brand-title">${title}</h1>
-        <div style="font-size: 0.75rem; color: var(--text-muted);">KrnlTS Self-Hosted Control Panel</div>
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 1rem;">
       <div class="meta-badges">
-        <span class="badge" id="aiko-status-badge" style="background-color: #ef4444; color: white;">Aiko: Offline</span>
-        <span class="badge badge-primary" id="system-type-badge">System</span>
-        <span class="badge" id="port-badge">Port: ...</span>
+        <span class="badge" id="aiko-status-badge" style="background-color: #ef4444; color: white;">AIKO: OFFLINE</span>
+        <span class="badge badge-primary" id="system-type-badge">SYSTEM</span>
+        <span class="badge" id="port-badge">PORT: ...</span>
       </div>
       <button class="theme-toggle" id="theme-toggle-btn" aria-label="Toggle Theme">🌓</button>
     </div>
@@ -837,14 +836,14 @@ export class KrnlFrontend {
   <div class="app-container">
     <aside>
       <div class="sidebar-section">
-        <div class="sidebar-section-title">Local Endpoints</div>
+        <div class="sidebar-section-title">LOCAL ENDPOINTS</div>
         <ul class="nav-list" id="local-endpoints-list">
           <li style="color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem;">Loading...</li>
         </ul>
       </div>
       
       <div class="sidebar-section" id="remote-section" style="display: none;">
-        <div class="sidebar-section-title">Remote Endpoints</div>
+        <div class="sidebar-section-title">REMOTE ENDPOINTS</div>
         <ul class="nav-list" id="remote-endpoints-list"></ul>
       </div>
     </aside>
@@ -875,12 +874,12 @@ export class KrnlFrontend {
         </div>
 
         <div id="welcome-panel" class="detail-card" style="text-align: center; padding: 4rem 2rem;">
-          <h2 style="font-size: 2.25rem; margin-bottom: 1rem;">Welcome to the Control Panel</h2>
+          <h2 style="font-size: 2.25rem; margin-bottom: 1rem;">Control Panel</h2>
           <p style="color: var(--text-muted); max-width: 600px; margin: 0 auto 2rem;">
-            This dynamic user interface is served on-the-fly and reflects the configuration of your KrnlTS System Entity in real time. Select an endpoint in the sidebar to call it or monitor its events.
+            Select an endpoint in the sidebar to call it or monitor its events.
           </p>
           <div class="meta-badges" style="justify-content: center;">
-            <span class="badge" id="welcome-details">Initialising...</span>
+            <span class="badge" id="welcome-details">INITIALISING...</span>
           </div>
         </div>
 
@@ -1294,13 +1293,13 @@ export class KrnlFrontend {
       const aiSettingsPanel = document.getElementById('ai-settings-panel')!;
       if (isLocal && !isMerApp && fid !== 'ai' && fid !== 'setEndpointAgentProfile' && fid !== 'getEndpointAgentProfile' && fid !== 'getAikoCatalog') {
         aiSettingsPanel.style.display = 'block';
-        (this as any).loadAiSettings(fid);
+        loadAiSettings(fid);
       } else {
         aiSettingsPanel.style.display = 'none';
       }
 
       // Disconnect previous SSE stream
-      (this as any).disconnectSse();
+      disconnectSse();
 
       let inputsHtml = '';
       if (method === 'POST') {
