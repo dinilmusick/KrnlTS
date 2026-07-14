@@ -1269,7 +1269,7 @@ export class KrnlFrontend {
       renderCustomFrontends();
     }
 
-    function selectEndpoint(fid) {
+    function selectEndpoint(fid: string) {
       if (activeFid) {
         const prevItem = document.getElementById('nav-item-' + activeFid);
         if (prevItem) prevItem.classList.remove('active');
@@ -1279,28 +1279,29 @@ export class KrnlFrontend {
       const nextItem = document.getElementById('nav-item-' + fid);
       if (nextItem) nextItem.classList.add('active');
 
-      document.getElementById('welcome-panel').style.display = 'none';
+      document.getElementById('welcome-panel')!.style.display = 'none';
       
-      const panel = document.getElementById('endpoint-panel');
+      const panel = document.getElementById('endpoint-panel')!;
       panel.style.display = 'block';
 
-      // Load and show AI profile settings panel for this local endpoint (if local)
+      const api = (manifestData as any).inputs.api[fid];
+      const method = api.method || 'POST';
+      const inputSchema = api.schema && api.schema.input;
+
+      // Load and show AI profile settings panel for this local endpoint (if local and not disabled for Mer/Gemini apps)
       const isLocal = api && api.type === 'local';
-      const aiSettingsPanel = document.getElementById('ai-settings-panel');
-      if (isLocal && fid !== 'ai' && fid !== 'setEndpointAgentProfile' && fid !== 'getEndpointAgentProfile' && fid !== 'getAikoCatalog') {
+      const isMerApp = (manifestData as any).entityName.toLowerCase().includes('mer') || (manifestData as any).entityName.toLowerCase().includes('gemini');
+      const aiSettingsPanel = document.getElementById('ai-settings-panel')!;
+      if (isLocal && !isMerApp && fid !== 'ai' && fid !== 'setEndpointAgentProfile' && fid !== 'getEndpointAgentProfile' && fid !== 'getAikoCatalog') {
         aiSettingsPanel.style.display = 'block';
-        loadAiSettings(fid);
+        (this as any).loadAiSettings(fid);
       } else {
         aiSettingsPanel.style.display = 'none';
       }
 
       // Disconnect previous SSE stream
-      disconnectSse();
+      (this as any).disconnectSse();
 
-      const api = manifestData.inputs.api[fid];
-      const method = api.method || 'POST';
-      const inputSchema = api.schema && api.schema.input;
-      
       let inputsHtml = '';
       if (method === 'POST') {
         if (inputSchema && inputSchema.properties) {
@@ -1386,6 +1387,15 @@ export class KrnlFrontend {
         examplesHtml += '</div></div>';
       }
 
+      let curlHtml = '';
+      curlHtml = '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); border-radius: 8px;">' +
+        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">' +
+        '<span style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em;">💻 cURL Command Preview:</span>' +
+        '<button type="button" class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="copyCurl()">📋 Copy</button>' +
+        '</div>' +
+        '<pre id="curl-preview-box" style="font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.4; color: #3b82f6; overflow-x: auto; white-space: pre-wrap; word-break: break-all;">curl ...</pre>' +
+        '</div>';
+
       panel.innerHTML = '<div class="card-header">' +
         '<div class="card-title-area">' +
         '<h2>' + fid + '</h2>' +
@@ -1395,6 +1405,7 @@ export class KrnlFrontend {
         '</div>' +
         '<form id="endpoint-call-form" onsubmit="handleCall(event, \\'' + fid + '\\', \\'' + method + '\\')">' +
         examplesHtml +
+        curlHtml +
         inputsHtml +
         '<div style="margin-top: 1.5rem; display: flex; gap: 1rem;">' +
         '<button type="submit" class="btn btn-primary">⚡ Send Request</button>' +
@@ -1409,6 +1420,60 @@ export class KrnlFrontend {
         '<div class="output-container" id="response-output-pre"></div>' +
         '</div>' +
         sseHtml;
+
+      // Real-time update script attached on client side
+      const updateCurlBox = () => {
+        const curlBox = document.getElementById('curl-preview-box');
+        if (!curlBox) return;
+        let currentPayload: any = {};
+        if (method === 'POST') {
+          if (inputSchema && inputSchema.properties) {
+            for (const key of Object.keys(inputSchema.properties)) {
+              const el = document.getElementById('input-' + key) as any;
+              if (el) {
+                if (el.type === 'checkbox') {
+                  currentPayload[key] = el.checked;
+                } else if (el.type === 'number') {
+                  currentPayload[key] = el.value ? Number(el.value) : undefined;
+                } else if (el.tagName === 'TEXTAREA') {
+                  try { currentPayload[key] = el.value ? JSON.parse(el.value) : undefined; } catch (e) {}
+                } else {
+                  currentPayload[key] = el.value || undefined;
+                }
+              }
+            }
+          } else {
+            const rawEl = document.getElementById('raw-json-input') as HTMLTextAreaElement;
+            if (rawEl && rawEl.value) {
+              try { currentPayload = JSON.parse(rawEl.value); } catch (e) {}
+            }
+          }
+          curlBox.innerText = 'curl -X POST http://localhost:' + (window.location.port || 80) + '/api/' + fid + ' \\\n' +
+            '  -H "Content-Type: application/json" \\\n' +
+            '  -d \'' + JSON.stringify(currentPayload, null, 2).replace(/'/g, "'\\''") + '\'';
+        } else {
+          // GET
+          let queryParams: any = {};
+          if (inputSchema && inputSchema.properties) {
+            for (const key of Object.keys(inputSchema.properties)) {
+              const el = document.getElementById('input-' + key) as HTMLInputElement;
+              if (el && el.value) queryParams[key] = el.value;
+            }
+          }
+          const qs = new URLSearchParams(queryParams).toString();
+          curlBox.innerText = 'curl http://localhost:' + (window.location.port || 80) + '/api/' + fid + (qs ? '?' + qs : '');
+        }
+      };
+
+      const form = document.getElementById('endpoint-call-form');
+      if (form) {
+        form.querySelectorAll('input, textarea, select').forEach(input => {
+          input.addEventListener('input', updateCurlBox);
+          input.addEventListener('change', updateCurlBox);
+        });
+      }
+      (window as any).activeCurlUpdater = updateCurlBox;
+      updateCurlBox();
     }
 
     async function handleCall(event, fid, method) {
