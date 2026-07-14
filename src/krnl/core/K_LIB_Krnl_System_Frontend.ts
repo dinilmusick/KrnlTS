@@ -42,10 +42,20 @@ export class KrnlFrontend {
               displayName: entry.config.options?.displayName || entry.config.name
             }))
         : [];
+      const subApps = this.system._ingressNetwork
+        ? Array.from(this.system._ingressNetwork.members.entries())
+            .filter(([, entry]: any) => entry.memberType === 'subapp')
+            .map(([prefix, entry]: any) => ({
+              prefix,
+              entityName: entry.entity?.entityName || prefix,
+              defaultFrontendPath: '/' + prefix + '/frontend/default/'
+            }))
+        : [];
       const payload = {
         ...manifest,
         ingressMembers: this.system._ingressNetwork ? Array.from(this.system._ingressNetwork.members.keys()) : [],
         customFrontends,
+        subApps,
         interactionsHistory: this.interactionsHistory
       };
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -746,6 +756,60 @@ export class KrnlFrontend {
       font-family: var(--font-mono);
       color: var(--text-muted);
     }
+    .subapp-card {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+      backdrop-filter: var(--card-blur);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: var(--glass-shadow);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1rem;
+      transition: all 0.2s;
+    }
+    .subapp-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(59, 130, 246, 0.55);
+      box-shadow: 0 12px 40px rgba(59, 130, 246, 0.2);
+    }
+    .subapp-card-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(59, 130, 246, 0.15);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 9999px;
+      padding: 0.2rem 0.6rem;
+      margin-bottom: 0.3rem;
+      width: fit-content;
+    }
+    .section-divider {
+      margin: 2rem 0 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .section-divider h4 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .section-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-color);
+    }
 
     ${customCss}
   </style>
@@ -788,14 +852,20 @@ export class KrnlFrontend {
     <main>
       <div class="tab-bar">
         <button class="tab-btn active" id="tab-endpoints-btn" onclick="switchTab('endpoints')">Endpoints</button>
-        <button class="tab-btn" id="tab-custom-btn" onclick="switchTab('custom')">Custom Frontends</button>
+        <button class="tab-btn" id="tab-custom-btn" onclick="switchTab('custom')">Sub-Apps &amp; Frontends</button>
       </div>
 
       <div class="main-grid" id="main-content">
         <!-- Custom Frontends View Container -->
         <div id="custom-frontends-view" style="display: none; width: 100%;">
-          <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem;">Registered Custom Frontends</h3>
-          <div class="custom-frontends-grid" id="custom-frontends-container"></div>
+          <div id="subapps-section">
+            <div class="section-divider"><h4>🔌 Sub-Apps</h4></div>
+            <div class="custom-frontends-grid" id="subapps-container"></div>
+          </div>
+          <div id="frontends-section">
+            <div class="section-divider"><h4>🎨 Custom Frontends</h4></div>
+            <div class="custom-frontends-grid" id="custom-frontends-container"></div>
+          </div>
         </div>
 
         <!-- Sub-Apps (Ingress network) Section if any -->
@@ -1128,9 +1198,33 @@ export class KrnlFrontend {
     }
 
     function renderCustomFrontends() {
+      // --- Sub-Apps section ---
+      const subappsContainer = document.getElementById('subapps-container');
+      const subappsSection = document.getElementById('subapps-section');
+      subappsContainer.innerHTML = '';
+      if (manifestData && manifestData.subApps && manifestData.subApps.length > 0) {
+        subappsSection.style.display = '';
+        manifestData.subApps.forEach(sa => {
+          const card = document.createElement('div');
+          card.className = 'subapp-card';
+          card.innerHTML = '<div>' +
+            '<div class="subapp-card-badge">⚙️ Sub-App</div>' +
+            '<div class="frontend-card-title">' + sa.entityName + '</div>' +
+            '<div class="frontend-card-path">/' + sa.prefix + '/</div>' +
+            '</div>' +
+            '<a href="' + sa.defaultFrontendPath + '" class="btn btn-primary" style="align-self: flex-start; text-decoration: none;">Open Control Panel →</a>';
+          subappsContainer.appendChild(card);
+        });
+      } else {
+        subappsSection.style.display = 'none';
+      }
+
+      // --- Custom Frontends section ---
       const container = document.getElementById('custom-frontends-container');
+      const frontendsSection = document.getElementById('frontends-section');
       container.innerHTML = '';
       if (manifestData && manifestData.customFrontends && manifestData.customFrontends.length > 0) {
+        frontendsSection.style.display = '';
         manifestData.customFrontends.forEach(fe => {
           const card = document.createElement('div');
           card.className = 'frontend-card';
@@ -1142,7 +1236,14 @@ export class KrnlFrontend {
           container.appendChild(card);
         });
       } else {
-        container.innerHTML = '<div style="color: var(--text-muted); font-style: italic;">No custom frontends registered for this app.</div>';
+        frontendsSection.style.display = 'none';
+      }
+
+      // If both empty, show a placeholder
+      if ((!manifestData?.subApps || manifestData.subApps.length === 0) &&
+          (!manifestData?.customFrontends || manifestData.customFrontends.length === 0)) {
+        subappsSection.style.display = '';
+        subappsContainer.innerHTML = '<div style="color: var(--text-muted); font-style: italic; grid-column: 1/-1;">No sub-apps or custom frontends registered for this app.</div>';
       }
     }
 
