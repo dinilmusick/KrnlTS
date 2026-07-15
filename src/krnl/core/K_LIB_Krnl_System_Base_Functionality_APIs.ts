@@ -456,11 +456,22 @@ export function aiOrchestrationApi(entity: any) {
       throw new Error(KrnlAikoClient.getNotRunningMessage());
     }
     try {
-      return await entity._aiOrchestrator.handle(message);
+      await entity._aiOrchestrator.orchestrate(message);
+      return { status: 'pipeline-started', info: entity._aiOrchestrator.taskRunner.getStatus() };
     } catch (e: any) {
       return { status: 'error', message: e.message };
     }
   };
 }
+
+export function getTaskListApi(entity: any) {
+  return () => {
+    if (!entity._aiOrchestrator) {
+      return { status: 'inactive', tasks: [], cursor: 0 };
+    }
+    return entity._aiOrchestrator.taskRunner.getStatus();
+  };
+}
+
 
 

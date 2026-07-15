@@ -1,9 +1,16 @@
 export const KrnlEpTools = {
   calculator: {
     id: "calculator",
-    description: "Evaluates standard numeric/arithmetic mathematical expressions securely.",
+    description: "eval arith-expr(str) → num. use-when: derive numeric val from schema fields.",
+    schema: {
+      input: { expression: "str: arith expr. ops: +,-,*,/,(). e.g. '(a+b)*c'" },
+      output: "num"
+    },
+    examples: [
+      { input: { expression: "10 + 5 * 2" }, output: 20 },
+      { input: { expression: "(100-30)/7" }, output: 10 }
+    ],
     execute: (expression: string): number => {
-      // Safe evaluation of simple arithmetic using Function
       const sanitized = expression.replace(/[^0-9+\-*/().\s]/g, "");
       try {
         const result = new Function(`return (${sanitized});`)();
@@ -17,7 +24,15 @@ export const KrnlEpTools = {
 
   jsonCreator: {
     id: "jsonCreator",
-    description: "Validates, formats, and creates/merges JSON payloads.",
+    description: "parse(jsonStr) → obj | merge(obj,base) → merged. use-when: validate/build payload.",
+    schema: {
+      input: { jsonStr: "str: valid JSON", mergeWith: "obj? base to merge into" },
+      output: "obj"
+    },
+    examples: [
+      { input: { jsonStr: '{"a":1}' }, output: { a: 1 } },
+      { input: { jsonStr: '{"b":2}', mergeWith: { a: 1 } }, output: { a: 1, b: 2 } }
+    ],
     execute: (jsonStr: string, mergeWith?: any): any => {
       try {
         const parsed = JSON.parse(jsonStr);
@@ -33,7 +48,14 @@ export const KrnlEpTools = {
 
   textFormatter: {
     id: "textFormatter",
-    description: "Formats text templates by interpolating variable values.",
+    description: "render(template,vars) → str. use-when: replace placeholders in templates.",
+    schema: {
+      input: { template: "str w/ {{key}} placeholders", variables: "obj mapping keys → values" },
+      output: "str"
+    },
+    examples: [
+      { input: { template: "hello {{name}}", variables: { name: "alice" } }, output: "hello alice" }
+    ],
     execute: (template: string, variables: Record<string, any>): string => {
       let result = template;
       for (const [key, value] of Object.entries(variables)) {
@@ -45,7 +67,14 @@ export const KrnlEpTools = {
 
   endpointCaller: {
     id: "endpointCaller",
-    description: "Allows an endpoint agent to call other endpoints within the same system.",
+    description: "call(endpointId,payload) → res. use-when: invoke sibling endpoint in same system.",
+    schema: {
+      input: { endpointId: "str: target endpoint", payload: "obj: input matching target schema" },
+      output: "any"
+    },
+    examples: [
+      { input: { endpointId: "StoreKey", payload: { name: "test", value: "val" } }, output: { status: "success" } }
+    ],
     execute: async (system: any, endpointId: string, payload: any): Promise<any> => {
       if (!system || typeof system.call !== "function") {
         throw new Error("System host entity not available or invalid.");
@@ -56,14 +85,20 @@ export const KrnlEpTools = {
 
   healthChecker: {
     id: "healthChecker",
-    description: "Queries the heartbeat status of a sibling system or component.",
+    description: "ping(peerId) → status. use-when: verify component/sibling system is alive.",
+    schema: {
+      input: { peerId: "str: peer system identifier" },
+      output: "obj"
+    },
+    examples: [
+      { input: { peerId: "Aiko" }, output: { status: "alive" } }
+    ],
     execute: async (system: any, peerId: string): Promise<any> => {
       if (!system) throw new Error("System host entity not available.");
       const peer = system.getRemoteEntity ? system.getRemoteEntity(peerId) : null;
       if (peer) {
         return await peer.call("heartbeat", {});
       }
-      // Try local call if peer is unregistered but exists locally
       if (system.localFunctionalities?.has("heartbeat")) {
         return await system.call("heartbeat", {});
       }

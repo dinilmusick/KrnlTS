@@ -24,6 +24,7 @@ import {
   getTelemetryLogApi,
   getAikoCatalogApi,
   aiOrchestrationApi,
+  getTaskListApi,
 } from "./K_LIB_Krnl_System_Base_Functionality_APIs.js";
 import { Logger } from "./K_LIB_Krnl_Base_Concepts.js";
 import { krnlUnifiedHttpAdapter } from "./K_LIB_Krnl_System_Unified_Http_Adapter.js";
@@ -64,7 +65,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   _frontendEnabled: boolean = false;
   _frontend: KrnlFrontend | null = null;
   _isSubApp: boolean = false;
-  systemType: string;
+  declare systemType: string;
   peers: Map<string, any>;
   discoverable: boolean;
   
@@ -88,6 +89,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     'shutdown',
     'getIngressNetworkTopology',
     'getAikoCatalog',
+    'getTaskList',
     'ai'
   ]);
 
@@ -1291,6 +1293,12 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       description: 'Natural language gateway — routes to correct endpoint agent via Aiko.',
       api: aiOrchestrationApi(this as any)
     });
+
+    this.addLocal({
+      id: 'getTaskList',
+      description: 'Retrieves current task list and status from the orchestrator.',
+      api: getTaskListApi(this as any)
+    });
   }
 
   isAikoAlive(): boolean {
@@ -1349,10 +1357,17 @@ export class krnlSystemEntityBase extends krnlEntityBase {
 
         this._aiTracker.register(fid, definition, fn);
 
-        const mergedTools: Record<string, any> = { ...KrnlEpTools };
+        const mergedTools: Record<string, any> = {};
         if (definition.agentTools && Array.isArray(definition.agentTools)) {
+          const addAllBuiltins = definition.agentTools.includes('*');
+          if (addAllBuiltins) {
+            Object.assign(mergedTools, KrnlEpTools);
+          }
           for (const toolId of definition.agentTools) {
-            if (this.localFunctionalities.has(toolId) || this.remoteFunctionalities.has(toolId)) {
+            if (toolId === '*') continue;
+            if (KrnlEpTools[toolId as keyof typeof KrnlEpTools]) {
+              mergedTools[toolId] = KrnlEpTools[toolId as keyof typeof KrnlEpTools];
+            } else if (this.localFunctionalities.has(toolId) || this.remoteFunctionalities.has(toolId)) {
               mergedTools[toolId] = {
                 id: toolId,
                 description: `Calls the sibling endpoint '${toolId}'.`,

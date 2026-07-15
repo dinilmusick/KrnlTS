@@ -94,3 +94,43 @@ export interface KrnlWatchVariable {
   currentValue: any;
 }
 
+export type KrnlTaskStatus = 'pending' | 'running' | 'done' | 'skipped';
+
+export interface KrnlTask {
+  id: string;
+  endpointId: string;
+  prompt: string;
+  status: KrnlTaskStatus;
+  parentTaskId?: string;
+  nestingDepth: number;
+  result?: any;
+}
+
+export interface KrnlLearning {
+  id: string;
+  concernedEndpoint: string;
+  problemDescription: string;
+  tags: string[];
+  solution: string;
+  createdAt: number;
+}
+
+export const KrnlPlannerSpec: KrnlIntelligenceSpec = {
+  reasoning: 9,
+  planning: 10,
+  toolUsage: 8,
+  structuredOutput: 9,
+  jsonStrictness: 8,
+  coding: 2,
+  extraction: 6,
+  classification: 5,
+  summarization: 5,
+  creativity: 3,
+  determinism: 7,
+  context: 8,
+  vision: 1,
+  multimodal: 1,
+  outputComplexity: 6
+};
+
+

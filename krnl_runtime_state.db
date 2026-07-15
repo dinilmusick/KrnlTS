@@ -18,14 +18,67 @@
         "multimodal": 0,
         "outputComplexity": 3
       }
+    },
+    "StoreKey": {
+      "intelligenceSpec": {
+        "reasoning": 4
+      }
     }
   },
   "endpointMemories": {
-    "Calculator": "[2026-07-14T21:15:59.539Z] Request \"Can you please add 12 and 15 for me?\" failed due to \"Endpoint agent execution failed after connection errors. Last: This operation was aborted\". Escalation also failed with \"This operation was aborted\".\n[2026-07-14T21:22:18.880Z] Request \"Can you please add 12 and 15 for me?\" failed due to \"Endpoint agent execution failed after connection errors. Last: This operation was aborted\". Escalation also failed with \"This operation was aborted\".\n[2026-07-14T21:27:10.401Z] Request \"Can you please add 12 and 15 for me?\" failed due to \"Endpoint agent execution failed after connection errors. Last: This operation was aborted\". Resolved with payload: {\"a\":15,\"b\":12,\"op\":\"add\"}\n[2026-07-14T21:30:24.997Z] Request \"Can you please add 12 and 15 for me?\" failed due to \"Endpoint agent validation failed after 3 retries: Validation attempt 0 failed: [\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"a\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"b\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"expected\": \"'add' | 'sub' | 'mul' | 'div'\",\n    \"received\": \"undefined\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"op\"\n    ],\n    \"message\": \"Required\"\n  }\n] | Validation attempt 1 failed: [\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"a\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"b\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"expected\": \"'add' | 'sub' | 'mul' | 'div'\",\n    \"received\": \"undefined\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"op\"\n    ],\n    \"message\": \"Required\"\n  }\n] | Validation attempt 2 failed: [\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"a\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"b\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"expected\": \"'add' | 'sub' | 'mul' | 'div'\",\n    \"received\": \"undefined\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"op\"\n    ],\n    \"message\": \"Required\"\n  }\n] | Validation attempt 3 failed: [\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"a\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"b\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"expected\": \"'add' | 'sub' | 'mul' | 'div'\",\n    \"received\": \"undefined\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"op\"\n    ],\n    \"message\": \"Required\"\n  }\n]\". Resolved with payload: {\"a\":15,\"b\":12,\"op\":\"add\"}"
+    "Calculator": "[2026-07-14T21:15:59.539Z] Request \"Can you please add 12 and 15 for me?\" failed due to \"Endpoint agent execution failed after connection errors. Last: This operation was aborted\". Escalation also failed with \"This operation was aborted\".\n[2026-07-14T21:22:18.880Z] Request \"Can you please add 12 and 15 for me?\" failed due to \"Endpoint agent execution failed after connection errors. Last: This operation was aborted\". Escalation also failed with \"This operation was aborted\".\n[2026-07-14T21:27:10.401Z] Request \"Can you please add 12 and 15 for me?\" failed due to \"Endpoint agent execution failed after connection errors. Last: This operation was aborted\". Resolved with payload: {\"a\":15,\"b\":12,\"op\":\"add\"}\n[2026-07-14T21:30:24.997Z] Request \"Can you please add 12 and 15 for me?\" failed due to \"Endpoint agent validation failed after 3 retries: Validation attempt 0 failed: [\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"a\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"b\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"expected\": \"'add' | 'sub' | 'mul' | 'div'\",\n    \"received\": \"undefined\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"op\"\n    ],\n    \"message\": \"Required\"\n  }\n] | Validation attempt 1 failed: [\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"a\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"b\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"expected\": \"'add' | 'sub' | 'mul' | 'div'\",\n    \"received\": \"undefined\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"op\"\n    ],\n    \"message\": \"Required\"\n  }\n] | Validation attempt 2 failed: [\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"a\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"b\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"expected\": \"'add' | 'sub' | 'mul' | 'div'\",\n    \"received\": \"undefined\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"op\"\n    ],\n    \"message\": \"Required\"\n  }\n] | Validation attempt 3 failed: [\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"a\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"b\"\n    ],\n    \"message\": \"Required\"\n  },\n  {\n    \"expected\": \"'add' | 'sub' | 'mul' | 'div'\",\n    \"received\": \"undefined\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      \"op\"\n    ],\n    \"message\": \"Required\"\n  }\n]\". Resolved with payload: {\"a\":15,\"b\":12,\"op\":\"add\"}",
+    "StoreKey": "[2026-07-15T10:34:30.763Z] Problem: cannot read properties null (reading 'dispatch') | Solution: corrected payload: {\"name\":\"api_key\",\"value\":\"sk-recovered\"}\n[2026-07-15T10:37:12.973Z] Problem: zod validation error name too short | Solution: expand name to 3 chars"
   },
   "orchestratorMemory": {
     "memory": "Routed request \"Can you please add 12 and 15 for me?\" to \"Calculator\" at 2026-07-14T13:49:27.014Z\nRouted request \"Can you please add 12 and 15 for me?\" to \"Calculator\" at 2026-07-14T13:49:41.057Z\nRouted request \"Can you please add 12 and 15 for me?\" to \"Calculator\" at 2026-07-14T21:03:46.615Z\nRouted request \"Can you please add 12 and 15 for me?\" to \"Calculator\" at 2026-07-14T21:06:09.156Z\nRouted request \"Can you please add 12 and 15 for me?\" to \"Calculator\" at 2026-07-14T21:14:43.120Z\nRouted request \"Can you please add 12 and 15 for me?\" to \"Calculator\" at 2026-07-14T21:21:03.779Z\nRouted request \"Can you please add 12 and 15 for me?\" to \"Calculator\" at 2026-07-14T21:25:59.734Z\nRouted request \"Can you please add 12 and 15 for me?\" to \"Calculator\" at 2026-07-14T21:29:02.968Z",
     "lastUpdated": 1784064542968
   },
-  "telemetryLog": []
+  "telemetryLog": [],
+  "learnings": [
+    {
+      "id": "learn_1784111670762_3yorwe0",
+      "concernedEndpoint": "StoreKey",
+      "problemDescription": "cannot read properties null (reading 'dispatch')",
+      "tags": [],
+      "solution": "corrected payload: {\"name\":\"api_key\",\"value\":\"sk-recovered\"}",
+      "createdAt": 1784111670763
+    },
+    {
+      "id": "learn_123",
+      "concernedEndpoint": "StoreKey",
+      "problemDescription": "zod validation error name too short",
+      "tags": [
+        "validation",
+        "zod"
+      ],
+      "solution": "expand name to 3 chars",
+      "createdAt": 1784111832973
+    }
+  ],
+  "activeTasks": {
+    "tasks": [
+      {
+        "id": "task_1784111670700_dws00pc_0",
+        "endpointId": "StoreKey",
+        "prompt": "Store main key",
+        "status": "done",
+        "nestingDepth": 0,
+        "result": {
+          "status": "success",
+          "payload": {
+            "status": "success",
+            "stored": "API_KEY"
+          }
+        }
+      },
+      {
+        "id": "task_1784111670700_uq9dtr8_1",
+        "endpointId": "StoreKey",
+        "prompt": "Store backup key",
+        "status": "pending",
+        "nestingDepth": 0
+      }
+    ],
+    "cursor": 1
+  }
 }

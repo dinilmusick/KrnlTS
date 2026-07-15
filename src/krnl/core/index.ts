@@ -36,5 +36,8 @@ export { KrnlEndpointScheduler } from "./K_LIB_Krnl_Endpoint_Scheduler.js";
 export { KrnlEndpointAgent } from "./K_LIB_Krnl_Endpoint_Agent.js";
 export { KrnlApplicationOrchestrator } from "./K_LIB_Krnl_Application_Orchestrator.js";
 export { KrnlRuntimeStore } from "./K_LIB_Krnl_Runtime_Store.js";
+export { KrnlTaskList, KrnlTaskRunner } from "./K_LIB_Krnl_Task_Runner.js";
+export { KrnlPlannerAgent } from "./K_LIB_Krnl_Planner_Agent.js";
+
 
 

@@ -92,10 +92,15 @@ export class KrnlEndpointAgent {
 
   private buildSystemPrompt(liveVars: Record<string, any>): string {
     const toolsDesc = Object.entries(this.tools)
-      .map(([name, tool]) => `- ${name}: ${tool.description || "Agent helper tool"}`)
+      .map(([name, tool]) => {
+        const schemaStr = tool.schema ? `\n  Schema: ${JSON.stringify(tool.schema)}` : "";
+        const examplesStr = tool.examples ? `\n  Examples: ${JSON.stringify(tool.examples)}` : "";
+        return `- ${name}: ${tool.description || "Agent helper tool"}${schemaStr}${examplesStr}`;
+      })
       .join("\n");
 
-    return `You are an endpoint agent representing the raw endpoint "${this.definition.id}".
+    return `respond: caveman/pseudo-code/math only. no NL filler. use symbols for flow (→,∩,≥,|). output=json unless signal.
+You are an endpoint agent representing the raw endpoint "${this.definition.id}".
 Purpose: ${this.definition.description}
 Instructions: ${this.definition.systemInstructions}
 Intelligence Capability Spec: ${JSON.stringify(this.definition.intelligenceSpec)}

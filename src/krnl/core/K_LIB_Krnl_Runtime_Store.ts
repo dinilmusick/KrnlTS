@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { KrnlEndpointDefinition, KrnlOrchestratorMemory } from "./K_LIB_Krnl_Ai_Concepts.js";
+import { KrnlEndpointDefinition, KrnlOrchestratorMemory, KrnlLearning } from "./K_LIB_Krnl_Ai_Concepts.js";
 
 export class KrnlRuntimeStore {
   private filePath: string;
@@ -9,11 +9,15 @@ export class KrnlRuntimeStore {
     endpointMemories: Record<string, string>;
     orchestratorMemory: KrnlOrchestratorMemory;
     telemetryLog: any[];
+    learnings: KrnlLearning[];
+    activeTasks: any | null;
   } = {
     endpointDefinitions: {},
     endpointMemories: {},
     orchestratorMemory: { memory: "", lastUpdated: 0 },
-    telemetryLog: []
+    telemetryLog: [],
+    learnings: [],
+    activeTasks: null
   };
 
   constructor(appRoot: string) {
@@ -29,6 +33,8 @@ export class KrnlRuntimeStore {
         if (!this.data.endpointMemories) this.data.endpointMemories = {};
         if (!this.data.orchestratorMemory) this.data.orchestratorMemory = { memory: "", lastUpdated: 0 };
         if (!this.data.telemetryLog) this.data.telemetryLog = [];
+        if (!this.data.learnings) this.data.learnings = [];
+        if (this.data.activeTasks === undefined) this.data.activeTasks = null;
       } else {
         await this.save();
       }
@@ -38,7 +44,9 @@ export class KrnlRuntimeStore {
         endpointDefinitions: {},
         endpointMemories: {},
         orchestratorMemory: { memory: "", lastUpdated: 0 },
-        telemetryLog: []
+        telemetryLog: [],
+        learnings: [],
+        activeTasks: null
       };
     }
   }
@@ -92,6 +100,42 @@ export class KrnlRuntimeStore {
       return this.data.telemetryLog.slice(-limit);
     }
     return this.data.telemetryLog;
+  }
+
+  async appendLearning(learning: KrnlLearning): Promise<void> {
+    if (!this.data.learnings) this.data.learnings = [];
+    this.data.learnings.push(learning);
+    // Backward compatibility memory append:
+    await this.appendEndpointMemory(
+      learning.concernedEndpoint,
+      `Problem: ${learning.problemDescription} | Solution: ${learning.solution}`
+    );
+    await this.save();
+  }
+
+  async searchLearnings(endpointId: string, tags: string[]): Promise<KrnlLearning[]> {
+    const pool = (this.data.learnings || []).filter(l => l.concernedEndpoint === endpointId);
+    if (tags.length === 0) return pool;
+
+    const matched = pool.filter(l => {
+      const intersect = l.tags.filter(t => tags.includes(t));
+      return intersect.length > 0;
+    }).sort((a, b) => {
+      const intersectA = a.tags.filter(t => tags.includes(t)).length;
+      const intersectB = b.tags.filter(t => tags.includes(t)).length;
+      return intersectB - intersectA;
+    });
+
+    return matched.length > 0 ? matched : pool;
+  }
+
+  async saveTaskList(listData: { tasks: any[]; cursor: number }): Promise<void> {
+    this.data.activeTasks = listData;
+    await this.save();
+  }
+
+  async loadTaskList(): Promise<{ tasks: any[]; cursor: number } | null> {
+    return this.data.activeTasks || null;
   }
 
   private async save(): Promise<void> {

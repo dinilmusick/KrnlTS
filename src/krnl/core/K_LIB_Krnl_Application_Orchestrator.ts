@@ -1,20 +1,25 @@
-import { KrnlIntelligenceSpec, KrnlAiExecutionTrace } from "./K_LIB_Krnl_Ai_Concepts.js";
+import { KrnlIntelligenceSpec, KrnlAiExecutionTrace, KrnlLearning } from "./K_LIB_Krnl_Ai_Concepts.js";
 import { KrnlAikoClient } from "./K_LIB_Krnl_Aiko_Client.js";
 import { KrnlWatchVariablesTracker } from "./K_LIB_Krnl_Watch_Variables_Tracker.js";
 import { KrnlEndpointScheduler } from "./K_LIB_Krnl_Endpoint_Scheduler.js";
 import { KrnlEndpointAgent } from "./K_LIB_Krnl_Endpoint_Agent.js";
 import { krnlSystemEntityBase } from "./K_ENT_Krnl_System_Entity_Base.js";
 import { KrnlRuntimeStore } from "./K_LIB_Krnl_Runtime_Store.js";
+import { KrnlTaskRunner, KrnlTaskList } from "./K_LIB_Krnl_Task_Runner.js";
+import { KrnlPlannerAgent } from "./K_LIB_Krnl_Planner_Agent.js";
 
 export class KrnlApplicationOrchestrator {
   private system: krnlSystemEntityBase;
   private aikoClient: KrnlAikoClient;
-  private tracker: KrnlWatchVariablesTracker;
-  private scheduler: KrnlEndpointScheduler;
+  public tracker: KrnlWatchVariablesTracker;
+  public scheduler: KrnlEndpointScheduler;
   private routingSpec: KrnlIntelligenceSpec;
   private escalationSpec: KrnlIntelligenceSpec;
-  private endpointAgents: Map<string, KrnlEndpointAgent> = new Map();
+  public endpointAgents: Map<string, KrnlEndpointAgent> = new Map();
   private store: KrnlRuntimeStore;
+  
+  public taskRunner: KrnlTaskRunner;
+  public plannerAgent: KrnlPlannerAgent;
 
   constructor(
     system: krnlSystemEntityBase,
@@ -32,6 +37,9 @@ export class KrnlApplicationOrchestrator {
     this.routingSpec = routingSpec;
     this.escalationSpec = escalationSpec;
     this.store = store;
+    
+    this.taskRunner = new KrnlTaskRunner(system);
+    this.plannerAgent = new KrnlPlannerAgent(aikoClient, system, this.taskRunner);
   }
 
   registerAgent(endpointId: string, agent: KrnlEndpointAgent): void {
@@ -163,13 +171,25 @@ Reply with ONLY the exact endpoint name from the list above. Write nothing else.
     if (!agent) throw new Error("Agent not found for escalation");
 
     const liveVars = this.tracker.readLiveVars(failedEndpointId);
-    const systemPrompt = `You are the system orchestrator resolving a failure.
+    
+    // Feature 2: Structured learnings search
+    const inferredTags = this._inferTagsFromError(reason);
+    const priorLearnings = await this.store.searchLearnings(failedEndpointId, inferredTags);
+    const learningsPrompt = priorLearnings.map(l => 
+      `prior-learning: prob="${l.problemDescription}" tags=${l.tags.join(",")} sol="${l.solution}"`
+    ).join("\n");
+
+    const systemPrompt = `respond: caveman/pseudo-code/math only. no NL filler. use symbols for flow (→,∩,≥,|). output=json unless signal.
+You are the system orchestrator resolving a failure.
 Endpoint: ${failedEndpointId}
 Purpose: ${agent.definition.description}
 Input Schema (JSON Schema):
 ${JSON.stringify(agent.definition.inputSchema)}
 Live state variables:
 ${JSON.stringify(liveVars)}
+
+Prior learnings on failures:
+${learningsPrompt || "none"}
 
 The previous attempt failed with reason: "${reason}".
 Your job is to override this, inspect the error, and generate a valid JSON payload matching the input schema.
@@ -189,9 +209,16 @@ Output ONLY raw JSON.`;
       // Trigger standard API call
       const result = await this.system.call(failedEndpointId, payload, { unwrap: false });
 
-      // Save a learning memory to the endpoint memory slot
-      const learning = `Request "${request}" failed due to "${reason}". Resolved with payload: ${JSON.stringify(payload)}`;
-      await this.store.appendEndpointMemory(failedEndpointId, learning);
+      // Save a learning memory in structured format
+      const learning: KrnlLearning = {
+        id: `learn_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        concernedEndpoint: failedEndpointId,
+        problemDescription: this._compressToLearningField(reason),
+        tags: inferredTags,
+        solution: this._compressToLearningField(`corrected payload: ${JSON.stringify(payload)}`),
+        createdAt: Date.now()
+      };
+      await this.store.appendLearning(learning);
 
       // Self-Optimization: Auto-upgrade endpoint intelligence spec to prevent future regressions
       const currentSpec = agent.definition.intelligenceSpec;
@@ -236,9 +263,155 @@ Output ONLY raw JSON.`;
       };
     } catch (e: any) {
       console.error("[Orchestrator Escalation] Escalation failed:", e.message);
-      const learning = `Request "${request}" failed due to "${reason}". Escalation also failed with "${e.message}".`;
-      await this.store.appendEndpointMemory(failedEndpointId, learning);
       throw e;
     }
   }
+
+  // Feature 1: Orchestration Entrypoints
+  async orchestrate(naturalLanguageRequest: string): Promise<void> {
+    console.log(`[Orchestrator] Planning autonomous task execution for: "${naturalLanguageRequest}"`);
+    const taskList = await this.plannerAgent.plan(naturalLanguageRequest);
+    if (this.store) {
+      await taskList.persist(this.store);
+    }
+    await this.taskRunner.run(taskList);
+  }
+
+  async handleQuery(query: string, context: { taskId: string; endpointId: string }): Promise<void> {
+    console.log(`[Orchestrator] Endpoint agent requested data query: "${query}"`);
+    // Ask planner to plan nested tasks
+    const nestedList = await this.plannerAgent.plan(query, `Context: Parent task ${context.taskId} (${context.endpointId})`);
+    await this.taskRunner.receiveNest(nestedList.tasks.map(t => ({ endpointId: t.endpointId, prompt: t.prompt })), context.taskId);
+  }
+
+  _inferTagsFromError(reason: string): string[] {
+    const clean = reason.toLowerCase();
+    const tags = [];
+    if (clean.includes("validation") || clean.includes("zod")) tags.push("validation");
+    if (clean.includes("json") || clean.includes("parse")) tags.push("json-parse");
+    if (clean.includes("missing") || clean.includes("required")) tags.push("missing-field");
+    if (clean.includes("type")) tags.push("type-mismatch");
+    if (clean.includes("network") || clean.includes("fetch") || clean.includes("http")) tags.push("network");
+    return tags;
+  }
+
+  _compressToLearningField(text: string): string {
+    return text
+      .toLowerCase()
+      .replace(/\b(the|a|an|and|or|but|is|are|was|were|be|been|being|to|from|by|for|with|about|against|between|into|through|during|before|after|above|below|to|of|at|by|under|over|again|further|then|once|here|there|when|where|why|how|all|any|both|each|few|more|most|other|some|such|no|nor|not|only|own|same|so|than|too|very|s|t|can|will|just|don|should|now)\b/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  async escalateTaskFailure(taskId: string, errorReason: string): Promise<void> {
+    const list = this.taskRunner.getTaskList();
+    if (!list) return;
+    const task = list.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    console.warn(`[Orchestrator] Task ${taskId} failed. Attempting automated resolution...`);
+    const agent = this.endpointAgents.get(task.endpointId);
+    if (!agent) {
+      this.escalateToHuman(taskId, `Agent not found for ${task.endpointId}`);
+      return;
+    }
+
+    const inferredTags = this._inferTagsFromError(errorReason);
+    const priorLearnings = await this.store.searchLearnings(task.endpointId, inferredTags);
+
+    const liveVars = this.tracker.readLiveVars(task.endpointId);
+    
+    // Inject prior learnings in caveman format into prompt
+    const learningsPrompt = priorLearnings.map(l => 
+      `prior-learning: prob="${l.problemDescription}" tags=${l.tags.join(",")} sol="${l.solution}"`
+    ).join("\n");
+
+    const systemPrompt = `respond: caveman/pseudo-code/math only. no NL filler. use symbols for flow (→,∩,≥,|). output=json unless signal.
+You are the system orchestrator resolving a failure.
+Endpoint: ${task.endpointId}
+Purpose: ${agent.definition.description}
+Input Schema (JSON Schema):
+${JSON.stringify(agent.definition.inputSchema)}
+Live state variables:
+${JSON.stringify(liveVars)}
+
+Prior learnings on failures:
+${learningsPrompt || "none"}
+
+The previous attempt failed with reason: "${errorReason}".
+Your job is to override this, inspect the error, and generate a valid JSON payload matching the input schema.
+Output ONLY raw JSON.`;
+
+    const userPrompt = `Task Prompt: "${task.prompt}"\n\nGenerate corrected JSON payload.`;
+
+    try {
+      const response = await this.aikoClient.infer(this.escalationSpec, systemPrompt, userPrompt);
+      let parsedPayload = response.trim();
+      if (parsedPayload.startsWith("```")) {
+        parsedPayload = parsedPayload.replace(/^```(json)?\n/, "").replace(/\n```$/, "");
+      }
+      const payload = JSON.parse(parsedPayload);
+
+      // Trigger standard API call
+      const result = await this.system.call(task.endpointId, payload, { unwrap: false });
+
+      // Save a learning memory in structured format
+      const learning: KrnlLearning = {
+        id: `learn_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        concernedEndpoint: task.endpointId,
+        problemDescription: this._compressToLearningField(errorReason),
+        tags: inferredTags,
+        solution: this._compressToLearningField(`corrected payload: ${JSON.stringify(payload)}`),
+        createdAt: Date.now()
+      };
+      await this.store.appendLearning(learning);
+
+      // Auto-upgrade spec
+      const currentSpec = agent.definition.intelligenceSpec;
+      const upgradedSpec: KrnlIntelligenceSpec = { ...currentSpec };
+      if (upgradedSpec.reasoning < 10) upgradedSpec.reasoning += 1;
+      if (upgradedSpec.planning < 10) upgradedSpec.planning += 1;
+      if (upgradedSpec.jsonStrictness < 10) upgradedSpec.jsonStrictness += 1;
+
+      const defOverride = await this.store.getEndpointDefinition(task.endpointId) || {};
+      defOverride.intelligenceSpec = upgradedSpec;
+      await this.store.setEndpointDefinition(task.endpointId, defOverride);
+
+      if (typeof (this.system as any).initializeAiLayer === "function") {
+        await (this.system as any).initializeAiLayer(this.system._entityDataDir);
+      }
+
+      console.log(`[Orchestrator] Automated resolution succeeded for task ${taskId}.`);
+      await this.taskRunner.onSuccess(taskId, result);
+
+    } catch (e: any) {
+      console.error(`[Orchestrator] Automated resolution failed: ${e.message}. Escalating to human...`);
+      await this.escalateToHuman(taskId, errorReason);
+    }
+  }
+
+  private async escalateToHuman(taskId: string, errorReason: string): Promise<void> {
+    console.warn(`[HUMAN_ESCALATION] Task ${taskId} cannot be resolved automatically. Reason: ${errorReason}`);
+    // Emit event on entity so external hosts/tests can capture and supply input
+    this.system.interface.getEmitter('system-events')?.pushDataStreamToEmitter({
+      type: 'needs-human',
+      taskId,
+      error: errorReason
+    });
+  }
+
+  async handleHumanResolution(taskId: string, resolution: { action: 'skip' | 'retry' | 'nest'; tasks?: Array<{ endpointId: string; prompt: string }> }): Promise<void> {
+    console.log(`[Orchestrator] Human resolution received for task ${taskId}: ${resolution.action}`);
+    if (resolution.action === 'skip') {
+      await this.taskRunner.receiveSkip(taskId);
+    } else if (resolution.action === 'nest' && resolution.tasks) {
+      await this.taskRunner.receiveNest(resolution.tasks, taskId);
+    } else {
+      const list = this.taskRunner.getTaskList();
+      if (list) {
+        await this.taskRunner.run(list);
+      }
+    }
+  }
 }
+
