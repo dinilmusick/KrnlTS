@@ -166,7 +166,25 @@ export class krnlSystemCommComponent {
 
                 ws.on('message', (raw: Buffer) => {
                     try {
-                        const msg = krnlProto.KrnlMessage.decode(new Uint8Array(raw));
+                        let msg: any;
+                        const rawStr = raw.toString().trim();
+                        if (rawStr.startsWith('{') && rawStr.endsWith('}')) {
+                            const parsed = JSON.parse(rawStr);
+                            msg = {
+                                kind: parsed.kind === 'rpc-request' ? krnlProto.MessageKind.RPC_REQUEST :
+                                      parsed.kind === 'rpc-response' ? krnlProto.MessageKind.RPC_RESPONSE :
+                                      parsed.kind === 'register-ingress' ? krnlProto.MessageKind.REGISTER_INGRESS :
+                                      parsed.kind === 'route-data' ? krnlProto.MessageKind.ROUTE_DATA :
+                                      parsed.kind === 'introspect' ? krnlProto.MessageKind.INTROSPECT : krnlProto.MessageKind.UNKNOWN,
+                                routeId: parsed.routeId || "",
+                                requestId: parsed.requestId || "",
+                                method: parsed.method || "",
+                                collectorName: parsed.collectorName || "",
+                                jsonPayload: parsed.params ? JSON.stringify(parsed.params) : (parsed.data ? JSON.stringify(parsed.data) : "")
+                            };
+                        } else {
+                            msg = krnlProto.KrnlMessage.decode(new Uint8Array(raw));
+                        }
 
                         if (msg.kind === krnlProto.MessageKind.REGISTER_INGRESS) {
                             this.registerWsIngress(msg.routeId, msg.collectorName);
@@ -313,7 +331,21 @@ export class krnlSystemCommComponent {
 
         ws.on('message', (raw: Buffer) => {
             try {
-                const msg = krnlProto.KrnlMessage.decode(new Uint8Array(raw));
+                let msg: any;
+                const rawStr = raw.toString().trim();
+                if (rawStr.startsWith('{') && rawStr.endsWith('}')) {
+                    const parsed = JSON.parse(rawStr);
+                    msg = {
+                        kind: parsed.kind === 'rpc-response' ? krnlProto.MessageKind.RPC_RESPONSE : krnlProto.MessageKind.UNKNOWN,
+                        requestId: parsed.requestId || "",
+                        ok: parsed.ok,
+                        error: parsed.error,
+                        result: parsed.result
+                    };
+                } else {
+                    msg = krnlProto.KrnlMessage.decode(new Uint8Array(raw));
+                }
+
                 if (msg.kind === krnlProto.MessageKind.RPC_RESPONSE) {
                     this._handleRpcResponse(msg);
                 }
