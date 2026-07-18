@@ -330,7 +330,12 @@ export class krnlLocalFunctionality {
     // --- INPUT VALIDATION ---
     if (this.schema && this.schema.input) {
       try {
-        if (typeof this.schema.input.parse === 'function') {
+        if (typeof this.schema.input.verify === 'function') {
+          const verifyError = this.schema.input.verify(input);
+          if (verifyError) {
+            throw new Error(`Protobuf verification failed: ${verifyError}`);
+          }
+        } else if (typeof this.schema.input.parse === 'function') {
           // Zod-like
           input = this.schema.input.parse(input);
         } else if (typeof this.schema.input === 'function') {
@@ -362,7 +367,12 @@ export class krnlLocalFunctionality {
       // --- OUTPUT VALIDATION ---
       if (this.schema && this.schema.output) {
         try {
-          if (typeof this.schema.output.parse === 'function') {
+          if (typeof this.schema.output.verify === 'function') {
+            const verifyError = this.schema.output.verify(result);
+            if (verifyError) {
+              console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}": Protobuf verification failed: ${verifyError}`);
+            }
+          } else if (typeof this.schema.output.parse === 'function') {
             this.schema.output.parse(result);
           } else if (typeof this.schema.output === 'function') {
             if (!this.schema.output(result)) {

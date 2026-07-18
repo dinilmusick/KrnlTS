@@ -153,7 +153,12 @@ Output ONLY raw, pure JSON. Do not write explanations, markdown blocks, formatti
 
     try {
       const schemaInput = functionality.schema.input;
-      if (typeof schemaInput.parse === 'function') {
+      if (typeof schemaInput.verify === 'function') {
+        const verifyError = schemaInput.verify(payload);
+        if (verifyError) {
+          throw new Error(`Protobuf verification failed: ${verifyError}`);
+        }
+      } else if (typeof schemaInput.parse === 'function') {
         schemaInput.parse(payload);
       } else if (typeof schemaInput === 'function') {
         if (!schemaInput(payload)) throw new Error("Input validation check returned false.");

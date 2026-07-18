@@ -9,6 +9,7 @@ import { krnlEmitter } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { krnlTransportAdapter } from "./K_LIB_Krnl_Functionality_Types.js";
 import { Logger, KrnlPolicy } from "./K_LIB_Krnl_Base_Concepts.js";
 import { krnlErrorCodes } from "./K_LIB_Krnl_Error_Concepts.js";
+import { krnl as krnlProto } from "./krnl_pb.js";
 
 /**
  * WEBSOCKET TRANSPORT ADAPTER
@@ -165,37 +166,34 @@ export class krnlSystemCommComponent {
 
                 ws.on('message', (raw: Buffer) => {
                     try {
-                        const msg = JSON.parse(raw.toString());
+                        const msg = krnlProto.KrnlMessage.decode(new Uint8Array(raw));
 
-                        if (msg.routeId && Object.prototype.hasOwnProperty.call(msg, 'data') && !msg.kind) {
-                            const handler = this._wsIngress.get(msg.routeId);
-                            if (handler) handler(msg.data);
-                            return;
-                        }
-
-                        if (msg.kind === 'register-ingress') {
+                        if (msg.kind === krnlProto.MessageKind.REGISTER_INGRESS) {
                             this.registerWsIngress(msg.routeId, msg.collectorName);
                             return;
                         }
 
-                        if (msg.kind === 'route-data') {
+                        if (msg.kind === krnlProto.MessageKind.ROUTE_DATA) {
                             const handler = this._wsIngress.get(msg.routeId);
-                            if (handler) handler(msg.data);
+                            if (handler) {
+                                const payload = msg.jsonPayload ? JSON.parse(msg.jsonPayload) : undefined;
+                                handler(payload);
+                            }
                             return;
                         }
 
-                        if (msg.kind === 'rpc-request') {
+                        if (msg.kind === krnlProto.MessageKind.RPC_REQUEST) {
                             const callerPort = ws._socket?.remotePort;
                             this._handleRpcRequest(ws, msg, callerPort);
                             return;
                         }
 
-                        if (msg.kind === 'rpc-response') {
+                        if (msg.kind === krnlProto.MessageKind.RPC_RESPONSE) {
                             this._handleRpcResponse(msg);
                             return;
                         }
 
-                        if (msg.kind === 'introspect') {
+                        if (msg.kind === krnlProto.MessageKind.INTROSPECT) {
                             this._handleIntrospect(ws, msg);
                             return;
                         }
@@ -232,19 +230,21 @@ export class krnlSystemCommComponent {
         this._wsClients.set(remoteSystemName, ws);
         const routeId = `ws_route_${this._routeSeq++}`;
 
-        ws.send(JSON.stringify({
-            kind: 'register-ingress',
+        const regMsg = krnlProto.KrnlMessage.encode({
+            kind: krnlProto.MessageKind.REGISTER_INGRESS,
             routeId,
             collectorName: remoteCollectorName,
-        }));
+        }).finish();
+        ws.send(regMsg);
 
         const unsubscribe = emitter.subscribe((msg: any) => {
             if (ws.readyState === _WS.OPEN) {
-                ws.send(JSON.stringify({
-                    kind: 'route-data',
+                const dataMsg = krnlProto.KrnlMessage.encode({
+                    kind: krnlProto.MessageKind.ROUTE_DATA,
                     routeId,
-                    data: msg.data,
-                }));
+                    jsonPayload: JSON.stringify(msg.data),
+                }).finish();
+                ws.send(dataMsg);
             }
         });
 
@@ -313,8 +313,8 @@ export class krnlSystemCommComponent {
 
         ws.on('message', (raw: Buffer) => {
             try {
-                const msg = JSON.parse(raw.toString());
-                if (msg.kind === 'rpc-response') {
+                const msg = krnlProto.KrnlMessage.decode(new Uint8Array(raw));
+                if (msg.kind === krnlProto.MessageKind.RPC_RESPONSE) {
                     this._handleRpcResponse(msg);
                 }
             } catch (_) { }
@@ -355,15 +355,16 @@ export class krnlSystemCommComponent {
 
                     this._wsPendingRpc.set(requestId, { resolve, reject, timeoutId, ws });
 
-                    ws.send(JSON.stringify({
-                        kind: 'rpc-request',
+                    const rpcReq = krnlProto.KrnlMessage.encode({
+                        kind: krnlProto.MessageKind.RPC_REQUEST,
                         requestId,
-                        traceCorrelationId: requestId, // Trace ID matches Request ID for initial hop
+                        traceCorrelationId: requestId,
                         originSystemAddress: this.ownerEntity.entityName,
                         timestamp: Date.now(),
                         method,
-                        params,
-                    }));
+                        jsonPayload: JSON.stringify(params),
+                    }).finish();
+                    ws.send(rpcReq);
                 });
 
                 return result;
@@ -384,14 +385,15 @@ export class krnlSystemCommComponent {
     }
 
     async _handleRpcRequest(ws: any, msg: any, callerPort?: number): Promise<void> {
-        const { requestId, method, params } = msg;
+        const { requestId, method } = msg;
+        const params = msg.jsonPayload ? JSON.parse(msg.jsonPayload) : undefined;
 
         // Ingress network target routing
         if (params?.target && this.ownerEntity._ingressNetwork) {
             const member = this.ownerEntity._ingressNetwork.members.get(params.target.toLowerCase());
             if (member) {
                 const { target, ...memberParams } = params;
-                const memberMsg = { ...msg, params: memberParams };
+                const memberMsg = { ...msg, jsonPayload: JSON.stringify(memberParams) };
                 await member.entity.commComponent._handleRpcRequest(ws, memberMsg, callerPort);
                 return;
             }
@@ -399,66 +401,96 @@ export class krnlSystemCommComponent {
 
         const handler = this._wsRpcHandlers.get(method);
         if (!handler) {
-            ws.send(JSON.stringify({
-                kind: 'rpc-response',
+            const rpcResp = krnlProto.RpcResponse.encode({
                 requestId,
                 ok: false,
-                error: `Unknown RPC method: ${method}`,
-            }));
+                error: `Unknown RPC method: ${method}`
+            }).finish();
+            const envelope = krnlProto.KrnlMessage.encode({
+                kind: krnlProto.MessageKind.RPC_RESPONSE,
+                requestId,
+                binaryPayload: rpcResp
+            }).finish();
+            ws.send(envelope);
             return;
         }
 
         try {
             const result = await handler(params, { callerPort });
-            ws.send(JSON.stringify({
-                kind: 'rpc-response',
+            const rpcResp = krnlProto.RpcResponse.encode({
                 requestId,
                 ok: true,
-                result
-            }));
+                jsonResult: JSON.stringify(result)
+            }).finish();
+            const envelope = krnlProto.KrnlMessage.encode({
+                kind: krnlProto.MessageKind.RPC_RESPONSE,
+                requestId,
+                binaryPayload: rpcResp
+            }).finish();
+            ws.send(envelope);
         } catch (e: any) {
             let errorMsg = e.message || String(e);
-            ws.send(JSON.stringify({
-                kind: 'rpc-response',
+            const rpcResp = krnlProto.RpcResponse.encode({
                 requestId,
                 ok: false,
-                status: "error",
-                message: errorMsg,
                 error: errorMsg,
-                errorDocumentation: e.errorDocumentation || null,
-                payload: null,
-                ...(e && typeof e === 'object' ? (e.metadata || {}) : {})
-            }));
+                errorDocumentation: e.errorDocumentation || ""
+            }).finish();
+            const envelope = krnlProto.KrnlMessage.encode({
+                kind: krnlProto.MessageKind.RPC_RESPONSE,
+                requestId,
+                binaryPayload: rpcResp
+            }).finish();
+            ws.send(envelope);
         }
     }
 
     async _handleIntrospect(ws: any, msg: any): Promise<void> {
         const baseInfo = {
             entity: this.ownerEntity.entityName,
-            kind: 'introspect-response',
             methods: Array.from(this._wsRpcHandlers.keys())
         };
 
+        let finalInfo = baseInfo;
         if (this._introspectionProvider) {
             try {
                 const extra = await this._introspectionProvider();
-                ws.send(JSON.stringify({ ...baseInfo, ...extra }));
+                finalInfo = { ...baseInfo, ...extra };
             } catch (e: any) {
-                ws.send(JSON.stringify({ ...baseInfo, error: `Introspection provider failed: ${e.message}` }));
+                finalInfo = { ...baseInfo, error: `Introspection provider failed: ${e.message}` } as any;
             }
-        } else {
-            ws.send(JSON.stringify(baseInfo));
         }
+        const envelope = krnlProto.KrnlMessage.encode({
+            kind: krnlProto.MessageKind.INTROSPECT_RESPONSE,
+            requestId: msg.requestId,
+            jsonPayload: JSON.stringify(finalInfo)
+        }).finish();
+        ws.send(envelope);
     }
 
     _handleRpcResponse(msg: any): void {
-        const pending = this._wsPendingRpc.get(msg.requestId);
+        let responseMsg = msg;
+        if (msg.binaryPayload) {
+            try {
+                const dec = krnlProto.RpcResponse.decode(msg.binaryPayload);
+                responseMsg = {
+                    requestId: dec.requestId,
+                    ok: dec.ok,
+                    error: dec.error,
+                    result: dec.jsonResult ? JSON.parse(dec.jsonResult) : undefined,
+                    errorDocumentation: dec.errorDocumentation
+                };
+            } catch (e) {
+                Logger.error("Failed to decode RpcResponse payload:", e);
+            }
+        }
+        const pending = this._wsPendingRpc.get(responseMsg.requestId);
         if (!pending) return;
         clearTimeout(pending.timeoutId);
-        this._wsPendingRpc.delete(msg.requestId);
+        this._wsPendingRpc.delete(responseMsg.requestId);
 
-        if (msg.ok) pending.resolve(msg.result);
-        else pending.reject(new Error(msg.error || 'RPC error'));
+        if (responseMsg.ok) pending.resolve(responseMsg.result);
+        else pending.reject(new Error(responseMsg.error || 'RPC error'));
     }
 
     listRoutes(): any[] {
