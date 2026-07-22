@@ -14,6 +14,7 @@ const _dirname = _metaUrl ? path.dirname(_filename) : '';
 export class KrnlFrontendAdapter extends krnlSystemEntityBase {
   childProcess: any = null;
   appPort: number = -1;
+  socketPath: string | null = null;
   appPath: string;
   options: KrnlCustomFrontendOptions;
   originalConfigName: string | null = null;
@@ -23,7 +24,7 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
   routeWatcher: any = null;
 
   constructor(name: string, appPath: string, options: KrnlCustomFrontendOptions = {}) {
-    // Custom frontend runs locally on a custom port
+    // Custom frontend runs locally as an internal worker (via Unix Socket or loopback)
     super(`frontend-${name}`, null, -1, '127.0.0.1', { Singleton: true, _skipMagneticLoading: true });
     this.appPath = appPath;
     this.options = options;
@@ -119,7 +120,15 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
           api: async (input: any) => {
             return new Promise((resolve, reject) => {
               const reqData = JSON.stringify(input || {});
-              const req = http.request({
+              const reqOptions: http.RequestOptions = this.socketPath ? {
+                socketPath: this.socketPath,
+                path: `/${route}`,
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Content-Length': Buffer.byteLength(reqData)
+                }
+              } : {
                 hostname: '127.0.0.1',
                 port: this.appPort,
                 path: `/${route}`,
@@ -128,7 +137,9 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
                   'Content-Type': 'application/json',
                   'Content-Length': Buffer.byteLength(reqData)
                 }
-              }, (res) => {
+              };
+
+              const req = http.request(reqOptions, (res) => {
                 let data = '';
                 res.on('data', chunk => data += chunk);
                 res.on('end', () => {
@@ -206,7 +217,6 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     }
   }
 
-
   async startApp(): Promise<void> {
     // A. Discover bridges from wrapper directory and its 'bridges' subdirectory
     const wrapperDir = path.dirname(this.appPath);
@@ -217,10 +227,7 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     await this.scanAndRegisterApiRoutes();
     this.setupApiRouteWatcher();
 
-    // 1. Find a dynamic local port
-    this.appPort = await this._probeAvailablePort(12000, '0.0.0.0');
-
-    // 2. Load package.json to detect framework
+    // 1. Detect framework from package.json
     let packageJson: any = {};
     const pkgPath = path.join(this.appPath, 'package.json');
     if (fs.existsSync(pkgPath)) {
@@ -235,21 +242,29 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     if (deps['next']) framework = 'nextjs';
     else if (deps['vite']) framework = 'vite';
 
+    const cleanName = this.entityName.replace(/^frontend-/, '').toLowerCase();
     const prefix = this.options.frontendPrefix || 'frontend';
-    const basePath = `/${prefix}/${this.entityName.replace(/^frontend-/, '').toLowerCase()}`;
+    const basePath = `/${prefix}/${cleanName}`;
 
-    // 3. Framework-specific programmatic configuration (basePath patching)
+    // 2. Setup Unix Domain Socket path & cleanup any leftover socket file
+    const socketName = `krnl-frontend-${cleanName}.sock`;
+    this.socketPath = path.join('/tmp', socketName);
+    if (fs.existsSync(this.socketPath)) {
+      try {
+        fs.unlinkSync(this.socketPath);
+      } catch (_) {}
+    }
+
+    // 3. Framework-specific programmatic configuration (basePath patching + self-healing check)
     if (framework === 'nextjs') {
       await this._patchNextConfig(basePath, isEsm);
     }
 
-    // 4. Resolve spawn command and arguments
-    let command = 'npm';
-    let args: string[] = ['run', this.options.mode === 'prod' ? 'start' : 'dev'];
+    // 4. Resolve spawn command and arguments (using Unix Socket where supported, fallback to 127.0.0.1 TCP)
+    let command = 'npx';
+    let args: string[] = [];
 
-    // If next.js and not using npm run dev, we can fallback to npx next
     if (framework === 'nextjs') {
-      // In prod mode, we need to build first if not already done, but dev is easier/default
       if (this.options.mode === 'prod') {
         console.log(`[FrontendAdapter] Next.js production build starting for '${this.entityName}'...`);
         const buildProcess = KrnlShell.spawn('npx', ['next', 'build'], {
@@ -263,10 +278,18 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
         }
       }
       command = 'npx';
-      args = ['next', this.options.mode === 'prod' ? 'start' : 'dev', '-p', this.appPort.toString()];
+      args = ['next', this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '--socket', this.socketPath];
     } else if (framework === 'vite') {
+      // Fallback for vite to internal loopback 127.0.0.1 port if socket not natively flagged
+      this.appPort = await this._probeAvailablePort(12000, '127.0.0.1');
+      this.socketPath = null;
       command = 'npx';
-      args = ['vite', '--port', this.appPort.toString(), '--strictPort', '--base', `${basePath}/`];
+      args = ['vite', '--host', '127.0.0.1', '--port', this.appPort.toString(), '--strictPort', '--base', `${basePath}/`];
+    } else {
+      this.appPort = await this._probeAvailablePort(12000, '127.0.0.1');
+      this.socketPath = null;
+      command = 'npm';
+      args = ['run', this.options.mode === 'prod' ? 'start' : 'dev'];
     }
 
     // 5. Spawn process with injected env vars
@@ -274,46 +297,53 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     const port = this.options.backendPort || 10099;
     const env = {
       ...process.env,
-      PORT: this.appPort.toString(),
+      ...(this.appPort > 0 ? { PORT: this.appPort.toString() } : {}),
       NEXT_PUBLIC_KRNL_BASE_PATH: basePath,
       NEXT_PUBLIC_KRNL_WS_URL: `ws://${host}:${port}/ws`,
       NEXT_PUBLIC_KRNL_HTTP_URL: `http://${host}:${port}`,
       ...this.options.env
     };
 
-    console.log(`[FrontendAdapter] Spawning custom frontend '${this.entityName}' (${framework}) in background (Port: ${this.appPort})...`);
+    const targetDesc = this.socketPath ? `Unix Socket: ${this.socketPath}` : `127.0.0.1:${this.appPort}`;
+    console.log(`[FrontendAdapter] Spawning custom frontend '${this.entityName}' (${framework}) in background (${targetDesc})...`);
     this.childProcess = KrnlShell.spawn(command, args, {
       cwd: this.appPath,
       env,
       stdio: 'inherit'
     });
 
-    // 6. Probe port until it starts responding
+    // 6. Probe socket or port until it starts responding
     let ready = false;
-    const timeout = this.options.startupTimeoutMs ?? 60000; // Next.js dev server can take longer to boot
+    const timeout = this.options.startupTimeoutMs ?? 60000;
     const start = Date.now();
     while (Date.now() - start < timeout) {
       ready = await new Promise<boolean>((resolve) => {
-        const socket = net.connect(this.appPort, 'localhost');
-        socket.on('connect', () => {
-          socket.destroy();
-          resolve(true);
-        });
-        socket.on('error', () => {
-          const socket2 = net.connect(this.appPort, '127.0.0.1');
-          socket2.on('connect', () => {
-            socket2.destroy();
+        if (this.socketPath) {
+          if (!fs.existsSync(this.socketPath)) {
+            resolve(false);
+            return;
+          }
+          const socket = net.connect({ path: this.socketPath });
+          socket.on('connect', () => {
+            socket.destroy();
             resolve(true);
           });
-          socket2.on('error', () => resolve(false));
-        });
+          socket.on('error', () => resolve(false));
+        } else {
+          const socket = net.connect(this.appPort, '127.0.0.1');
+          socket.on('connect', () => {
+            socket.destroy();
+            resolve(true);
+          });
+          socket.on('error', () => resolve(false));
+        }
       });
       if (ready) break;
       await new Promise((r) => setTimeout(r, 200));
     }
 
     if (!ready) {
-      throw new Error(`[FrontendAdapter] Custom frontend '${this.entityName}' failed to boot on port ${this.appPort} within ${timeout / 1000}s.`);
+      throw new Error(`[FrontendAdapter] Custom frontend '${this.entityName}' failed to boot on ${targetDesc} within ${timeout / 1000}s.`);
     }
     console.log(`[FrontendAdapter] Custom frontend '${this.entityName}' successfully booted.`);
   }
@@ -322,6 +352,9 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     const configTs = path.join(this.appPath, 'next.config.ts');
     const configMjs = path.join(this.appPath, 'next.config.mjs');
     const configJs = path.join(this.appPath, 'next.config.js');
+
+    // Self-healing check: if leftover .original exists from an ungraceful shutdown, restore it first
+    this._restoreNextConfig();
 
     if (fs.existsSync(configTs)) {
       this.originalConfigName = 'next.config.original.ts';
@@ -384,30 +417,38 @@ module.exports = {
   }
 
   _restoreNextConfig(): void {
-    if (this.patchedConfigName) {
-      const patchedPath = path.join(this.appPath, this.patchedConfigName);
-      if (fs.existsSync(patchedPath)) {
-        fs.unlinkSync(patchedPath);
-      }
-      if (this.originalConfigName) {
-        const originalPath = path.join(this.appPath, this.originalConfigName);
-        if (fs.existsSync(originalPath)) {
-          fs.renameSync(originalPath, patchedPath);
+    const checkAndRestore = (origName: string, patchedName: string) => {
+      const origPath = path.join(this.appPath, origName);
+      const patchedPath = path.join(this.appPath, patchedName);
+      if (fs.existsSync(origPath)) {
+        if (fs.existsSync(patchedPath)) {
+          fs.unlinkSync(patchedPath);
         }
+        fs.renameSync(origPath, patchedPath);
       }
-      this.originalConfigName = null;
-      this.patchedConfigName = null;
-    }
+    };
+
+    checkAndRestore('next.config.original.ts', 'next.config.ts');
+    checkAndRestore('next.config.original.mjs', 'next.config.mjs');
+    checkAndRestore('next.config.original.js', 'next.config.js');
+
+    this.originalConfigName = null;
+    this.patchedConfigName = null;
   }
 
   async proxyRequest(req: http.IncomingMessage, res: http.ServerResponse, subPath: string): Promise<void> {
-    if (this.appPort === -1) {
+    if (!this.socketPath && this.appPort === -1) {
       res.writeHead(503, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'error', message: 'Service Temporarily Unavailable: Frontend not running.' }));
       return;
     }
 
-    const options = {
+    const options: http.RequestOptions = this.socketPath ? {
+      socketPath: this.socketPath,
+      path: subPath,
+      method: req.method,
+      headers: req.headers
+    } : {
       hostname: '127.0.0.1',
       port: this.appPort,
       path: subPath,
@@ -437,6 +478,11 @@ module.exports = {
       console.log(`[FrontendAdapter] Killing child process (PID: ${this.childProcess.pid}) for '${this.entityName}'`);
       this.childProcess.kill('SIGTERM');
       this.childProcess = null;
+    }
+    if (this.socketPath && fs.existsSync(this.socketPath)) {
+      try {
+        fs.unlinkSync(this.socketPath);
+      } catch (_) {}
     }
     this._restoreNextConfig();
     super.dispose();

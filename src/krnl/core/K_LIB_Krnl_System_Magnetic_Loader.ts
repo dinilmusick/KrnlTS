@@ -76,7 +76,7 @@ export class KrnlMagneticLoader {
 
     // 4. Auto-enable frontend if frontend/default folder exists
     const frontendDir = path.join(baseDir, 'frontend', 'default');
-    if (fs.existsSync(frontendDir)) {
+    if (fs.existsSync(frontendDir) && !isSubApp) {
       const configPath = path.join(frontendDir, 'krnl-frontend.json');
       let frontendOptions: any = { title: entity.entityName, theme: 'dark' };
       if (fs.existsSync(configPath)) {
@@ -94,7 +94,7 @@ export class KrnlMagneticLoader {
     if (!fs.existsSync(generalFrontendDir)) {
       generalFrontendDir = path.join(baseDir, 'frontends');
     }
-    if (fs.existsSync(generalFrontendDir)) {
+    if (fs.existsSync(generalFrontendDir) && !isSubApp) {
       const entries = await fs.promises.readdir(generalFrontendDir, { withFileTypes: true });
       for (const entry of entries) {
         if (entry.isDirectory() && entry.name !== 'default') {

@@ -23,8 +23,8 @@ export class KrnlNonKrnlAppAdapter extends krnlSystemEntityBase {
   }
 
   async startApp(): Promise<void> {
-    // 1. Find a dynamic local port to run the sub-app on
-    this.appPort = await this._probeAvailablePort(11000, '0.0.0.0');
+    // 1. Find a dynamic local port to run the sub-app on (strictly bound to 127.0.0.1)
+    this.appPort = await this._probeAvailablePort(11000, '127.0.0.1');
 
     // 2. Resolve start command
     let command = 'node';
