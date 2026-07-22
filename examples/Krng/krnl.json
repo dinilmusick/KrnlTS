@@ -1,0 +1,12 @@
+{
+  "appName": "Krng",
+  "version": "1.0.0",
+  "entityClass": "Krng",
+  "dependencies": {
+    "subapps": [],
+    "requiredRemotes": []
+  },
+  "exports": {
+    "publicFunctionalities": ["ListKeys", "RetrieveKey", "StoreKey", "UpdateKey", "DeleteKey"]
+  }
+}

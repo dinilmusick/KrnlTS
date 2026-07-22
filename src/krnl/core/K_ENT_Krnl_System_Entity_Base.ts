@@ -238,6 +238,14 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   /**
+   * boot
+   * Boot validation & startup entrypoint
+   */
+  async boot(): Promise<void> {
+    await this.whenReady();
+  }
+
+  /**
    * whenReady
    * Await this promise to ensure the system has bound to its final port,
    * written its snapshot file, and is fully operational.
@@ -246,7 +254,57 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     if (this._magneticLoadPromise) {
       await this._magneticLoadPromise;
     }
+    await this._validateBootManifestDependencies();
     await this._readyPromise;
+  }
+
+  /**
+   * Validates requiredRemotes manifest dependencies upon boot
+   */
+  private async _validateBootManifestDependencies(): Promise<void> {
+    try {
+      const manifestPath = path.join(this._entityDataDir, 'krnl.json');
+      if (!fs.existsSync(manifestPath)) return;
+      const content = fs.readFileSync(manifestPath, 'utf-8');
+      const manifest = JSON.parse(content);
+      if (!manifest.dependencies?.requiredRemotes) return;
+
+      const availableEntities = new Set<string>();
+      availableEntities.add(this.entityName);
+      if ((this as any).entityClass) availableEntities.add((this as any).entityClass);
+
+      if (this._ingressNetwork?.members) {
+        for (const member of this._ingressNetwork.members) {
+          availableEntities.add(member.prefix);
+          if (member.prefix) {
+            // uppercase first letter or exact match
+            availableEntities.add(member.prefix.charAt(0).toUpperCase() + member.prefix.slice(1));
+          }
+        }
+      }
+
+      for (const owned of this.ownedComponents.values()) {
+        availableEntities.add(owned.entityName);
+      }
+
+      for (const remote of manifest.dependencies.requiredRemotes) {
+        if (remote.targetEntity && !availableEntities.has(remote.targetEntity)) {
+          const payload = {
+            error: 'ERR_KRNL_UNRESOLVED_REMOTE_TARGET',
+            sourceEntity: this.entityName,
+            missingTargetEntity: remote.targetEntity,
+            requiredFid: remote.fid,
+            availableEntities: Array.from(availableEntities)
+          };
+          throw new Error(`[ERR_KRNL_UNRESOLVED_REMOTE_TARGET] Boot validation failed for '${this.entityName}': Target entity '${remote.targetEntity}' required by fid '${remote.fid}' was not found in active system hierarchy. Details: ${JSON.stringify(payload)}`);
+        }
+      }
+    } catch (err: any) {
+      if (err.message?.includes('ERR_KRNL_UNRESOLVED_REMOTE_TARGET')) {
+        throw err;
+      }
+      console.warn(`[BootValidation] Warning: could not parse krnl.json at ${this._entityDataDir}: ${err.message}`);
+    }
   }
 
   async startIngressNetwork(members: KrnlIngressNetworkMemberConfig[]): Promise<void> {

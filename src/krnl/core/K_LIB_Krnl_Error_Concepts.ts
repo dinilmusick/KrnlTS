@@ -38,6 +38,7 @@ export const krnlErrorCodes = Object.freeze({
   ERR_NET_RPC_INTERNAL_SERVER_ERROR: 502,
   ERR_SYS_ENTITY_BUSY_RESERVED: 503,
   ERR_COM_INGRESS_ROUTE_NOT_FOUND: 504,
+  ERR_KRNL_UNRESOLVED_REMOTE_TARGET: 505,
 } as const);
 
 //////////////////////////////////////// ERROR MESSAGES ////////////////////////////////////////
@@ -90,6 +91,8 @@ export const krnlErrorMessages: Record<number, string> = Object.freeze({
     "ERR_SYS_ENTITY_BUSY_RESERVED",
   [krnlErrorCodes.ERR_COM_INGRESS_ROUTE_NOT_FOUND]:
     "ERR_COM_INGRESS_ROUTE_NOT_FOUND",
+  [krnlErrorCodes.ERR_KRNL_UNRESOLVED_REMOTE_TARGET]:
+    "ERR_KRNL_UNRESOLVED_REMOTE_TARGET",
 });
 
 export const CUSTOM_ERROR_CODE = -999;

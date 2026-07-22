@@ -1,0 +1,12 @@
+{
+  "appName": "Aiko",
+  "version": "1.0.0",
+  "entityClass": "Aiko",
+  "dependencies": {
+    "subapps": [],
+    "requiredRemotes": []
+  },
+  "exports": {
+    "publicFunctionalities": ["SelectModel", "GetCatalog"]
+  }
+}

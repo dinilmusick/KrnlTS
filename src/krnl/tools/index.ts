@@ -7,3 +7,4 @@ export * from "./KrnlEnv.js";
 export * from "./KrnlShell.js";
 export * from "./KrnlHTTP.js";
 export * from "./GitManager.js";
+export * from "./K_LIB_Krnl_Build_Validator.js";
