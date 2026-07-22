@@ -226,10 +226,16 @@ export class KrnlFrontend {
     }
     .theme-toggle:hover { background: var(--border-color); }
     .app-container { display: flex; flex: 1; height: calc(100vh - 65px); overflow: hidden; }
-    aside {
-      width: 300px; border-right: 1px solid var(--border-color);
+    aside.left-sidebar {
+      width: 280px; border-right: 1px solid var(--border-color);
       background-color: rgba(10, 14, 23, 0.25);
       display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
+    }
+    aside.right-sidebar {
+      width: 340px; border-left: 1px solid var(--border-color);
+      background-color: rgba(10, 14, 23, 0.25);
+      display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
+      padding: 1.25rem; gap: 1.25rem;
     }
     .sidebar-section { padding: 1.25rem; border-bottom: 1px solid var(--border-color); }
     .sidebar-section-title {
@@ -253,7 +259,7 @@ export class KrnlFrontend {
     }
     .nav-item.active .method-badge { background: rgba(255, 255, 255, 0.2); color: white; }
     main { flex: 1; padding: 2rem; overflow-y: auto; background-color: rgba(10, 14, 23, 0.1); }
-    .main-grid { display: flex; flex-direction: column; gap: 2rem; max-width: 1100px; margin: 0 auto; }
+    .main-grid { display: flex; flex-direction: column; gap: 2rem; max-width: 1000px; margin: 0 auto; }
     .detail-card {
       background: var(--bg-surface); backdrop-filter: var(--card-blur);
       border: 1px solid var(--border-color); border-radius: 16px;
@@ -283,7 +289,7 @@ export class KrnlFrontend {
       color: var(--text-main); padding: 0.75rem; border-radius: 8px;
       font-family: var(--font-sans); font-size: 0.95rem; width: 100%;
     }
-    .form-textarea { font-family: var(--font-mono); min-height: 120px; resize: vertical; }
+    .form-textarea { font-family: var(--font-mono); min-height: 100px; resize: vertical; }
     .btn {
       background: var(--primary-gradient); color: white; border: none;
       padding: 0.75rem 1.5rem; border-radius: 8px; font-family: var(--font-sans);
@@ -302,6 +308,27 @@ export class KrnlFrontend {
     .telemetry-log-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.85rem; }
     .telemetry-log-table th, .telemetry-log-table td { padding: 0.75rem; border-bottom: 1px solid var(--border-color); text-align: left; }
     .telemetry-log-table th { color: var(--text-muted); font-weight: 600; }
+
+    /* Access Policy Card */
+    .policy-card { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; }
+    .policy-tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: bold; margin-right: 0.4rem; font-size: 0.75rem; }
+    .tag-allow { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .tag-forbid { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .tag-key { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+
+    /* Right Sidebar / Orchestrator Box */
+    .orch-box { display: flex; flex-direction: column; height: 100%; gap: 1rem; }
+    .orch-chat-history { flex: 1; min-height: 250px; max-height: 380px; background: #040711; border: 1px solid var(--border-color); border-radius: 12px; padding: 0.75rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.85rem; }
+    .orch-msg { padding: 0.6rem 0.8rem; border-radius: 8px; max-width: 90%; word-break: break-word; }
+    .orch-msg-user { background: var(--primary-gradient); color: white; align-self: flex-end; }
+    .orch-msg-agent { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border-color); color: var(--text-main); align-self: flex-start; }
+    .task-runner-panel { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.75rem; font-size: 0.8rem; }
+    .task-item { display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color); }
+    .task-status { font-weight: bold; text-transform: uppercase; font-size: 0.7rem; padding: 0.1rem 0.3rem; border-radius: 3px; }
+    .status-running { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .status-done { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .status-pending { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+
     ${customCss}
   </style>
 </head>
@@ -317,7 +344,7 @@ export class KrnlFrontend {
     </div>
   </header>
   <div class="app-container">
-    <aside>
+    <aside class="left-sidebar">
       <div class="sidebar-section">
         <div class="sidebar-section-title">🔌 App Endpoints</div>
         <ul class="nav-list" id="app-endpoints-list"><li style="color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem;">Loading endpoints...</li></ul>
@@ -331,7 +358,7 @@ export class KrnlFrontend {
       <div class="main-grid" id="main-content">
         <div id="welcome-panel" class="detail-card" style="text-align: center; padding: 4rem 2rem;">
           <h2 style="font-size: 2.25rem; margin-bottom: 1rem;">Welcome to ${title}</h2>
-          <p style="color: var(--text-muted); max-width: 600px; margin: 0 auto 2rem;">Select an endpoint in the sidebar to call it, view details, listen to event streams, or edit runtime specifications.</p>
+          <p style="color: var(--text-muted); max-width: 600px; margin: 0 auto 2rem;">Select an endpoint in the sidebar to call it, view schemas, listen to event streams, or talk to the application orchestrator.</p>
           <button class="btn" onclick="refreshDefinitions()">🔄 Refresh Endpoints</button>
         </div>
         <div id="telemetry-panel" class="detail-card" style="display: none;">
@@ -341,6 +368,22 @@ export class KrnlFrontend {
         <div id="endpoint-panel" class="detail-card" style="display: none;"></div>
       </div>
     </main>
+    <aside class="right-sidebar">
+      <div class="sidebar-section-title">🤖 Application Orchestrator</div>
+      <div class="orch-box">
+        <div class="orch-chat-history" id="orch-chat-box">
+          <div class="orch-msg orch-msg-agent">Hello! I am the Application Orchestrator. Type a natural language request to run workflows across system endpoints.</div>
+        </div>
+        <form onsubmit="handleOrchestratorSubmit(event)" style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <textarea class="form-input" id="orch-prompt-input" placeholder="e.g. Process order #123 and notify user" style="height: 70px; resize: none; font-size: 0.85rem;"></textarea>
+          <button type="submit" class="btn" style="justify-content: center; padding: 0.5rem; font-size: 0.85rem;">💬 Prompt Orchestrator</button>
+        </form>
+        <div class="task-runner-panel">
+          <div class="sidebar-section-title" style="margin-bottom: 0.5rem;">📋 Autonomous Task Runner</div>
+          <div id="task-list-box" style="color: var(--text-muted); font-size: 0.75rem;">No tasks running.</div>
+        </div>
+      </div>
+    </aside>
   </div>
   <script>
     let definitions = [];
@@ -372,6 +415,25 @@ export class KrnlFrontend {
           if (updated) renderEndpoint(updated);
         }
       } catch (err) { console.error("Failed to load endpoint definitions:", err); }
+    }
+
+    async function pollTaskList() {
+      try {
+        const res = await fetch('api/getTaskList', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+        const data = await res.json();
+        const payload = data.payload || data;
+        const box = document.getElementById('task-list-box');
+        if (!payload || !payload.tasks || payload.tasks.length === 0) {
+          box.innerHTML = '<div style="color: var(--text-muted);">No active task list.</div>';
+          return;
+        }
+        let html = '';
+        payload.tasks.forEach(t => {
+          const sClass = t.status === 'running' ? 'status-running' : (t.status === 'done' ? 'status-done' : 'status-pending');
+          html += \`<div class="task-item"><span>\${t.endpointId || t.prompt.slice(0, 20)}</span><span class="task-status \${sClass}">\${t.status}</span></div>\`;
+        });
+        box.innerHTML = html;
+      } catch(e) {}
     }
 
     function renderSidebar() {
@@ -415,14 +477,52 @@ export class KrnlFrontend {
       const panel = document.getElementById('endpoint-panel');
       const badgeClass = def.category === 'krnl_system' ? 'badge-system' : 'badge-app';
       const isApp = def.category === 'app';
-      let tabsHtml = isApp ? \`<div class="tab-bar"><button class="tab-btn \${activeTab === 'call' ? 'active' : ''}" onclick="switchTab('call')">Call Endpoint</button><button class="tab-btn \${activeTab === 'edit' ? 'active' : ''}" onclick="switchTab('edit')">Edit Definition</button></div>\` : '';
-      if (!isApp) activeTab = 'call';
-      const contentHtml = activeTab === 'call' ? renderCallTab(def) : renderEditTab(def);
+      let tabsHtml = isApp ? \`<div class="tab-bar">
+        <button class="tab-btn \${activeTab === 'call' ? 'active' : ''}" onclick="switchTab('call')">Call Endpoint</button>
+        <button class="tab-btn \${activeTab === 'schema' ? 'active' : ''}" onclick="switchTab('schema')">Schema</button>
+        <button class="tab-btn \${activeTab === 'edit' ? 'active' : ''}" onclick="switchTab('edit')">Edit Definition</button>
+      </div>\` : '';
+      if (!isApp && activeTab !== 'call') activeTab = 'call';
+      let contentHtml = '';
+      if (activeTab === 'call') contentHtml = renderCallTab(def);
+      else if (activeTab === 'schema') contentHtml = renderSchemaTab(def);
+      else contentHtml = renderEditTab(def);
+
       panel.innerHTML = \`<div class="endpoint-header"><div class="endpoint-title"><h2>\${def.id} <span class="category-badge \${badgeClass}">\${def.category}</span></h2><div style="color: var(--text-muted); font-size: 0.95rem;">\${def.description || ''}</div></div></div>\${tabsHtml}\${contentHtml}\`;
       if (activeTab === 'call' && def.examplePayload) loadExamplePayload(def.examplePayload);
     }
 
+    function renderSchemaTab(def) {
+      const inSchema = JSON.stringify(def.inputSchema || {}, null, 2);
+      const outSchema = JSON.stringify(def.outputSchema || {}, null, 2);
+      return \`
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+          <div>
+            <h3 style="font-size: 1rem; margin-bottom: 0.5rem; color: var(--primary);">Input Schema</h3>
+            <pre class="response-content" style="background: #040711; padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">\${inSchema}</pre>
+          </div>
+          <div>
+            <h3 style="font-size: 1rem; margin-bottom: 0.5rem; color: #10b981;">Output Schema</h3>
+            <pre class="response-content" style="background: #040711; padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">\${outSchema}</pre>
+          </div>
+        </div>
+      \`;
+    }
+
     function renderCallTab(def) {
+      let policyHtml = '';
+      if (def.accessPolicy) {
+        const p = def.accessPolicy;
+        const allows = (p.allow || []).map(port => \`<span class="policy-tag tag-allow">Allow:\${port}</span>\`).join(' ');
+        const forbids = (p.forbid || []).map(port => \`<span class="policy-tag tag-forbid">Forbid:\${port}</span>\`).join(' ');
+        const keys = (p.allow_with_key || []).map(port => \`<span class="policy-tag tag-key">KeyReq:\${port}</span>\`).join(' ');
+        policyHtml = \`<div class="policy-card">
+          <div style="font-weight: bold; margin-bottom: 0.4rem;">Access Policy Control</div>
+          <div>Default: <strong>\${p.default_connection_behaviour || 'allow_unlisted'}</strong></div>
+          <div style="margin-top: 0.4rem;">\${allows} \${forbids} \${keys}</div>
+        </div>\`;
+      }
+
       let inputsHtml = '';
       if (def.method === 'POST') {
         if (def.inputSchema?.properties) {
@@ -452,6 +552,7 @@ export class KrnlFrontend {
         </div>\` : '';
 
       return \`
+        \${policyHtml}
         <form onsubmit="handleCallSubmit(event)">
           \${def.examplePayload ? \`<button type="button" class="btn btn-secondary" style="margin-bottom: 1.5rem; padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="fillExamplePayload()">📋 Load Example Payload</button>\` : ''}
           \${inputsHtml}
@@ -519,6 +620,39 @@ export class KrnlFrontend {
         const data = await res.json();
         resText.innerText = JSON.stringify(data, null, 2);
       } catch (err) { resText.innerText = "Error: " + err.message; }
+    }
+
+    async function handleOrchestratorSubmit(event) {
+      event.preventDefault();
+      const inputEl = document.getElementById('orch-prompt-input');
+      const promptText = inputEl.value.trim();
+      if (!promptText) return;
+      inputEl.value = '';
+
+      const chatBox = document.getElementById('orch-chat-box');
+      const userMsg = document.createElement('div');
+      userMsg.className = 'orch-msg orch-msg-user';
+      userMsg.innerText = promptText;
+      chatBox.appendChild(userMsg);
+
+      const agentMsg = document.createElement('div');
+      agentMsg.className = 'orch-msg orch-msg-agent';
+      agentMsg.innerText = 'Orchestrating request...';
+      chatBox.appendChild(agentMsg);
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      try {
+        const res = await fetch('api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: promptText })
+        });
+        const data = await res.json();
+        agentMsg.innerText = JSON.stringify(data, null, 2);
+      } catch(err) {
+        agentMsg.innerText = 'Error: ' + err.message;
+      }
+      chatBox.scrollTop = chatBox.scrollHeight;
     }
 
     function toggleSse(fid) {
@@ -621,6 +755,8 @@ export class KrnlFrontend {
     window.addEventListener('DOMContentLoaded', async () => {
       await refreshDefinitions();
       setInterval(refreshDefinitions, 5000);
+      await pollTaskList();
+      setInterval(pollTaskList, 3000);
     });
   </script>
 </body>
