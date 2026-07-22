@@ -274,17 +274,19 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       if ((this as any).entityClass) availableEntities.add((this as any).entityClass);
 
       if (this._ingressNetwork?.members) {
-        for (const member of this._ingressNetwork.members) {
-          availableEntities.add(member.prefix);
-          if (member.prefix) {
-            // uppercase first letter or exact match
-            availableEntities.add(member.prefix.charAt(0).toUpperCase() + member.prefix.slice(1));
+        for (const [prefix] of this._ingressNetwork.members.entries()) {
+          availableEntities.add(prefix);
+          if (prefix) {
+            availableEntities.add(prefix.charAt(0).toUpperCase() + prefix.slice(1));
           }
         }
       }
 
-      for (const owned of this.ownedComponents.values()) {
-        availableEntities.add(owned.entityName);
+      const ownedMap = (this as any).ownedComponents || (this as any).components;
+      if (ownedMap && typeof ownedMap.values === 'function') {
+        for (const owned of ownedMap.values()) {
+          if (owned?.entityName) availableEntities.add(owned.entityName);
+        }
       }
 
       for (const remote of manifest.dependencies.requiredRemotes) {
