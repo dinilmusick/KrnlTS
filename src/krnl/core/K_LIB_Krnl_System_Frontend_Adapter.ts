@@ -284,18 +284,12 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
 
     let command = 'npx';
     let args: string[] = [];
-
-    const nextCliJs = path.join(this.appPath, 'node_modules', 'next', 'dist', 'bin', 'next');
+    const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
     if (framework === 'nextjs') {
-      if (fs.existsSync(nextCliJs)) {
-        command = process.execPath;
-        args = [nextCliJs, this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
-      } else {
-        command = 'npx';
-        args = ['next', this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
-      }
+      command = npxCmd;
+      args = ['next', this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
     } else if (framework === 'vite') {
-      command = 'npx';
+      command = npxCmd;
       args = ['vite', '--host', '127.0.0.1', '--port', this.appPort.toString(), '--strictPort', '--base', `${basePath}/`];
     } else {
       command = 'npm';
