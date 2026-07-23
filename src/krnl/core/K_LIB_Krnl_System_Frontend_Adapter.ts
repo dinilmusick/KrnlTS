@@ -337,7 +337,7 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
           });
           socket.on('error', () => resolve(false));
         } else {
-          const socket = net.connect(this.appPort, '127.0.0.1');
+          const socket = net.connect({ port: this.appPort, host: '127.0.0.1' });
           socket.on('connect', () => {
             socket.destroy();
             resolve(true);
