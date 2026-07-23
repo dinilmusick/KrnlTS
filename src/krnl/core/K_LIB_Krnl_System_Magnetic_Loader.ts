@@ -276,12 +276,12 @@ export class KrnlMagneticLoader {
         const execPromise = promisify(exec);
         
         // Fetch remote updates
-        await execPromise('git fetch', { cwd: appPath });
+        await execPromise('git fetch', { cwd: appPath, timeout: 3000 });
         // Check if local branch is behind remote
-        const { stdout } = await execPromise('git status -uno', { cwd: appPath });
+        const { stdout } = await execPromise('git status -uno', { cwd: appPath, timeout: 3000 });
         if (stdout.includes('Your branch is behind') || stdout.includes('can be fast-forwarded')) {
           console.log(`[MagneticLoader] Remote updates found for sub-app '${appName}'. Pulling changes...`);
-          const pullResult = await execPromise('git pull', { cwd: appPath });
+          const pullResult = await execPromise('git pull', { cwd: appPath, timeout: 5000 });
           console.log(`[MagneticLoader] Git pull result for '${appName}':`, pullResult.stdout);
           gitUpdated = true;
         } else {
