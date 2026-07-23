@@ -1146,6 +1146,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
 
     this._sharedServer = http.createServer();
 
+    if (!this.unifiedHttpAdapter) {
+      const { krnlUnifiedHttpAdapter } = await import("./K_LIB_Krnl_System_Unified_Http_Adapter.js");
+      this.unifiedHttpAdapter = new krnlUnifiedHttpAdapter(this, resolvedPort, this.host);
+    }
+
     await this.unifiedHttpAdapter.start(this._sharedServer);
     this.serviceSuites.set("UNIFIED_HTTP", this.unifiedHttpAdapter);
 
