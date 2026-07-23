@@ -218,6 +218,7 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
   }
 
   async startApp(): Promise<void> {
+    console.log(`[FrontendAdapter:${this.entityName}] startApp starting...`);
     // A. Discover bridges from wrapper directory and its 'bridges' subdirectory
     const wrapperDir = path.dirname(this.appPath);
     await this.loadBridgesFromFolder(wrapperDir);
