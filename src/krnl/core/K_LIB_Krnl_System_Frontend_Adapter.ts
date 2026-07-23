@@ -170,8 +170,10 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
   }
 
   _findPagesRoutes(dir: string, baseDir: string, routes: string[]) {
+    if (!fs.existsSync(dir)) return;
     const files = fs.readdirSync(dir);
     for (const file of files) {
+      if (file.startsWith('.') || file === 'node_modules') continue;
       const fullPath = path.join(dir, file);
       const stat = fs.statSync(fullPath);
       if (stat.isDirectory()) {
@@ -186,8 +188,10 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
   }
 
   _findAppRoutes(dir: string, baseDir: string, routes: string[]) {
+    if (!fs.existsSync(dir)) return;
     const files = fs.readdirSync(dir);
     for (const file of files) {
+      if (file.startsWith('.') || file === 'node_modules') continue;
       const fullPath = path.join(dir, file);
       const stat = fs.statSync(fullPath);
       if (stat.isDirectory()) {
