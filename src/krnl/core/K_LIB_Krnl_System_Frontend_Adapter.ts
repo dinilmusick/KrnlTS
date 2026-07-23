@@ -309,6 +309,7 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     this.childProcess = KrnlShell.spawn(command, args, {
       cwd: this.appPath,
       env,
+      shell: true,
       stdio: 'inherit'
     });
 
