@@ -1,5 +1,6 @@
 import { krnlSystemEntityBase } from "./K_ENT_Krnl_System_Entity_Base.js";
 import { KrnlIngressNetworkMemberConfig, KrnlFrontendMemberConfig } from "./types.js";
+import { KrnlFrontendAdapter } from "./K_LIB_Krnl_System_Frontend_Adapter.js";
 import http from 'http';
 import path from 'path';
 
@@ -83,7 +84,6 @@ export class KrnlIngressNetwork {
       options.backendHost = (rawHost === '::' || rawHost === '0.0.0.0' || rawHost === '') ? 'localhost' : rawHost;
     }
 
-    const { KrnlFrontendAdapter } = await import('./K_LIB_Krnl_System_Frontend_Adapter.js');
     const adapter = new KrnlFrontendAdapter(config.name, config.appPath, options);
 
     adapter._isIngressNetworkMember = true;
