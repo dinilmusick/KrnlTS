@@ -108,7 +108,9 @@ export class KrnlMagneticLoader {
               } catch (_) {}
             }
             console.log(`[MagneticLoader] Detected custom frontend '${entry.name}' at '${appPath}'. Registering...`);
-            await entity.startCustomFrontend(entry.name, appPath, options);
+            entity.startCustomFrontend(entry.name, appPath, options).catch((err: any) => {
+              console.error(`[MagneticLoader] Custom frontend '${entry.name}' startup error:`, err.message || err);
+            });
           }
         }
       }

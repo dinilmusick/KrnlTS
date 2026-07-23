@@ -103,7 +103,9 @@ export class KrnlIngressNetwork {
       memberType: 'frontend'
     });
 
-    await adapter.startApp();
+    adapter.startApp().catch((err: any) => {
+      console.error(`[IngressNetwork] Frontend '${config.name}' startApp failed:`, err.message || err);
+    });
 
     return adapter;
   }

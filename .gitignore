@@ -3,7 +3,6 @@ node_modules/
 .DS_Store
 .gemini/
 pnpm-lock.yaml
-dist/
 target/
 *.ports.json
 *.tmp

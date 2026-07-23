@@ -282,23 +282,30 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     this.appPort = await this._probeAvailablePort(basePort, '127.0.0.1');
     this.socketPath = null;
 
-    let command = 'npx';
+    let command = process.execPath;
     let args: string[] = [];
-    let npxCmd = 'npx';
-    try {
-      const nodeBinDir = path.dirname(process.execPath);
-      const localNpx = path.join(nodeBinDir, process.platform === 'win32' ? 'npx.cmd' : 'npx');
-      if (fs.existsSync(localNpx)) {
-        npxCmd = localNpx;
-      }
-    } catch (_) {}
 
     if (framework === 'nextjs') {
-      command = npxCmd;
-      args = ['next', this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
+      const nextBin = path.join(this.appPath, 'node_modules', 'next', 'dist', 'bin', 'next');
+      const fallbackNextBin = path.join(this.appPath, 'node_modules', '.bin', 'next');
+      const resolvedNextBin = fs.existsSync(nextBin) ? nextBin : fs.existsSync(fallbackNextBin) ? fallbackNextBin : null;
+
+      if (resolvedNextBin) {
+        command = process.execPath;
+        args = [resolvedNextBin, this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
+      } else {
+        command = path.join(path.dirname(process.execPath), 'npx');
+        args = ['next', this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
+      }
     } else if (framework === 'vite') {
-      command = npxCmd;
-      args = ['vite', '--host', '127.0.0.1', '--port', this.appPort.toString(), '--strictPort', '--base', `${basePath}/`];
+      const viteBin = path.join(this.appPath, 'node_modules', 'vite', 'bin', 'vite.js');
+      if (fs.existsSync(viteBin)) {
+        command = process.execPath;
+        args = [viteBin, '--host', '127.0.0.1', '--port', this.appPort.toString(), '--strictPort', '--base', `${basePath}/`];
+      } else {
+        command = path.join(path.dirname(process.execPath), 'npx');
+        args = ['vite', '--host', '127.0.0.1', '--port', this.appPort.toString(), '--strictPort', '--base', `${basePath}/`];
+      }
     } else {
       command = 'npm';
       args = ['run', this.options.mode === 'prod' ? 'start' : 'dev'];
@@ -318,13 +325,16 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
 
     const targetDesc = this.socketPath ? `Unix Socket: ${this.socketPath}` : `127.0.0.1:${this.appPort}`;
     console.log(`[FrontendAdapter] Spawning custom frontend '${this.entityName}' (${framework}) in background (${targetDesc})...`);
-    const useShell = command !== process.execPath;
-    this.childProcess = KrnlShell.spawn(command, args, {
+
+    const { spawn } = await import('child_process');
+    this.childProcess = spawn(command, args, {
       cwd: this.appPath,
       env,
-      shell: useShell,
-      stdio: ['ignore', 'inherit', 'inherit']
+      detached: true,
+      shell: false,
+      stdio: 'ignore'
     });
+    this.childProcess.unref();
 
     // 6. Probe socket or port until it starts responding
     let ready = false;
@@ -423,9 +433,9 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
   }
 
   async proxyRequest(req: http.IncomingMessage, res: http.ServerResponse, subPath: string): Promise<void> {
-    if (!this.socketPath && this.appPort === -1) {
+    if (!this.socketPath && (this.appPort === -1 || !this.childProcess)) {
       res.writeHead(503, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'error', message: 'Service Temporarily Unavailable: Frontend not running.' }));
+      res.end(JSON.stringify({ status: 'error', message: 'Service Temporarily Unavailable: Frontend is starting up or not running.' }));
       return;
     }
 
