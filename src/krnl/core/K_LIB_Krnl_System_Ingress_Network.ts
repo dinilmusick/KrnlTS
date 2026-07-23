@@ -73,8 +73,8 @@ export class KrnlIngressNetwork {
     }
 
     const options = { ...config.options };
-    if (!options.backendPort) {
-      options.backendPort = admin.commPort;
+    if (!options.backendPort || options.backendPort <= 0) {
+      options.backendPort = admin.commPort > 0 ? admin.commPort : (admin as any).options?.commPort || 10099;
     }
     if (!options.backendHost) {
       // Resolve bind-any addresses to 'localhost' — using '::' or '0.0.0.0' directly
