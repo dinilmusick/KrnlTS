@@ -468,3 +468,6 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     super.dispose();
   }
 }
+
+import { registerFrontendAdapterClass } from './K_LIB_Krnl_System_Ingress_Network.js';
+registerFrontendAdapterClass(KrnlFrontendAdapter);

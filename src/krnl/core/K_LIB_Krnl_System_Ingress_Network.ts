@@ -10,6 +10,11 @@ export interface IngressMemberEntry {
   memberType?: 'subapp' | 'frontend';
 }
 
+let FrontendAdapterClass: any = null;
+export function registerFrontendAdapterClass(cls: any) {
+  FrontendAdapterClass = cls;
+}
+
 export class KrnlIngressNetwork {
   members: Map<string, IngressMemberEntry> = new Map();
 
@@ -83,8 +88,10 @@ export class KrnlIngressNetwork {
       options.backendHost = (rawHost === '::' || rawHost === '0.0.0.0' || rawHost === '') ? 'localhost' : rawHost;
     }
 
-    const { KrnlFrontendAdapter } = await import('./K_LIB_Krnl_System_Frontend_Adapter.js');
-    const adapter = new KrnlFrontendAdapter(config.name, config.appPath, options);
+    if (!FrontendAdapterClass) {
+      throw new Error(`[IngressNetwork] FrontendAdapterClass is not registered.`);
+    }
+    const adapter = new FrontendAdapterClass(config.name, config.appPath, options);
 
     adapter._isIngressNetworkMember = true;
     if (typeof (adapter as any)._resolveReady === 'function') {
