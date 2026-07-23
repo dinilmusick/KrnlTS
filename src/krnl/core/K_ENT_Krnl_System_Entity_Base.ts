@@ -1086,9 +1086,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     // 255.255.255.255 is not looped back through loopback-bound sockets on most OS stacks.
     // Redirect broadcast target to 127.0.0.1 when the entity is bound to loopback.
     const broadcastTarget = (this.host === '127.0.0.1') ? '127.0.0.1' : discoveryHost;
+    const bindHost = (this.host === '::' || !this.host) ? '0.0.0.0' : this.host;
 
     try {
-      this.discoverySocket.bind(discoveryPort, this.host, () => {
+      this.discoverySocket.bind(discoveryPort, bindHost, () => {
         try {
           if (this.discoverySocket) {
             this.discoverySocket.setBroadcast(true);
