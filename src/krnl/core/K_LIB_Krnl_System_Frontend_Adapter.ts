@@ -284,7 +284,15 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
 
     let command = 'npx';
     let args: string[] = [];
-    const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+    let npxCmd = 'npx';
+    try {
+      const nodeBinDir = path.dirname(process.execPath);
+      const localNpx = path.join(nodeBinDir, process.platform === 'win32' ? 'npx.cmd' : 'npx');
+      if (fs.existsSync(localNpx)) {
+        npxCmd = localNpx;
+      }
+    } catch (_) {}
+
     if (framework === 'nextjs') {
       command = npxCmd;
       args = ['next', this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
