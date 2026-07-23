@@ -1,18 +1,14 @@
-import { krnlSystemEntityBase } from "./K_ENT_Krnl_System_Entity_Base.js";
+import type { krnlSystemEntityBase } from "./K_ENT_Krnl_System_Entity_Base.js";
 import { KrnlIngressNetworkMemberConfig, KrnlFrontendMemberConfig } from "./types.js";
+import { KrnlFrontendAdapter } from "./K_LIB_Krnl_System_Frontend_Adapter.js";
 import http from 'http';
 import path from 'path';
 
 export interface IngressMemberEntry {
-  entity: krnlSystemEntityBase;
+  entity: any;
   config: KrnlIngressNetworkMemberConfig | KrnlFrontendMemberConfig;
   addedAt: number;
   memberType?: 'subapp' | 'frontend';
-}
-
-let FrontendAdapterClass: any = null;
-export function registerFrontendAdapterClass(cls: any) {
-  FrontendAdapterClass = cls;
 }
 
 export class KrnlIngressNetwork {
@@ -70,7 +66,7 @@ export class KrnlIngressNetwork {
     return entity;
   }
 
-  async addFrontendMember(admin: krnlSystemEntityBase, config: KrnlFrontendMemberConfig): Promise<krnlSystemEntityBase> {
+  async addFrontendMember(admin: any, config: KrnlFrontendMemberConfig): Promise<any> {
     const prefix = config.options?.frontendPrefix || 'frontend';
     const key = `${prefix}/${config.name.toLowerCase()}`;
     if (this.members.has(key)) {
@@ -88,10 +84,7 @@ export class KrnlIngressNetwork {
       options.backendHost = (rawHost === '::' || rawHost === '0.0.0.0' || rawHost === '') ? 'localhost' : rawHost;
     }
 
-    if (!FrontendAdapterClass) {
-      throw new Error(`[IngressNetwork] FrontendAdapterClass is not registered.`);
-    }
-    const adapter = new FrontendAdapterClass(config.name, config.appPath, options);
+    const adapter = new KrnlFrontendAdapter(config.name, config.appPath, options);
 
     adapter._isIngressNetworkMember = true;
     if (typeof (adapter as any)._resolveReady === 'function') {
