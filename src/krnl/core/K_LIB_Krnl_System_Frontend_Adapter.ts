@@ -321,7 +321,7 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
       cwd: this.appPath,
       env,
       shell: useShell,
-      stdio: 'inherit'
+      stdio: ['ignore', 'inherit', 'inherit']
     });
 
     // 6. Probe socket or port until it starts responding
