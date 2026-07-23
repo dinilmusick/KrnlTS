@@ -18,7 +18,8 @@ export class KrnlIngressNetwork {
   async addMember(admin: krnlSystemEntityBase, config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase> {
     const prefix = config.prefix.toLowerCase();
     if (this.members.has(prefix)) {
-      throw new Error(`[IngressNetwork] Prefix '${config.prefix}' is already registered.`);
+      console.log(`[IngressNetwork] Member prefix '${prefix}' already registered. Returning existing entity.`);
+      return this.members.get(prefix)!.entity;
     }
 
     // 1. Instantiate the member entity
@@ -70,7 +71,8 @@ export class KrnlIngressNetwork {
     const prefix = config.options?.frontendPrefix || 'frontend';
     const key = `${prefix}/${config.name.toLowerCase()}`;
     if (this.members.has(key)) {
-      throw new Error(`[IngressNetwork] Frontend member '${config.name}' is already registered.`);
+      console.log(`[IngressNetwork] Frontend member '${key}' already registered. Returning existing entity.`);
+      return this.members.get(key)!.entity;
     }
 
     const options = { ...config.options };
