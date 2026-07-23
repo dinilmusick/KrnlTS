@@ -338,12 +338,18 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   async startCustomFrontend(name: string, appPath: string, options?: KrnlCustomFrontendOptions): Promise<krnlSystemEntityBase> {
+    console.log(`[startCustomFrontend] Step 1: name=${name}, appPath=${appPath}`);
     if (!this._ingressNetwork) {
+      console.log(`[startCustomFrontend] Step 2: initializing _ingressNetwork`);
       this._ingressNetwork = new KrnlIngressNetwork();
       const discoveryPort = this.commPort > 0 ? this.commPort + 1000 : 10101;
+      console.log(`[startCustomFrontend] Step 3: startDiscovery on ${discoveryPort}`);
       await this.startDiscovery(discoveryPort);
     }
-    return await this._ingressNetwork.addFrontendMember(this, { name, appPath, options });
+    console.log(`[startCustomFrontend] Step 4: calling addFrontendMember`);
+    const res = await this._ingressNetwork.addFrontendMember(this, { name, appPath, options });
+    console.log(`[startCustomFrontend] Step 5: addFrontendMember complete`);
+    return res;
   }
 
   getIngressNetworkTopology(): any {
