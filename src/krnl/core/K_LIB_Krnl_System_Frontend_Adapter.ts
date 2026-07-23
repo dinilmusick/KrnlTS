@@ -356,62 +356,34 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     // Self-healing check: if leftover .original exists from an ungraceful shutdown, restore it first
     this._restoreNextConfig();
 
-    if (fs.existsSync(configTs)) {
-      this.originalConfigName = 'next.config.original.ts';
-      this.patchedConfigName = 'next.config.ts';
-      fs.renameSync(configTs, path.join(this.appPath, this.originalConfigName));
-      
-      const newConfigContent = `import * as originalModule from './next.config.original.ts';
-const original = originalModule.default || originalModule;
-const config = {
-  ...original,
-  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || (original as any).basePath || '',
-};
-export default config;
-`;
-      fs.writeFileSync(configTs, newConfigContent, 'utf8');
-    } else if (fs.existsSync(configMjs)) {
-      this.originalConfigName = 'next.config.original.mjs';
-      this.patchedConfigName = 'next.config.mjs';
-      fs.renameSync(configMjs, path.join(this.appPath, this.originalConfigName));
-      
-      const newConfigContent = `import original from './next.config.original.mjs';
-const config = {
-  ...original,
-  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || original.basePath || '',
-};
-export default config;
-`;
-      fs.writeFileSync(configMjs, newConfigContent, 'utf8');
-    } else if (fs.existsSync(configJs)) {
-      this.originalConfigName = 'next.config.original.js';
-      this.patchedConfigName = 'next.config.js';
-      fs.renameSync(configJs, path.join(this.appPath, this.originalConfigName));
+    const targetConfig = fs.existsSync(configTs) ? configTs : fs.existsSync(configMjs) ? configMjs : fs.existsSync(configJs) ? configJs : null;
 
-      let newConfigContent = '';
-      if (isEsm) {
-        newConfigContent = `import original from './next.config.original.js';
-const config = {
-  ...original,
-  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || original.basePath || '',
-};
-export default config;
-`;
-      } else {
-        newConfigContent = `const original = require('./next.config.original.js');
-module.exports = {
-  ...original,
-  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || original.basePath || '',
-};
-`;
+    if (targetConfig) {
+      const content = fs.readFileSync(targetConfig, 'utf8');
+      if (content.includes('NEXT_PUBLIC_KRNL_BASE_PATH')) {
+        // App's config is already environment-aware; no runtime patching required
+        return;
       }
-      fs.writeFileSync(configJs, newConfigContent, 'utf8');
+      // Inject basePath safely before export default / module.exports if missing
+      this.originalConfigName = path.basename(targetConfig) + '.bak';
+      this.patchedConfigName = path.basename(targetConfig);
+      fs.copyFileSync(targetConfig, path.join(this.appPath, this.originalConfigName));
+
+      let updated = content;
+      if (content.includes('const nextConfig') || content.includes('let nextConfig')) {
+        updated = content.replace(/(const|let)\s+nextConfig\s*:\s*NextConfig\s*=\s*\{/, `$1 nextConfig: NextConfig = {\n  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || '',`);
+      } else if (content.includes('module.exports = {')) {
+        updated = content.replace('module.exports = {', `module.exports = {\n  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || '',`);
+      } else if (content.includes('export default {')) {
+        updated = content.replace('export default {', `export default {\n  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || '',`);
+      } else {
+        updated = content + `\n// KrnlTS injected basePath\nif (typeof module !== 'undefined' && module.exports) { module.exports.basePath = process.env.NEXT_PUBLIC_KRNL_BASE_PATH || ''; }\n`;
+      }
+      fs.writeFileSync(targetConfig, updated, 'utf8');
     } else {
-      // Create a default next.config.js
-      this.patchedConfigName = isEsm ? 'next.config.mjs' : 'next.config.js';
-      const newConfigContent = isEsm 
-        ? `export default { basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || '' };\n`
-        : `module.exports = { basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || '' };\n`;
+      // Create a default next.config.ts
+      this.patchedConfigName = 'next.config.ts';
+      const newConfigContent = `import type { NextConfig } from "next";\nconst nextConfig: NextConfig = {\n  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || '',\n};\nexport default nextConfig;\n`;
       fs.writeFileSync(path.join(this.appPath, this.patchedConfigName), newConfigContent, 'utf8');
     }
   }
