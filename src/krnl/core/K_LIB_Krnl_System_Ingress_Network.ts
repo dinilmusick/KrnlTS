@@ -85,7 +85,6 @@ export class KrnlIngressNetwork {
 
     const { KrnlFrontendAdapter } = await import('./K_LIB_Krnl_System_Frontend_Adapter.js');
     const adapter = new KrnlFrontendAdapter(config.name, config.appPath, options);
-    await adapter.startApp();
 
     adapter._isIngressNetworkMember = true;
     if (typeof (adapter as any)._resolveReady === 'function') {
@@ -101,6 +100,8 @@ export class KrnlIngressNetwork {
       addedAt: Date.now(),
       memberType: 'frontend'
     });
+
+    await adapter.startApp();
 
     return adapter;
   }
