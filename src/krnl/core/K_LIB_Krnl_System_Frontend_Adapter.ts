@@ -311,10 +311,11 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
 
     const targetDesc = this.socketPath ? `Unix Socket: ${this.socketPath}` : `127.0.0.1:${this.appPort}`;
     console.log(`[FrontendAdapter] Spawning custom frontend '${this.entityName}' (${framework}) in background (${targetDesc})...`);
+    const useShell = command !== process.execPath;
     this.childProcess = KrnlShell.spawn(command, args, {
       cwd: this.appPath,
       env,
-      shell: true,
+      shell: useShell,
       stdio: 'inherit'
     });
 
