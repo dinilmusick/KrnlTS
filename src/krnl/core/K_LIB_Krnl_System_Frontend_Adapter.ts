@@ -263,6 +263,17 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     const basePort = (this.options.backendPort && this.options.backendPort > 0)
       ? this.options.backendPort + 2000
       : 12000;
+
+    // Clean up any stale worker process from a previous run occupying basePort
+    try {
+      const { execSync } = await import('child_process');
+      const pids = execSync(`lsof -t -i :${basePort}`).toString().trim();
+      if (pids) {
+        execSync(`kill -9 ${pids.split(/\s+/).join(' ')} 2>/dev/null || true`);
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    } catch (_) {}
+
     this.appPort = await this._probeAvailablePort(basePort, '127.0.0.1');
     this.socketPath = null;
 
