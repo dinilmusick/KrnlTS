@@ -280,11 +280,11 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     let command = 'npx';
     let args: string[] = [];
 
-    const nextBin = path.join(this.appPath, 'node_modules', '.bin', 'next');
+    const nextCliJs = path.join(this.appPath, 'node_modules', 'next', 'dist', 'bin', 'next');
     if (framework === 'nextjs') {
-      if (fs.existsSync(nextBin)) {
+      if (fs.existsSync(nextCliJs)) {
         command = process.execPath;
-        args = [nextBin, this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
+        args = [nextCliJs, this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
       } else {
         command = 'npx';
         args = ['next', this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
