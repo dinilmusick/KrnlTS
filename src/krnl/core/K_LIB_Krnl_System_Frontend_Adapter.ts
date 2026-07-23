@@ -260,7 +260,12 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
       await this._patchNextConfig(basePath, isEsm);
     }
 
-    // 4. Resolve spawn command and arguments (using Unix Socket where supported, fallback to 127.0.0.1 TCP)
+    const basePort = (this.options.backendPort && this.options.backendPort > 0)
+      ? this.options.backendPort + 2000
+      : 12000;
+    this.appPort = await this._probeAvailablePort(basePort, '127.0.0.1');
+    this.socketPath = null;
+
     let command = 'npx';
     let args: string[] = [];
 
@@ -278,16 +283,11 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
         }
       }
       command = 'npx';
-      args = ['next', this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '--socket', this.socketPath];
+      args = ['next', this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
     } else if (framework === 'vite') {
-      // Fallback for vite to internal loopback 127.0.0.1 port if socket not natively flagged
-      this.appPort = await this._probeAvailablePort(12000, '127.0.0.1');
-      this.socketPath = null;
       command = 'npx';
       args = ['vite', '--host', '127.0.0.1', '--port', this.appPort.toString(), '--strictPort', '--base', `${basePath}/`];
     } else {
-      this.appPort = await this._probeAvailablePort(12000, '127.0.0.1');
-      this.socketPath = null;
       command = 'npm';
       args = ['run', this.options.mode === 'prod' ? 'start' : 'dev'];
     }
