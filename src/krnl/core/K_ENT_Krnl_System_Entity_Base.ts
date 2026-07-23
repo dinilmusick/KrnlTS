@@ -578,7 +578,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       const available = await new Promise<boolean>(resolve => {
         const probe = net.createServer();
         probe.once('error', () => resolve(false));
-        probe.listen(port, host, () => probe.close(() => resolve(true)));
+        probe.listen(port, host, () => probe.close(() => setTimeout(() => resolve(true), 50)));
       });
       if (available) return port;
     }
