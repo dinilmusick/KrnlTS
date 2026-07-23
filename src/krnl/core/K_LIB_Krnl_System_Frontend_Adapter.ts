@@ -269,21 +269,15 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     let command = 'npx';
     let args: string[] = [];
 
+    const nextBin = path.join(this.appPath, 'node_modules', '.bin', 'next');
     if (framework === 'nextjs') {
-      if (this.options.mode === 'prod') {
-        console.log(`[FrontendAdapter] Next.js production build starting for '${this.entityName}'...`);
-        const buildProcess = KrnlShell.spawn('npx', ['next', 'build'], {
-          cwd: this.appPath,
-          env: { ...process.env, NEXT_PUBLIC_KRNL_BASE_PATH: basePath },
-          stdio: 'inherit'
-        });
-        const { code } = await buildProcess.promise;
-        if (code !== 0) {
-          throw new Error(`Next.js build failed with code ${code}`);
-        }
+      if (fs.existsSync(nextBin)) {
+        command = process.execPath;
+        args = [nextBin, this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
+      } else {
+        command = 'npx';
+        args = ['next', this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
       }
-      command = 'npx';
-      args = ['next', this.options.mode === 'prod' ? 'start' : 'dev', '-H', '127.0.0.1', '-p', this.appPort.toString()];
     } else if (framework === 'vite') {
       command = 'npx';
       args = ['vite', '--host', '127.0.0.1', '--port', this.appPort.toString(), '--strictPort', '--base', `${basePath}/`];
