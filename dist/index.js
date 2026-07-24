@@ -2,13 +2,13 @@ import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-5NHXZUF5.js";
+} from "./chunk-LWET2LXP.js";
 import {
   KrnlRegistryClient
 } from "./chunk-4MELRUJ6.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-SMT2K4TZ.js";
+} from "./chunk-UIA53DGP.js";
 import {
   CUSTOM_ERROR_CODE,
   KrnlApplicationOrchestrator,
@@ -41,7 +41,7 @@ import {
   krnlSystemCommComponent,
   krnlSystemEntityBase,
   krnlTransportAdapter
-} from "./chunk-KEPKCA6Y.js";
+} from "./chunk-ZXPBHAYZ.js";
 import {
   AsyncKit,
   CacheKit,

@@ -4988,17 +4988,8 @@ var init_K_LIB_Krnl_System_Frontend_Adapter = __esm({
         if (framework === "nextjs") {
           await this._patchNextConfig(basePath, isEsm);
         }
-        const basePort = this.options.backendPort && this.options.backendPort > 0 ? this.options.backendPort + 2e3 : 12e3;
-        try {
-          const { execSync: execSync2 } = await import("child_process");
-          const pids = execSync2(`lsof -t -i :${basePort}`).toString().trim();
-          if (pids) {
-            execSync2(`kill -9 ${pids.split(/\s+/).join(" ")} 2>/dev/null || true`);
-            await new Promise((r) => setTimeout(r, 300));
-          }
-        } catch (_) {
-        }
-        this.appPort = await this._probeAvailablePort(basePort, "127.0.0.1");
+        const initialBasePort = this.options.backendPort && this.options.backendPort > 0 ? this.options.backendPort + 2e3 : 12e3;
+        this.appPort = await this._probeAvailablePort(initialBasePort, "127.0.0.1");
         this.socketPath = null;
         let command = process.execPath;
         let args = [];
