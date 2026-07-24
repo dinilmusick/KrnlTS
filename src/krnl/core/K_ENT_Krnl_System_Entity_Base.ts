@@ -351,6 +351,12 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     }
   }
 
+  async stopCustomFrontend(name: string, prefix: string = 'modules'): Promise<boolean> {
+    if (!this._ingressNetwork) return false;
+    const key = `${prefix}/${name.toLowerCase()}`;
+    return await this._ingressNetwork.removeMember(this, key);
+  }
+
   getIngressNetworkTopology(): any {
     if (!this._ingressNetwork) return null;
     const members = Array.from(this._ingressNetwork.members.entries()).map(([prefix, entry]) => ({

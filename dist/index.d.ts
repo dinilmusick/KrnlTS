@@ -1268,6 +1268,7 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
     startIngressNetwork(members: KrnlIngressNetworkMemberConfig[]): Promise<void>;
     joinIngressNetwork(config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase>;
     startCustomFrontend(name: string, appPath: string, options?: KrnlCustomFrontendOptions): Promise<krnlSystemEntityBase>;
+    stopCustomFrontend(name: string, prefix?: string): Promise<boolean>;
     getIngressNetworkTopology(): any;
     /**
      * port — stable public accessor for the active bound port.
@@ -1558,6 +1559,9 @@ declare class KrnlFrontendAdapter extends krnlSystemEntityBase {
     patchedConfigName: string | null;
     registeredRoutes: Set<string>;
     routeWatcher: any;
+    status: 'stopped' | 'starting' | 'running' | 'failed';
+    lastLogLine: string;
+    statusMessage: string;
     constructor(name: string, appPath: string, options?: KrnlCustomFrontendOptions);
     loadBridgesFromFolder(folderPath: string): Promise<void>;
     scanAndRegisterApiRoutes(): Promise<void>;

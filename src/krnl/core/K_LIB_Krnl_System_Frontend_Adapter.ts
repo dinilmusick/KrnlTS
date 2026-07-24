@@ -23,6 +23,10 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
   registeredRoutes = new Set<string>();
   routeWatcher: any = null;
 
+  status: 'stopped' | 'starting' | 'running' | 'failed' = 'stopped';
+  lastLogLine: string = '';
+  statusMessage: string = 'Not started';
+
   constructor(name: string, appPath: string, options: KrnlCustomFrontendOptions = {}) {
     // Custom frontend runs locally as an internal worker (via Unix Socket or loopback)
     super(`frontend-${name}`, null, -1, '127.0.0.1', { Singleton: true, _skipMagneticLoading: true });
@@ -265,21 +269,11 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
       await this._patchNextConfig(basePath, isEsm);
     }
 
-    const basePort = (this.options.backendPort && this.options.backendPort > 0)
+    const initialBasePort = (this.options.backendPort && this.options.backendPort > 0)
       ? this.options.backendPort + 2000
       : 12000;
 
-    // Clean up any stale worker process from a previous run occupying basePort
-    try {
-      const { execSync } = await import('child_process');
-      const pids = execSync(`lsof -t -i :${basePort}`).toString().trim();
-      if (pids) {
-        execSync(`kill -9 ${pids.split(/\s+/).join(' ')} 2>/dev/null || true`);
-        await new Promise((r) => setTimeout(r, 300));
-      }
-    } catch (_) {}
-
-    this.appPort = await this._probeAvailablePort(basePort, '127.0.0.1');
+    this.appPort = await this._probeAvailablePort(initialBasePort, '127.0.0.1');
     this.socketPath = null;
 
     let command = process.execPath;
@@ -326,21 +320,49 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     const targetDesc = this.socketPath ? `Unix Socket: ${this.socketPath}` : `127.0.0.1:${this.appPort}`;
     console.log(`[FrontendAdapter] Spawning custom frontend '${this.entityName}' (${framework}) in background (${targetDesc})...`);
 
+    this.status = 'starting';
+    this.statusMessage = 'Spawning dev server process...';
+    this.lastLogLine = 'Spawning process...';
+
     const { spawn } = await import('child_process');
     this.childProcess = spawn(command, args, {
       cwd: this.appPath,
       env,
-      detached: true,
+      detached: false,
       shell: false,
-      stdio: 'ignore'
+      stdio: ['ignore', 'pipe', 'pipe']
     });
-    this.childProcess.unref();
+
+    const handleLog = (data: Buffer) => {
+      const text = data.toString('utf8');
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (lines.length > 0) {
+        this.lastLogLine = lines[lines.length - 1];
+        this.statusMessage = this.lastLogLine;
+      }
+    };
+
+    if (this.childProcess.stdout) {
+      this.childProcess.stdout.on('data', handleLog);
+    }
+    if (this.childProcess.stderr) {
+      this.childProcess.stderr.on('data', handleLog);
+    }
+    this.childProcess.on('exit', (code: number | null) => {
+      console.log(`[FrontendAdapter] Process for '${this.entityName}' exited with code ${code}`);
+      this.status = 'stopped';
+      this.statusMessage = `Process exited (code ${code})`;
+      this.childProcess = null;
+    });
 
     // 6. Probe socket or port until it starts responding
     let ready = false;
     const timeout = this.options.startupTimeoutMs ?? 60000;
     const start = Date.now();
     while (Date.now() - start < timeout) {
+      if ((this.status as string) === 'stopped') {
+        throw new Error(`[FrontendAdapter] Custom frontend '${this.entityName}' process exited early: ${this.statusMessage}`);
+      }
       ready = await new Promise<boolean>((resolve) => {
         if (this.socketPath) {
           if (!fs.existsSync(this.socketPath)) {
@@ -367,8 +389,12 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
     }
 
     if (!ready) {
+      this.status = 'failed';
+      this.statusMessage = `Failed to boot within ${timeout / 1000}s`;
       throw new Error(`[FrontendAdapter] Custom frontend '${this.entityName}' failed to boot on ${targetDesc} within ${timeout / 1000}s.`);
     }
+    this.status = 'running';
+    this.statusMessage = 'Ready and serving';
     console.log(`[FrontendAdapter] Custom frontend '${this.entityName}' successfully booted.`);
   }
 
@@ -466,13 +492,17 @@ export class KrnlFrontendAdapter extends krnlSystemEntityBase {
   }
 
   dispose(): void {
+    this.status = 'stopped';
+    this.statusMessage = 'Stopped';
     if (this.routeWatcher) {
       this.routeWatcher.close();
       this.routeWatcher = null;
     }
     if (this.childProcess) {
       console.log(`[FrontendAdapter] Killing child process (PID: ${this.childProcess.pid}) for '${this.entityName}'`);
-      this.childProcess.kill('SIGTERM');
+      try {
+        this.childProcess.kill('SIGTERM');
+      } catch (_) {}
       this.childProcess = null;
     }
     if (this.socketPath && fs.existsSync(this.socketPath)) {

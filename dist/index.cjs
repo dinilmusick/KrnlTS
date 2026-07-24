@@ -4778,6 +4778,9 @@ var init_K_LIB_Krnl_System_Frontend_Adapter = __esm({
       patchedConfigName = null;
       registeredRoutes = /* @__PURE__ */ new Set();
       routeWatcher = null;
+      status = "stopped";
+      lastLogLine = "";
+      statusMessage = "Not started";
       constructor(name, appPath, options = {}) {
         super(`frontend-${name}`, null, -1, "127.0.0.1", { Singleton: true, _skipMagneticLoading: true });
         this.appPath = appPath;
@@ -5029,19 +5032,44 @@ var init_K_LIB_Krnl_System_Frontend_Adapter = __esm({
         };
         const targetDesc = this.socketPath ? `Unix Socket: ${this.socketPath}` : `127.0.0.1:${this.appPort}`;
         console.log(`[FrontendAdapter] Spawning custom frontend '${this.entityName}' (${framework}) in background (${targetDesc})...`);
+        this.status = "starting";
+        this.statusMessage = "Spawning dev server process...";
+        this.lastLogLine = "Spawning process...";
         const { spawn: spawn3 } = await import("child_process");
         this.childProcess = spawn3(command, args, {
           cwd: this.appPath,
           env,
-          detached: true,
+          detached: false,
           shell: false,
-          stdio: "ignore"
+          stdio: ["ignore", "pipe", "pipe"]
         });
-        this.childProcess.unref();
+        const handleLog = (data) => {
+          const text = data.toString("utf8");
+          const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+          if (lines.length > 0) {
+            this.lastLogLine = lines[lines.length - 1];
+            this.statusMessage = this.lastLogLine;
+          }
+        };
+        if (this.childProcess.stdout) {
+          this.childProcess.stdout.on("data", handleLog);
+        }
+        if (this.childProcess.stderr) {
+          this.childProcess.stderr.on("data", handleLog);
+        }
+        this.childProcess.on("exit", (code) => {
+          console.log(`[FrontendAdapter] Process for '${this.entityName}' exited with code ${code}`);
+          this.status = "stopped";
+          this.statusMessage = `Process exited (code ${code})`;
+          this.childProcess = null;
+        });
         let ready = false;
         const timeout = this.options.startupTimeoutMs ?? 6e4;
         const start = Date.now();
         while (Date.now() - start < timeout) {
+          if (this.status === "stopped") {
+            throw new Error(`[FrontendAdapter] Custom frontend '${this.entityName}' process exited early: ${this.statusMessage}`);
+          }
           ready = await new Promise((resolve) => {
             if (this.socketPath) {
               if (!import_fs7.default.existsSync(this.socketPath)) {
@@ -5067,8 +5095,12 @@ var init_K_LIB_Krnl_System_Frontend_Adapter = __esm({
           await new Promise((r) => setTimeout(r, 200));
         }
         if (!ready) {
+          this.status = "failed";
+          this.statusMessage = `Failed to boot within ${timeout / 1e3}s`;
           throw new Error(`[FrontendAdapter] Custom frontend '${this.entityName}' failed to boot on ${targetDesc} within ${timeout / 1e3}s.`);
         }
+        this.status = "running";
+        this.statusMessage = "Ready and serving";
         console.log(`[FrontendAdapter] Custom frontend '${this.entityName}' successfully booted.`);
       }
       async _patchNextConfig(basePath, isEsm) {
@@ -5159,13 +5191,18 @@ export default nextConfig;
         req.pipe(proxyReq);
       }
       dispose() {
+        this.status = "stopped";
+        this.statusMessage = "Stopped";
         if (this.routeWatcher) {
           this.routeWatcher.close();
           this.routeWatcher = null;
         }
         if (this.childProcess) {
           console.log(`[FrontendAdapter] Killing child process (PID: ${this.childProcess.pid}) for '${this.entityName}'`);
-          this.childProcess.kill("SIGTERM");
+          try {
+            this.childProcess.kill("SIGTERM");
+          } catch (_) {
+          }
           this.childProcess = null;
         }
         if (this.socketPath && import_fs7.default.existsSync(this.socketPath)) {
@@ -8135,6 +8172,11 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
           console.error(`[startCustomFrontend] Error starting custom frontend '${name}':`, err);
           throw err;
         }
+      }
+      async stopCustomFrontend(name, prefix = "modules") {
+        if (!this._ingressNetwork) return false;
+        const key = `${prefix}/${name.toLowerCase()}`;
+        return await this._ingressNetwork.removeMember(this, key);
       }
       getIngressNetworkTopology() {
         if (!this._ingressNetwork) return null;
