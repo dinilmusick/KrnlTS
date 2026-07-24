@@ -4764,7 +4764,6 @@ var init_K_LIB_Krnl_System_Frontend_Adapter = __esm({
     import_net = __toESM(require("net"), 1);
     import_url = require("url");
     init_K_ENT_Krnl_System_Entity_Base();
-    init_KrnlShell();
     import_meta = {};
     _metaUrl = typeof import_meta !== "undefined" && import_meta.url ? import_meta.url : null;
     _filename = _metaUrl ? (0, import_url.fileURLToPath)(_metaUrl) : "";
@@ -5001,23 +5000,28 @@ var init_K_LIB_Krnl_System_Frontend_Adapter = __esm({
         }
         this.appPort = await this._probeAvailablePort(basePort, "127.0.0.1");
         this.socketPath = null;
-        let command = "npx";
+        let command = process.execPath;
         let args = [];
-        let npxCmd = "npx";
-        try {
-          const nodeBinDir = import_path6.default.dirname(process.execPath);
-          const localNpx = import_path6.default.join(nodeBinDir, process.platform === "win32" ? "npx.cmd" : "npx");
-          if (import_fs7.default.existsSync(localNpx)) {
-            npxCmd = localNpx;
-          }
-        } catch (_) {
-        }
         if (framework === "nextjs") {
-          command = npxCmd;
-          args = ["next", this.options.mode === "prod" ? "start" : "dev", "-H", "127.0.0.1", "-p", this.appPort.toString()];
+          const nextBin = import_path6.default.join(this.appPath, "node_modules", "next", "dist", "bin", "next");
+          const fallbackNextBin = import_path6.default.join(this.appPath, "node_modules", ".bin", "next");
+          const resolvedNextBin = import_fs7.default.existsSync(nextBin) ? nextBin : import_fs7.default.existsSync(fallbackNextBin) ? fallbackNextBin : null;
+          if (resolvedNextBin) {
+            command = process.execPath;
+            args = [resolvedNextBin, this.options.mode === "prod" ? "start" : "dev", "-H", "127.0.0.1", "-p", this.appPort.toString()];
+          } else {
+            command = import_path6.default.join(import_path6.default.dirname(process.execPath), "npx");
+            args = ["next", this.options.mode === "prod" ? "start" : "dev", "-H", "127.0.0.1", "-p", this.appPort.toString()];
+          }
         } else if (framework === "vite") {
-          command = npxCmd;
-          args = ["vite", "--host", "127.0.0.1", "--port", this.appPort.toString(), "--strictPort", "--base", `${basePath}/`];
+          const viteBin = import_path6.default.join(this.appPath, "node_modules", "vite", "bin", "vite.js");
+          if (import_fs7.default.existsSync(viteBin)) {
+            command = process.execPath;
+            args = [viteBin, "--host", "127.0.0.1", "--port", this.appPort.toString(), "--strictPort", "--base", `${basePath}/`];
+          } else {
+            command = import_path6.default.join(import_path6.default.dirname(process.execPath), "npx");
+            args = ["vite", "--host", "127.0.0.1", "--port", this.appPort.toString(), "--strictPort", "--base", `${basePath}/`];
+          }
         } else {
           command = "npm";
           args = ["run", this.options.mode === "prod" ? "start" : "dev"];
@@ -5034,13 +5038,15 @@ var init_K_LIB_Krnl_System_Frontend_Adapter = __esm({
         };
         const targetDesc = this.socketPath ? `Unix Socket: ${this.socketPath}` : `127.0.0.1:${this.appPort}`;
         console.log(`[FrontendAdapter] Spawning custom frontend '${this.entityName}' (${framework}) in background (${targetDesc})...`);
-        const useShell = command !== process.execPath;
-        this.childProcess = KrnlShell.spawn(command, args, {
+        const { spawn: spawn3 } = await import("child_process");
+        this.childProcess = spawn3(command, args, {
           cwd: this.appPath,
           env,
-          shell: useShell,
-          stdio: ["ignore", "inherit", "inherit"]
+          detached: true,
+          shell: false,
+          stdio: "ignore"
         });
+        this.childProcess.unref();
         let ready = false;
         const timeout = this.options.startupTimeoutMs ?? 6e4;
         const start = Date.now();
@@ -5134,9 +5140,9 @@ export default nextConfig;
         this.patchedConfigName = null;
       }
       async proxyRequest(req, res, subPath) {
-        if (!this.socketPath && this.appPort === -1) {
+        if (!this.socketPath && (this.appPort === -1 || !this.childProcess)) {
           res.writeHead(503, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ status: "error", message: "Service Temporarily Unavailable: Frontend not running." }));
+          res.end(JSON.stringify({ status: "error", message: "Service Temporarily Unavailable: Frontend is starting up or not running." }));
           return;
         }
         const options = this.socketPath ? {
@@ -5394,7 +5400,9 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
                   }
                 }
                 console.log(`[MagneticLoader] Detected custom frontend '${entry.name}' at '${appPath}'. Registering...`);
-                await entity.startCustomFrontend(entry.name, appPath, options);
+                entity.startCustomFrontend(entry.name, appPath, options).catch((err) => {
+                  console.error(`[MagneticLoader] Custom frontend '${entry.name}' startup error:`, err.message || err);
+                });
               }
             }
           }
@@ -5739,7 +5747,9 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
           addedAt: Date.now(),
           memberType: "frontend"
         });
-        await adapter.startApp();
+        adapter.startApp().catch((err) => {
+          console.error(`[IngressNetwork] Frontend '${config.name}' startApp failed:`, err.message || err);
+        });
         return adapter;
       }
       async removeMember(admin, prefix) {
