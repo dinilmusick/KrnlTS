@@ -798,10 +798,10 @@ var init_ObjectKit = __esm({
       /**
        * Accesses an in-memory object by dot-notation.
        */
-      static getPath(obj, path14, defaultValue) {
-        if (!path14)
+      static getPath(obj, path16, defaultValue) {
+        if (!path16)
           return obj;
-        const parts = path14.split(".");
+        const parts = path16.split(".");
         let current = obj;
         for (const part of parts) {
           if (current === null || current === void 0) {
@@ -814,10 +814,10 @@ var init_ObjectKit = __esm({
       /**
        * Mutates or sets an in-memory object by dot-notation.
        */
-      static setPath(obj, path14, value) {
-        if (!path14)
+      static setPath(obj, path16, value) {
+        if (!path16)
           return obj;
-        const parts = path14.split(".");
+        const parts = path16.split(".");
         let current = obj;
         for (let i = 0; i < parts.length - 1; i++) {
           const part = parts[i];
@@ -2521,6 +2521,7 @@ var init_K_LIB_Krnl_System_Comm_Component = __esm({
                 if (rawStr.startsWith("{") && rawStr.endsWith("}")) {
                   const parsed = JSON.parse(rawStr);
                   msg = {
+                    isJson: true,
                     kind: parsed.kind === "rpc-request" ? krnl.MessageKind.RPC_REQUEST : parsed.kind === "rpc-response" ? krnl.MessageKind.RPC_RESPONSE : parsed.kind === "register-ingress" ? krnl.MessageKind.REGISTER_INGRESS : parsed.kind === "route-data" ? krnl.MessageKind.ROUTE_DATA : parsed.kind === "introspect" ? krnl.MessageKind.INTROSPECT : krnl.MessageKind.UNKNOWN,
                     routeId: parsed.routeId || "",
                     requestId: parsed.requestId || "",
@@ -2738,48 +2739,39 @@ var init_K_LIB_Krnl_System_Comm_Component = __esm({
             return;
           }
         }
+        const sendResp = (ok, resultOrErr) => {
+          if (msg.isJson) {
+            const resp = {
+              kind: "rpc-response",
+              requestId,
+              ok,
+              ...ok ? { result: resultOrErr } : { error: typeof resultOrErr === "string" ? resultOrErr : resultOrErr.message }
+            };
+            ws.send(JSON.stringify(resp));
+          } else {
+            const rpcResp = krnl.RpcResponse.encode({
+              requestId,
+              ok,
+              ...ok ? { jsonResult: JSON.stringify(resultOrErr) } : { error: typeof resultOrErr === "string" ? resultOrErr : resultOrErr.message, errorDocumentation: resultOrErr.errorDocumentation || "" }
+            }).finish();
+            const envelope = krnl.KrnlMessage.encode({
+              kind: krnl.MessageKind.RPC_RESPONSE,
+              requestId,
+              binaryPayload: rpcResp
+            }).finish();
+            ws.send(envelope);
+          }
+        };
         const handler = this._wsRpcHandlers.get(method);
         if (!handler) {
-          const rpcResp = krnl.RpcResponse.encode({
-            requestId,
-            ok: false,
-            error: `Unknown RPC method: ${method}`
-          }).finish();
-          const envelope = krnl.KrnlMessage.encode({
-            kind: krnl.MessageKind.RPC_RESPONSE,
-            requestId,
-            binaryPayload: rpcResp
-          }).finish();
-          ws.send(envelope);
+          sendResp(false, `Unknown RPC method: ${method}`);
           return;
         }
         try {
           const result = await handler(params, { callerPort });
-          const rpcResp = krnl.RpcResponse.encode({
-            requestId,
-            ok: true,
-            jsonResult: JSON.stringify(result)
-          }).finish();
-          const envelope = krnl.KrnlMessage.encode({
-            kind: krnl.MessageKind.RPC_RESPONSE,
-            requestId,
-            binaryPayload: rpcResp
-          }).finish();
-          ws.send(envelope);
+          sendResp(true, result);
         } catch (e) {
-          let errorMsg = e.message || String(e);
-          const rpcResp = krnl.RpcResponse.encode({
-            requestId,
-            ok: false,
-            error: errorMsg,
-            errorDocumentation: e.errorDocumentation || ""
-          }).finish();
-          const envelope = krnl.KrnlMessage.encode({
-            kind: krnl.MessageKind.RPC_RESPONSE,
-            requestId,
-            binaryPayload: rpcResp
-          }).finish();
-          ws.send(envelope);
+          sendResp(false, e);
         }
       }
       async _handleIntrospect(ws, msg) {
@@ -3658,10 +3650,10 @@ var init_KrnlHTTP = __esm({
        */
       static createClient(baseUrl, defaultHeaders = {}) {
         return {
-          get: (path14, opts = {}) => _KrnlHTTP.get(`${baseUrl}${path14}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
-          post: (path14, body, opts = {}) => _KrnlHTTP.post(`${baseUrl}${path14}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
-          put: (path14, body, opts = {}) => _KrnlHTTP.put(`${baseUrl}${path14}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
-          del: (path14, opts = {}) => _KrnlHTTP.del(`${baseUrl}${path14}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } })
+          get: (path16, opts = {}) => _KrnlHTTP.get(`${baseUrl}${path16}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+          post: (path16, body, opts = {}) => _KrnlHTTP.post(`${baseUrl}${path16}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+          put: (path16, body, opts = {}) => _KrnlHTTP.put(`${baseUrl}${path16}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+          del: (path16, opts = {}) => _KrnlHTTP.del(`${baseUrl}${path16}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } })
         };
       }
       /**
@@ -3854,6 +3846,8 @@ __export(K_LIB_Krnl_System_Base_Functionality_APIs_exports, {
   getIngressNetworkTopologyApi: () => getIngressNetworkTopologyApi,
   getLastActionDocsApi: () => getLastActionDocsApi,
   getManifestApi: () => getManifestApi,
+  getSiblingNetworkTopologyApi: () => getSiblingNetworkTopologyApi,
+  getSubAppTopologyApi: () => getSubAppTopologyApi,
   getTaskListApi: () => getTaskListApi,
   getTelemetryLogApi: () => getTelemetryLogApi,
   getUsedPortsApi: () => getUsedPortsApi,
@@ -4031,11 +4025,17 @@ function shutdownApi(entity) {
     };
   };
 }
-function getIngressNetworkTopologyApi(entity) {
+function getSiblingNetworkTopologyApi(entity) {
   return () => {
-    if (!entity._ingressNetwork) return null;
-    return entity.getIngressNetworkTopology();
+    if (!entity._siblingNetwork) return null;
+    return entity.getSiblingNetworkTopology();
   };
+}
+function getSubAppTopologyApi(entity) {
+  return () => entity.getSubAppTopology();
+}
+function getIngressNetworkTopologyApi(entity) {
+  return getSiblingNetworkTopologyApi(entity);
 }
 function registerAppApi(entity) {
   return ({ name, port, pid }) => {
@@ -4521,7 +4521,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
       }
       async _handleRequest(req, res) {
         const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
-        const path14 = url.pathname;
+        const path16 = url.pathname;
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         res.setHeader("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id");
@@ -4530,46 +4530,69 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
           res.end();
           return;
         }
-        if (this.system._ingressNetwork) {
-          const segments = path14.split("/").filter(Boolean);
+        if (this.system._subAppRegistry?.size > 0) {
+          const segments = path16.split("/").filter(Boolean);
           const prefix = segments[0]?.toLowerCase();
-          if (prefix && this.system._ingressNetwork.members.has(prefix)) {
-            if (segments.length === 3 && segments[1] === "frontend" && segments[2] === "default" && !path14.endsWith("/")) {
-              res.writeHead(302, { "Location": path14 + "/" + url.search });
+          if (prefix && this.system._subAppRegistry.has(prefix)) {
+            const entry = this.system._subAppRegistry.get(prefix);
+            let subPath = "/" + segments.slice(1).join("/") + url.search;
+            if (path16.endsWith("/") && !subPath.endsWith("/")) subPath += "/";
+            if (entry.executionMode === "worker") {
+              const fid = segments[1] ?? "heartbeat";
+              const body = req.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : await this._readJsonBody(req);
+              try {
+                const result = await entry.entity.call(fid, body);
+                this._sendJson(res, 200, result);
+              } catch (err) {
+                this._sendJson(res, 200, { status: "error", message: err.message || String(err) });
+              }
+            } else {
+              const originalUrl = req.url;
+              req.url = subPath;
+              try {
+                await entry.entity.unifiedHttpAdapter._handleRequest(req, res);
+              } finally {
+                req.url = originalUrl;
+              }
+            }
+            return;
+          }
+        }
+        if (this.system._siblingNetwork) {
+          const segments = path16.split("/").filter(Boolean);
+          const prefix = segments[0]?.toLowerCase();
+          if (prefix && this.system._siblingNetwork.members.has(prefix)) {
+            if (segments.length === 3 && segments[1] === "frontend" && segments[2] === "default" && !path16.endsWith("/")) {
+              res.writeHead(302, { "Location": path16 + "/" + url.search });
               res.end();
               return;
             }
             let subPath = "/" + segments.slice(1).join("/") + url.search;
-            if (path14.endsWith("/") && !subPath.endsWith("/")) {
-              subPath += "/";
-            }
-            await this.system._ingressNetwork.routeHttpRequest(prefix, req, res, subPath);
+            if (path16.endsWith("/") && !subPath.endsWith("/")) subPath += "/";
+            await this.system._siblingNetwork.routeHttpRequest(prefix, req, res, subPath);
             return;
           }
-        }
-        if (this.system._ingressNetwork) {
-          const segments = path14.split("/").filter(Boolean);
           if (segments[0] && segments[1] && segments[0].toLowerCase() !== "default") {
             const key = `${segments[0].toLowerCase()}/${segments[1].toLowerCase()}`;
-            if (this.system._ingressNetwork.members.has(key)) {
-              await this.system._ingressNetwork.routeHttpRequest(key, req, res, req.url || "/");
+            if (this.system._siblingNetwork.members.has(key)) {
+              await this.system._siblingNetwork.routeHttpRequest(key, req, res, req.url || "/");
               return;
             }
           }
         }
-        if (path14.startsWith("/frontend/default")) {
+        if (path16.startsWith("/frontend/default")) {
           if (this.system._frontend) {
-            const subPath = path14.slice("/frontend/default".length) || "/";
+            const subPath = path16.slice("/frontend/default".length) || "/";
             await this.system._frontend.handleRequest(req, res, subPath);
           } else {
             this._sendJson(res, 404, { status: "error", message: "Frontend not enabled." });
           }
           return;
         }
-        const isKrnlRoute = path14.startsWith("/call/") || path14.startsWith("/sse/") || path14.startsWith("/mcp") || path14.startsWith("/acp") || path14 === "/manifest" || path14 === "/health";
+        const isKrnlRoute = path16.startsWith("/call/") || path16.startsWith("/sse/") || path16.startsWith("/mcp") || path16.startsWith("/acp") || path16 === "/manifest" || path16 === "/health";
         if (!isKrnlRoute) {
           if (this.enableFriendlyRouting) {
-            let fid = path14.slice(1);
+            let fid = path16.slice(1);
             if (fid.endsWith("/")) fid = fid.slice(0, -1);
             const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid);
             const resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
@@ -4603,12 +4626,12 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
               return;
             }
           }
-          this._sendJson(res, 404, this.system.getNotFoundResponse(path14));
+          this._sendJson(res, 404, this.system.getNotFoundResponse(path16));
           return;
         }
         try {
-          if (path14.startsWith("/call/")) {
-            const fid = path14.split("/")[2];
+          if (path16.startsWith("/call/")) {
+            const fid = path16.split("/")[2];
             const body = await this._readJsonBody(req);
             const result = await this.system.call(fid, body, {
               unwrap: false,
@@ -4618,12 +4641,12 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             this._sendJson(res, 200, result);
             return;
           }
-          if (path14.startsWith("/sse/")) {
-            const fid = path14.split("/")[2];
+          if (path16.startsWith("/sse/")) {
+            const fid = path16.split("/")[2];
             this._handleSse(req, res, fid);
             return;
           }
-          if (path14 === "/ai") {
+          if (path16 === "/ai") {
             const { message } = await this._readJsonBody(req);
             if (!this.system._aiOrchestrator) {
               const { KrnlAikoClient: KrnlAikoClient2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Aiko_Client(), K_LIB_Krnl_Aiko_Client_exports));
@@ -4637,7 +4660,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             this._sendJson(res, 200, result);
             return;
           }
-          if (path14 === "/ai/manifest") {
+          if (path16 === "/ai/manifest") {
             const agents = this.system._aiOrchestrator?.getAgentSummaries() ?? [];
             this._sendJson(res, 200, {
               aiEnabled: !!this.system._aiOrchestrator,
@@ -4646,7 +4669,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             });
             return;
           }
-          if (path14 === "/mcp") {
+          if (path16 === "/mcp") {
             const body = await this._readJsonBody(req);
             const result = await this.mcp.handleRequest(body, {
               callerPort: req.socket?.remotePort,
@@ -4655,7 +4678,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             this._sendJson(res, 200, result);
             return;
           }
-          if (path14 === "/health") {
+          if (path16 === "/health") {
             const healthData = { status: "ok", entity: this.system.entityName };
             if (this.system._subappErrors && this.system._subappErrors.length > 0) {
               healthData.status = "issues";
@@ -4664,12 +4687,12 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             this._sendJson(res, 200, healthData);
             return;
           }
-          if (path14.startsWith("/acp")) {
-            if (path14 === "/acp/info" || path14 === "/acp") {
+          if (path16.startsWith("/acp")) {
+            if (path16 === "/acp/info" || path16 === "/acp") {
               this._sendJson(res, 200, this.acp.getInfo());
-            } else if (path14 === "/acp/capabilities") {
+            } else if (path16 === "/acp/capabilities") {
               this._sendJson(res, 200, this.acp.getCapabilities());
-            } else if (path14 === "/acp/messages" && req.method === "POST") {
+            } else if (path16 === "/acp/messages" && req.method === "POST") {
               const body = await this._readJsonBody(req);
               const result = await this.acp.handleMessage(body, {
                 callerPort: req.socket?.remotePort,
@@ -4681,7 +4704,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             }
             return;
           }
-          if (path14 === "/manifest") {
+          if (path16 === "/manifest") {
             if (this.system._ingressNetwork) {
               this._sendJson(res, 200, this.system._ingressNetwork.getGrossManifest(`http://${req.headers.host}`));
             } else {
@@ -4690,7 +4713,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             return;
           }
         } catch (error) {
-          Logger.error(`[HttpAdapter] Fatal handler error ${path14}:`, error.message || error);
+          Logger.error(`[HttpAdapter] Fatal handler error ${path16}:`, error.message || error);
           this._sendJson(res, 200, {
             status: "error",
             message: error.message || String(error),
@@ -5391,8 +5414,20 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             }
           }
           if (subappConfigs.length > 0) {
-            console.log(`[MagneticLoader] Automatically enabling Ingress Network on '${entity.entityName}' with ${subappConfigs.length} sub-apps.`);
-            await entity.startIngressNetwork(subappConfigs);
+            const krnlJsonPath = import_path8.default.join(baseDir, "krnl.json");
+            let subappModes = {};
+            if (import_fs9.default.existsSync(krnlJsonPath)) {
+              try {
+                const parsed = JSON.parse(import_fs9.default.readFileSync(krnlJsonPath, "utf-8"));
+                subappModes = parsed.subapps || {};
+              } catch (_) {
+              }
+            }
+            for (const cfg of subappConfigs) {
+              cfg.executionMode = subappModes[cfg.prefix]?.executionMode ?? "local";
+            }
+            console.log(`[MagneticLoader] Loading ${subappConfigs.length} sub-app(s) on '${entity.entityName}' (no networking).`);
+            await entity.loadSubApps(subappConfigs);
           }
         }
         const frontendDir = import_path8.default.join(baseDir, "frontend", "default");
@@ -5699,18 +5734,26 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
 });
 
 // src/krnl/core/K_LIB_Krnl_System_Ingress_Network.ts
-var import_path9, KrnlIngressNetwork;
+var import_path9, KrnlSiblingNetwork, KrnlIngressNetwork;
 var init_K_LIB_Krnl_System_Ingress_Network = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Ingress_Network.ts"() {
     "use strict";
     init_K_LIB_Krnl_System_Frontend_Adapter();
     import_path9 = __toESM(require("path"), 1);
-    KrnlIngressNetwork = class {
+    KrnlSiblingNetwork = class {
       members = /* @__PURE__ */ new Map();
+      /**
+       * addMember — adds a standalone sibling KrnlTS application to the peer network.
+       *
+       * The sibling is instantiated and its port is registered in the admin's port registry.
+       * Unlike sub-apps, siblings start their own networking and are independently addressable.
+       *
+       * ⚠ Do not call this for sub-apps. Use entity.loadSubApps() instead.
+       */
       async addMember(admin, config) {
         const prefix = config.prefix.toLowerCase();
         if (this.members.has(prefix)) {
-          console.log(`[IngressNetwork] Member prefix '${prefix}' already registered. Returning existing entity.`);
+          console.log(`[SiblingNetwork] Member prefix '${prefix}' already registered. Returning existing entity.`);
           return this.members.get(prefix).entity;
         }
         let entity;
@@ -5743,15 +5786,18 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
           entity,
           config,
           addedAt: Date.now(),
-          memberType: "subapp"
+          memberType: "sibling"
         });
         return entity;
       }
+      /**
+       * addFrontendMember — adds a custom frontend (static file server / SPA) to the sibling network.
+       */
       async addFrontendMember(admin, config) {
         const prefix = config.options?.frontendPrefix || "frontend";
         const key = `${prefix}/${config.name.toLowerCase()}`;
         if (this.members.has(key)) {
-          console.log(`[IngressNetwork] Frontend member '${key}' already registered. Returning existing entity.`);
+          console.log(`[SiblingNetwork] Frontend member '${key}' already registered. Returning existing entity.`);
           return this.members.get(key).entity;
         }
         const options = { ...config.options };
@@ -5776,10 +5822,13 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
           memberType: "frontend"
         });
         adapter.startApp().catch((err) => {
-          console.error(`[IngressNetwork] Frontend '${config.name}' startApp failed:`, err.message || err);
+          console.error(`[SiblingNetwork] Frontend '${config.name}' startApp failed:`, err.message || err);
         });
         return adapter;
       }
+      /**
+       * removeMember — removes a sibling from the peer network.
+       */
       async removeMember(admin, prefix) {
         const key = prefix.toLowerCase();
         const entry = this.members.get(key);
@@ -5789,19 +5838,23 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
         this.members.delete(key);
         return true;
       }
+      /**
+       * getGrossManifest — returns a listing of all siblings and their manifest endpoints.
+       */
       getGrossManifest(adminBaseUrl) {
-        const list = Array.from(this.members.entries()).map(([prefix, entry]) => {
-          return {
-            prefix,
-            entityName: entry.entity.entityName,
-            manifestEndpoint: `${adminBaseUrl}/${prefix}/manifest`
-          };
-        });
+        const list = Array.from(this.members.entries()).map(([prefix, entry]) => ({
+          prefix,
+          entityName: entry.entity.entityName,
+          manifestEndpoint: `${adminBaseUrl}/${prefix}/manifest`
+        }));
         return {
-          type: "IngressNetworkManifest",
+          type: "SiblingNetworkManifest",
           members: list
         };
       }
+      /**
+       * getAggregatedMcpTools — collects public MCP tool definitions from all siblings.
+       */
       getAggregatedMcpTools() {
         const allTools = [];
         for (const [prefix, entry] of this.members.entries()) {
@@ -5810,9 +5863,8 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
           for (const fid of Object.keys(apis)) {
             const api = apis[fid];
             if (api.visibility === "public") {
-              const namespacedName = `${prefix}.${fid}`;
               allTools.push({
-                name: namespacedName,
+                name: `${prefix}.${fid}`,
                 description: api.description || `MCP Tool for ${entry.entity.entityName} functionality: ${fid}`,
                 inputSchema: api.schema?.input || { type: "object" }
               });
@@ -5821,11 +5873,15 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
         }
         return allTools;
       }
+      /**
+       * routeHttpRequest — routes an incoming HTTP request to the correct sibling's handler.
+       * The sibling's own unifiedHttpAdapter handles the request in-process.
+       */
       async routeHttpRequest(prefix, req, res, subPath) {
         const entry = this.members.get(prefix.toLowerCase());
         if (!entry) {
           res.writeHead(404, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ status: "error", message: `Ingress member prefix '${prefix}' not found.` }));
+          res.end(JSON.stringify({ status: "error", message: `Sibling network member '${prefix}' not found.` }));
           return;
         }
         const originalUrl = req.url;
@@ -5837,6 +5893,7 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
         }
       }
     };
+    KrnlIngressNetwork = KrnlSiblingNetwork;
   }
 });
 
@@ -7790,6 +7847,211 @@ var init_K_LIB_Krnl_Registry_Client = __esm({
   }
 });
 
+// src/krnl/core/K_LIB_Krnl_SubApp_Worker_Host.ts
+var K_LIB_Krnl_SubApp_Worker_Host_exports = {};
+__export(K_LIB_Krnl_SubApp_Worker_Host_exports, {
+  KrnlSubAppWorkerHost: () => KrnlSubAppWorkerHost
+});
+var import_worker_threads, import_url3, import_path11, import_meta2, __filename, __dirname, _rpcSeq, KrnlSubAppWorkerHost;
+var init_K_LIB_Krnl_SubApp_Worker_Host = __esm({
+  "src/krnl/core/K_LIB_Krnl_SubApp_Worker_Host.ts"() {
+    "use strict";
+    import_worker_threads = require("worker_threads");
+    import_url3 = require("url");
+    import_path11 = __toESM(require("path"), 1);
+    import_meta2 = {};
+    __filename = (0, import_url3.fileURLToPath)(import_meta2.url);
+    __dirname = import_path11.default.dirname(__filename);
+    _rpcSeq = 0;
+    KrnlSubAppWorkerHost = class _KrnlSubAppWorkerHost {
+      prefix;
+      _worker;
+      _manifest;
+      _pending;
+      _ready;
+      _resolveReady;
+      _rejectReady;
+      constructor(prefix, worker) {
+        this.prefix = prefix;
+        this._worker = worker;
+        this._manifest = null;
+        this._pending = /* @__PURE__ */ new Map();
+        this._ready = new Promise((resolve, reject) => {
+          this._resolveReady = resolve;
+          this._rejectReady = reject;
+        });
+        this._worker.on("message", (msg) => {
+          if (msg.type === "manifest") {
+            this._manifest = msg.manifest;
+            this._resolveReady();
+            return;
+          }
+          if (msg.type === "result") {
+            const pending = this._pending.get(msg.requestId);
+            if (!pending) return;
+            clearTimeout(pending.timeoutId);
+            this._pending.delete(msg.requestId);
+            if (msg.ok) pending.resolve(msg.result);
+            else pending.reject(new Error(msg.error || "Worker sub-app error"));
+          }
+        });
+        this._worker.on("error", (err) => {
+          console.error(`[SubAppWorkerHost:${prefix}] Worker error:`, err.message || err);
+          this._rejectReady(err instanceof Error ? err : new Error(String(err)));
+          for (const [id, p] of this._pending) {
+            clearTimeout(p.timeoutId);
+            p.reject(err);
+            this._pending.delete(id);
+          }
+        });
+        this._worker.on("exit", (code) => {
+          if (code !== 0) {
+            console.error(`[SubAppWorkerHost:${prefix}] Worker exited with code ${code}`);
+          }
+        });
+      }
+      /**
+       * Spawn a worker_thread for the given sub-app config and wait for the manifest.
+       */
+      static async create(config, timeoutMs = 3e4) {
+        const runtimePath = import_path11.default.resolve(__dirname, "K_LIB_Krnl_SubApp_Worker_Runtime.js");
+        const worker = new import_worker_threads.Worker(runtimePath, {
+          workerData: {
+            entryPath: config.entryPath ?? "",
+            prefix: config.prefix,
+            constructorArgs: config.constructorArgs ?? []
+          }
+        });
+        const host = new _KrnlSubAppWorkerHost(config.prefix, worker);
+        const timeout = new Promise(
+          (_, reject) => setTimeout(() => reject(new Error(`[SubAppWorkerHost:${config.prefix}] Timed out waiting for worker ready signal.`)), timeoutMs)
+        );
+        await Promise.race([host._ready, timeout]);
+        return host;
+      }
+      /**
+       * Call a functionality on the worker-hosted sub-app.
+       * This is the primary dispatch path for worker-mode sub-apps.
+       * Uses MessagePort IPC — no networking.
+       */
+      async callInternal(fid, input = {}, timeoutMs = 3e4) {
+        const requestId = `wkr_${Date.now()}_${(_rpcSeq++).toString(36)}`;
+        return new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            this._pending.delete(requestId);
+            reject(new Error(`[SubAppWorkerHost:${this.prefix}] Call '${fid}' timed out after ${timeoutMs}ms`));
+          }, timeoutMs);
+          this._pending.set(requestId, { resolve, reject, timeoutId });
+          this._worker.postMessage({ type: "call", requestId, fid, input });
+        });
+      }
+      /**
+       * Alias so both local entities and worker hosts expose the same dispatch surface.
+       */
+      async call(fid, input = {}) {
+        return this.callInternal(fid, input);
+      }
+      /**
+       * Returns the sub-app manifest obtained from the worker at startup.
+       */
+      getManifest() {
+        return this._manifest;
+      }
+      /**
+       * Terminate the worker thread gracefully.
+       */
+      async gracefulShutdown() {
+        try {
+          this._worker.postMessage({ type: "shutdown" });
+          await new Promise((resolve) => setTimeout(resolve, 5e3));
+        } finally {
+          await this._worker.terminate();
+        }
+      }
+    };
+  }
+});
+
+// src/krnl/core/K_LIB_Krnl_SubApp_Registry.ts
+var K_LIB_Krnl_SubApp_Registry_exports = {};
+__export(K_LIB_Krnl_SubApp_Registry_exports, {
+  KrnlSubAppLoader: () => KrnlSubAppLoader
+});
+var import_path12, import_url4, KrnlSubAppLoader;
+var init_K_LIB_Krnl_SubApp_Registry = __esm({
+  "src/krnl/core/K_LIB_Krnl_SubApp_Registry.ts"() {
+    "use strict";
+    import_path12 = __toESM(require("path"), 1);
+    import_url4 = require("url");
+    init_K_LIB_Krnl_System_Magnetic_Loader();
+    KrnlSubAppLoader = class {
+      /**
+       * Loads a single sub-app into the parent entity's _subAppRegistry.
+       *
+       * For 'local' mode the sub-app class is instantiated directly in the parent process.
+       * Networking is suppressed automatically because the entity is constructed inside the
+       * subappLocalStorage async context (sets _isSubApp = true) and _startSharedServer()
+       * returns early for sub-app entities.
+       *
+       * For 'worker' mode a worker_thread is spawned and a KrnlSubAppWorkerHost proxy is
+       * registered in its place. All calls transit via MessagePort — no TCP/HTTP involved.
+       */
+      static async load(parent, config) {
+        const mode = config.executionMode ?? "local";
+        const prefix = config.prefix.toLowerCase();
+        if (parent._subAppRegistry.has(prefix)) {
+          console.log(`[SubAppRegistry] Sub-app '${prefix}' already registered. Skipping.`);
+          return;
+        }
+        let entry;
+        if (mode === "local") {
+          const appDir = config.entryPath ? import_path12.default.dirname(config.entryPath) : "";
+          let entity;
+          if (config.isKrnl === false || !config.ServiceClass) {
+            const { KrnlNonKrnlAppAdapter: KrnlNonKrnlAppAdapter2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_System_App_Adapter(), K_LIB_Krnl_System_App_Adapter_exports));
+            const adapter = new KrnlNonKrnlAppAdapter2(config.prefix, config.entryPath || "");
+            await adapter.startApp();
+            entity = adapter;
+          } else {
+            const options = { host: "0.0.0.0" };
+            if (config.entryPath) options.sourcePath = (0, import_url4.pathToFileURL)(config.entryPath).href;
+            entity = await subappLocalStorage.run({ appPath: appDir }, async () => {
+              const inst = new config.ServiceClass(-1, options, ...config.constructorArgs ?? []);
+              if (inst._magneticLoadPromise) {
+                await inst._magneticLoadPromise;
+              }
+              return inst;
+            });
+          }
+          entity._isSubApp = true;
+          if (typeof entity._resolveReady === "function") {
+            entity._resolveReady();
+          }
+          parent.hierarchyManager.addComponentEntityInstance(entity);
+          entry = {
+            prefix,
+            executionMode: "local",
+            entity,
+            addedAt: Date.now()
+          };
+          console.log(`[SubAppRegistry] Loaded sub-app '${prefix}' in LOCAL mode (in-process).`);
+        } else {
+          const { KrnlSubAppWorkerHost: KrnlSubAppWorkerHost2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_SubApp_Worker_Host(), K_LIB_Krnl_SubApp_Worker_Host_exports));
+          const host = await KrnlSubAppWorkerHost2.create(config);
+          entry = {
+            prefix,
+            executionMode: "worker",
+            entity: host,
+            addedAt: Date.now()
+          };
+          console.log(`[SubAppRegistry] Loaded sub-app '${prefix}' in WORKER mode (isolated thread).`);
+        }
+        parent._subAppRegistry.set(prefix, entry);
+      }
+    };
+  }
+});
+
 // src/krnl/core/K_LIB_Krnl_Ep_Tools.ts
 var K_LIB_Krnl_Ep_Tools_exports = {};
 __export(K_LIB_Krnl_Ep_Tools_exports, {
@@ -7907,7 +8169,7 @@ var init_K_LIB_Krnl_Ep_Tools = __esm({
 });
 
 // src/krnl/core/K_ENT_Krnl_System_Entity_Base.ts
-var import_http4, import_net3, import_fs11, import_path11, import_url3, import_zod_to_json_schema2, krnlSystemEntityBase;
+var import_http4, import_net3, import_fs11, import_path13, import_url5, import_zod_to_json_schema2, krnlSystemEntityBase;
 var init_K_ENT_Krnl_System_Entity_Base = __esm({
   "src/krnl/core/K_ENT_Krnl_System_Entity_Base.ts"() {
     "use strict";
@@ -7928,15 +8190,44 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
     import_http4 = __toESM(require("http"), 1);
     import_net3 = __toESM(require("net"), 1);
     import_fs11 = __toESM(require("fs"), 1);
-    import_path11 = __toESM(require("path"), 1);
-    import_url3 = require("url");
+    import_path13 = __toESM(require("path"), 1);
+    import_url5 = require("url");
     import_zod_to_json_schema2 = require("zod-to-json-schema");
     krnlSystemEntityBase = class extends krnlEntityBase {
+      /**
+       * _isIngressNetworkMember — true when this entity is a SIBLING of another standalone app
+       * inside a KrnlSiblingNetwork (formerly IngressNetwork).
+       * NOT set for embedded sub-apps; those use _isSubApp instead.
+       */
       _isIngressNetworkMember = false;
-      _ingressNetwork = null;
+      /**
+       * _siblingNetwork — the sibling-app peer network this entity administers (if any).
+       * Used exclusively for connecting independent standalone KrnlTS apps.
+       * NEVER used for sub-apps embedded inside this entity.
+       */
+      _siblingNetwork = null;
+      /** @deprecated Use _siblingNetwork. Alias kept for backward compatibility. */
+      get _ingressNetwork() {
+        return this._siblingNetwork;
+      }
+      set _ingressNetwork(v) {
+        this._siblingNetwork = v;
+      }
       _frontendEnabled = false;
       _frontend = null;
+      /**
+       * _isSubApp — true when this entity is embedded inside a parent KrnlTS application.
+       * When true:
+       *   - Networking (HTTP / WebSocket) is suppressed; _startSharedServer() returns early.
+       *   - Registry registration is skipped.
+       *   - All communication goes through the parent's callInternal() or MessagePort transport.
+       */
       _isSubApp = false;
+      /**
+       * _subAppRegistry — registry of sub-apps embedded in this entity.
+       * Populated by loadSubApps(). Keys are lowercase prefix strings.
+       */
+      _subAppRegistry = /* @__PURE__ */ new Map();
       peers;
       discoverable;
       // AI Properties
@@ -7957,7 +8248,8 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         "getUsedPorts",
         "findFreePorts",
         "shutdown",
-        "getIngressNetworkTopology",
+        "getSiblingNetworkTopology",
+        "getSubAppTopology",
         "getAikoCatalog",
         "getTaskList",
         "ai"
@@ -8024,7 +8316,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
           this._registryClient = new KrnlRegistryClient2(10099);
         }).catch(() => {
         });
-        this._readyPromise = new Promise((resolve) => {
+        this._readyPromise = new Promise(async (resolve) => {
           this._resolveReady = resolve;
         });
         this.commPort = commPort;
@@ -8044,8 +8336,8 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
           dataDir = subappStore.appPath;
         } else if (options.sourcePath) {
           try {
-            const resolved = options.sourcePath.startsWith("file:") ? (0, import_url3.fileURLToPath)(options.sourcePath) : options.sourcePath;
-            dataDir = import_path11.default.dirname(resolved);
+            const resolved = options.sourcePath.startsWith("file:") ? (0, import_url5.fileURLToPath)(options.sourcePath) : options.sourcePath;
+            dataDir = import_path13.default.dirname(resolved);
           } catch (_) {
           }
         }
@@ -8054,6 +8346,9 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         this._documentationProvider = null;
         this._emitStartupDiagnostics();
         this._isSubApp = !!subappStore;
+        if (this._isSubApp) {
+          this._resolveReady();
+        }
         this._magneticLoadPromise = this._runMagneticLoader(options);
       }
       enableFrontend(options) {
@@ -8088,6 +8383,9 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
           await this._magneticLoadPromise;
         }
         await this._validateBootManifestDependencies();
+        if (this._magneticLoadPromise) {
+          await this._magneticLoadPromise;
+        }
         await this._readyPromise;
       }
       /**
@@ -8095,7 +8393,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
        */
       async _validateBootManifestDependencies() {
         try {
-          const manifestPath = import_path11.default.join(this._entityDataDir, "krnl.json");
+          const manifestPath = import_path13.default.join(this._entityDataDir, "krnl.json");
           if (!import_fs11.default.existsSync(manifestPath)) return;
           const content = import_fs11.default.readFileSync(manifestPath, "utf-8");
           const manifest = JSON.parse(content);
@@ -8136,38 +8434,131 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
           console.warn(`[BootValidation] Warning: could not parse krnl.json at ${this._entityDataDir}: ${err.message}`);
         }
       }
-      async startIngressNetwork(members) {
-        this._ingressNetwork = new KrnlIngressNetwork();
-        for (const config of members) {
+      // ── Sub-App Loading (Internal Embedded Components) ─────────────────────────
+      /**
+       * loadSubApps
+       *
+       * Embeds one or more KrnlTS applications as internal sub-apps of this entity.
+       * Sub-apps run without any networking stack — they communicate exclusively via
+       * direct in-process method calls (local mode) or worker_threads MessagePort (worker mode).
+       *
+       * The execution mode for each sub-app is determined by the parent's krnl.json
+       * and should already be set on each config object before calling this method.
+       * MagneticLoader populates this automatically.
+       *
+       * Sub-apps are registered in _subAppRegistry and can be called via callInternal().
+       *
+       * ⚠ Do NOT use startIngressNetwork() for sub-apps. That method is for connecting
+       *   independent standalone applications in a sibling peer network.
+       */
+      async loadSubApps(configs) {
+        const { KrnlSubAppLoader: KrnlSubAppLoader2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_SubApp_Registry(), K_LIB_Krnl_SubApp_Registry_exports));
+        for (const config of configs) {
           try {
-            await this._ingressNetwork.addMember(this, config);
+            await KrnlSubAppLoader2.load(this, config);
           } catch (err) {
             const errMsg = err.message || String(err);
-            console.error(`[IngressNetwork] Failed to add subapp '${config.prefix}':`, errMsg);
+            console.error(`[SubAppRegistry] Failed to load sub-app '${config.prefix}':`, errMsg);
             this._subappErrors = this._subappErrors || [];
-            this._subappErrors.push({
-              subapp: config.prefix,
-              error: errMsg
-            });
+            this._subappErrors.push({ subapp: config.prefix, error: errMsg });
           }
         }
-        const discoveryPort = this.commPort > 0 ? this.commPort + 1e3 : 10101;
-        await this.startDiscovery(discoveryPort);
       }
-      async joinIngressNetwork(config) {
-        if (!this._ingressNetwork) {
-          this._ingressNetwork = new KrnlIngressNetwork();
+      /**
+       * callInternal
+       *
+       * Dispatch a functionality call to an embedded sub-app (or self) with zero network overhead.
+       *
+       * For local-mode sub-apps: direct in-process method call.
+       * For worker-mode sub-apps: MessagePort IPC — no HTTP, no TCP.
+       *
+       * Usage from a functionality:
+       *   const result = await entity.callInternal('subAppPrefix', 'functionalityId', inputData);
+       */
+      async callInternal(prefix, fid, input = {}) {
+        if (prefix.toLowerCase() === this.entityName.toLowerCase()) {
+          return await this.call(fid, input);
         }
-        return await this._ingressNetwork.addMember(this, config);
+        const entry = this._subAppRegistry.get(prefix.toLowerCase());
+        if (!entry) {
+          throw new Error(
+            `[${this.entityName}] callInternal: sub-app '${prefix}' is not registered. Available: [${Array.from(this._subAppRegistry.keys()).join(", ")}]`
+          );
+        }
+        return await entry.entity.call(fid, input);
+      }
+      /**
+       * getSubAppTopology
+       *
+       * Returns a snapshot of all embedded sub-apps registered in this entity,
+       * including their execution mode and registration time.
+       */
+      getSubAppTopology() {
+        if (this._subAppRegistry.size === 0) return null;
+        return {
+          parent: this.entityName,
+          subApps: Array.from(this._subAppRegistry.entries()).map(([prefix, entry]) => ({
+            prefix,
+            executionMode: entry.executionMode,
+            addedAt: entry.addedAt,
+            entityName: entry.entity.entityName ?? prefix
+          }))
+        };
+      }
+      // ── Sibling Network (formerly Ingress Network) ───────────────────────────────
+      //
+      // The sibling network connects INDEPENDENT standalone KrnlTS applications that each
+      // have their own networking stack. It is NOT for embedding sub-apps.
+      // Use loadSubApps() + callInternal() for internal components instead.
+      /**
+       * startSiblingNetwork (formerly startIngressNetwork)
+       *
+       * Configures a sibling peer network of independent standalone KrnlTS applications.
+       * Each sibling is a full KrnlTS app with its own HTTP/WS server.
+       *
+       * ⚠ Do NOT call this to host sub-apps. Use loadSubApps() for embedded components.
+       */
+      async startSiblingNetwork(members) {
+        this._siblingNetwork = new KrnlSiblingNetwork();
+        for (const config of members) {
+          try {
+            await this._siblingNetwork.addMember(this, config);
+          } catch (err) {
+            const errMsg = err.message || String(err);
+            console.error(`[SiblingNetwork] Failed to add sibling '${config.prefix}':`, errMsg);
+          }
+        }
+      }
+      /**
+       * startIngressNetwork — preserved as alias for backward compatibility.
+       * @deprecated Use startSiblingNetwork() for connecting standalone sibling apps.
+       *             Use loadSubApps() for embedding sub-apps inside this entity.
+       */
+      async startIngressNetwork(members) {
+        return this.startSiblingNetwork(members);
+      }
+      /**
+       * joinSiblingNetwork (formerly joinIngressNetwork)
+       * Adds a single sibling to the peer network.
+       */
+      async joinSiblingNetwork(config) {
+        if (!this._siblingNetwork) {
+          this._siblingNetwork = new KrnlSiblingNetwork();
+        }
+        return await this._siblingNetwork.addMember(this, config);
+      }
+      /** @deprecated Use joinSiblingNetwork(). */
+      async joinIngressNetwork(config) {
+        return this.joinSiblingNetwork(config);
       }
       async startCustomFrontend(name, appPath, options) {
         try {
-          if (!this._ingressNetwork) {
-            this._ingressNetwork = new KrnlIngressNetwork();
+          if (!this._siblingNetwork) {
+            this._siblingNetwork = new KrnlSiblingNetwork();
             const discoveryPort = this.commPort > 0 ? this.commPort + 1e3 : 10101;
             await this.startDiscovery(discoveryPort);
           }
-          return await this._ingressNetwork.addFrontendMember(this, { name, appPath, options });
+          return await this._siblingNetwork.addFrontendMember(this, { name, appPath, options });
         } catch (err) {
           console.error(`[startCustomFrontend] Error starting custom frontend '${name}':`, err);
           throw err;
@@ -8178,9 +8569,15 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         const key = `${prefix}/${name.toLowerCase()}`;
         return await this._ingressNetwork.removeMember(this, key);
       }
-      getIngressNetworkTopology() {
-        if (!this._ingressNetwork) return null;
-        const members = Array.from(this._ingressNetwork.members.entries()).map(([prefix, entry]) => ({
+      /**
+       * getSiblingNetworkTopology (formerly getIngressNetworkTopology)
+       *
+       * Returns the topology of the sibling peer network (standalone apps only).
+       * This is NOT related to embedded sub-apps — use getSubAppTopology() for those.
+       */
+      getSiblingNetworkTopology() {
+        if (!this._siblingNetwork) return null;
+        const members = Array.from(this._siblingNetwork.members.entries()).map(([prefix, entry]) => ({
           prefix,
           entityName: entry.entity.entityName,
           addedAt: entry.addedAt
@@ -8190,6 +8587,10 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
           port: this.commPort,
           members
         };
+      }
+      /** @deprecated Use getSiblingNetworkTopology(). Alias kept for backward compatibility. */
+      getIngressNetworkTopology() {
+        return this.getSiblingNetworkTopology();
       }
       /**
        * port — stable public accessor for the active bound port.
@@ -8245,10 +8646,10 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         }
         return response;
       }
-      getNotFoundResponse(path14) {
+      getNotFoundResponse(path16) {
         const response = {
           status: "error",
-          message: `Route '${path14}' not found.`
+          message: `Route '${path16}' not found.`
         };
         if (this._documentationProvider && typeof this._documentationProvider.getDocsForLayer === "function") {
           const entryPoints = this._documentationProvider.getDocsForLayer("LAYER_1_ENTRY");
@@ -8324,7 +8725,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
       // ── Port Snapshot File ────────────────────────────────────────────────────
       /** Absolute path of the JSON port snapshot co-located with the assembler. */
       _getPortsFilePath() {
-        return import_path11.default.join(this._entityDataDir, `${this.entityName}.ports.json`);
+        return import_path13.default.join(this._entityDataDir, `${this.entityName}.ports.json`);
       }
       /**
        * _writePortsFile — persists portRegistry to disk.
@@ -8339,7 +8740,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
           ports: this.getRegisteredPorts()
         }, null, 2);
         try {
-          const dir = import_path11.default.dirname(filePath);
+          const dir = import_path13.default.dirname(filePath);
           if (!import_fs11.default.existsSync(dir)) {
             await import_fs11.default.promises.mkdir(dir, { recursive: true });
           }
@@ -8414,7 +8815,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         Logger.log(`[${this.entityName}] commPort finalized \u2192 ${actualPort}`);
       }
       async _registerWithRegistry(actualPort) {
-        if (this._isIngressNetworkMember) return;
+        if (this._isSubApp || this._isIngressNetworkMember) return;
         if (!this._registryClient) {
           const { KrnlRegistryClient: KrnlRegistryClient2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Registry_Client(), K_LIB_Krnl_Registry_Client_exports));
           this._registryClient = new KrnlRegistryClient2(10099);
@@ -8849,7 +9250,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         await this._startSharedServer();
       }
       async _startSharedServer() {
-        if (this._isIngressNetworkMember) return;
+        if (this._isSubApp || this._isIngressNetworkMember) return;
         if (this._sharedServer) return;
         const resolvedPort = await this._probeAvailablePort(this._preferredPort, this.host);
         this._sharedServer = import_http4.default.createServer();
@@ -9001,8 +9402,14 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
           api: shutdownApi(this)
         });
         this.addLocal({
-          id: "getIngressNetworkTopology",
-          api: getIngressNetworkTopologyApi(this)
+          id: "getSiblingNetworkTopology",
+          description: "Returns the topology of the sibling peer network (for standalone KrnlTS apps only). Not related to sub-apps.",
+          api: getSiblingNetworkTopologyApi(this)
+        });
+        this.addLocal({
+          id: "getSubAppTopology",
+          description: "Returns a snapshot of all embedded sub-apps and their execution modes (local or worker).",
+          api: getSubAppTopologyApi(this)
         });
         this.addLocal({
           id: "getEndpointDefinitions",
@@ -9245,6 +9652,9 @@ __export(index_exports, {
   KrnlRegistryClient: () => KrnlRegistryClient,
   KrnlRuntimeStore: () => KrnlRuntimeStore,
   KrnlShell: () => KrnlShell,
+  KrnlSiblingNetwork: () => KrnlSiblingNetwork,
+  KrnlSubAppLoader: () => KrnlSubAppLoader,
+  KrnlSubAppWorkerHost: () => KrnlSubAppWorkerHost,
   KrnlTaskList: () => KrnlTaskList,
   KrnlTaskRunner: () => KrnlTaskRunner,
   KrnlWatchVariablesTracker: () => KrnlWatchVariablesTracker,
@@ -9383,6 +9793,8 @@ init_K_LIB_Krnl_System_Unified_Http_Adapter();
 init_K_LIB_Krnl_Protocol_MCP();
 init_K_LIB_Krnl_Protocol_ACP();
 init_K_LIB_Krnl_System_Ingress_Network();
+init_K_LIB_Krnl_SubApp_Registry();
+init_K_LIB_Krnl_SubApp_Worker_Host();
 init_K_LIB_Krnl_System_Magnetic_Loader();
 init_K_LIB_Krnl_System_App_Adapter();
 init_K_LIB_Krnl_System_Frontend();
@@ -9390,16 +9802,16 @@ init_K_LIB_Krnl_System_Frontend_Adapter();
 
 // src/krnl/core/K_LIB_Krnl_Block_Container_Adapter.ts
 var import_fs12 = __toESM(require("fs"), 1);
-var import_path12 = __toESM(require("path"), 1);
+var import_path14 = __toESM(require("path"), 1);
 init_K_LIB_Krnl_System_Frontend_Adapter();
 var KrnlBlockContainerAdapter = class extends KrnlFrontendAdapter {
   blocksDir;
   discoveredBlocks = /* @__PURE__ */ new Map();
   blockWatcher = null;
   constructor(name, containerRoot, options = {}) {
-    const appPath = import_fs12.default.existsSync(import_path12.default.join(containerRoot, "app")) ? import_path12.default.join(containerRoot, "app") : containerRoot;
+    const appPath = import_fs12.default.existsSync(import_path14.default.join(containerRoot, "app")) ? import_path14.default.join(containerRoot, "app") : containerRoot;
     super(name, appPath, options);
-    this.blocksDir = import_path12.default.join(containerRoot, "nextjs-blocks");
+    this.blocksDir = import_path14.default.join(containerRoot, "nextjs-blocks");
     const parentHandleRequest = this.unifiedHttpAdapter._handleRequest.bind(this.unifiedHttpAdapter);
     this.unifiedHttpAdapter._handleRequest = async (req, res) => {
       const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
@@ -9469,7 +9881,7 @@ var KrnlBlockContainerAdapter = class extends KrnlFrontendAdapter {
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const blockId = entry.name;
-        const blockPath = import_path12.default.join(this.blocksDir, blockId);
+        const blockPath = import_path14.default.join(this.blocksDir, blockId);
         try {
           const desc = await this.scanBlock(blockId, blockPath);
           newDiscovered.set(blockId, desc);
@@ -9494,7 +9906,7 @@ var KrnlBlockContainerAdapter = class extends KrnlFrontendAdapter {
   async scanBlock(blockId, blockPath) {
     let name = blockId;
     let version = "1.0.0";
-    const pkgPath = import_path12.default.join(blockPath, "package.json");
+    const pkgPath = import_path14.default.join(blockPath, "package.json");
     if (import_fs12.default.existsSync(pkgPath)) {
       try {
         const pkg = JSON.parse(import_fs12.default.readFileSync(pkgPath, "utf8"));
@@ -9503,8 +9915,8 @@ var KrnlBlockContainerAdapter = class extends KrnlFrontendAdapter {
       } catch (_) {
       }
     }
-    const blockTsPath = import_path12.default.join(blockPath, "block.ts");
-    const blockJsPath = import_path12.default.join(blockPath, "block.js");
+    const blockTsPath = import_path14.default.join(blockPath, "block.ts");
+    const blockJsPath = import_path14.default.join(blockPath, "block.js");
     if (import_fs12.default.existsSync(blockTsPath) || import_fs12.default.existsSync(blockJsPath)) {
       try {
         const imported = await (import_fs12.default.existsSync(blockTsPath) ? import(blockTsPath) : import(blockJsPath));
@@ -9517,8 +9929,8 @@ var KrnlBlockContainerAdapter = class extends KrnlFrontendAdapter {
     }
     const routes = [];
     const apis = [];
-    const pagesDir = import_path12.default.join(blockPath, "pages");
-    const appDir = import_path12.default.join(blockPath, "app");
+    const pagesDir = import_path14.default.join(blockPath, "pages");
+    const appDir = import_path14.default.join(blockPath, "app");
     if (import_fs12.default.existsSync(pagesDir)) {
       this._findPagesRoutesRecursive(pagesDir, pagesDir, routes, apis);
     }
@@ -9536,12 +9948,12 @@ var KrnlBlockContainerAdapter = class extends KrnlFrontendAdapter {
   _findPagesRoutesRecursive(dir, baseDir, routes, apis) {
     const files = import_fs12.default.readdirSync(dir);
     for (const file of files) {
-      const fullPath = import_path12.default.join(dir, file);
+      const fullPath = import_path14.default.join(dir, file);
       const stat = import_fs12.default.statSync(fullPath);
       if (stat.isDirectory()) {
         this._findPagesRoutesRecursive(fullPath, baseDir, routes, apis);
       } else if (file.endsWith(".ts") || file.endsWith(".js") || file.endsWith(".tsx") || file.endsWith(".jsx")) {
-        const rel = import_path12.default.relative(baseDir, fullPath);
+        const rel = import_path14.default.relative(baseDir, fullPath);
         const withoutExt = rel.substring(0, rel.lastIndexOf("."));
         const routePath = withoutExt.replace(/\\/g, "/");
         if (file.startsWith("_app.") || file.startsWith("_document.") || file.startsWith("_error.")) {
@@ -9568,7 +9980,7 @@ var KrnlBlockContainerAdapter = class extends KrnlFrontendAdapter {
   _findAppRoutesRecursive(dir, baseDir, routes, apis) {
     const files = import_fs12.default.readdirSync(dir);
     for (const file of files) {
-      const fullPath = import_path12.default.join(dir, file);
+      const fullPath = import_path14.default.join(dir, file);
       const stat = import_fs12.default.statSync(fullPath);
       if (stat.isDirectory()) {
         this._findAppRoutesRecursive(fullPath, baseDir, routes, apis);
@@ -10077,6 +10489,9 @@ var PocerBlock = class extends krnlSystemEntityBase {
   KrnlRegistryClient,
   KrnlRuntimeStore,
   KrnlShell,
+  KrnlSiblingNetwork,
+  KrnlSubAppLoader,
+  KrnlSubAppWorkerHost,
   KrnlTaskList,
   KrnlTaskRunner,
   KrnlWatchVariablesTracker,

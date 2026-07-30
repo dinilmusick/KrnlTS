@@ -18,7 +18,8 @@ import {
   getUsedPortsApi,
   findFreePortsApi,
   shutdownApi,
-  getIngressNetworkTopologyApi,
+  getSiblingNetworkTopologyApi,
+  getSubAppTopologyApi,
   getEndpointDefinitionsApi,
   setEndpointDefinitionApi,
   getTelemetryLogApi,
@@ -29,15 +30,17 @@ import {
 import { Logger } from "./K_LIB_Krnl_Base_Concepts.js";
 import { krnlUnifiedHttpAdapter } from "./K_LIB_Krnl_System_Unified_Http_Adapter.js";
 import { KrnlShell } from "../tools/KrnlShell.js";
-import { 
-  KrnlManagedServiceConfig, 
+import {
+  KrnlManagedServiceConfig,
   KrnlManagedServiceHandle,
   KrnlIngressNetworkMemberConfig,
+  KrnlSubAppConfig,
+  KrnlSubAppEntry,
   KrnlFrontendOptions,
   KrnlCustomFrontendOptions,
   KrnlFrontendMemberConfig
 } from "./types.js";
-import { KrnlIngressNetwork } from "./K_LIB_Krnl_System_Ingress_Network.js";
+import { KrnlSiblingNetwork } from "./K_LIB_Krnl_System_Ingress_Network.js";
 import { KrnlFrontend } from "./K_LIB_Krnl_System_Frontend.js";
 
 // AI Imports
@@ -60,15 +63,44 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export class krnlSystemEntityBase extends krnlEntityBase {
+  /**
+   * _isIngressNetworkMember — true when this entity is a SIBLING of another standalone app
+   * inside a KrnlSiblingNetwork (formerly IngressNetwork).
+   * NOT set for embedded sub-apps; those use _isSubApp instead.
+   */
   _isIngressNetworkMember: boolean = false;
-  _ingressNetwork: KrnlIngressNetwork | null = null;
+  /**
+   * _siblingNetwork — the sibling-app peer network this entity administers (if any).
+   * Used exclusively for connecting independent standalone KrnlTS apps.
+   * NEVER used for sub-apps embedded inside this entity.
+   */
+  _siblingNetwork: KrnlSiblingNetwork | null = null;
+  /** @deprecated Use _siblingNetwork. Alias kept for backward compatibility. */
+  get _ingressNetwork(): KrnlSiblingNetwork | null { return this._siblingNetwork; }
+  set _ingressNetwork(v: KrnlSiblingNetwork | null) { this._siblingNetwork = v; }
+
   _frontendEnabled: boolean = false;
   _frontend: KrnlFrontend | null = null;
+
+  /**
+   * _isSubApp — true when this entity is embedded inside a parent KrnlTS application.
+   * When true:
+   *   - Networking (HTTP / WebSocket) is suppressed; _startSharedServer() returns early.
+   *   - Registry registration is skipped.
+   *   - All communication goes through the parent's callInternal() or MessagePort transport.
+   */
   _isSubApp: boolean = false;
+
+  /**
+   * _subAppRegistry — registry of sub-apps embedded in this entity.
+   * Populated by loadSubApps(). Keys are lowercase prefix strings.
+   */
+  _subAppRegistry: Map<string, KrnlSubAppEntry> = new Map();
+
   declare systemType: string;
   peers: Map<string, any>;
   discoverable: boolean;
-  
+
   // AI Properties
   _aiOrchestrator: KrnlApplicationOrchestrator | null = null;
   _aiTracker: KrnlWatchVariablesTracker | null = null;
@@ -87,7 +119,8 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     'getUsedPorts',
     'findFreePorts',
     'shutdown',
-    'getIngressNetworkTopology',
+    'getSiblingNetworkTopology',
+    'getSubAppTopology',
     'getAikoCatalog',
     'getTaskList',
     'ai'
@@ -165,7 +198,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
 
     // ── Readiness State ───────────────────────────────────────────────
 
-    this._readyPromise = new Promise((resolve) => {
+    this._readyPromise = new Promise(async (resolve) => {
       this._resolveReady = resolve;
     });
 
@@ -215,6 +248,9 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this._emitStartupDiagnostics();
 
     this._isSubApp = !!subappStore;
+    if (this._isSubApp) {
+      this._resolveReady();
+    }
 
     // Start magnetic discovery of nested assets (Phase 1 & 2)
     this._magneticLoadPromise = this._runMagneticLoader(options);
@@ -255,6 +291,9 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       await this._magneticLoadPromise;
     }
     await this._validateBootManifestDependencies();
+    if (this._magneticLoadPromise) {
+      await this._magneticLoadPromise;
+    }
     await this._readyPromise;
   }
 
@@ -309,42 +348,145 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     }
   }
 
-  async startIngressNetwork(members: KrnlIngressNetworkMemberConfig[]): Promise<void> {
-    this._ingressNetwork = new KrnlIngressNetwork();
-    for (const config of members) {
+  // ── Sub-App Loading (Internal Embedded Components) ─────────────────────────
+
+  /**
+   * loadSubApps
+   *
+   * Embeds one or more KrnlTS applications as internal sub-apps of this entity.
+   * Sub-apps run without any networking stack — they communicate exclusively via
+   * direct in-process method calls (local mode) or worker_threads MessagePort (worker mode).
+   *
+   * The execution mode for each sub-app is determined by the parent's krnl.json
+   * and should already be set on each config object before calling this method.
+   * MagneticLoader populates this automatically.
+   *
+   * Sub-apps are registered in _subAppRegistry and can be called via callInternal().
+   *
+   * ⚠ Do NOT use startIngressNetwork() for sub-apps. That method is for connecting
+   *   independent standalone applications in a sibling peer network.
+   */
+  async loadSubApps(configs: KrnlSubAppConfig[]): Promise<void> {
+    const { KrnlSubAppLoader } = await import('./K_LIB_Krnl_SubApp_Registry.js');
+    for (const config of configs) {
       try {
-        await this._ingressNetwork.addMember(this, config);
+        await KrnlSubAppLoader.load(this as any, config);
       } catch (err: any) {
         const errMsg = err.message || String(err);
-        console.error(`[IngressNetwork] Failed to add subapp '${config.prefix}':`, errMsg);
+        console.error(`[SubAppRegistry] Failed to load sub-app '${config.prefix}':`, errMsg);
         (this as any)._subappErrors = (this as any)._subappErrors || [];
-        (this as any)._subappErrors.push({
-          subapp: config.prefix,
-          error: errMsg
-        });
+        (this as any)._subappErrors.push({ subapp: config.prefix, error: errMsg });
       }
     }
-    // Derive a unique discovery port per instance from commPort offset
-    // so that multiple Forge instances on the same machine don't fight over UDP port 10101.
-    const discoveryPort = this.commPort > 0 ? this.commPort + 1000 : 10101;
-    await this.startDiscovery(discoveryPort);
   }
 
-  async joinIngressNetwork(config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase> {
-    if (!this._ingressNetwork) {
-      this._ingressNetwork = new KrnlIngressNetwork();
+  /**
+   * callInternal
+   *
+   * Dispatch a functionality call to an embedded sub-app (or self) with zero network overhead.
+   *
+   * For local-mode sub-apps: direct in-process method call.
+   * For worker-mode sub-apps: MessagePort IPC — no HTTP, no TCP.
+   *
+   * Usage from a functionality:
+   *   const result = await entity.callInternal('subAppPrefix', 'functionalityId', inputData);
+   */
+  async callInternal(prefix: string, fid: string, input: any = {}): Promise<any> {
+    // Self-call shortcut
+    if (prefix.toLowerCase() === this.entityName.toLowerCase()) {
+      return await this.call(fid, input);
     }
-    return await this._ingressNetwork.addMember(this, config);
+    const entry = this._subAppRegistry.get(prefix.toLowerCase());
+    if (!entry) {
+      throw new Error(
+        `[${this.entityName}] callInternal: sub-app '${prefix}' is not registered. ` +
+        `Available: [${Array.from(this._subAppRegistry.keys()).join(', ')}]`
+      );
+    }
+    // Both local entities and KrnlSubAppWorkerHost expose a compatible call interface
+    return await entry.entity.call(fid, input);
+  }
+
+  /**
+   * getSubAppTopology
+   *
+   * Returns a snapshot of all embedded sub-apps registered in this entity,
+   * including their execution mode and registration time.
+   */
+  getSubAppTopology(): any {
+    if (this._subAppRegistry.size === 0) return null;
+    return {
+      parent:  this.entityName,
+      subApps: Array.from(this._subAppRegistry.entries()).map(([prefix, entry]) => ({
+        prefix,
+        executionMode: entry.executionMode,
+        addedAt:       entry.addedAt,
+        entityName:    entry.entity.entityName ?? prefix,
+      }))
+    };
+  }
+
+  // ── Sibling Network (formerly Ingress Network) ───────────────────────────────
+  //
+  // The sibling network connects INDEPENDENT standalone KrnlTS applications that each
+  // have their own networking stack. It is NOT for embedding sub-apps.
+  // Use loadSubApps() + callInternal() for internal components instead.
+
+  /**
+   * startSiblingNetwork (formerly startIngressNetwork)
+   *
+   * Configures a sibling peer network of independent standalone KrnlTS applications.
+   * Each sibling is a full KrnlTS app with its own HTTP/WS server.
+   *
+   * ⚠ Do NOT call this to host sub-apps. Use loadSubApps() for embedded components.
+   */
+  async startSiblingNetwork(members: KrnlIngressNetworkMemberConfig[]): Promise<void> {
+    this._siblingNetwork = new KrnlSiblingNetwork();
+    for (const config of members) {
+      try {
+        await this._siblingNetwork.addMember(this, config);
+      } catch (err: any) {
+        const errMsg = err.message || String(err);
+        console.error(`[SiblingNetwork] Failed to add sibling '${config.prefix}':`, errMsg);
+      }
+    }
+    // Discovery is separate from sibling network setup; call startDiscovery() explicitly
+    // if peer UDP broadcast is needed for this application.
+  }
+
+  /**
+   * startIngressNetwork — preserved as alias for backward compatibility.
+   * @deprecated Use startSiblingNetwork() for connecting standalone sibling apps.
+   *             Use loadSubApps() for embedding sub-apps inside this entity.
+   */
+  async startIngressNetwork(members: KrnlIngressNetworkMemberConfig[]): Promise<void> {
+    return this.startSiblingNetwork(members);
+  }
+
+  /**
+   * joinSiblingNetwork (formerly joinIngressNetwork)
+   * Adds a single sibling to the peer network.
+   */
+  async joinSiblingNetwork(config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase> {
+    if (!this._siblingNetwork) {
+      this._siblingNetwork = new KrnlSiblingNetwork();
+    }
+    return await this._siblingNetwork.addMember(this, config);
+  }
+
+  /** @deprecated Use joinSiblingNetwork(). */
+  async joinIngressNetwork(config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase> {
+    return this.joinSiblingNetwork(config);
   }
 
   async startCustomFrontend(name: string, appPath: string, options?: KrnlCustomFrontendOptions): Promise<krnlSystemEntityBase> {
     try {
-      if (!this._ingressNetwork) {
-        this._ingressNetwork = new KrnlIngressNetwork();
+      if (!this._siblingNetwork) {
+        this._siblingNetwork = new KrnlSiblingNetwork();
         const discoveryPort = this.commPort > 0 ? this.commPort + 1000 : 10101;
         await this.startDiscovery(discoveryPort);
       }
-      return await this._ingressNetwork.addFrontendMember(this, { name, appPath, options });
+      return await this._siblingNetwork.addFrontendMember(this, { name, appPath, options });
     } catch (err: any) {
       console.error(`[startCustomFrontend] Error starting custom frontend '${name}':`, err);
       throw err;
@@ -357,9 +499,15 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     return await this._ingressNetwork.removeMember(this, key);
   }
 
-  getIngressNetworkTopology(): any {
-    if (!this._ingressNetwork) return null;
-    const members = Array.from(this._ingressNetwork.members.entries()).map(([prefix, entry]) => ({
+  /**
+   * getSiblingNetworkTopology (formerly getIngressNetworkTopology)
+   *
+   * Returns the topology of the sibling peer network (standalone apps only).
+   * This is NOT related to embedded sub-apps — use getSubAppTopology() for those.
+   */
+  getSiblingNetworkTopology(): any {
+    if (!this._siblingNetwork) return null;
+    const members = Array.from(this._siblingNetwork.members.entries()).map(([prefix, entry]) => ({
       prefix,
       entityName: entry.entity.entityName,
       addedAt: entry.addedAt
@@ -369,6 +517,11 @@ export class krnlSystemEntityBase extends krnlEntityBase {
       port: this.commPort,
       members
     };
+  }
+
+  /** @deprecated Use getSiblingNetworkTopology(). Alias kept for backward compatibility. */
+  getIngressNetworkTopology(): any {
+    return this.getSiblingNetworkTopology();
   }
 
 
@@ -632,7 +785,8 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   }
 
   async _registerWithRegistry(actualPort: number): Promise<void> {
-    if (this._isIngressNetworkMember) return;
+    // Sub-apps embedded in a parent never register with the external registry
+    if (this._isSubApp || this._isIngressNetworkMember) return;
     if (!this._registryClient) {
       const { KrnlRegistryClient } = await import('./K_LIB_Krnl_Registry_Client.js');
       this._registryClient = new KrnlRegistryClient(10099);
@@ -1149,7 +1303,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
 
 
   async _startSharedServer(): Promise<void> {
-    if (this._isIngressNetworkMember) return;
+    // Sub-apps embedded in a parent do NOT start their own networking stack.
+    // _isSubApp is set in the constructor via subappLocalStorage context.
+    // _isIngressNetworkMember is retained for sibling-network members.
+    if (this._isSubApp || this._isIngressNetworkMember) return;
     if (this._sharedServer) return;
 
     // ── Port probe: find first bindable port from the preferred hint ──
@@ -1337,8 +1494,15 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     });
 
     this.addLocal({
-      id: 'getIngressNetworkTopology',
-      api: getIngressNetworkTopologyApi(this as any)
+      id: 'getSiblingNetworkTopology',
+      description: 'Returns the topology of the sibling peer network (for standalone KrnlTS apps only). Not related to sub-apps.',
+      api: getSiblingNetworkTopologyApi(this as any)
+    });
+
+    this.addLocal({
+      id: 'getSubAppTopology',
+      description: 'Returns a snapshot of all embedded sub-apps and their execution modes (local or worker).',
+      api: getSubAppTopologyApi(this as any)
     });
 
     this.addLocal({

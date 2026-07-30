@@ -1,11 +1,20 @@
 import {
-  KrnlNonKrnlAppAdapter
-} from "./chunk-UW4IG4ON.js";
+  KrnlRegistryClient
+} from "./chunk-4MELRUJ6.js";
+import {
+  KrnlSubAppWorkerHost
+} from "./chunk-UBJAGRZU.js";
+import {
+  KrnlSubAppLoader
+} from "./chunk-36DMJL6Y.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-TATVB3KM.js";
+} from "./chunk-2S3RFCPH.js";
+import {
+  KrnlNonKrnlAppAdapter
+} from "./chunk-SCPW45MH.js";
 import {
   CUSTOM_ERROR_CODE,
   KrnlApplicationOrchestrator,
@@ -16,6 +25,7 @@ import {
   KrnlIngressNetwork,
   KrnlPlannerAgent,
   KrnlRuntimeStore,
+  KrnlSiblingNetwork,
   KrnlTaskList,
   KrnlTaskRunner,
   KrnlWatchVariablesTracker,
@@ -38,7 +48,7 @@ import {
   krnlSystemCommComponent,
   krnlSystemEntityBase,
   krnlTransportAdapter
-} from "./chunk-EZLSQBY2.js";
+} from "./chunk-BNJ5HO6K.js";
 import {
   AsyncKit,
   CacheKit,
@@ -55,7 +65,7 @@ import {
   StringKit,
   TTLCache
 } from "./chunk-7Q2FYUWU.js";
-import "./chunk-GL3WC255.js";
+import "./chunk-SFVDKJHO.js";
 import {
   telemetry
 } from "./chunk-AHWZBXWV.js";
@@ -63,10 +73,7 @@ import {
   KrnlAcpProtocol,
   KrnlMcpProtocol,
   krnlUnifiedHttpAdapter
-} from "./chunk-U3F3QDHN.js";
-import {
-  KrnlRegistryClient
-} from "./chunk-4MELRUJ6.js";
+} from "./chunk-53FRXAPE.js";
 import {
   KrnlPolicy,
   Logger,
@@ -815,6 +822,9 @@ export {
   KrnlRegistryClient,
   KrnlRuntimeStore,
   KrnlShell,
+  KrnlSiblingNetwork,
+  KrnlSubAppLoader,
+  KrnlSubAppWorkerHost,
   KrnlTaskList,
   KrnlTaskRunner,
   KrnlWatchVariablesTracker,

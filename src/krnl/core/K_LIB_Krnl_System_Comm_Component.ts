@@ -2,7 +2,18 @@
 /**
  * @file K_LIB_Krnl_System_Comm_Component.ts
  *
- * @description The uniform P2P communication bridge for all Krnl system orchestrators.
+ * @description External P2P communication bridge for STANDALONE KrnlTS applications.
+ *
+ * This component manages the WebSocket server and WebSocket-RPC protocol used for
+ * peer-to-peer communication BETWEEN independent KrnlTS applications (e.g. two separate
+ * running processes that need to call each other's functionalities).
+ *
+ * ⚠ NOT used for sub-app communication.
+ * Sub-apps embedded inside a parent entity communicate exclusively via:
+ *   - Direct in-process method call (local mode)
+ *   - worker_threads MessagePort IPC (worker mode)
+ *
+ * If you see startWsServer() called on a sub-app entity, that is a bug.
  */
 
 import { krnlEmitter } from "./K_LIB_Krnl_Messaging_Concepts.js";
@@ -171,6 +182,7 @@ export class krnlSystemCommComponent {
                         if (rawStr.startsWith('{') && rawStr.endsWith('}')) {
                             const parsed = JSON.parse(rawStr);
                             msg = {
+                                isJson: true,
                                 kind: parsed.kind === 'rpc-request' ? krnlProto.MessageKind.RPC_REQUEST :
                                       parsed.kind === 'rpc-response' ? krnlProto.MessageKind.RPC_RESPONSE :
                                       parsed.kind === 'register-ingress' ? krnlProto.MessageKind.REGISTER_INGRESS :
@@ -431,49 +443,41 @@ export class krnlSystemCommComponent {
             }
         }
 
+        const sendResp = (ok: boolean, resultOrErr: any) => {
+            if (msg.isJson) {
+                const resp = {
+                    kind: 'rpc-response',
+                    requestId,
+                    ok,
+                    ...(ok ? { result: resultOrErr } : { error: typeof resultOrErr === 'string' ? resultOrErr : resultOrErr.message })
+                };
+                ws.send(JSON.stringify(resp));
+            } else {
+                const rpcResp = krnlProto.RpcResponse.encode({
+                    requestId,
+                    ok,
+                    ...(ok ? { jsonResult: JSON.stringify(resultOrErr) } : { error: typeof resultOrErr === 'string' ? resultOrErr : resultOrErr.message, errorDocumentation: resultOrErr.errorDocumentation || "" })
+                }).finish();
+                const envelope = krnlProto.KrnlMessage.encode({
+                    kind: krnlProto.MessageKind.RPC_RESPONSE,
+                    requestId,
+                    binaryPayload: rpcResp
+                }).finish();
+                ws.send(envelope);
+            }
+        };
+
         const handler = this._wsRpcHandlers.get(method);
         if (!handler) {
-            const rpcResp = krnlProto.RpcResponse.encode({
-                requestId,
-                ok: false,
-                error: `Unknown RPC method: ${method}`
-            }).finish();
-            const envelope = krnlProto.KrnlMessage.encode({
-                kind: krnlProto.MessageKind.RPC_RESPONSE,
-                requestId,
-                binaryPayload: rpcResp
-            }).finish();
-            ws.send(envelope);
+            sendResp(false, `Unknown RPC method: ${method}`);
             return;
         }
 
         try {
             const result = await handler(params, { callerPort });
-            const rpcResp = krnlProto.RpcResponse.encode({
-                requestId,
-                ok: true,
-                jsonResult: JSON.stringify(result)
-            }).finish();
-            const envelope = krnlProto.KrnlMessage.encode({
-                kind: krnlProto.MessageKind.RPC_RESPONSE,
-                requestId,
-                binaryPayload: rpcResp
-            }).finish();
-            ws.send(envelope);
+            sendResp(true, result);
         } catch (e: any) {
-            let errorMsg = e.message || String(e);
-            const rpcResp = krnlProto.RpcResponse.encode({
-                requestId,
-                ok: false,
-                error: errorMsg,
-                errorDocumentation: e.errorDocumentation || ""
-            }).finish();
-            const envelope = krnlProto.KrnlMessage.encode({
-                kind: krnlProto.MessageKind.RPC_RESPONSE,
-                requestId,
-                binaryPayload: rpcResp
-            }).finish();
-            ws.send(envelope);
+            sendResp(false, e);
         }
     }
 

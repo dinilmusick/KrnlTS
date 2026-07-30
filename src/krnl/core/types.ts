@@ -110,13 +110,77 @@ export interface KrnlManagedServiceHandle {
   pid?: number;
 }
 
+/**
+ * KrnlIngressNetworkMemberConfig
+ *
+ * ⚠ SIBLING NETWORK ONLY — do NOT use this for embedding sub-apps inside a parent.
+ *
+ * This config is used exclusively by KrnlSiblingNetwork (formerly KrnlIngressNetwork)
+ * to connect independent, standalone KrnlTS applications that each run with their own
+ * networking stack (HTTP / WebSocket).
+ *
+ * For embedded sub-apps use KrnlSubAppConfig + entity.loadSubApps() instead.
+ */
 export interface KrnlIngressNetworkMemberConfig {
   ServiceClass?: any;
   prefix: string;
+  /** Port for the standalone sibling app's HTTP/WS server. Not used for sub-apps. */
   port?: number;
   constructorArgs?: any[];
   isKrnl?: boolean;
   entryPath?: string;
+}
+
+// ── Sub-App Execution Model ───────────────────────────────────────────────────
+
+/**
+ * KrnlSubAppExecutionMode
+ *
+ * Determines how a sub-app is hosted by the parent application.
+ * This is a RUNTIME/KERNEL decision set in the parent's krnl.json — the sub-app
+ * code never changes regardless of which mode is chosen.
+ *
+ *   'local'  → sub-app entity lives in the parent process; communication is a
+ *               direct in-process method call. Zero networking overhead.
+ *
+ *   'worker' → sub-app entity lives in a worker_thread managed by the parent;
+ *               communication is via MessagePort IPC. No HTTP · No TCP · No WebSocket.
+ */
+export type KrnlSubAppExecutionMode = 'local' | 'worker';
+
+/**
+ * KrnlSubAppConfig
+ *
+ * Configuration passed to entity.loadSubApps() when embedding a KrnlTS app as a
+ * sub-app inside a parent. The executionMode is read from the parent's krnl.json
+ * and injected here by the MagneticLoader; sub-apps do not declare it themselves.
+ */
+export interface KrnlSubAppConfig {
+  /** Directory name of the sub-app under subapps/ */
+  prefix: string;
+  /** The sub-app class (must extend krnlSystemEntityBase). */
+  ServiceClass?: any;
+  /** Absolute path to the sub-app's compiled entry module. */
+  entryPath?: string;
+  /** Execution mode as read from the parent's krnl.json. Defaults to 'local'. */
+  executionMode?: KrnlSubAppExecutionMode;
+  /** Extra constructor arguments forwarded to the sub-app class. */
+  constructorArgs?: any[];
+  /** Whether the sub-app is a KrnlTS app (true) or a non-KrnlTS adapter (false). */
+  isKrnl?: boolean;
+}
+
+/**
+ * KrnlSubAppEntry
+ *
+ * Live registry entry stored in entity._subAppRegistry after a sub-app is loaded.
+ */
+export interface KrnlSubAppEntry {
+  prefix:        string;
+  executionMode: KrnlSubAppExecutionMode;
+  /** Local entity instance (local mode) or KrnlSubAppWorkerHost proxy (worker mode). */
+  entity:        any;
+  addedAt:       number;
 }
 
 export interface KrnlFrontendOptions {

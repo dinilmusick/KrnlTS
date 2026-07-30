@@ -235,11 +235,36 @@ export function shutdownApi(entity: any) {
   };
 }
 
-export function getIngressNetworkTopologyApi(entity: any) {
+/**
+ * getSiblingNetworkTopologyApi (formerly getIngressNetworkTopologyApi)
+ *
+ * Returns the topology of the sibling peer network — the set of independent standalone
+ * KrnlTS applications connected to this entity via KrnlSiblingNetwork.
+ *
+ * This is NOT related to embedded sub-apps. Use getSubAppTopologyApi for those.
+ */
+export function getSiblingNetworkTopologyApi(entity: any) {
   return () => {
-    if (!entity._ingressNetwork) return null;
-    return entity.getIngressNetworkTopology();
+    if (!entity._siblingNetwork) return null;
+    return entity.getSiblingNetworkTopology();
   };
+}
+
+/**
+ * getSubAppTopologyApi
+ *
+ * Returns a snapshot of all embedded sub-apps registered in this entity's _subAppRegistry,
+ * including their execution mode (local | worker) and registration time.
+ *
+ * Sub-apps are internal components with zero networking.
+ */
+export function getSubAppTopologyApi(entity: any) {
+  return () => entity.getSubAppTopology();
+}
+
+/** @deprecated Use getSiblingNetworkTopologyApi. */
+export function getIngressNetworkTopologyApi(entity: any) {
+  return getSiblingNetworkTopologyApi(entity);
 }
 
 // ── Registry Server APIs ───────────────────────────────────────────────────

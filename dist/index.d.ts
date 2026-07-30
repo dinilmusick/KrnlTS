@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import http from 'http';
+import { Worker } from 'worker_threads';
 import { AsyncLocalStorage } from 'async_hooks';
 import fs from 'fs';
 import * as $protobuf from 'protobufjs';
@@ -498,13 +499,72 @@ interface KrnlManagedServiceHandle {
     processHandle?: any;
     pid?: number;
 }
+/**
+ * KrnlIngressNetworkMemberConfig
+ *
+ * ⚠ SIBLING NETWORK ONLY — do NOT use this for embedding sub-apps inside a parent.
+ *
+ * This config is used exclusively by KrnlSiblingNetwork (formerly KrnlIngressNetwork)
+ * to connect independent, standalone KrnlTS applications that each run with their own
+ * networking stack (HTTP / WebSocket).
+ *
+ * For embedded sub-apps use KrnlSubAppConfig + entity.loadSubApps() instead.
+ */
 interface KrnlIngressNetworkMemberConfig {
     ServiceClass?: any;
     prefix: string;
+    /** Port for the standalone sibling app's HTTP/WS server. Not used for sub-apps. */
     port?: number;
     constructorArgs?: any[];
     isKrnl?: boolean;
     entryPath?: string;
+}
+/**
+ * KrnlSubAppExecutionMode
+ *
+ * Determines how a sub-app is hosted by the parent application.
+ * This is a RUNTIME/KERNEL decision set in the parent's krnl.json — the sub-app
+ * code never changes regardless of which mode is chosen.
+ *
+ *   'local'  → sub-app entity lives in the parent process; communication is a
+ *               direct in-process method call. Zero networking overhead.
+ *
+ *   'worker' → sub-app entity lives in a worker_thread managed by the parent;
+ *               communication is via MessagePort IPC. No HTTP · No TCP · No WebSocket.
+ */
+type KrnlSubAppExecutionMode = 'local' | 'worker';
+/**
+ * KrnlSubAppConfig
+ *
+ * Configuration passed to entity.loadSubApps() when embedding a KrnlTS app as a
+ * sub-app inside a parent. The executionMode is read from the parent's krnl.json
+ * and injected here by the MagneticLoader; sub-apps do not declare it themselves.
+ */
+interface KrnlSubAppConfig {
+    /** Directory name of the sub-app under subapps/ */
+    prefix: string;
+    /** The sub-app class (must extend krnlSystemEntityBase). */
+    ServiceClass?: any;
+    /** Absolute path to the sub-app's compiled entry module. */
+    entryPath?: string;
+    /** Execution mode as read from the parent's krnl.json. Defaults to 'local'. */
+    executionMode?: KrnlSubAppExecutionMode;
+    /** Extra constructor arguments forwarded to the sub-app class. */
+    constructorArgs?: any[];
+    /** Whether the sub-app is a KrnlTS app (true) or a non-KrnlTS adapter (false). */
+    isKrnl?: boolean;
+}
+/**
+ * KrnlSubAppEntry
+ *
+ * Live registry entry stored in entity._subAppRegistry after a sub-app is loaded.
+ */
+interface KrnlSubAppEntry {
+    prefix: string;
+    executionMode: KrnlSubAppExecutionMode;
+    /** Local entity instance (local mode) or KrnlSubAppWorkerHost proxy (worker mode). */
+    entity: any;
+    addedAt: number;
 }
 interface KrnlFrontendOptions {
     title?: string;
@@ -848,7 +908,18 @@ declare class krnlSubSystemOrchestratorBase extends krnlEntityBase {
 /**
  * @file K_LIB_Krnl_System_Comm_Component.ts
  *
- * @description The uniform P2P communication bridge for all Krnl system orchestrators.
+ * @description External P2P communication bridge for STANDALONE KrnlTS applications.
+ *
+ * This component manages the WebSocket server and WebSocket-RPC protocol used for
+ * peer-to-peer communication BETWEEN independent KrnlTS applications (e.g. two separate
+ * running processes that need to call each other's functionalities).
+ *
+ * ⚠ NOT used for sub-app communication.
+ * Sub-apps embedded inside a parent entity communicate exclusively via:
+ *   - Direct in-process method call (local mode)
+ *   - worker_threads MessagePort IPC (worker mode)
+ *
+ * If you see startWsServer() called on a sub-app entity, that is a bug.
  */
 
 /**
@@ -986,21 +1057,100 @@ declare class krnlUnifiedHttpAdapter {
     _readJsonBody(req: http.IncomingMessage): Promise<any>;
 }
 
-interface IngressMemberEntry {
+/**
+ * @file K_LIB_Krnl_System_Ingress_Network.ts
+ *
+ * SIBLING NETWORK — for connecting INDEPENDENT, STANDALONE KrnlTS applications that each
+ * run with their own networking stack (HTTP / WebSocket / WebSocket-RPC).
+ *
+ * ⚠ DO NOT USE FOR SUB-APPS.
+ *
+ * Sub-apps embedded inside a parent application are managed entirely by:
+ *   - entity.loadSubApps()           → loads sub-apps into _subAppRegistry
+ *   - entity.callInternal()          → dispatches calls without any networking
+ *   - K_LIB_Krnl_SubApp_Registry.ts → KrnlSubAppLoader (local mode)
+ *   - K_LIB_Krnl_SubApp_Worker_Host.ts → KrnlSubAppWorkerHost (worker mode)
+ *
+ * Sub-apps communicate via:
+ *   - Local mode:  direct in-process method call (zero networking overhead)
+ *   - Worker mode: worker_threads MessagePort IPC (no HTTP · no TCP · no WebSocket)
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * The SIBLING NETWORK is for a FUTURE use-case (not currently used by default):
+ * multiple independent KrnlTS application instances that form a peer/gateway cluster,
+ * each exposing its own HTTP/WS server. For example, a load balancer or API gateway
+ * that routes requests across independently deployed KrnlTS services.
+ *
+ * When you need this, call:
+ *   await entity.startSiblingNetwork(siblingConfigs);
+ *   // or the deprecated alias:
+ *   await entity.startIngressNetwork(siblingConfigs);
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * SiblingMemberEntry
+ *
+ * A single entry in the KrnlSiblingNetwork members map.
+ * All members are standalone KrnlTS apps or frontend adapters — NOT embedded sub-apps.
+ */
+interface SiblingMemberEntry {
     entity: any;
     config: KrnlIngressNetworkMemberConfig | KrnlFrontendMemberConfig;
     addedAt: number;
-    memberType?: 'subapp' | 'frontend';
+    memberType?: 'sibling' | 'frontend';
 }
-declare class KrnlIngressNetwork {
-    members: Map<string, IngressMemberEntry>;
+/** @deprecated Use SiblingMemberEntry. Alias for backward compatibility. */
+type IngressMemberEntry = SiblingMemberEntry;
+/**
+ * KrnlSiblingNetwork
+ *
+ * Manages a set of independent standalone KrnlTS applications (siblings) behind a
+ * shared HTTP/WS gateway. Each sibling has its own networking stack.
+ *
+ * ⚠ This class is NOT for embedding sub-apps inside a parent entity.
+ *   Use entity.loadSubApps() + entity.callInternal() for that purpose.
+ */
+declare class KrnlSiblingNetwork {
+    members: Map<string, SiblingMemberEntry>;
+    /**
+     * addMember — adds a standalone sibling KrnlTS application to the peer network.
+     *
+     * The sibling is instantiated and its port is registered in the admin's port registry.
+     * Unlike sub-apps, siblings start their own networking and are independently addressable.
+     *
+     * ⚠ Do not call this for sub-apps. Use entity.loadSubApps() instead.
+     */
     addMember(admin: krnlSystemEntityBase, config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase>;
+    /**
+     * addFrontendMember — adds a custom frontend (static file server / SPA) to the sibling network.
+     */
     addFrontendMember(admin: any, config: KrnlFrontendMemberConfig): Promise<any>;
+    /**
+     * removeMember — removes a sibling from the peer network.
+     */
     removeMember(admin: krnlSystemEntityBase, prefix: string): Promise<boolean>;
+    /**
+     * getGrossManifest — returns a listing of all siblings and their manifest endpoints.
+     */
     getGrossManifest(adminBaseUrl: string): any;
+    /**
+     * getAggregatedMcpTools — collects public MCP tool definitions from all siblings.
+     */
     getAggregatedMcpTools(): any[];
+    /**
+     * routeHttpRequest — routes an incoming HTTP request to the correct sibling's handler.
+     * The sibling's own unifiedHttpAdapter handles the request in-process.
+     */
     routeHttpRequest(prefix: string, req: http.IncomingMessage, res: http.ServerResponse, subPath: string): Promise<void>;
 }
+/**
+ * @deprecated Use KrnlSiblingNetwork. Alias for backward compatibility.
+ */
+declare const KrnlIngressNetwork: typeof KrnlSiblingNetwork;
+type KrnlIngressNetwork = KrnlSiblingNetwork;
 
 declare class KrnlFrontend {
     system: any;
@@ -1181,11 +1331,36 @@ declare class KrnlApplicationOrchestrator {
  */
 
 declare class krnlSystemEntityBase extends krnlEntityBase {
+    /**
+     * _isIngressNetworkMember — true when this entity is a SIBLING of another standalone app
+     * inside a KrnlSiblingNetwork (formerly IngressNetwork).
+     * NOT set for embedded sub-apps; those use _isSubApp instead.
+     */
     _isIngressNetworkMember: boolean;
-    _ingressNetwork: KrnlIngressNetwork | null;
+    /**
+     * _siblingNetwork — the sibling-app peer network this entity administers (if any).
+     * Used exclusively for connecting independent standalone KrnlTS apps.
+     * NEVER used for sub-apps embedded inside this entity.
+     */
+    _siblingNetwork: KrnlSiblingNetwork | null;
+    /** @deprecated Use _siblingNetwork. Alias kept for backward compatibility. */
+    get _ingressNetwork(): KrnlSiblingNetwork | null;
+    set _ingressNetwork(v: KrnlSiblingNetwork | null);
     _frontendEnabled: boolean;
     _frontend: KrnlFrontend | null;
+    /**
+     * _isSubApp — true when this entity is embedded inside a parent KrnlTS application.
+     * When true:
+     *   - Networking (HTTP / WebSocket) is suppressed; _startSharedServer() returns early.
+     *   - Registry registration is skipped.
+     *   - All communication goes through the parent's callInternal() or MessagePort transport.
+     */
     _isSubApp: boolean;
+    /**
+     * _subAppRegistry — registry of sub-apps embedded in this entity.
+     * Populated by loadSubApps(). Keys are lowercase prefix strings.
+     */
+    _subAppRegistry: Map<string, KrnlSubAppEntry>;
     systemType: string;
     peers: Map<string, any>;
     discoverable: boolean;
@@ -1265,10 +1440,74 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
      * Validates requiredRemotes manifest dependencies upon boot
      */
     private _validateBootManifestDependencies;
+    /**
+     * loadSubApps
+     *
+     * Embeds one or more KrnlTS applications as internal sub-apps of this entity.
+     * Sub-apps run without any networking stack — they communicate exclusively via
+     * direct in-process method calls (local mode) or worker_threads MessagePort (worker mode).
+     *
+     * The execution mode for each sub-app is determined by the parent's krnl.json
+     * and should already be set on each config object before calling this method.
+     * MagneticLoader populates this automatically.
+     *
+     * Sub-apps are registered in _subAppRegistry and can be called via callInternal().
+     *
+     * ⚠ Do NOT use startIngressNetwork() for sub-apps. That method is for connecting
+     *   independent standalone applications in a sibling peer network.
+     */
+    loadSubApps(configs: KrnlSubAppConfig[]): Promise<void>;
+    /**
+     * callInternal
+     *
+     * Dispatch a functionality call to an embedded sub-app (or self) with zero network overhead.
+     *
+     * For local-mode sub-apps: direct in-process method call.
+     * For worker-mode sub-apps: MessagePort IPC — no HTTP, no TCP.
+     *
+     * Usage from a functionality:
+     *   const result = await entity.callInternal('subAppPrefix', 'functionalityId', inputData);
+     */
+    callInternal(prefix: string, fid: string, input?: any): Promise<any>;
+    /**
+     * getSubAppTopology
+     *
+     * Returns a snapshot of all embedded sub-apps registered in this entity,
+     * including their execution mode and registration time.
+     */
+    getSubAppTopology(): any;
+    /**
+     * startSiblingNetwork (formerly startIngressNetwork)
+     *
+     * Configures a sibling peer network of independent standalone KrnlTS applications.
+     * Each sibling is a full KrnlTS app with its own HTTP/WS server.
+     *
+     * ⚠ Do NOT call this to host sub-apps. Use loadSubApps() for embedded components.
+     */
+    startSiblingNetwork(members: KrnlIngressNetworkMemberConfig[]): Promise<void>;
+    /**
+     * startIngressNetwork — preserved as alias for backward compatibility.
+     * @deprecated Use startSiblingNetwork() for connecting standalone sibling apps.
+     *             Use loadSubApps() for embedding sub-apps inside this entity.
+     */
     startIngressNetwork(members: KrnlIngressNetworkMemberConfig[]): Promise<void>;
+    /**
+     * joinSiblingNetwork (formerly joinIngressNetwork)
+     * Adds a single sibling to the peer network.
+     */
+    joinSiblingNetwork(config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase>;
+    /** @deprecated Use joinSiblingNetwork(). */
     joinIngressNetwork(config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase>;
     startCustomFrontend(name: string, appPath: string, options?: KrnlCustomFrontendOptions): Promise<krnlSystemEntityBase>;
     stopCustomFrontend(name: string, prefix?: string): Promise<boolean>;
+    /**
+     * getSiblingNetworkTopology (formerly getIngressNetworkTopology)
+     *
+     * Returns the topology of the sibling peer network (standalone apps only).
+     * This is NOT related to embedded sub-apps — use getSubAppTopology() for those.
+     */
+    getSiblingNetworkTopology(): any;
+    /** @deprecated Use getSiblingNetworkTopology(). Alias kept for backward compatibility. */
     getIngressNetworkTopology(): any;
     /**
      * port — stable public accessor for the active bound port.
@@ -1516,17 +1755,105 @@ declare class krnlError extends Error {
     constructor(code: number | string);
 }
 
+/**
+ * @file K_LIB_Krnl_SubApp_Registry.ts
+ *
+ * @description Sub-app registry and loader for the KrnlTS internal sub-app execution model.
+ *
+ * Sub-apps are normal KrnlTS applications that can run either standalone (with full networking)
+ * or embedded inside a parent application (with no networking). The parent's krnl.json declares
+ * the execution mode for each sub-app; the sub-app code itself never changes.
+ *
+ * Two execution modes:
+ *   'local'  — sub-app entity lives in the parent process; calls are direct method invocations.
+ *   'worker' — sub-app entity lives in a worker_thread; calls transit via MessagePort IPC.
+ *
+ * NO networking (HTTP / WebSocket / TCP) is used in either mode.
+ *
+ * @see K_LIB_Krnl_SubApp_Worker_Host.ts  — Worker-mode parent-side proxy.
+ * @see K_LIB_Krnl_SubApp_Worker_Runtime.ts — Worker-side bootstrap loaded inside the thread.
+ */
+
+declare class KrnlSubAppLoader {
+    /**
+     * Loads a single sub-app into the parent entity's _subAppRegistry.
+     *
+     * For 'local' mode the sub-app class is instantiated directly in the parent process.
+     * Networking is suppressed automatically because the entity is constructed inside the
+     * subappLocalStorage async context (sets _isSubApp = true) and _startSharedServer()
+     * returns early for sub-app entities.
+     *
+     * For 'worker' mode a worker_thread is spawned and a KrnlSubAppWorkerHost proxy is
+     * registered in its place. All calls transit via MessagePort — no TCP/HTTP involved.
+     */
+    static load(parent: krnlSystemEntityBase, config: KrnlSubAppConfig): Promise<void>;
+}
+
+/**
+ * @file K_LIB_Krnl_SubApp_Worker_Host.ts
+ *
+ * @description Parent-process proxy for a sub-app running in an isolated worker_thread.
+ *
+ * KrnlSubAppWorkerHost wraps a Node.js worker_thread and exposes the same call interface
+ * as a local sub-app entity, so the parent's routing code works transparently regardless
+ * of which execution mode was chosen.
+ *
+ * Communication uses worker_threads MessagePort exclusively.
+ * No HTTP · No WebSocket · No TCP · No port binding.
+ *
+ * Wire protocol (MessagePort messages):
+ *
+ *   Parent → Worker:
+ *     { type: 'call',     requestId: string, fid: string, input: any }
+ *     { type: 'shutdown'                                              }
+ *
+ *   Worker → Parent:
+ *     { type: 'result',   requestId: string, ok: boolean, result?: any, error?: string }
+ *     { type: 'manifest', manifest: any }   // sent once at startup
+ */
+
+declare class KrnlSubAppWorkerHost {
+    prefix: string;
+    _worker: Worker;
+    _manifest: any;
+    _pending: Map<string, {
+        resolve: Function;
+        reject: Function;
+        timeoutId: ReturnType<typeof setTimeout>;
+    }>;
+    _ready: Promise<void>;
+    _resolveReady: () => void;
+    _rejectReady: (err: Error) => void;
+    private constructor();
+    /**
+     * Spawn a worker_thread for the given sub-app config and wait for the manifest.
+     */
+    static create(config: KrnlSubAppConfig, timeoutMs?: number): Promise<KrnlSubAppWorkerHost>;
+    /**
+     * Call a functionality on the worker-hosted sub-app.
+     * This is the primary dispatch path for worker-mode sub-apps.
+     * Uses MessagePort IPC — no networking.
+     */
+    callInternal(fid: string, input?: any, timeoutMs?: number): Promise<any>;
+    /**
+     * Alias so both local entities and worker hosts expose the same dispatch surface.
+     */
+    call(fid: string, input?: any): Promise<any>;
+    /**
+     * Returns the sub-app manifest obtained from the worker at startup.
+     */
+    getManifest(): any;
+    /**
+     * Terminate the worker thread gracefully.
+     */
+    gracefulShutdown(): Promise<void>;
+}
+
 declare const magneticStorage: AsyncLocalStorage<{
     helpers: Record<string, any>;
     events: Record<string, any>;
 }>;
 declare const subappLocalStorage: any;
-interface KrnlSubAppConfig {
-    ServiceClass: any;
-    prefix: string;
-    isKrnl: boolean;
-    entryPath: string;
-}
 declare class KrnlMagneticLoader {
     /**
      * Scans and dynamically loads entities, functionalities, and subapps for the given system entity.
@@ -2383,4 +2710,4 @@ declare class PocerBlock extends krnlSystemEntityBase {
     private _waitForPort;
 }
 
-export { AsyncKit, type BlockApiEndpoint, type BlockDescriptor, type BlockRoute, CUSTOM_ERROR_CODE, CacheKit, DasyJS, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, type IngressMemberEntry, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBlockContainerAdapter, type KrnlBridgeDescriptor, KrnlBuildValidator, type KrnlCustomFrontendOptions, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFrontend, KrnlFrontendAdapter, type KrnlFrontendMemberConfig, type KrnlFrontendOptions, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlResult, KrnlRuntimeStore, KrnlShell, type KrnlSubAppConfig, type KrnlSubAppDependency, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlWatchVariable, KrnlWatchVariablesTracker, LRUCache, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };
+export { AsyncKit, type BlockApiEndpoint, type BlockDescriptor, type BlockRoute, CUSTOM_ERROR_CODE, CacheKit, DasyJS, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, type IngressMemberEntry, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBlockContainerAdapter, type KrnlBridgeDescriptor, KrnlBuildValidator, type KrnlCustomFrontendOptions, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFrontend, KrnlFrontendAdapter, type KrnlFrontendMemberConfig, type KrnlFrontendOptions, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, type KrnlSubAppConfig, type KrnlSubAppDependency, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLoader, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlWatchVariable, KrnlWatchVariablesTracker, LRUCache, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SiblingMemberEntry, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };

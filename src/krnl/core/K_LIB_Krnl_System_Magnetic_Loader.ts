@@ -3,6 +3,7 @@ import path from 'path';
 import { pathToFileURL } from 'url';
 import { AsyncLocalStorage } from 'async_hooks';
 import { krnlSystemEntityBase } from './K_ENT_Krnl_System_Entity_Base.js';
+import type { KrnlSubAppConfig } from './types.js';
 
 export const magneticStorage = new AsyncLocalStorage<{
   helpers: Record<string, any>;
@@ -13,13 +14,6 @@ if (!(globalThis as any).__krnlSubAppLocalStorage) {
   (globalThis as any).__krnlSubAppLocalStorage = new AsyncLocalStorage<boolean>();
 }
 export const subappLocalStorage = (globalThis as any).__krnlSubAppLocalStorage;
-
-export interface KrnlSubAppConfig {
-  ServiceClass: any;
-  prefix: string;
-  isKrnl: boolean;
-  entryPath: string;
-}
 
 export class KrnlMagneticLoader {
   /**
@@ -49,12 +43,15 @@ export class KrnlMagneticLoader {
       }
     }
 
-    // 3. Scan and load subapps for automatic Ingress Network mapping
+    // 3. Scan and load sub-apps.
+    //    Sub-apps are normal KrnlTS applications embedded inside this parent entity.
+    //    They run without any networking stack (no HTTP, no WebSocket, no TCP).
+    //    The execution mode (local | worker) is read from the parent's krnl.json.
     const subappsDir = path.join(baseDir, 'subapps');
     const isSubApp = subappLocalStorage.getStore() || (entity as any)._isSubApp || (entity as any)._isIngressNetworkMember;
     if (fs.existsSync(subappsDir) && !isSubApp) {
       const apps = await fs.promises.readdir(subappsDir, { withFileTypes: true });
-      const subappConfigs: any[] = [];
+      const subappConfigs: KrnlSubAppConfig[] = [];
       for (const dirent of apps) {
         if (dirent.isDirectory()) {
           const appPath = path.join(subappsDir, dirent.name);
@@ -69,8 +66,23 @@ export class KrnlMagneticLoader {
         }
       }
       if (subappConfigs.length > 0) {
-        console.log(`[MagneticLoader] Automatically enabling Ingress Network on '${entity.entityName}' with ${subappConfigs.length} sub-apps.`);
-        await entity.startIngressNetwork(subappConfigs);
+        // Read execution modes from the parent's krnl.json (single source of truth)
+        const krnlJsonPath = path.join(baseDir, 'krnl.json');
+        let subappModes: Record<string, { executionMode?: string }> = {};
+        if (fs.existsSync(krnlJsonPath)) {
+          try {
+            const parsed = JSON.parse(fs.readFileSync(krnlJsonPath, 'utf-8'));
+            subappModes = parsed.subapps || {};
+          } catch (_) {}
+        }
+
+        // Inject execution mode into each config
+        for (const cfg of subappConfigs) {
+          cfg.executionMode = (subappModes[cfg.prefix]?.executionMode as any) ?? 'local';
+        }
+
+        console.log(`[MagneticLoader] Loading ${subappConfigs.length} sub-app(s) on '${entity.entityName}' (no networking).`);
+        await entity.loadSubApps(subappConfigs as any);
       }
     }
 

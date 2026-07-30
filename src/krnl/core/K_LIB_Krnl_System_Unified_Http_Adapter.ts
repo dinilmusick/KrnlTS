@@ -84,32 +84,66 @@ export class krnlUnifiedHttpAdapter {
             return;
         }
 
-        // Ingress Network routing (Sub-apps)
-        if (this.system._ingressNetwork) {
+        // ── Internal Sub-App routing ──────────────────────────────────────────────────────────
+        // Sub-apps are embedded components; they have NO networking of their own.
+        // Local-mode sub-apps: call their unifiedHttpAdapter._handleRequest directly (in-process).
+        // Worker-mode sub-apps: parse body here, send via MessagePort, write response.
+        if (this.system._subAppRegistry?.size > 0) {
             const segments = path.split('/').filter(Boolean);
             const prefix = segments[0]?.toLowerCase();
-            if (prefix && this.system._ingressNetwork.members.has(prefix)) {
+            if (prefix && this.system._subAppRegistry.has(prefix)) {
+                const entry = this.system._subAppRegistry.get(prefix)!;
+                let subPath = '/' + segments.slice(1).join('/') + url.search;
+                if (path.endsWith('/') && !subPath.endsWith('/')) subPath += '/';
+
+                if (entry.executionMode === 'worker') {
+                    // Worker mode: parse the request and route via MessagePort IPC
+                    const fid  = segments[1] ?? 'heartbeat';
+                    const body = req.method === 'GET'
+                        ? Object.fromEntries(url.searchParams.entries())
+                        : await this._readJsonBody(req);
+                    try {
+                        const result = await entry.entity.call(fid, body);
+                        this._sendJson(res, 200, result);
+                    } catch (err: any) {
+                        this._sendJson(res, 200, { status: 'error', message: err.message || String(err) });
+                    }
+                } else {
+                    // Local mode: delegate directly to the sub-app's in-process HTTP adapter
+                    const originalUrl = req.url;
+                    req.url = subPath;
+                    try {
+                        await entry.entity.unifiedHttpAdapter._handleRequest(req, res);
+                    } finally {
+                        req.url = originalUrl;
+                    }
+                }
+                return;
+            }
+        }
+
+        // ── Sibling Network frontend routing ───────────────────────────────────────────────
+        // The sibling network (formerly ingress network) connects STANDALONE independent apps.
+        // This routing block handles custom frontends registered via the sibling network.
+        if (this.system._siblingNetwork) {
+            const segments = path.split('/').filter(Boolean);
+            const prefix = segments[0]?.toLowerCase();
+            if (prefix && this.system._siblingNetwork.members.has(prefix)) {
                 if (segments.length === 3 && segments[1] === 'frontend' && segments[2] === 'default' && !path.endsWith('/')) {
                     res.writeHead(302, { 'Location': path + '/' + url.search });
                     res.end();
                     return;
                 }
                 let subPath = '/' + segments.slice(1).join('/') + url.search;
-                if (path.endsWith('/') && !subPath.endsWith('/')) {
-                    subPath += '/';
-                }
-                await this.system._ingressNetwork.routeHttpRequest(prefix, req, res, subPath);
+                if (path.endsWith('/') && !subPath.endsWith('/')) subPath += '/';
+                await this.system._siblingNetwork.routeHttpRequest(prefix, req, res, subPath);
                 return;
             }
-        }
-
-        // Ingress Network custom/arbitrary frontends check
-        if (this.system._ingressNetwork) {
-            const segments = path.split('/').filter(Boolean);
+            // Custom/arbitrary frontends
             if (segments[0] && segments[1] && segments[0].toLowerCase() !== 'default') {
                 const key = `${segments[0].toLowerCase()}/${segments[1].toLowerCase()}`;
-                if (this.system._ingressNetwork.members.has(key)) {
-                    await this.system._ingressNetwork.routeHttpRequest(key, req, res, req.url || '/');
+                if (this.system._siblingNetwork.members.has(key)) {
+                    await this.system._siblingNetwork.routeHttpRequest(key, req, res, req.url || '/');
                     return;
                 }
             }

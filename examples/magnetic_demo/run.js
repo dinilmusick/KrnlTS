@@ -55,16 +55,16 @@ async function main() {
     });
     console.log("HTTP POST /call/Calculator Result:", JSON.stringify(calcRes.data, null, 2));
 
-    console.log("\n2. Testing Ingress Network automatic routing for KrnlTS sub-app...");
+    console.log("\n2. Testing zero-network internal sub-app routing for KrnlTS sub-app...");
     const loginRes = await requestJson(`http://localhost:${port}/authservice/call/login`, {
         method: "POST",
         body: { username: "admin", password: "secret" }
     });
-    console.log("HTTP POST /auth/call/login Result:", JSON.stringify(loginRes.data, null, 2));
+    console.log("HTTP POST /authservice/call/login Result:", JSON.stringify(loginRes.data, null, 2));
 
-    console.log("\n3. Testing Ingress Network reverse proxying for non-KrnlTS Express/HTTP sub-app...");
-    const nonKrnlRes = await requestJson(`http://localhost:${port}/nonkrnlapp/hello/world`);
-    console.log("HTTP GET /nonkrnlapp/hello/world Result:", JSON.stringify(nonKrnlRes.data, null, 2));
+    console.log("\n3. Testing non-KrnlTS sub-app proxying...");
+    const nonKrnlRes = await requestJson(`http://localhost:${port}/nonkrnlapp/`);
+    console.log("HTTP GET /nonkrnlapp/ Result:", JSON.stringify(nonKrnlRes.data, null, 2));
 
     console.log("\n4. Shutting down system...");
     await system.shutdown();
