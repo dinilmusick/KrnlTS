@@ -60,6 +60,7 @@ export class krnlLocalFunctionality {
   helpers: Map<string, any>;
   emitters: Map<string, krnlEmitter>;
   schema: any;
+  uiSpec?: any;
   description?: string;
   method?: string;
   tests?: any[];
@@ -113,6 +114,7 @@ export class krnlLocalFunctionality {
     this.method = config.method || 'POST';
     this.tests = tests;
     this.examples = config.examples || null;
+    this.uiSpec = config.uiSpec || null;
     this.intention = config.intention || null;
     this.intelligenceSpec = config.intelligenceSpec || null;
     if (accessPolicy) this.accessPolicy = accessPolicy;

@@ -869,6 +869,7 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
       helpers;
       emitters;
       schema;
+      uiSpec;
       description;
       method;
       tests;
@@ -914,6 +915,7 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
         this.method = config.method || "POST";
         this.tests = tests;
         this.examples = config.examples || null;
+        this.uiSpec = config.uiSpec || null;
         this.intention = config.intention || null;
         this.intelligenceSpec = config.intelligenceSpec || null;
         if (accessPolicy) this.accessPolicy = accessPolicy;

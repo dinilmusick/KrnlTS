@@ -653,6 +653,7 @@ declare class krnlLocalFunctionality {
     helpers: Map<string, any>;
     emitters: Map<string, krnlEmitter>;
     schema: any;
+    uiSpec?: any;
     description?: string;
     method?: string;
     tests?: any[];
