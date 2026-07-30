@@ -496,13 +496,121 @@ export function KrnlCarousel({ items, renderItem }: any) {
     );
 
     fs.writeFileSync(
+      path.join(atomsDir, 'KrnlNumberInput.tsx'),
+      `import React from 'react';
+export function KrnlNumberInput({ label, value, onChange, placeholder }: any) {
+  return (
+    <div className="krnl-form-group">
+      {label && <label className="krnl-label">{label}</label>}
+      <input
+        type="number"
+        className="krnl-input"
+        value={value ?? ''}
+        onChange={(e) => onChange && onChange(Number(e.target.value))}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
+      path.join(atomsDir, 'KrnlToggle.tsx'),
+      `import React from 'react';
+export function KrnlToggle({ label, value, onChange }: any) {
+  return (
+    <div className="krnl-form-group krnl-toggle-group">
+      {label && <label className="krnl-label">{label}</label>}
+      <input
+        type="checkbox"
+        checked={!!value}
+        onChange={(e) => onChange && onChange(e.target.checked)}
+      />
+    </div>
+  );
+}`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
+      path.join(atomsDir, 'KrnlDropdown.tsx'),
+      `import React from 'react';
+export function KrnlDropdown({ label, value, options = [], onChange }: any) {
+  return (
+    <div className="krnl-form-group">
+      {label && <label className="krnl-label">{label}</label>}
+      <select className="krnl-input" value={value || ''} onChange={(e) => onChange && onChange(e.target.value)}>
+        <option value="">Select option...</option>
+        {options.map((opt: any, idx: number) => (
+          <option key={idx} value={typeof opt === 'string' ? opt : opt.value}>
+            {typeof opt === 'string' ? opt : opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
+      path.join(atomsDir, 'KrnlJsonInput.tsx'),
+      `import React from 'react';
+export function KrnlJsonInput({ label, onChange }: any) {
+  return (
+    <div className="krnl-form-group">
+      {label && <label className="krnl-label">{label}</label>}
+      <textarea
+        className="krnl-input krnl-textarea"
+        placeholder="{}"
+        onChange={(e) => {
+          try { onChange && onChange(JSON.parse(e.target.value)); } catch (err) {}
+        }}
+      />
+    </div>
+  );
+}`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
+      path.join(atomsDir, 'KrnlSSELog.tsx'),
+      `import React from 'react';
+export function KrnlSSELog({ label }: any) {
+  return (
+    <div className="krnl-sse-log">
+      {label && <div className="krnl-label">{label}</div>}
+    </div>
+  );
+}`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
       path.join(atomsDir, 'index.ts'),
-      `export * from './KrnlButton';
+      `export * from './KrnlButton.js';
+export * from './KrnlTextInput.js';
+export * from './KrnlNumberInput.js';
+export * from './KrnlToggle.js';
+export * from './KrnlDropdown.js';
+export * from './KrnlTextArea.js';
+export * from './KrnlJsonInput.js';
+export * from './KrnlJsonViewer.js';
+export * from './KrnlCarousel.js';
+export * from './KrnlTile.js';
+export * from './KrnlSSELog.js';
+export * from './KrnlButton';
 export * from './KrnlTextInput';
+export * from './KrnlNumberInput';
+export * from './KrnlToggle';
+export * from './KrnlDropdown';
 export * from './KrnlTextArea';
-export * from './KrnlTile';
+export * from './KrnlJsonInput';
 export * from './KrnlJsonViewer';
 export * from './KrnlCarousel';
+export * from './KrnlTile';
+export * from './KrnlSSELog';
 `,
       'utf-8'
     );
