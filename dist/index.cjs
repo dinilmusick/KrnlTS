@@ -5068,7 +5068,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/${fid}', {
+      const res = await fetch('api/${fid}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
