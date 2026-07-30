@@ -1880,6 +1880,7 @@ declare class KrnlFrontendGenerator {
     static generateIndexSource(appName: string, uiEndpoints: {
         id: string;
     }[], subAppPrefixes: string[]): string;
+    static generateAtoms(frontendDir: string): void;
 }
 
 declare class KrnlFrontendBuilder {

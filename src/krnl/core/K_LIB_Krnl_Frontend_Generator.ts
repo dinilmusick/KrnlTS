@@ -31,6 +31,9 @@ export class KrnlFrontendGenerator {
       this.checkReactDependencies(frontendDir);
     }
 
+    // Generate atomic reusable components
+    this.generateAtoms(frontendDir);
+
     // Generate individual endpoint components
     const componentsDir = path.join(frontendDir, 'src', 'components');
     fs.mkdirSync(componentsDir, { recursive: true });
@@ -380,5 +383,100 @@ if (rootElement) {
   root.render(<AppShell />);
 }
 `;
+  }
+
+  static generateAtoms(frontendDir: string) {
+    const atomsDir = path.join(frontendDir, 'src', 'atoms');
+    fs.mkdirSync(atomsDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(atomsDir, 'KrnlButton.tsx'),
+      `import React from 'react';
+export function KrnlButton({ label, onClick, disabled, loading }: any) {
+  return (
+    <button className="krnl-btn" onClick={onClick} disabled={disabled || loading}>
+      {loading ? 'Processing...' : label}
+    </button>
+  );
+}`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
+      path.join(atomsDir, 'KrnlTextInput.tsx'),
+      `import React from 'react';
+export function KrnlTextInput({ label, value, onChange, placeholder, type = 'text' }: any) {
+  return (
+    <div className="krnl-form-group">
+      {label && <label className="krnl-label">{label}</label>}
+      <input
+        type={type}
+        className="krnl-input"
+        value={value || ''}
+        onChange={(e) => onChange && onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
+      path.join(atomsDir, 'KrnlTile.tsx'),
+      `import React from 'react';
+export function KrnlTile({ title, value }: any) {
+  return (
+    <div className="krnl-tile">
+      {title && <div className="krnl-tile-title">{title}</div>}
+      <div className="krnl-tile-value">{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</div>
+    </div>
+  );
+}`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
+      path.join(atomsDir, 'KrnlJsonViewer.tsx'),
+      `import React from 'react';
+export function KrnlJsonViewer({ data, label }: any) {
+  return (
+    <div className="krnl-json-viewer">
+      {label && <div className="krnl-label">{label}</div>}
+      <pre className="krnl-json-code">{JSON.stringify(data, null, 2)}</pre>
+    </div>
+  );
+}`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
+      path.join(atomsDir, 'KrnlCarousel.tsx'),
+      `import React from 'react';
+export function KrnlCarousel({ items, renderItem }: any) {
+  if (!items || !items.length) return <div className="krnl-empty">No items available</div>;
+  return (
+    <div className="krnl-carousel">
+      {items.map((item: any, idx: number) => (
+        <div key={idx} className="krnl-carousel-item">
+          {renderItem ? renderItem(item) : JSON.stringify(item)}
+        </div>
+      ))}
+    </div>
+  );
+}`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
+      path.join(atomsDir, 'index.ts'),
+      `export * from './KrnlButton.js';
+export * from './KrnlTextInput.js';
+export * from './KrnlTile.js';
+export * from './KrnlJsonViewer.js';
+export * from './KrnlCarousel.js';
+`,
+      'utf-8'
+    );
   }
 }
