@@ -5332,12 +5332,12 @@ export function KrnlCarousel({ items, renderItem }: any) {
         );
         import_fs8.default.writeFileSync(
           import_path7.default.join(atomsDir, "index.ts"),
-          `export * from './KrnlButton.js';
-export * from './KrnlTextInput.js';
-export * from './KrnlTextArea.js';
-export * from './KrnlTile.js';
-export * from './KrnlJsonViewer.js';
-export * from './KrnlCarousel.js';
+          `export * from './KrnlButton';
+export * from './KrnlTextInput';
+export * from './KrnlTextArea';
+export * from './KrnlTile';
+export * from './KrnlJsonViewer';
+export * from './KrnlCarousel';
 `,
           "utf-8"
         );
