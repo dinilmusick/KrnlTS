@@ -36,9 +36,7 @@ import {
   KrnlIngressNetworkMemberConfig,
   KrnlSubAppConfig,
   KrnlSubAppEntry,
-  KrnlFrontendOptions,
-  KrnlCustomFrontendOptions,
-  KrnlFrontendMemberConfig
+  KrnlFrontendOptions
 } from "./types.js";
 import { KrnlSiblingNetwork } from "./K_LIB_Krnl_System_Ingress_Network.js";
 import { KrnlFrontend } from "./K_LIB_Krnl_System_Frontend.js";
@@ -479,25 +477,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     return this.joinSiblingNetwork(config);
   }
 
-  async startCustomFrontend(name: string, appPath: string, options?: KrnlCustomFrontendOptions): Promise<krnlSystemEntityBase> {
-    try {
-      if (!this._siblingNetwork) {
-        this._siblingNetwork = new KrnlSiblingNetwork();
-        const discoveryPort = this.commPort > 0 ? this.commPort + 1000 : 10101;
-        await this.startDiscovery(discoveryPort);
-      }
-      return await this._siblingNetwork.addFrontendMember(this, { name, appPath, options });
-    } catch (err: any) {
-      console.error(`[startCustomFrontend] Error starting custom frontend '${name}':`, err);
-      throw err;
-    }
-  }
 
-  async stopCustomFrontend(name: string, prefix: string = 'modules'): Promise<boolean> {
-    if (!this._ingressNetwork) return false;
-    const key = `${prefix}/${name.toLowerCase()}`;
-    return await this._ingressNetwork.removeMember(this, key);
-  }
 
   /**
    * getSiblingNetworkTopology (formerly getIngressNetworkTopology)

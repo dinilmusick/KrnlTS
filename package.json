@@ -20,7 +20,7 @@
   },
   "scripts": {
     "proto": "pbjs -t static-module -w es6 -o src/krnl/core/krnl_pb.js src/krnl/core/krnl.proto && pbts -o src/krnl/core/krnl_pb.d.ts src/krnl/core/krnl_pb.js",
-    "build": "npm run proto && tsup src/index.ts src/bin/krnlts-watch.ts src/bin/krnlts-validate.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema && tsup src/krnl/core/K_LIB_Krnl_Frontend_Bridge_Bundle.ts --format iife --global-name KrnlBridgeModule --minify --platform browser --out-dir dist",
+    "build": "npm run proto && tsup src/index.ts src/bin/krnlts-watch.ts src/bin/krnlts-validate.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema,esbuild",
     "sync": "pnpm install"
   },
   "files": [
@@ -36,6 +36,7 @@
   "author": "Dinil Palackal",
   "license": "MIT",
   "dependencies": {
+    "esbuild": "^0.25.0",
     "protobufjs": "^8.7.1",
     "ws": "^8.18.0",
     "zod": "3.24.1",
@@ -43,6 +44,8 @@
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
     "@types/ws": "^8.18.1",
     "protobufjs-cli": "^2.6.1",
     "tsup": "^8.4.0",

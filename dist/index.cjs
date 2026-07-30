@@ -798,10 +798,10 @@ var init_ObjectKit = __esm({
       /**
        * Accesses an in-memory object by dot-notation.
        */
-      static getPath(obj, path16, defaultValue) {
-        if (!path16)
+      static getPath(obj, path17, defaultValue) {
+        if (!path17)
           return obj;
-        const parts = path16.split(".");
+        const parts = path17.split(".");
         let current = obj;
         for (const part of parts) {
           if (current === null || current === void 0) {
@@ -814,10 +814,10 @@ var init_ObjectKit = __esm({
       /**
        * Mutates or sets an in-memory object by dot-notation.
        */
-      static setPath(obj, path16, value) {
-        if (!path16)
+      static setPath(obj, path17, value) {
+        if (!path17)
           return obj;
-        const parts = path16.split(".");
+        const parts = path17.split(".");
         let current = obj;
         for (let i = 0; i < parts.length - 1; i++) {
           const part = parts[i];
@@ -3650,10 +3650,10 @@ var init_KrnlHTTP = __esm({
        */
       static createClient(baseUrl, defaultHeaders = {}) {
         return {
-          get: (path16, opts = {}) => _KrnlHTTP.get(`${baseUrl}${path16}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
-          post: (path16, body, opts = {}) => _KrnlHTTP.post(`${baseUrl}${path16}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
-          put: (path16, body, opts = {}) => _KrnlHTTP.put(`${baseUrl}${path16}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
-          del: (path16, opts = {}) => _KrnlHTTP.del(`${baseUrl}${path16}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } })
+          get: (path17, opts = {}) => _KrnlHTTP.get(`${baseUrl}${path17}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+          post: (path17, body, opts = {}) => _KrnlHTTP.post(`${baseUrl}${path17}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+          put: (path17, body, opts = {}) => _KrnlHTTP.put(`${baseUrl}${path17}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+          del: (path17, opts = {}) => _KrnlHTTP.del(`${baseUrl}${path17}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } })
         };
       }
       /**
@@ -4521,7 +4521,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
       }
       async _handleRequest(req, res) {
         const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
-        const path16 = url.pathname;
+        const path17 = url.pathname;
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         res.setHeader("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id");
@@ -4531,12 +4531,12 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
           return;
         }
         if (this.system._subAppRegistry?.size > 0) {
-          const segments = path16.split("/").filter(Boolean);
+          const segments = path17.split("/").filter(Boolean);
           const prefix = segments[0]?.toLowerCase();
           if (prefix && this.system._subAppRegistry.has(prefix)) {
             const entry = this.system._subAppRegistry.get(prefix);
             let subPath = "/" + segments.slice(1).join("/") + url.search;
-            if (path16.endsWith("/") && !subPath.endsWith("/")) subPath += "/";
+            if (path17.endsWith("/") && !subPath.endsWith("/")) subPath += "/";
             if (entry.executionMode === "worker") {
               const fid = segments[1] ?? "heartbeat";
               const body = req.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : await this._readJsonBody(req);
@@ -4559,16 +4559,16 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
           }
         }
         if (this.system._siblingNetwork) {
-          const segments = path16.split("/").filter(Boolean);
+          const segments = path17.split("/").filter(Boolean);
           const prefix = segments[0]?.toLowerCase();
           if (prefix && this.system._siblingNetwork.members.has(prefix)) {
-            if (segments.length === 3 && segments[1] === "frontend" && segments[2] === "default" && !path16.endsWith("/")) {
-              res.writeHead(302, { "Location": path16 + "/" + url.search });
+            if (segments.length === 3 && segments[1] === "frontend" && segments[2] === "default" && !path17.endsWith("/")) {
+              res.writeHead(302, { "Location": path17 + "/" + url.search });
               res.end();
               return;
             }
             let subPath = "/" + segments.slice(1).join("/") + url.search;
-            if (path16.endsWith("/") && !subPath.endsWith("/")) subPath += "/";
+            if (path17.endsWith("/") && !subPath.endsWith("/")) subPath += "/";
             await this.system._siblingNetwork.routeHttpRequest(prefix, req, res, subPath);
             return;
           }
@@ -4580,19 +4580,19 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             }
           }
         }
-        if (path16.startsWith("/frontend/default")) {
+        if (path17 === "/frontend" || path17.startsWith("/frontend/")) {
           if (this.system._frontend) {
-            const subPath = path16.slice("/frontend/default".length) || "/";
+            const subPath = path17.slice("/frontend".length) || "/";
             await this.system._frontend.handleRequest(req, res, subPath);
           } else {
             this._sendJson(res, 404, { status: "error", message: "Frontend not enabled." });
           }
           return;
         }
-        const isKrnlRoute = path16.startsWith("/call/") || path16.startsWith("/sse/") || path16.startsWith("/mcp") || path16.startsWith("/acp") || path16 === "/manifest" || path16 === "/health";
+        const isKrnlRoute = path17.startsWith("/call/") || path17.startsWith("/sse/") || path17.startsWith("/mcp") || path17.startsWith("/acp") || path17 === "/manifest" || path17 === "/health";
         if (!isKrnlRoute) {
           if (this.enableFriendlyRouting) {
-            let fid = path16.slice(1);
+            let fid = path17.slice(1);
             if (fid.endsWith("/")) fid = fid.slice(0, -1);
             const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid);
             const resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
@@ -4626,12 +4626,12 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
               return;
             }
           }
-          this._sendJson(res, 404, this.system.getNotFoundResponse(path16));
+          this._sendJson(res, 404, this.system.getNotFoundResponse(path17));
           return;
         }
         try {
-          if (path16.startsWith("/call/")) {
-            const fid = path16.split("/")[2];
+          if (path17.startsWith("/call/")) {
+            const fid = path17.split("/")[2];
             const body = await this._readJsonBody(req);
             const result = await this.system.call(fid, body, {
               unwrap: false,
@@ -4641,12 +4641,12 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             this._sendJson(res, 200, result);
             return;
           }
-          if (path16.startsWith("/sse/")) {
-            const fid = path16.split("/")[2];
+          if (path17.startsWith("/sse/")) {
+            const fid = path17.split("/")[2];
             this._handleSse(req, res, fid);
             return;
           }
-          if (path16 === "/ai") {
+          if (path17 === "/ai") {
             const { message } = await this._readJsonBody(req);
             if (!this.system._aiOrchestrator) {
               const { KrnlAikoClient: KrnlAikoClient2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Aiko_Client(), K_LIB_Krnl_Aiko_Client_exports));
@@ -4660,7 +4660,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             this._sendJson(res, 200, result);
             return;
           }
-          if (path16 === "/ai/manifest") {
+          if (path17 === "/ai/manifest") {
             const agents = this.system._aiOrchestrator?.getAgentSummaries() ?? [];
             this._sendJson(res, 200, {
               aiEnabled: !!this.system._aiOrchestrator,
@@ -4669,7 +4669,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             });
             return;
           }
-          if (path16 === "/mcp") {
+          if (path17 === "/mcp") {
             const body = await this._readJsonBody(req);
             const result = await this.mcp.handleRequest(body, {
               callerPort: req.socket?.remotePort,
@@ -4678,7 +4678,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             this._sendJson(res, 200, result);
             return;
           }
-          if (path16 === "/health") {
+          if (path17 === "/health") {
             const healthData = { status: "ok", entity: this.system.entityName };
             if (this.system._subappErrors && this.system._subappErrors.length > 0) {
               healthData.status = "issues";
@@ -4687,12 +4687,12 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             this._sendJson(res, 200, healthData);
             return;
           }
-          if (path16.startsWith("/acp")) {
-            if (path16 === "/acp/info" || path16 === "/acp") {
+          if (path17.startsWith("/acp")) {
+            if (path17 === "/acp/info" || path17 === "/acp") {
               this._sendJson(res, 200, this.acp.getInfo());
-            } else if (path16 === "/acp/capabilities") {
+            } else if (path17 === "/acp/capabilities") {
               this._sendJson(res, 200, this.acp.getCapabilities());
-            } else if (path16 === "/acp/messages" && req.method === "POST") {
+            } else if (path17 === "/acp/messages" && req.method === "POST") {
               const body = await this._readJsonBody(req);
               const result = await this.acp.handleMessage(body, {
                 callerPort: req.socket?.remotePort,
@@ -4704,7 +4704,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             }
             return;
           }
-          if (path16 === "/manifest") {
+          if (path17 === "/manifest") {
             if (this.system._ingressNetwork) {
               this._sendJson(res, 200, this.system._ingressNetwork.getGrossManifest(`http://${req.headers.host}`));
             } else {
@@ -4713,7 +4713,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             return;
           }
         } catch (error) {
-          Logger.error(`[HttpAdapter] Fatal handler error ${path16}:`, error.message || error);
+          Logger.error(`[HttpAdapter] Fatal handler error ${path17}:`, error.message || error);
           this._sendJson(res, 200, {
             status: "error",
             message: error.message || String(error),
@@ -4776,484 +4776,19 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
   }
 });
 
-// src/krnl/core/K_LIB_Krnl_System_Frontend_Adapter.ts
-var import_fs7, import_path6, import_http2, import_net, import_url, import_meta, _metaUrl, _filename, _dirname, KrnlFrontendAdapter;
-var init_K_LIB_Krnl_System_Frontend_Adapter = __esm({
-  "src/krnl/core/K_LIB_Krnl_System_Frontend_Adapter.ts"() {
-    "use strict";
-    import_fs7 = __toESM(require("fs"), 1);
-    import_path6 = __toESM(require("path"), 1);
-    import_http2 = __toESM(require("http"), 1);
-    import_net = __toESM(require("net"), 1);
-    import_url = require("url");
-    init_K_ENT_Krnl_System_Entity_Base();
-    import_meta = {};
-    _metaUrl = typeof import_meta !== "undefined" && import_meta.url ? import_meta.url : null;
-    _filename = _metaUrl ? (0, import_url.fileURLToPath)(_metaUrl) : "";
-    _dirname = _metaUrl ? import_path6.default.dirname(_filename) : "";
-    KrnlFrontendAdapter = class extends krnlSystemEntityBase {
-      childProcess = null;
-      appPort = -1;
-      socketPath = null;
-      appPath;
-      options;
-      originalConfigName = null;
-      patchedConfigName = null;
-      registeredRoutes = /* @__PURE__ */ new Set();
-      routeWatcher = null;
-      status = "stopped";
-      lastLogLine = "";
-      statusMessage = "Not started";
-      constructor(name, appPath, options = {}) {
-        super(`frontend-${name}`, null, -1, "127.0.0.1", { Singleton: true, _skipMagneticLoading: true });
-        this.appPath = appPath;
-        this.options = options;
-        this._isIngressNetworkMember = true;
-        this.unifiedHttpAdapter._handleRequest = async (req, res) => {
-          const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
-          const pathname = url.pathname;
-          if (pathname.endsWith("/__krnl/config")) {
-            res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-            const rawHost = this.options.backendHost || "127.0.0.1";
-            const host = rawHost === "::" || rawHost === "0.0.0.0" || rawHost === "" ? "localhost" : rawHost;
-            const port = this.options.backendPort || 10099;
-            const prefix = this.options.frontendPrefix || "frontend";
-            res.end(JSON.stringify({
-              wsUrl: `ws://${host}:${port}/ws`,
-              httpUrl: `http://${host}:${port}`,
-              basePath: `/${prefix}/${this.entityName.replace(/^frontend-/, "").toLowerCase()}`,
-              name: this.entityName.replace(/^frontend-/, "").toLowerCase()
-            }));
-            return;
-          }
-          if (pathname.endsWith("/__krnl/bridge.js")) {
-            const candidatePaths = [
-              import_path6.default.resolve(_dirname, "./K_LIB_Krnl_Frontend_Bridge_Bundle.global.js"),
-              import_path6.default.resolve(_dirname, "./K_LIB_Krnl_Frontend_Bridge_Bundle.js"),
-              import_path6.default.resolve(_dirname, "../../dist/K_LIB_Krnl_Frontend_Bridge_Bundle.global.js"),
-              import_path6.default.resolve(_dirname, "../../dist/K_LIB_Krnl_Frontend_Bridge_Bundle.js")
-            ];
-            const finalPath = candidatePaths.find((p) => import_fs7.default.existsSync(p));
-            if (finalPath) {
-              res.writeHead(200, { "Content-Type": "application/javascript", "Access-Control-Allow-Origin": "*" });
-              res.end(import_fs7.default.readFileSync(finalPath));
-            } else {
-              res.writeHead(404, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-              res.end(JSON.stringify({ status: "error", message: `Bridge bundle not found. Tried paths: ${candidatePaths.join(", ")}` }));
-            }
-            return;
-          }
-          await this.proxyRequest(req, res, req.url || "/");
-        };
-      }
-      async loadBridgesFromFolder(folderPath) {
-        if (!import_fs7.default.existsSync(folderPath)) return;
-        const files = import_fs7.default.readdirSync(folderPath);
-        for (const file of files) {
-          if (file.endsWith(".bridge.ts") || file.endsWith(".bridge.js")) {
-            const fullPath = import_path6.default.resolve(folderPath, file);
-            try {
-              const module2 = await import(fullPath);
-              const bridgeDesc = module2.bridge;
-              if (bridgeDesc && bridgeDesc.name) {
-                console.log(`[FrontendAdapter:${this.entityName}] Loaded bridge script: ${bridgeDesc.name}`);
-                if (this.options.backendPort === void 0 && bridgeDesc.backendPort !== void 0) {
-                  this.options.backendPort = bridgeDesc.backendPort;
-                }
-                if (this.options.backendHost === void 0 && bridgeDesc.backendHost !== void 0) {
-                  this.options.backendHost = bridgeDesc.backendHost;
-                }
-              }
-            } catch (err) {
-              console.error(`[FrontendAdapter:${this.entityName}] Failed to load bridge script ${file}:`, err.message);
-            }
-          }
-        }
-      }
-      async scanAndRegisterApiRoutes() {
-        const pagesApiDir = import_path6.default.join(this.appPath, "pages", "api");
-        const appDir = import_path6.default.join(this.appPath, "app");
-        const foundRoutes = [];
-        if (import_fs7.default.existsSync(pagesApiDir)) {
-          this._findPagesRoutes(pagesApiDir, pagesApiDir, foundRoutes);
-        }
-        if (import_fs7.default.existsSync(appDir)) {
-          this._findAppRoutes(appDir, appDir, foundRoutes);
-        }
-        for (const route of foundRoutes) {
-          if (!this.registeredRoutes.has(route)) {
-            this.registeredRoutes.add(route);
-            this.addLocal({
-              id: route,
-              api: async (input) => {
-                return new Promise((resolve, reject) => {
-                  const reqData = JSON.stringify(input || {});
-                  const reqOptions = this.socketPath ? {
-                    socketPath: this.socketPath,
-                    path: `/${route}`,
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "Content-Length": Buffer.byteLength(reqData)
-                    }
-                  } : {
-                    hostname: "127.0.0.1",
-                    port: this.appPort,
-                    path: `/${route}`,
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "Content-Length": Buffer.byteLength(reqData)
-                    }
-                  };
-                  const req = import_http2.default.request(reqOptions, (res) => {
-                    let data = "";
-                    res.on("data", (chunk) => data += chunk);
-                    res.on("end", () => {
-                      try {
-                        resolve(JSON.parse(data));
-                      } catch {
-                        resolve({ status: "success", raw: data });
-                      }
-                    });
-                  });
-                  req.on("error", (err) => reject(err));
-                  req.write(reqData);
-                  req.end();
-                });
-              }
-            });
-            console.log(`[FrontendAdapter:${this.entityName}] Dynamically registered route endpoint: ${route}`);
-          }
-        }
-        for (const route of Array.from(this.registeredRoutes)) {
-          if (!foundRoutes.includes(route)) {
-            this.localFunctionalities.delete(route);
-            this.registeredRoutes.delete(route);
-            console.log(`[FrontendAdapter:${this.entityName}] Dynamically removed route endpoint: ${route}`);
-          }
-        }
-      }
-      _findPagesRoutes(dir, baseDir, routes) {
-        if (!import_fs7.default.existsSync(dir)) return;
-        const files = import_fs7.default.readdirSync(dir);
-        for (const file of files) {
-          if (file.startsWith(".") || file === "node_modules") continue;
-          const fullPath = import_path6.default.join(dir, file);
-          const stat = import_fs7.default.statSync(fullPath);
-          if (stat.isDirectory()) {
-            this._findPagesRoutes(fullPath, baseDir, routes);
-          } else if (file.endsWith(".ts") || file.endsWith(".js") || file.endsWith(".tsx") || file.endsWith(".jsx")) {
-            const rel = import_path6.default.relative(baseDir, fullPath);
-            const withoutExt = rel.substring(0, rel.lastIndexOf("."));
-            const routePath = `api/${withoutExt.replace(/\\/g, "/")}`;
-            routes.push(routePath);
-          }
-        }
-      }
-      _findAppRoutes(dir, baseDir, routes) {
-        if (!import_fs7.default.existsSync(dir)) return;
-        const files = import_fs7.default.readdirSync(dir);
-        for (const file of files) {
-          if (file.startsWith(".") || file === "node_modules") continue;
-          const fullPath = import_path6.default.join(dir, file);
-          const stat = import_fs7.default.statSync(fullPath);
-          if (stat.isDirectory()) {
-            this._findAppRoutes(fullPath, baseDir, routes);
-          } else if ((file === "route.ts" || file === "route.js") && dir.includes("api")) {
-            const apiIndex = dir.indexOf("api");
-            const routePath = dir.substring(apiIndex).replace(/\\/g, "/");
-            routes.push(routePath);
-          }
-        }
-      }
-      setupApiRouteWatcher() {
-        if (this.options.mode === "prod") return;
-        const pagesApiDir = import_path6.default.join(this.appPath, "pages", "api");
-        const appDir = import_path6.default.join(this.appPath, "app");
-        const onChange = () => {
-          this.scanAndRegisterApiRoutes().catch(console.error);
-        };
-        if (import_fs7.default.existsSync(pagesApiDir)) {
-          this.routeWatcher = import_fs7.default.watch(pagesApiDir, { recursive: true }, onChange);
-        } else if (import_fs7.default.existsSync(appDir)) {
-          this.routeWatcher = import_fs7.default.watch(appDir, { recursive: true }, onChange);
-        }
-      }
-      async startApp() {
-        console.log(`[FrontendAdapter:${this.entityName}] startApp starting...`);
-        const wrapperDir = import_path6.default.dirname(this.appPath);
-        await this.loadBridgesFromFolder(wrapperDir);
-        await this.loadBridgesFromFolder(import_path6.default.join(wrapperDir, "bridges"));
-        await this.scanAndRegisterApiRoutes();
-        this.setupApiRouteWatcher();
-        let packageJson = {};
-        const pkgPath = import_path6.default.join(this.appPath, "package.json");
-        if (import_fs7.default.existsSync(pkgPath)) {
-          try {
-            packageJson = JSON.parse(import_fs7.default.readFileSync(pkgPath, "utf8"));
-          } catch (_) {
-          }
-        }
-        const isEsm = packageJson.type === "module";
-        const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-        let framework = "generic";
-        if (deps["next"]) framework = "nextjs";
-        else if (deps["vite"]) framework = "vite";
-        const cleanName = this.entityName.replace(/^frontend-/, "").toLowerCase();
-        const prefix = this.options.frontendPrefix || "frontend";
-        const basePath = `/${prefix}/${cleanName}`;
-        const socketName = `krnl-frontend-${cleanName}.sock`;
-        this.socketPath = import_path6.default.join("/tmp", socketName);
-        if (import_fs7.default.existsSync(this.socketPath)) {
-          try {
-            import_fs7.default.unlinkSync(this.socketPath);
-          } catch (_) {
-          }
-        }
-        if (framework === "nextjs") {
-          await this._patchNextConfig(basePath, isEsm);
-        }
-        const initialBasePort = this.options.backendPort && this.options.backendPort > 0 ? this.options.backendPort + 2e3 : 12e3;
-        this.appPort = await this._probeAvailablePort(initialBasePort, "127.0.0.1");
-        this.socketPath = null;
-        let command = process.execPath;
-        let args = [];
-        if (framework === "nextjs") {
-          const nextBin = import_path6.default.join(this.appPath, "node_modules", "next", "dist", "bin", "next");
-          const fallbackNextBin = import_path6.default.join(this.appPath, "node_modules", ".bin", "next");
-          const resolvedNextBin = import_fs7.default.existsSync(nextBin) ? nextBin : import_fs7.default.existsSync(fallbackNextBin) ? fallbackNextBin : null;
-          if (resolvedNextBin) {
-            command = process.execPath;
-            args = [resolvedNextBin, this.options.mode === "prod" ? "start" : "dev", "-H", "127.0.0.1", "-p", this.appPort.toString()];
-          } else {
-            command = import_path6.default.join(import_path6.default.dirname(process.execPath), "npx");
-            args = ["next", this.options.mode === "prod" ? "start" : "dev", "-H", "127.0.0.1", "-p", this.appPort.toString()];
-          }
-        } else if (framework === "vite") {
-          const viteBin = import_path6.default.join(this.appPath, "node_modules", "vite", "bin", "vite.js");
-          if (import_fs7.default.existsSync(viteBin)) {
-            command = process.execPath;
-            args = [viteBin, "--host", "127.0.0.1", "--port", this.appPort.toString(), "--strictPort", "--base", `${basePath}/`];
-          } else {
-            command = import_path6.default.join(import_path6.default.dirname(process.execPath), "npx");
-            args = ["vite", "--host", "127.0.0.1", "--port", this.appPort.toString(), "--strictPort", "--base", `${basePath}/`];
-          }
-        } else {
-          command = "npm";
-          args = ["run", this.options.mode === "prod" ? "start" : "dev"];
-        }
-        const host = this.options.backendHost || "127.0.0.1";
-        const port = this.options.backendPort || 10099;
-        const env = {
-          ...process.env,
-          ...this.appPort > 0 ? { PORT: this.appPort.toString() } : {},
-          NEXT_PUBLIC_KRNL_BASE_PATH: basePath,
-          NEXT_PUBLIC_KRNL_WS_URL: `ws://${host}:${port}/ws`,
-          NEXT_PUBLIC_KRNL_HTTP_URL: `http://${host}:${port}`,
-          ...this.options.env
-        };
-        const targetDesc = this.socketPath ? `Unix Socket: ${this.socketPath}` : `127.0.0.1:${this.appPort}`;
-        console.log(`[FrontendAdapter] Spawning custom frontend '${this.entityName}' (${framework}) in background (${targetDesc})...`);
-        this.status = "starting";
-        this.statusMessage = "Spawning dev server process...";
-        this.lastLogLine = "Spawning process...";
-        const { spawn: spawn3 } = await import("child_process");
-        this.childProcess = spawn3(command, args, {
-          cwd: this.appPath,
-          env,
-          detached: false,
-          shell: false,
-          stdio: ["ignore", "pipe", "pipe"]
-        });
-        const handleLog = (data) => {
-          const text = data.toString("utf8");
-          const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-          if (lines.length > 0) {
-            this.lastLogLine = lines[lines.length - 1];
-            this.statusMessage = this.lastLogLine;
-          }
-        };
-        if (this.childProcess.stdout) {
-          this.childProcess.stdout.on("data", handleLog);
-        }
-        if (this.childProcess.stderr) {
-          this.childProcess.stderr.on("data", handleLog);
-        }
-        this.childProcess.on("exit", (code) => {
-          console.log(`[FrontendAdapter] Process for '${this.entityName}' exited with code ${code}`);
-          this.status = "stopped";
-          this.statusMessage = `Process exited (code ${code})`;
-          this.childProcess = null;
-        });
-        let ready = false;
-        const timeout = this.options.startupTimeoutMs ?? 6e4;
-        const start = Date.now();
-        while (Date.now() - start < timeout) {
-          if (this.status === "stopped") {
-            throw new Error(`[FrontendAdapter] Custom frontend '${this.entityName}' process exited early: ${this.statusMessage}`);
-          }
-          ready = await new Promise((resolve) => {
-            if (this.socketPath) {
-              if (!import_fs7.default.existsSync(this.socketPath)) {
-                resolve(false);
-                return;
-              }
-              const socket = import_net.default.connect({ path: this.socketPath });
-              socket.on("connect", () => {
-                socket.destroy();
-                resolve(true);
-              });
-              socket.on("error", () => resolve(false));
-            } else {
-              const socket = import_net.default.connect({ port: this.appPort, host: "127.0.0.1" });
-              socket.on("connect", () => {
-                socket.destroy();
-                resolve(true);
-              });
-              socket.on("error", () => resolve(false));
-            }
-          });
-          if (ready) break;
-          await new Promise((r) => setTimeout(r, 200));
-        }
-        if (!ready) {
-          this.status = "failed";
-          this.statusMessage = `Failed to boot within ${timeout / 1e3}s`;
-          throw new Error(`[FrontendAdapter] Custom frontend '${this.entityName}' failed to boot on ${targetDesc} within ${timeout / 1e3}s.`);
-        }
-        this.status = "running";
-        this.statusMessage = "Ready and serving";
-        console.log(`[FrontendAdapter] Custom frontend '${this.entityName}' successfully booted.`);
-      }
-      async _patchNextConfig(basePath, isEsm) {
-        const configTs = import_path6.default.join(this.appPath, "next.config.ts");
-        const configMjs = import_path6.default.join(this.appPath, "next.config.mjs");
-        const configJs = import_path6.default.join(this.appPath, "next.config.js");
-        this._restoreNextConfig();
-        const targetConfig = import_fs7.default.existsSync(configTs) ? configTs : import_fs7.default.existsSync(configMjs) ? configMjs : import_fs7.default.existsSync(configJs) ? configJs : null;
-        if (targetConfig) {
-          const content = import_fs7.default.readFileSync(targetConfig, "utf8");
-          if (content.includes("NEXT_PUBLIC_KRNL_BASE_PATH")) {
-            return;
-          }
-          this.originalConfigName = import_path6.default.basename(targetConfig) + ".bak";
-          this.patchedConfigName = import_path6.default.basename(targetConfig);
-          import_fs7.default.copyFileSync(targetConfig, import_path6.default.join(this.appPath, this.originalConfigName));
-          let updated = content;
-          if (content.includes("const nextConfig") || content.includes("let nextConfig")) {
-            updated = content.replace(/(const|let)\s+nextConfig\s*:\s*NextConfig\s*=\s*\{/, `$1 nextConfig: NextConfig = {
-  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || '',`);
-          } else if (content.includes("module.exports = {")) {
-            updated = content.replace("module.exports = {", `module.exports = {
-  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || '',`);
-          } else if (content.includes("export default {")) {
-            updated = content.replace("export default {", `export default {
-  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || '',`);
-          } else {
-            updated = content + `
-// KrnlTS injected basePath
-if (typeof module !== 'undefined' && module.exports) { module.exports.basePath = process.env.NEXT_PUBLIC_KRNL_BASE_PATH || ''; }
-`;
-          }
-          import_fs7.default.writeFileSync(targetConfig, updated, "utf8");
-        } else {
-          this.patchedConfigName = "next.config.ts";
-          const newConfigContent = `import type { NextConfig } from "next";
-const nextConfig: NextConfig = {
-  basePath: process.env.NEXT_PUBLIC_KRNL_BASE_PATH || '',
-};
-export default nextConfig;
-`;
-          import_fs7.default.writeFileSync(import_path6.default.join(this.appPath, this.patchedConfigName), newConfigContent, "utf8");
-        }
-      }
-      _restoreNextConfig() {
-        const checkAndRestore = (origName, patchedName) => {
-          const origPath = import_path6.default.join(this.appPath, origName);
-          const patchedPath = import_path6.default.join(this.appPath, patchedName);
-          if (import_fs7.default.existsSync(origPath)) {
-            if (import_fs7.default.existsSync(patchedPath)) {
-              import_fs7.default.unlinkSync(patchedPath);
-            }
-            import_fs7.default.renameSync(origPath, patchedPath);
-          }
-        };
-        checkAndRestore("next.config.original.ts", "next.config.ts");
-        checkAndRestore("next.config.original.mjs", "next.config.mjs");
-        checkAndRestore("next.config.original.js", "next.config.js");
-        this.originalConfigName = null;
-        this.patchedConfigName = null;
-      }
-      async proxyRequest(req, res, subPath) {
-        if (!this.socketPath && (this.appPort === -1 || !this.childProcess)) {
-          res.writeHead(503, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ status: "error", message: "Service Temporarily Unavailable: Frontend is starting up or not running." }));
-          return;
-        }
-        const options = this.socketPath ? {
-          socketPath: this.socketPath,
-          path: subPath,
-          method: req.method,
-          headers: req.headers
-        } : {
-          hostname: "127.0.0.1",
-          port: this.appPort,
-          path: subPath,
-          method: req.method,
-          headers: req.headers
-        };
-        const proxyReq = import_http2.default.request(options, (proxyRes) => {
-          res.writeHead(proxyRes.statusCode || 500, proxyRes.headers);
-          proxyRes.pipe(res);
-        });
-        proxyReq.on("error", (err) => {
-          res.writeHead(502, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ status: "error", message: `Bad Gateway: ${err.message}` }));
-        });
-        req.pipe(proxyReq);
-      }
-      dispose() {
-        this.status = "stopped";
-        this.statusMessage = "Stopped";
-        if (this.routeWatcher) {
-          this.routeWatcher.close();
-          this.routeWatcher = null;
-        }
-        if (this.childProcess) {
-          console.log(`[FrontendAdapter] Killing child process (PID: ${this.childProcess.pid}) for '${this.entityName}'`);
-          try {
-            this.childProcess.kill("SIGTERM");
-          } catch (_) {
-          }
-          this.childProcess = null;
-        }
-        if (this.socketPath && import_fs7.default.existsSync(this.socketPath)) {
-          try {
-            import_fs7.default.unlinkSync(this.socketPath);
-          } catch (_) {
-          }
-        }
-        this._restoreNextConfig();
-        super.dispose();
-      }
-    };
-  }
-});
-
 // src/krnl/core/K_LIB_Krnl_System_App_Adapter.ts
 var K_LIB_Krnl_System_App_Adapter_exports = {};
 __export(K_LIB_Krnl_System_App_Adapter_exports, {
   KrnlNonKrnlAppAdapter: () => KrnlNonKrnlAppAdapter
 });
-var import_fs8, import_path7, import_http3, import_net2, KrnlNonKrnlAppAdapter;
+var import_fs7, import_path6, import_http2, import_net, KrnlNonKrnlAppAdapter;
 var init_K_LIB_Krnl_System_App_Adapter = __esm({
   "src/krnl/core/K_LIB_Krnl_System_App_Adapter.ts"() {
     "use strict";
-    import_fs8 = __toESM(require("fs"), 1);
-    import_path7 = __toESM(require("path"), 1);
-    import_http3 = __toESM(require("http"), 1);
-    import_net2 = __toESM(require("net"), 1);
+    import_fs7 = __toESM(require("fs"), 1);
+    import_path6 = __toESM(require("path"), 1);
+    import_http2 = __toESM(require("http"), 1);
+    import_net = __toESM(require("net"), 1);
     init_K_ENT_Krnl_System_Entity_Base();
     init_KrnlShell();
     KrnlNonKrnlAppAdapter = class extends krnlSystemEntityBase {
@@ -5273,9 +4808,9 @@ var init_K_LIB_Krnl_System_App_Adapter = __esm({
         let command = "node";
         let args = ["."];
         try {
-          const pkgPath = import_path7.default.join(this.appPath, "package.json");
-          if (import_fs8.default.existsSync(pkgPath)) {
-            const packageJson = JSON.parse(import_fs8.default.readFileSync(pkgPath, "utf8"));
+          const pkgPath = import_path6.default.join(this.appPath, "package.json");
+          if (import_fs7.default.existsSync(pkgPath)) {
+            const packageJson = JSON.parse(import_fs7.default.readFileSync(pkgPath, "utf8"));
             if (packageJson.scripts?.start) {
               command = "npm";
               args = ["run", "start"];
@@ -5300,7 +4835,7 @@ var init_K_LIB_Krnl_System_App_Adapter = __esm({
         const start = Date.now();
         while (Date.now() - start < timeout) {
           ready = await new Promise((resolve) => {
-            const socket = import_net2.default.connect(this.appPort, "127.0.0.1");
+            const socket = import_net.default.connect(this.appPort, "127.0.0.1");
             socket.on("connect", () => {
               socket.destroy();
               resolve(true);
@@ -5328,7 +4863,7 @@ var init_K_LIB_Krnl_System_App_Adapter = __esm({
           method: req.method,
           headers: req.headers
         };
-        const proxyReq = import_http3.default.request(options, (proxyRes) => {
+        const proxyReq = import_http2.default.request(options, (proxyRes) => {
           res.writeHead(proxyRes.statusCode || 500, proxyRes.headers);
           proxyRes.pipe(res);
         });
@@ -5350,6 +4885,441 @@ var init_K_LIB_Krnl_System_App_Adapter = __esm({
   }
 });
 
+// src/krnl/core/K_LIB_Krnl_Frontend_Generator.ts
+var K_LIB_Krnl_Frontend_Generator_exports = {};
+__export(K_LIB_Krnl_Frontend_Generator_exports, {
+  KrnlFrontendGenerator: () => KrnlFrontendGenerator
+});
+var import_fs8, import_path7, import_url, import_meta, _metaUrl, _filename, _dirname, KrnlFrontendGenerator;
+var init_K_LIB_Krnl_Frontend_Generator = __esm({
+  "src/krnl/core/K_LIB_Krnl_Frontend_Generator.ts"() {
+    "use strict";
+    import_fs8 = __toESM(require("fs"), 1);
+    import_path7 = __toESM(require("path"), 1);
+    import_url = require("url");
+    import_meta = {};
+    _metaUrl = typeof import_meta !== "undefined" && import_meta.url ? import_meta.url : null;
+    _filename = _metaUrl ? (0, import_url.fileURLToPath)(_metaUrl) : "";
+    _dirname = _metaUrl ? import_path7.default.dirname(_filename) : "";
+    KrnlFrontendGenerator = class {
+      /**
+       * Main entrypoint: ensures skeleton exists, generates React components & index.tsx
+       */
+      static async generate(entity, frontendDir) {
+        this.ensureFrontendSkeleton(entity, frontendDir);
+        const uiEndpoints = [];
+        const allFuncs = [
+          ...entity.localFunctionalities?.values() || [],
+          ...entity.remoteFunctionalities?.values() || []
+        ];
+        for (const fn of allFuncs) {
+          const uiSpec = fn.uiSpec || fn.ui_spec;
+          if (uiSpec && uiSpec.ui_component_enabled) {
+            uiEndpoints.push({ id: fn.id, uiSpec, schema: fn.schema });
+          }
+        }
+        if (uiEndpoints.length > 0) {
+          this.checkReactDependencies(frontendDir);
+        }
+        const componentsDir = import_path7.default.join(frontendDir, "src", "components");
+        import_fs8.default.mkdirSync(componentsDir, { recursive: true });
+        for (const ep of uiEndpoints) {
+          const epDir = import_path7.default.join(componentsDir, ep.id);
+          import_fs8.default.mkdirSync(epDir, { recursive: true });
+          const compSource = this.generateComponentSource(ep.id, ep.uiSpec, ep.schema);
+          import_fs8.default.writeFileSync(import_path7.default.join(epDir, "index.tsx"), compSource, "utf-8");
+        }
+        const subAppPrefixes = Array.from(entity._subAppRegistry?.keys() || []);
+        const indexSource = this.generateIndexSource(entity.entityName, uiEndpoints, subAppPrefixes);
+        import_fs8.default.writeFileSync(import_path7.default.join(frontendDir, "src", "index.tsx"), indexSource, "utf-8");
+      }
+      /**
+       * Ensures essential files (package.json, index.html, index.css, atoms/) exist in frontendDir
+       */
+      static ensureFrontendSkeleton(entity, frontendDir) {
+        const srcDir = import_path7.default.join(frontendDir, "src");
+        const atomsDir = import_path7.default.join(srcDir, "atoms");
+        import_fs8.default.mkdirSync(atomsDir, { recursive: true });
+        const libAtomsDir = import_path7.default.resolve(_dirname, "../frontend/atoms");
+        if (import_fs8.default.existsSync(libAtomsDir)) {
+          const files = import_fs8.default.readdirSync(libAtomsDir);
+          for (const file of files) {
+            const srcFile = import_path7.default.join(libAtomsDir, file);
+            const destFile = import_path7.default.join(atomsDir, file);
+            import_fs8.default.copyFileSync(srcFile, destFile);
+          }
+        }
+        const pkgPath = import_path7.default.join(frontendDir, "package.json");
+        if (!import_fs8.default.existsSync(pkgPath)) {
+          const pkgContent = {
+            name: `${entity.entityName.toLowerCase()}-frontend`,
+            version: "1.0.0",
+            type: "module",
+            dependencies: {
+              react: "^18.2.0",
+              "react-dom": "^18.2.0"
+            },
+            devDependencies: {
+              "@types/react": "^18.2.0",
+              "@types/react-dom": "^18.2.0"
+            }
+          };
+          import_fs8.default.writeFileSync(pkgPath, JSON.stringify(pkgContent, null, 2), "utf-8");
+        }
+        const htmlPath = import_path7.default.join(frontendDir, "index.html");
+        if (!import_fs8.default.existsSync(htmlPath)) {
+          const htmlContent = `<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${entity.entityName} Frontend</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="root"></div>
+  <script src="bundle.js"></script>
+</body>
+</html>`;
+          import_fs8.default.writeFileSync(htmlPath, htmlContent, "utf-8");
+        }
+        const cssPath = import_path7.default.join(frontendDir, "index.css");
+        if (!import_fs8.default.existsSync(cssPath)) {
+          const defaultCss = `:root {
+  --krnl-font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --krnl-font-mono: 'JetBrains Mono', monospace;
+  --krnl-bg-base: #0a0e17;
+  --krnl-bg-surface: rgba(22, 28, 45, 0.65);
+  --krnl-border-color: rgba(255, 255, 255, 0.08);
+  --krnl-text-main: #f8fafc;
+  --krnl-text-muted: #94a3b8;
+  --krnl-primary: #3b82f6;
+  --krnl-primary-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  --krnl-accent: #10b981;
+  --krnl-danger: #ef4444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--krnl-font-sans); background: var(--krnl-bg-base); color: var(--krnl-text-main); }
+`;
+          import_fs8.default.writeFileSync(cssPath, defaultCss, "utf-8");
+        }
+      }
+      /**
+       * Verifies React dependencies are installed in frontend/
+       */
+      static checkReactDependencies(frontendDir) {
+        const nodeModulesReact = import_path7.default.join(frontendDir, "node_modules", "react");
+        const rootNodeModulesReact = import_path7.default.resolve(frontendDir, "../../node_modules/react");
+        if (!import_fs8.default.existsSync(nodeModulesReact) && !import_fs8.default.existsSync(rootNodeModulesReact)) {
+          console.error(`
+\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
+\u2502 [KrnlFrontend] WARNING: UI components are enabled but React is missing! \u2502
+\u2502 Please run inside your frontend/ directory:                             \u2502
+\u2502   npm install react react-dom                                           \u2502
+\u2502   npm install -D @types/react @types/react-dom                         \u2502
+\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518
+`);
+        }
+      }
+      /**
+       * Generates TSX source code for a single endpoint UI component
+       */
+      static generateComponentSource(fid, uiSpec, schema) {
+        const inputs = uiSpec.inputs || [];
+        const outputs = uiSpec.outputs || [];
+        const atomImports = /* @__PURE__ */ new Set();
+        atomImports.add("KrnlButton");
+        inputs.forEach((i) => atomImports.add(i.component));
+        outputs.forEach((o) => atomImports.add(o.component));
+        const importStatement = `import { ${Array.from(atomImports).join(", ")} } from '../../atoms/index.js';`;
+        return `import React, { useState, useEffect } from 'react';
+${importStatement}
+
+export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
+  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [response, setResponse] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [phantomActive, setPhantomActive] = useState(false);
+
+  // Subscribe to live SSE events for phantom mirroring
+  useEffect(() => {
+    const sse = new EventSource('/sse/${fid}');
+    sse.onmessage = (evt) => {
+      try {
+        const msg = JSON.parse(evt.data);
+        if (msg.type === 'frontend:interaction' || msg.input !== undefined) {
+          if (msg.input) setFormData((prev) => ({ ...prev, ...msg.input }));
+          if (msg.output !== undefined) setResponse(msg.output?.payload !== undefined ? msg.output.payload : msg.output);
+          setPhantomActive(true);
+          setTimeout(() => setPhantomActive(false), 2000);
+        }
+      } catch (e) {}
+    };
+    return () => sse.close();
+  }, []);
+
+  const handleInputChange = (field: string, val: any) => {
+    setFormData((prev) => ({ ...prev, [field]: val }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/${fid}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      setResponse(data.payload !== undefined ? data.payload : data);
+    } catch (err: any) {
+      setError(err.message || 'Request failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className={\`krnl-endpoint-card \${phantomActive ? 'krnl-phantom-active' : ''}\`}
+      style={{
+        background: 'var(--krnl-bg-surface)',
+        padding: '1.5rem',
+        borderRadius: '12px',
+        border: phantomActive ? '2px solid var(--krnl-accent)' : '1px solid var(--krnl-border-color)',
+        transition: 'all 0.3s ease',
+        boxShadow: phantomActive ? '0 0 20px rgba(16, 185, 129, 0.4)' : 'none',
+        position: 'relative'
+      }}
+    >
+      {phantomActive && (
+        <div className="krnl-phantom-badge" style={{ position: 'absolute', top: '12px', right: '12px', background: 'var(--krnl-accent)', color: '#000', padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+          \u{1F916} Phantom Execution Active
+        </div>
+      )}
+      <h3 style={{ marginBottom: '1rem', color: 'var(--krnl-primary)' }}>Endpoint: ${fid}</h3>
+      <form onSubmit={handleSubmit}>
+        ${inputs.map((inSpec) => this.renderInputAtom(inSpec)).join("\n        ")}
+        <KrnlButton type="submit" disabled={loading}>
+          {loading ? 'Executing...' : 'Execute ${fid}'}
+        </KrnlButton>
+      </form>
+
+      {error && <div style={{ color: 'var(--krnl-danger)', marginTop: '1rem' }}>Error: {error}</div>}
+
+      {response !== null && (
+        <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--krnl-border-color)', paddingTop: '1rem' }}>
+          <h4 style={{ marginBottom: '0.5rem', color: 'var(--krnl-accent)' }}>Output Response</h4>
+          ${outputs.length > 0 ? outputs.map((outSpec) => this.renderOutputAtom(outSpec)).join("\n          ") : `<KrnlJsonViewer data={response} />`}
+        </div>
+      )}
+    </div>
+  );
+}
+`;
+      }
+      static renderInputAtom(spec) {
+        const label = spec.label || spec.field;
+        switch (spec.component) {
+          case "KrnlTextInput":
+            return `<KrnlTextInput label="${label}" value={formData['${spec.field}'] || ''} onChange={(v) => handleInputChange('${spec.field}', v)} placeholder="${spec.placeholder || ""}" />`;
+          case "KrnlNumberInput":
+            return `<KrnlNumberInput label="${label}" value={formData['${spec.field}'] || ''} onChange={(v) => handleInputChange('${spec.field}', v)} placeholder="${spec.placeholder || ""}" />`;
+          case "KrnlToggle":
+            return `<KrnlToggle label="${label}" value={!!formData['${spec.field}']} onChange={(v) => handleInputChange('${spec.field}', v)} />`;
+          case "KrnlDropdown":
+            const opts = JSON.stringify(spec.options || []);
+            return `<KrnlDropdown label="${label}" value={formData['${spec.field}'] || ''} options={${opts}} onChange={(v) => handleInputChange('${spec.field}', v)} />`;
+          case "KrnlTextArea":
+            return `<KrnlTextArea label="${label}" value={formData['${spec.field}'] || ''} onChange={(v) => handleInputChange('${spec.field}', v)} placeholder="${spec.placeholder || ""}" />`;
+          case "KrnlJsonInput":
+            return `<KrnlJsonInput label="${label}" onChange={(v) => handleInputChange('${spec.field}', v)} />`;
+          case "KrnlSSELog":
+            return `<KrnlSSELog label="${label}" endpointId="${spec.field}" />`;
+          default:
+            return `<KrnlTextInput label="${label}" value={formData['${spec.field}'] || ''} onChange={(v) => handleInputChange('${spec.field}', v)} />`;
+        }
+      }
+      static renderOutputAtom(spec) {
+        const label = spec.label || spec.field;
+        switch (spec.component) {
+          case "KrnlJsonViewer":
+            return `<KrnlJsonViewer label="${label}" data={response['${spec.field}'] !== undefined ? response['${spec.field}'] : response} />`;
+          case "KrnlCarousel":
+            return `<KrnlCarousel label="${label}" items={Array.isArray(response['${spec.field}']) ? response['${spec.field}'] : (Array.isArray(response) ? response : [response])} />`;
+          case "KrnlTile":
+            return `<KrnlTile title="${label}" value={String(response['${spec.field}'] !== undefined ? response['${spec.field}'] : response)} />`;
+          case "KrnlSSELog":
+            return `<KrnlSSELog label="${label}" endpointId="${spec.field}" />`;
+          default:
+            return `<KrnlJsonViewer label="${label}" data={response['${spec.field}'] !== undefined ? response['${spec.field}'] : response} />`;
+        }
+      }
+      /**
+       * Generates the root index.tsx aggregator with tabs for App components + Sub-Apps
+       */
+      static generateIndexSource(appName, uiEndpoints, subAppPrefixes) {
+        const imports = uiEndpoints.map(
+          (ep) => `import Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, "_")} from './components/${ep.id}/index.js';`
+        ).join("\n");
+        return `import React, { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+${imports}
+
+function AppShell() {
+  const [activeTab, setActiveTab] = useState<string>('${uiEndpoints.length > 0 ? uiEndpoints[0].id : subAppPrefixes.length > 0 ? subAppPrefixes[0] : "welcome"}');
+
+  return (
+    <div className="krnl-app-shell">
+      <header className="krnl-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ fontSize: '1.5rem' }}>\u{1F537}</div>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 700 }}>${appName}</h1>
+        </div>
+      </header>
+
+      <div className="krnl-nav-tabs">
+        ${uiEndpoints.map(
+          (ep) => `<button className={\`krnl-tab-btn \${activeTab === '${ep.id}' ? 'active' : ''}\`} onClick={() => setActiveTab('${ep.id}')}>${ep.id}</button>`
+        ).join("\n        ")}
+        ${subAppPrefixes.map(
+          (sub) => `<button className={\`krnl-tab-btn \${activeTab === '${sub}' ? 'active' : ''}\`} onClick={() => setActiveTab('${sub}')}>\u{1F4E6} ${sub}</button>`
+        ).join("\n        ")}
+      </div>
+
+      <main className="krnl-main-body">
+        ${uiEndpoints.map(
+          (ep) => `{activeTab === '${ep.id}' && <Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, "_")} />}`
+        ).join("\n        ")}
+        ${subAppPrefixes.map(
+          (sub) => `{activeTab === '${sub}' && (
+          <iframe
+            src="/frontend/subapps/${sub}/"
+            title="${sub}"
+            style={{ width: '100%', height: 'calc(100vh - 160px)', border: 'none', borderRadius: '8px' }}
+          />
+        )}`
+        ).join("\n        ")}
+        ${uiEndpoints.length === 0 && subAppPrefixes.length === 0 ? `<div style={{ textAlign: 'center', color: 'var(--krnl-text-muted)', paddingTop: '4rem' }}>
+          <h2>Welcome to ${appName}</h2>
+          <p style={{ marginTop: '0.5rem' }}>No UI-enabled endpoints or sub-apps registered yet.</p>
+        </div>` : ""}
+      </main>
+    </div>
+  );
+}
+
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  const root = createRoot(rootElement);
+  root.render(<AppShell />);
+}
+`;
+      }
+    };
+  }
+});
+
+// src/krnl/core/K_LIB_Krnl_Frontend_Builder.ts
+var K_LIB_Krnl_Frontend_Builder_exports = {};
+__export(K_LIB_Krnl_Frontend_Builder_exports, {
+  KrnlFrontendBuilder: () => KrnlFrontendBuilder
+});
+var import_fs9, import_path8, KrnlFrontendBuilder;
+var init_K_LIB_Krnl_Frontend_Builder = __esm({
+  "src/krnl/core/K_LIB_Krnl_Frontend_Builder.ts"() {
+    "use strict";
+    import_fs9 = __toESM(require("fs"), 1);
+    import_path8 = __toESM(require("path"), 1);
+    KrnlFrontendBuilder = class {
+      static activeContexts = /* @__PURE__ */ new Map();
+      /**
+       * Bundles frontend/src/index.tsx -> frontend/dist/bundle.js
+       */
+      static async build(frontendDir) {
+        const entryFile = import_path8.default.join(frontendDir, "src", "index.tsx");
+        if (!import_fs9.default.existsSync(entryFile)) {
+          return false;
+        }
+        const distDir = import_path8.default.join(frontendDir, "dist");
+        import_fs9.default.mkdirSync(distDir, { recursive: true });
+        try {
+          const esbuild = await import("esbuild");
+          console.log(`[KrnlFrontendBuilder] Bundling ${entryFile} -> ${distDir}/bundle.js...`);
+          await esbuild.build({
+            entryPoints: [entryFile],
+            bundle: true,
+            outfile: import_path8.default.join(distDir, "bundle.js"),
+            loader: {
+              ".css": "css",
+              ".tsx": "tsx",
+              ".ts": "ts",
+              ".js": "jsx",
+              ".jsx": "jsx"
+            },
+            jsx: "automatic",
+            sourcemap: process.env.NODE_ENV !== "production",
+            minify: process.env.NODE_ENV === "production",
+            logLevel: "warning"
+          });
+          console.log(`[KrnlFrontendBuilder] Bundle build successful.`);
+          return true;
+        } catch (err) {
+          if (err.code === "ERR_MODULE_NOT_FOUND" || err.message?.includes("Cannot find module")) {
+            console.warn(`[KrnlFrontendBuilder] esbuild peer dependency not found. Skipping build. Run 'npm i esbuild' to enable in-process UI compilation.`);
+          } else {
+            console.error(`[KrnlFrontendBuilder] Build failed:`, err.message || err);
+          }
+          return false;
+        }
+      }
+      /**
+       * Starts esbuild watch mode for live updates during development
+       */
+      static async watch(frontendDir) {
+        if (this.activeContexts.has(frontendDir)) {
+          return;
+        }
+        const entryFile = import_path8.default.join(frontendDir, "src", "index.tsx");
+        if (!import_fs9.default.existsSync(entryFile)) {
+          return;
+        }
+        try {
+          const esbuild = await import("esbuild");
+          const ctx = await esbuild.context({
+            entryPoints: [entryFile],
+            bundle: true,
+            outfile: import_path8.default.join(frontendDir, "dist", "bundle.js"),
+            loader: {
+              ".css": "css",
+              ".tsx": "tsx",
+              ".ts": "ts",
+              ".js": "jsx",
+              ".jsx": "jsx"
+            },
+            jsx: "automatic",
+            logLevel: "warning"
+          });
+          await ctx.watch();
+          this.activeContexts.set(frontendDir, ctx);
+          console.log(`[KrnlFrontendBuilder] esbuild watching ${frontendDir}/src for changes.`);
+        } catch (err) {
+        }
+      }
+      static stop(frontendDir) {
+        const ctx = this.activeContexts.get(frontendDir);
+        if (ctx) {
+          ctx.dispose();
+          this.activeContexts.delete(frontendDir);
+        }
+      }
+    };
+  }
+});
+
 // src/krnl/core/K_LIB_Krnl_System_Magnetic_Loader.ts
 var K_LIB_Krnl_System_Magnetic_Loader_exports = {};
 __export(K_LIB_Krnl_System_Magnetic_Loader_exports, {
@@ -5357,12 +5327,12 @@ __export(K_LIB_Krnl_System_Magnetic_Loader_exports, {
   magneticStorage: () => magneticStorage,
   subappLocalStorage: () => subappLocalStorage
 });
-var import_fs9, import_path8, import_url2, import_async_hooks, magneticStorage, subappLocalStorage, KrnlMagneticLoader;
+var import_fs10, import_path9, import_url2, import_async_hooks, magneticStorage, subappLocalStorage, KrnlMagneticLoader;
 var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Magnetic_Loader.ts"() {
     "use strict";
-    import_fs9 = __toESM(require("fs"), 1);
-    import_path8 = __toESM(require("path"), 1);
+    import_fs10 = __toESM(require("fs"), 1);
+    import_path9 = __toESM(require("path"), 1);
     import_url2 = require("url");
     import_async_hooks = require("async_hooks");
     init_K_ENT_Krnl_System_Entity_Base();
@@ -5377,32 +5347,32 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
        */
       static async loadAll(entity, baseDir) {
         console.log(`[MagneticLoader] loadAll called for entity '${entity.entityName}' with baseDir '${baseDir}'`);
-        const functionalitiesDir = import_path8.default.join(baseDir, "functionalities");
-        if (import_fs9.default.existsSync(functionalitiesDir)) {
-          const funcDirs = await import_fs9.default.promises.readdir(functionalitiesDir, { withFileTypes: true });
+        const functionalitiesDir = import_path9.default.join(baseDir, "functionalities");
+        if (import_fs10.default.existsSync(functionalitiesDir)) {
+          const funcDirs = await import_fs10.default.promises.readdir(functionalitiesDir, { withFileTypes: true });
           for (const dirent of funcDirs) {
             if (dirent.isDirectory()) {
-              await this.loadFunctionality(entity, import_path8.default.join(functionalitiesDir, dirent.name), dirent.name);
+              await this.loadFunctionality(entity, import_path9.default.join(functionalitiesDir, dirent.name), dirent.name);
             }
           }
         }
-        const entitiesDir = import_path8.default.join(baseDir, "entities");
-        if (import_fs9.default.existsSync(entitiesDir)) {
-          const entDirs = await import_fs9.default.promises.readdir(entitiesDir, { withFileTypes: true });
+        const entitiesDir = import_path9.default.join(baseDir, "entities");
+        if (import_fs10.default.existsSync(entitiesDir)) {
+          const entDirs = await import_fs10.default.promises.readdir(entitiesDir, { withFileTypes: true });
           for (const dirent of entDirs) {
             if (dirent.isDirectory()) {
-              await this.loadEntity(entity, import_path8.default.join(entitiesDir, dirent.name), dirent.name);
+              await this.loadEntity(entity, import_path9.default.join(entitiesDir, dirent.name), dirent.name);
             }
           }
         }
-        const subappsDir = import_path8.default.join(baseDir, "subapps");
+        const subappsDir = import_path9.default.join(baseDir, "subapps");
         const isSubApp = subappLocalStorage.getStore() || entity._isSubApp || entity._isIngressNetworkMember;
-        if (import_fs9.default.existsSync(subappsDir) && !isSubApp) {
-          const apps = await import_fs9.default.promises.readdir(subappsDir, { withFileTypes: true });
+        if (import_fs10.default.existsSync(subappsDir) && !isSubApp) {
+          const apps = await import_fs10.default.promises.readdir(subappsDir, { withFileTypes: true });
           const subappConfigs = [];
           for (const dirent of apps) {
             if (dirent.isDirectory()) {
-              const appPath = import_path8.default.join(subappsDir, dirent.name);
+              const appPath = import_path9.default.join(subappsDir, dirent.name);
               const buildOk = await this.ensureSubAppBuilt(appPath, dirent.name, entity);
               if (!buildOk) {
                 continue;
@@ -5414,11 +5384,11 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             }
           }
           if (subappConfigs.length > 0) {
-            const krnlJsonPath = import_path8.default.join(baseDir, "krnl.json");
+            const krnlJsonPath = import_path9.default.join(baseDir, "krnl.json");
             let subappModes = {};
-            if (import_fs9.default.existsSync(krnlJsonPath)) {
+            if (import_fs10.default.existsSync(krnlJsonPath)) {
               try {
-                const parsed = JSON.parse(import_fs9.default.readFileSync(krnlJsonPath, "utf-8"));
+                const parsed = JSON.parse(import_fs10.default.readFileSync(krnlJsonPath, "utf-8"));
                 subappModes = parsed.subapps || {};
               } catch (_) {
               }
@@ -5430,52 +5400,51 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             await entity.loadSubApps(subappConfigs);
           }
         }
-        const frontendDir = import_path8.default.join(baseDir, "frontend", "default");
-        if (import_fs9.default.existsSync(frontendDir) && !isSubApp) {
-          const configPath = import_path8.default.join(frontendDir, "krnl-frontend.json");
-          let frontendOptions = { title: entity.entityName, theme: "dark" };
-          if (import_fs9.default.existsSync(configPath)) {
-            try {
-              const content = import_fs9.default.readFileSync(configPath, "utf-8");
-              frontendOptions = { ...frontendOptions, ...JSON.parse(content) };
-            } catch (_) {
-            }
+        let frontendDir = import_path9.default.join(baseDir, "frontend");
+        const oldFrontendsDir = import_path9.default.join(baseDir, "frontends");
+        if (!import_fs10.default.existsSync(frontendDir) && import_fs10.default.existsSync(oldFrontendsDir)) {
+          try {
+            import_fs10.default.renameSync(oldFrontendsDir, frontendDir);
+            console.log(`[MagneticLoader] Renamed legacy 'frontends/' directory to 'frontend/' on '${entity.entityName}'.`);
+          } catch (err) {
+            console.warn(`[MagneticLoader] Failed to rename 'frontends/' -> 'frontend/': ${err.message}`);
           }
-          entity.enableFrontend(frontendOptions);
-          console.log(`[MagneticLoader] Auto-enabled default frontend for '${entity.entityName}' (found frontend/default folder).`);
         }
-        let generalFrontendDir = import_path8.default.join(baseDir, "frontend");
-        if (!import_fs9.default.existsSync(generalFrontendDir)) {
-          generalFrontendDir = import_path8.default.join(baseDir, "frontends");
-        }
-        if (import_fs9.default.existsSync(generalFrontendDir) && !isSubApp) {
-          const entries = await import_fs9.default.promises.readdir(generalFrontendDir, { withFileTypes: true });
-          for (const entry of entries) {
-            if (entry.isDirectory() && entry.name !== "default") {
-              const appPath = import_path8.default.join(generalFrontendDir, entry.name);
-              if (import_fs9.default.existsSync(import_path8.default.join(appPath, "package.json")) || import_fs9.default.existsSync(import_path8.default.join(appPath, "krnl-frontend.json"))) {
-                let options = {};
-                const configPath = import_path8.default.join(appPath, "krnl-frontend.json");
-                if (import_fs9.default.existsSync(configPath)) {
-                  try {
-                    options = JSON.parse(import_fs9.default.readFileSync(configPath, "utf-8"));
-                  } catch (_) {
-                  }
+        if (import_fs10.default.existsSync(frontendDir) && !isSubApp) {
+          entity.enableFrontend({ frontendDir });
+          if (entity._subAppRegistry && entity._frontend) {
+            for (const [prefix, entry] of entity._subAppRegistry.entries()) {
+              const subAppDir = entry.entity?._entityDataDir;
+              if (subAppDir) {
+                const subFrontend = import_path9.default.join(subAppDir, "frontend");
+                if (import_fs10.default.existsSync(subFrontend)) {
+                  entity._frontend.registerSubAppFrontend(prefix, subFrontend);
                 }
-                console.log(`[MagneticLoader] Detected custom frontend '${entry.name}' at '${appPath}'. Registering...`);
-                entity.startCustomFrontend(entry.name, appPath, options).catch((err) => {
-                  console.error(`[MagneticLoader] Custom frontend '${entry.name}' startup error:`, err.message || err);
-                });
               }
             }
+          }
+          try {
+            const { KrnlFrontendGenerator: KrnlFrontendGenerator2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Frontend_Generator(), K_LIB_Krnl_Frontend_Generator_exports));
+            await KrnlFrontendGenerator2.generate(entity, frontendDir);
+          } catch (err) {
+            console.error(`[MagneticLoader] Frontend generator error on '${entity.entityName}':`, err.message || err);
+          }
+          try {
+            const { KrnlFrontendBuilder: KrnlFrontendBuilder2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Frontend_Builder(), K_LIB_Krnl_Frontend_Builder_exports));
+            await KrnlFrontendBuilder2.build(frontendDir);
+            if (process.env.NODE_ENV !== "production") {
+              await KrnlFrontendBuilder2.watch(frontendDir);
+            }
+          } catch (err) {
+            console.error(`[MagneticLoader] Frontend builder error on '${entity.entityName}':`, err.message || err);
           }
         }
         const hasAiConfig = [...entity.localFunctionalities.values()].some((f) => f.ai?.enabled);
         let hasAiStore = false;
-        const storePath = import_path8.default.join(baseDir, "krnl_runtime_state.db");
-        if (import_fs9.default.existsSync(storePath)) {
+        const storePath = import_path9.default.join(baseDir, "krnl_runtime_state.db");
+        if (import_fs10.default.existsSync(storePath)) {
           try {
-            const storeContent = JSON.parse(import_fs9.default.readFileSync(storePath, "utf-8"));
+            const storeContent = JSON.parse(import_fs10.default.readFileSync(storePath, "utf-8"));
             if (storeContent?.endpointAgentProfiles && Object.keys(storeContent.endpointAgentProfiles).length > 0) {
               hasAiStore = true;
             }
@@ -5488,9 +5457,9 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         }
       }
       static async loadFunctionality(entity, funcDir, funcName) {
-        const descriptorPath = import_path8.default.join(funcDir, `${funcName}.js`);
+        const descriptorPath = import_path9.default.join(funcDir, `${funcName}.js`);
         let atom = null;
-        if (import_fs9.default.existsSync(descriptorPath)) {
+        if (import_fs10.default.existsSync(descriptorPath)) {
           const mod = await import((0, import_url2.pathToFileURL)(descriptorPath).href);
           atom = mod[`${funcName}Atom`] || mod.default || mod.Atom;
         }
@@ -5500,54 +5469,54 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             visibility: "public",
             emitters: {}
           };
-          const statePath = import_path8.default.join(funcDir, "state_data", "state.js");
-          if (import_fs9.default.existsSync(statePath)) {
+          const statePath = import_path9.default.join(funcDir, "state_data", "state.js");
+          if (import_fs10.default.existsSync(statePath)) {
             const mod = await import((0, import_url2.pathToFileURL)(statePath).href);
             atom.initialState = mod[`${funcName.toLowerCase()}InitialState`] || mod.initialState || mod.default;
           }
-          const logicPath = import_path8.default.join(funcDir, "main_function", "logic.js");
-          if (import_fs9.default.existsSync(logicPath)) {
+          const logicPath = import_path9.default.join(funcDir, "main_function", "logic.js");
+          if (import_fs10.default.existsSync(logicPath)) {
             const mod = await import((0, import_url2.pathToFileURL)(logicPath).href);
             atom.api = mod.main || mod.default;
           }
-          const lifecyclePath = import_path8.default.join(funcDir, "main_function", "lifecycle.js");
-          if (import_fs9.default.existsSync(lifecyclePath)) {
+          const lifecyclePath = import_path9.default.join(funcDir, "main_function", "lifecycle.js");
+          if (import_fs10.default.existsSync(lifecyclePath)) {
             const mod = await import((0, import_url2.pathToFileURL)(lifecyclePath).href);
             atom.onMount = mod.onMount;
             atom.onTeardown = mod.onTeardown;
           }
-          const eventsDir2 = import_path8.default.join(funcDir, "events");
-          if (import_fs9.default.existsSync(eventsDir2)) {
-            const eventFiles = await import_fs9.default.promises.readdir(eventsDir2);
+          const eventsDir2 = import_path9.default.join(funcDir, "events");
+          if (import_fs10.default.existsSync(eventsDir2)) {
+            const eventFiles = await import_fs10.default.promises.readdir(eventsDir2);
             for (const file of eventFiles) {
               if (file.endsWith(".js")) {
-                const name = import_path8.default.basename(file, ".js");
+                const name = import_path9.default.basename(file, ".js");
                 atom.emitters[name] = {};
               }
             }
           }
         }
         const helpers = {};
-        const helpersDir = import_path8.default.join(funcDir, "helper_functions");
-        if (import_fs9.default.existsSync(helpersDir)) {
-          const files = await import_fs9.default.promises.readdir(helpersDir);
+        const helpersDir = import_path9.default.join(funcDir, "helper_functions");
+        if (import_fs10.default.existsSync(helpersDir)) {
+          const files = await import_fs10.default.promises.readdir(helpersDir);
           for (const file of files) {
             if (file.endsWith(".js")) {
-              const name = import_path8.default.basename(file, ".js");
-              const mod = await import((0, import_url2.pathToFileURL)(import_path8.default.join(helpersDir, file)).href);
+              const name = import_path9.default.basename(file, ".js");
+              const mod = await import((0, import_url2.pathToFileURL)(import_path9.default.join(helpersDir, file)).href);
               helpers[name] = mod[name] || mod.default || mod;
               this.registerGlobalWrapper(name);
             }
           }
         }
         const events = {};
-        const eventsDir = import_path8.default.join(funcDir, "events");
-        if (import_fs9.default.existsSync(eventsDir)) {
-          const files = await import_fs9.default.promises.readdir(eventsDir);
+        const eventsDir = import_path9.default.join(funcDir, "events");
+        if (import_fs10.default.existsSync(eventsDir)) {
+          const files = await import_fs10.default.promises.readdir(eventsDir);
           for (const file of files) {
             if (file.endsWith(".js")) {
-              const name = import_path8.default.basename(file, ".js");
-              const mod = await import((0, import_url2.pathToFileURL)(import_path8.default.join(eventsDir, file)).href);
+              const name = import_path9.default.basename(file, ".js");
+              const mod = await import((0, import_url2.pathToFileURL)(import_path9.default.join(eventsDir, file)).href);
               events[name] = mod[name] || mod.default || mod;
               this.registerGlobalWrapper(name);
             }
@@ -5564,8 +5533,8 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         entity.addLocal(atom);
       }
       static async loadEntity(parent, entDir, entName) {
-        const fileToImport = import_path8.default.join(entDir, `${entName}.js`);
-        if (import_fs9.default.existsSync(fileToImport)) {
+        const fileToImport = import_path9.default.join(entDir, `${entName}.js`);
+        if (import_fs10.default.existsSync(fileToImport)) {
           const mod = await import((0, import_url2.pathToFileURL)(fileToImport).href);
           const ClassToUse = mod[entName] || mod.default;
           if (ClassToUse) {
@@ -5575,24 +5544,24 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         }
       }
       static async ensureSubAppBuilt(appPath, appName, entity) {
-        const packageJsonPath = import_path8.default.join(appPath, "package.json");
-        if (!import_fs9.default.existsSync(packageJsonPath)) {
+        const packageJsonPath = import_path9.default.join(appPath, "package.json");
+        if (!import_fs10.default.existsSync(packageJsonPath)) {
           return true;
         }
-        const assemblerPath = import_path8.default.join(appPath, "assembler.js");
-        let distPath = import_path8.default.join(appPath, "dist", `${appName}.js`);
-        if (import_fs9.default.existsSync(packageJsonPath)) {
+        const assemblerPath = import_path9.default.join(appPath, "assembler.js");
+        let distPath = import_path9.default.join(appPath, "dist", `${appName}.js`);
+        if (import_fs10.default.existsSync(packageJsonPath)) {
           try {
-            const pkgJson = JSON.parse(import_fs9.default.readFileSync(packageJsonPath, "utf-8"));
+            const pkgJson = JSON.parse(import_fs10.default.readFileSync(packageJsonPath, "utf-8"));
             if (pkgJson.main) {
-              distPath = import_path8.default.resolve(appPath, pkgJson.main);
+              distPath = import_path9.default.resolve(appPath, pkgJson.main);
             }
           } catch (_) {
           }
         }
         let gitUpdated = false;
-        const gitDir = import_path8.default.join(appPath, ".git");
-        if (import_fs9.default.existsSync(gitDir)) {
+        const gitDir = import_path9.default.join(appPath, ".git");
+        if (import_fs10.default.existsSync(gitDir)) {
           console.log(`[MagneticLoader] Checking for git remote updates for sub-app '${appName}'...`);
           try {
             const { exec: exec3 } = await import("child_process");
@@ -5612,20 +5581,20 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             console.warn(`[MagneticLoader] Warning: git update check failed for '${appName}':`, err.message || err);
           }
         }
-        if (!import_fs9.default.existsSync(assemblerPath) || !import_fs9.default.existsSync(distPath) || !import_fs9.default.existsSync(import_path8.default.join(appPath, "node_modules")) || gitUpdated) {
+        if (!import_fs10.default.existsSync(assemblerPath) || !import_fs10.default.existsSync(distPath) || !import_fs10.default.existsSync(import_path9.default.join(appPath, "node_modules")) || gitUpdated) {
           console.log(`[MagneticLoader] Sub-app '${appName}' ${gitUpdated ? "was updated via git" : "is missing build artifacts"}. Initiating auto-build...`);
           try {
-            const pkgJson = JSON.parse(import_fs9.default.readFileSync(packageJsonPath, "utf-8"));
+            const pkgJson = JSON.parse(import_fs10.default.readFileSync(packageJsonPath, "utf-8"));
             const hasBuildScript = pkgJson.scripts && pkgJson.scripts.build;
             if (!hasBuildScript) {
               throw new Error(`package.json is missing a 'build' script.`);
             }
-            const nodeModulesPath = import_path8.default.join(appPath, "node_modules");
-            if (!import_fs9.default.existsSync(nodeModulesPath)) {
+            const nodeModulesPath = import_path9.default.join(appPath, "node_modules");
+            if (!import_fs10.default.existsSync(nodeModulesPath)) {
               let installCmd = "npm install --no-audit --no-fund";
-              if (import_fs9.default.existsSync(import_path8.default.join(appPath, "pnpm-lock.yaml"))) {
+              if (import_fs10.default.existsSync(import_path9.default.join(appPath, "pnpm-lock.yaml"))) {
                 installCmd = "pnpm install";
-              } else if (import_fs9.default.existsSync(import_path8.default.join(appPath, "yarn.lock"))) {
+              } else if (import_fs10.default.existsSync(import_path9.default.join(appPath, "yarn.lock"))) {
                 installCmd = "yarn install";
               }
               console.log(`[MagneticLoader] Installing dependencies for '${appName}' using '${installCmd}'...`);
@@ -5634,13 +5603,13 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
               const execPromise2 = promisify3(exec4);
               await execPromise2(installCmd, { cwd: appPath });
             } else {
-              const pkgJson2 = JSON.parse(import_fs9.default.readFileSync(packageJsonPath, "utf-8"));
+              const pkgJson2 = JSON.parse(import_fs10.default.readFileSync(packageJsonPath, "utf-8"));
               const hasKrnlts = pkgJson2.dependencies && pkgJson2.dependencies.krnlts || pkgJson2.devDependencies && pkgJson2.devDependencies.krnlts;
               if (hasKrnlts) {
                 let updateCmd = "npm update krnlts";
-                if (import_fs9.default.existsSync(import_path8.default.join(appPath, "pnpm-lock.yaml"))) {
+                if (import_fs10.default.existsSync(import_path9.default.join(appPath, "pnpm-lock.yaml"))) {
                   updateCmd = "pnpm update krnlts";
-                } else if (import_fs9.default.existsSync(import_path8.default.join(appPath, "yarn.lock"))) {
+                } else if (import_fs10.default.existsSync(import_path9.default.join(appPath, "yarn.lock"))) {
                   updateCmd = "yarn upgrade krnlts";
                 }
                 console.log(`[MagneticLoader] Automatically updating krnlts dependency for '${appName}' using '${updateCmd}'...`);
@@ -5655,9 +5624,9 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
               }
             }
             let buildCmd = "npm run build";
-            if (import_fs9.default.existsSync(import_path8.default.join(appPath, "pnpm-lock.yaml"))) {
+            if (import_fs10.default.existsSync(import_path9.default.join(appPath, "pnpm-lock.yaml"))) {
               buildCmd = "pnpm run build";
-            } else if (import_fs9.default.existsSync(import_path8.default.join(appPath, "yarn.lock"))) {
+            } else if (import_fs10.default.existsSync(import_path9.default.join(appPath, "yarn.lock"))) {
               buildCmd = "yarn build";
             }
             console.log(`[MagneticLoader] Building '${appName}' using '${buildCmd}'...`);
@@ -5665,11 +5634,11 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             const { promisify: promisify2 } = await import("util");
             const execPromise = promisify2(exec3);
             await execPromise(buildCmd, { cwd: appPath });
-            if (!import_fs9.default.existsSync(assemblerPath)) {
+            if (!import_fs10.default.existsSync(assemblerPath)) {
               console.log(`[MagneticLoader] Automatically generating assembler.js for '${appName}'...`);
               const code = `export { ${appName} as default } from "./dist/${appName}.js";
 `;
-              import_fs9.default.writeFileSync(assemblerPath, code, "utf-8");
+              import_fs10.default.writeFileSync(assemblerPath, code, "utf-8");
             }
             console.log(`[MagneticLoader] Sub-app '${appName}' successfully built and prepared.`);
           } catch (err) {
@@ -5686,8 +5655,8 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         return true;
       }
       static async detectSubApp(appPath, appName) {
-        const assemblerPath = import_path8.default.join(appPath, "assembler.js");
-        if (import_fs9.default.existsSync(assemblerPath)) {
+        const assemblerPath = import_path9.default.join(appPath, "assembler.js");
+        if (import_fs10.default.existsSync(assemblerPath)) {
           const mod = await import((0, import_url2.pathToFileURL)(assemblerPath).href);
           const ServiceClass = mod[appName] || mod.default;
           if (ServiceClass) {
@@ -5700,9 +5669,9 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             };
           }
         }
-        const packageJsonPath = import_path8.default.join(appPath, "package.json");
-        if (import_fs9.default.existsSync(packageJsonPath)) {
-          if (import_fs9.default.existsSync(import_path8.default.join(appPath, "KrnlFrontendModule.ts"))) {
+        const packageJsonPath = import_path9.default.join(appPath, "package.json");
+        if (import_fs10.default.existsSync(packageJsonPath)) {
+          if (import_fs10.default.existsSync(import_path9.default.join(appPath, "KrnlFrontendModule.ts"))) {
             return null;
           }
           return {
@@ -5734,12 +5703,11 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
 });
 
 // src/krnl/core/K_LIB_Krnl_System_Ingress_Network.ts
-var import_path9, KrnlSiblingNetwork, KrnlIngressNetwork;
+var import_path10, KrnlSiblingNetwork, KrnlIngressNetwork;
 var init_K_LIB_Krnl_System_Ingress_Network = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Ingress_Network.ts"() {
     "use strict";
-    init_K_LIB_Krnl_System_Frontend_Adapter();
-    import_path9 = __toESM(require("path"), 1);
+    import_path10 = __toESM(require("path"), 1);
     KrnlSiblingNetwork = class {
       members = /* @__PURE__ */ new Map();
       /**
@@ -5767,7 +5735,7 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
           const memberPort = config.port ?? -1;
           const args = config.constructorArgs ?? [];
           const { subappLocalStorage: subappLocalStorage2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_System_Magnetic_Loader(), K_LIB_Krnl_System_Magnetic_Loader_exports));
-          const appDir = config.entryPath ? import_path9.default.dirname(config.entryPath) : "";
+          const appDir = config.entryPath ? import_path10.default.dirname(config.entryPath) : "";
           entity = await subappLocalStorage2.run({ appPath: appDir }, async () => {
             const ent = new ServiceClass(memberPort, ...args);
             if (ent._magneticLoadPromise) {
@@ -5789,42 +5757,6 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
           memberType: "sibling"
         });
         return entity;
-      }
-      /**
-       * addFrontendMember — adds a custom frontend (static file server / SPA) to the sibling network.
-       */
-      async addFrontendMember(admin, config) {
-        const prefix = config.options?.frontendPrefix || "frontend";
-        const key = `${prefix}/${config.name.toLowerCase()}`;
-        if (this.members.has(key)) {
-          console.log(`[SiblingNetwork] Frontend member '${key}' already registered. Returning existing entity.`);
-          return this.members.get(key).entity;
-        }
-        const options = { ...config.options };
-        if (!options.backendPort || options.backendPort <= 0) {
-          options.backendPort = admin.commPort > 0 ? admin.commPort : admin.options?.commPort || 10099;
-        }
-        if (!options.backendHost) {
-          const rawHost = admin.host;
-          options.backendHost = rawHost === "::" || rawHost === "0.0.0.0" || rawHost === "" ? "localhost" : rawHost;
-        }
-        const adapter = new KrnlFrontendAdapter(config.name, config.appPath, options);
-        adapter._isIngressNetworkMember = true;
-        if (typeof adapter._resolveReady === "function") {
-          adapter._resolveReady();
-        }
-        admin.hierarchyManager.addComponentEntityInstance(adapter);
-        await admin.registerPort(key, -1);
-        this.members.set(key, {
-          entity: adapter,
-          config,
-          addedAt: Date.now(),
-          memberType: "frontend"
-        });
-        adapter.startApp().catch((err) => {
-          console.error(`[SiblingNetwork] Frontend '${config.name}' startApp failed:`, err.message || err);
-        });
-        return adapter;
       }
       /**
        * removeMember — removes a sibling from the peer network.
@@ -5898,13 +5830,17 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
 });
 
 // src/krnl/core/K_LIB_Krnl_System_Frontend.ts
-var KrnlFrontend;
+var import_fs11, import_path11, KrnlFrontend;
 var init_K_LIB_Krnl_System_Frontend = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Frontend.ts"() {
     "use strict";
+    import_fs11 = __toESM(require("fs"), 1);
+    import_path11 = __toESM(require("path"), 1);
     KrnlFrontend = class {
       system;
       options;
+      frontendDir;
+      subAppFrontendDirs = /* @__PURE__ */ new Map();
       interactionsHistory = [];
       constructor(system, options = {}) {
         this.system = system;
@@ -5914,18 +5850,84 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
           enableMonitoringApi: true,
           ...options
         };
+        this.frontendDir = options.frontendDir || import_path11.default.join(system._entityDataDir, "frontend");
+      }
+      registerSubAppFrontend(prefix, subFrontendDir) {
+        this.subAppFrontendDirs.set(prefix.toLowerCase(), subFrontendDir);
+        console.log(`[KrnlFrontend] Registered sub-app frontend '${prefix}' -> ${subFrontendDir}`);
       }
       async handleRequest(req, res, subpath) {
-        const normalized = subpath.replace(/\/$/, "") || "/";
-        if (normalized === "/" && req.method === "GET") {
-          const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
-          if (!url.pathname.endsWith("/")) {
-            res.writeHead(302, { "Location": url.pathname + "/" + url.search });
-            res.end();
+        const rawPath = subpath.split("?")[0];
+        const normalized = rawPath.replace(/\/$/, "") || "/";
+        if ((normalized === "/" || normalized === "/index.html") && req.method === "GET") {
+          const htmlPath = import_path11.default.join(this.frontendDir, "index.html");
+          if (import_fs11.default.existsSync(htmlPath)) {
+            res.writeHead(200, { "Content-Type": "text/html" });
+            res.end(import_fs11.default.readFileSync(htmlPath));
             return;
           }
-          res.writeHead(200, { "Content-Type": "text/html" });
-          res.end(this._generatePageHtml());
+        }
+        if (normalized === "/bundle.js" && req.method === "GET") {
+          const bundlePath = import_path11.default.join(this.frontendDir, "dist", "bundle.js");
+          if (import_fs11.default.existsSync(bundlePath)) {
+            res.writeHead(200, { "Content-Type": "application/javascript" });
+            res.end(import_fs11.default.readFileSync(bundlePath));
+            return;
+          }
+          res.writeHead(404, { "Content-Type": "application/javascript" });
+          res.end("/* bundle.js not found. Ensure frontend component generation & build completed. */");
+          return;
+        }
+        if (normalized === "/styles.css" && req.method === "GET") {
+          const cssPath = import_path11.default.join(this.frontendDir, "index.css");
+          if (import_fs11.default.existsSync(cssPath)) {
+            res.writeHead(200, { "Content-Type": "text/css" });
+            res.end(import_fs11.default.readFileSync(cssPath));
+            return;
+          }
+          res.writeHead(404, { "Content-Type": "text/css" });
+          res.end("/* styles.css not found */");
+          return;
+        }
+        if (normalized.startsWith("/subapps/")) {
+          const parts = normalized.split("/").filter(Boolean);
+          const prefix = parts[1]?.toLowerCase();
+          const subDir = this.subAppFrontendDirs.get(prefix);
+          if (subDir && import_fs11.default.existsSync(subDir)) {
+            const fileRel = parts.slice(2).join("/");
+            if (fileRel === "styles.css") {
+              const cssPath = import_path11.default.join(this.frontendDir, "index.css");
+              if (import_fs11.default.existsSync(cssPath)) {
+                res.writeHead(200, { "Content-Type": "text/css" });
+                res.end(import_fs11.default.readFileSync(cssPath));
+                return;
+              }
+            }
+            if (!fileRel || fileRel === "index.html") {
+              const subHtml = import_path11.default.join(subDir, "index.html");
+              if (import_fs11.default.existsSync(subHtml)) {
+                res.writeHead(200, { "Content-Type": "text/html" });
+                res.end(import_fs11.default.readFileSync(subHtml));
+                return;
+              }
+            }
+            if (fileRel === "bundle.js") {
+              const subBundle = import_path11.default.join(subDir, "dist", "bundle.js");
+              if (import_fs11.default.existsSync(subBundle)) {
+                res.writeHead(200, { "Content-Type": "application/javascript" });
+                res.end(import_fs11.default.readFileSync(subBundle));
+                return;
+              }
+            }
+            const assetPath = import_path11.default.join(subDir, fileRel);
+            if (import_fs11.default.existsSync(assetPath) && import_fs11.default.statSync(assetPath).isFile()) {
+              res.writeHead(200);
+              res.end(import_fs11.default.readFileSync(assetPath));
+              return;
+            }
+          }
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "error", message: `Sub-app frontend asset '${normalized}' not found.` }));
           return;
         }
         if (normalized.startsWith("/api/")) {
@@ -6005,7 +6007,7 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
           return;
         }
         res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "error", message: "Route not found" }));
+        res.end(JSON.stringify({ status: "error", message: `Frontend route '${subpath}' not found` }));
       }
       _readJsonBody(req) {
         return new Promise((resolve, reject) => {
@@ -6022,631 +6024,6 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
             }
           });
         });
-      }
-      _generatePageHtml() {
-        const title = this.options.title || this.system.entityName;
-        const theme = this.options.theme || "dark";
-        const customCss = this.options.customCss || "";
-        return `<!DOCTYPE html>
-<html lang="en" data-theme="${theme}">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title} Control Panel</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --font-sans: 'Outfit', sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
-      --bg-base: #0a0e17;
-      --bg-surface: rgba(22, 28, 45, 0.6);
-      --bg-surface-hover: rgba(30, 38, 58, 0.8);
-      --border-color: rgba(255, 255, 255, 0.08);
-      --border-color-focus: rgba(59, 130, 246, 0.5);
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
-      --primary: #3b82f6;
-      --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-      --accent: #10b981;
-      --accent-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
-      --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
-      --card-blur: blur(12px);
-    }
-    [data-theme="light"] {
-      --bg-base: #f1f5f9;
-      --bg-surface: rgba(255, 255, 255, 0.8);
-      --bg-surface-hover: rgba(241, 245, 249, 0.9);
-      --border-color: rgba(0, 0, 0, 0.08);
-      --border-color-focus: rgba(59, 130, 246, 0.5);
-      --text-main: #0f172a;
-      --text-muted: #64748b;
-      --primary: #2563eb;
-      --primary-gradient: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
-      --accent: #059669;
-      --accent-gradient: linear-gradient(135deg, #059669 0%, #047857 100%);
-      --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
-      --card-blur: blur(8px);
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: var(--font-sans);
-      background-color: var(--bg-base);
-      color: var(--text-main);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      background-image: radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.04) 0%, transparent 40%),
-                        radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.04) 0%, transparent 40%);
-    }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 1rem 2rem;
-      border-bottom: 1px solid var(--border-color);
-      background-color: rgba(10, 14, 23, 0.5);
-      backdrop-filter: blur(10px);
-      z-index: 50;
-    }
-    .brand { display: flex; align-items: center; gap: 1rem; }
-    .brand-logo {
-      width: 36px; height: 36px;
-      background: var(--primary-gradient);
-      border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.25rem; color: white;
-    }
-    .brand-title {
-      font-size: 1.25rem; font-weight: 700;
-      background: var(--primary-gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .theme-toggle {
-      background: none; border: 1px solid var(--border-color);
-      color: var(--text-main); padding: 0.5rem;
-      border-radius: 8px; cursor: pointer;
-    }
-    .theme-toggle:hover { background: var(--border-color); }
-    .app-container { display: flex; flex: 1; height: calc(100vh - 65px); overflow: hidden; }
-    aside.left-sidebar {
-      width: 280px; border-right: 1px solid var(--border-color);
-      background-color: rgba(10, 14, 23, 0.25);
-      display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
-    }
-    aside.right-sidebar {
-      width: 340px; border-left: 1px solid var(--border-color);
-      background-color: rgba(10, 14, 23, 0.25);
-      display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
-      padding: 1.25rem; gap: 1.25rem;
-    }
-    .sidebar-section { padding: 1.25rem; border-bottom: 1px solid var(--border-color); }
-    .sidebar-section-title {
-      font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
-      color: var(--text-muted); letter-spacing: 0.08em;
-      margin-bottom: 0.75rem; display: flex; justify-content: space-between;
-      align-items: center; cursor: pointer;
-    }
-    .nav-list { list-style: none; display: flex; flex-direction: column; gap: 0.25rem; }
-    .nav-item button {
-      width: 100%; text-align: left; background: none; border: none;
-      padding: 0.6rem 0.8rem; border-radius: 8px; color: var(--text-muted);
-      font-family: var(--font-sans); font-size: 0.95rem; font-weight: 500;
-      cursor: pointer; display: flex; align-items: center; justify-content: space-between;
-    }
-    .nav-item button:hover { color: var(--text-main); background: rgba(255,255,255,0.05); }
-    .nav-item.active button { color: white; background: var(--primary-gradient); }
-    .nav-item .method-badge {
-      font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.35rem;
-      border-radius: 4px; background: rgba(0, 0, 0, 0.2); color: #93c5fd;
-    }
-    .nav-item.active .method-badge { background: rgba(255, 255, 255, 0.2); color: white; }
-    main { flex: 1; padding: 2rem; overflow-y: auto; background-color: rgba(10, 14, 23, 0.1); }
-    .main-grid { display: flex; flex-direction: column; gap: 2rem; max-width: 1000px; margin: 0 auto; }
-    .detail-card {
-      background: var(--bg-surface); backdrop-filter: var(--card-blur);
-      border: 1px solid var(--border-color); border-radius: 16px;
-      padding: 2rem; box-shadow: var(--glass-shadow);
-    }
-    .endpoint-header {
-      display: flex; justify-content: space-between; align-items: flex-start;
-      border-bottom: 1px solid var(--border-color); padding-bottom: 1.25rem; margin-bottom: 1.5rem;
-    }
-    .endpoint-title h2 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem; }
-    .category-badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 6px; text-transform: uppercase; font-weight: bold; }
-    .badge-app { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
-    .badge-system { background: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.4); }
-    .tab-bar { display: flex; gap: 0.5rem; border-bottom: 1px solid var(--border-color); margin-bottom: 1.5rem; }
-    .tab-btn {
-      background: none; border: none; color: var(--text-muted);
-      font-family: var(--font-sans); font-size: 1rem; font-weight: 600;
-      padding: 0.6rem 1.2rem; cursor: pointer; border-bottom: 2px solid transparent;
-      transition: all 0.2s;
-    }
-    .tab-btn:hover { color: var(--text-main); }
-    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
-    .form-group { margin-bottom: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
-    .form-label { font-size: 0.85rem; font-weight: 600; color: var(--text-main); }
-    .form-input {
-      background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color);
-      color: var(--text-main); padding: 0.75rem; border-radius: 8px;
-      font-family: var(--font-sans); font-size: 0.95rem; width: 100%;
-    }
-    .form-textarea { font-family: var(--font-mono); min-height: 100px; resize: vertical; }
-    .btn {
-      background: var(--primary-gradient); color: white; border: none;
-      padding: 0.75rem 1.5rem; border-radius: 8px; font-family: var(--font-sans);
-      font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;
-    }
-    .btn-secondary { background: rgba(255, 255, 255, 0.08); color: var(--text-main); border: 1px solid var(--border-color); }
-    .response-box { margin-top: 1.5rem; background: #040711; border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem; }
-    .response-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; font-size: 0.8rem; font-weight: bold; color: var(--text-muted); }
-    .response-content { font-family: var(--font-mono); font-size: 0.9rem; white-space: pre-wrap; overflow-x: auto; max-height: 400px; }
-    .slider-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.25rem; margin-top: 1rem; }
-    .slider-item { display: flex; flex-direction: column; gap: 0.35rem; background: rgba(255, 255, 255, 0.02); padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; }
-    .slider-header { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: bold; }
-    .sse-panel { margin-top: 1.5rem; border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; }
-    .sse-header { background: rgba(16, 185, 129, 0.1); border-bottom: 1px solid var(--border-color); padding: 0.75rem 1.25rem; display: flex; justify-content: space-between; align-items: center; }
-    .sse-log { background: #040711; padding: 1rem; font-family: var(--font-mono); font-size: 0.85rem; height: 200px; overflow-y: auto; white-space: pre-wrap; }
-    .telemetry-log-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.85rem; }
-    .telemetry-log-table th, .telemetry-log-table td { padding: 0.75rem; border-bottom: 1px solid var(--border-color); text-align: left; }
-    .telemetry-log-table th { color: var(--text-muted); font-weight: 600; }
-
-    /* Access Policy Card */
-    .policy-card { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; }
-    .policy-tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: bold; margin-right: 0.4rem; font-size: 0.75rem; }
-    .tag-allow { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-    .tag-forbid { background: rgba(239, 68, 68, 0.2); color: #f87171; }
-    .tag-key { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-
-    /* Right Sidebar / Orchestrator Box */
-    .orch-box { display: flex; flex-direction: column; height: 100%; gap: 1rem; }
-    .orch-chat-history { flex: 1; min-height: 250px; max-height: 380px; background: #040711; border: 1px solid var(--border-color); border-radius: 12px; padding: 0.75rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.85rem; }
-    .orch-msg { padding: 0.6rem 0.8rem; border-radius: 8px; max-width: 90%; word-break: break-word; }
-    .orch-msg-user { background: var(--primary-gradient); color: white; align-self: flex-end; }
-    .orch-msg-agent { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border-color); color: var(--text-main); align-self: flex-start; }
-    .task-runner-panel { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.75rem; font-size: 0.8rem; }
-    .task-item { display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color); }
-    .task-status { font-weight: bold; text-transform: uppercase; font-size: 0.7rem; padding: 0.1rem 0.3rem; border-radius: 3px; }
-    .status-running { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-    .status-done { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-    .status-pending { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-
-    ${customCss}
-  </style>
-</head>
-<body>
-  <header>
-    <div class="brand">
-      <div class="brand-logo">\u{1F537}</div>
-      <div><h1 class="brand-title">${title} Control Panel</h1></div>
-    </div>
-    <div style="display: flex; align-items: center; gap: 1rem;">
-      <button class="btn btn-secondary" onclick="loadTelemetryLog()">\u{1F4CA} Telemetry Logs</button>
-      <button class="theme-toggle" id="theme-toggle-btn" aria-label="Toggle Theme">\u{1F313}</button>
-    </div>
-  </header>
-  <div class="app-container">
-    <aside class="left-sidebar">
-      <div class="sidebar-section">
-        <div class="sidebar-section-title">\u{1F50C} App Endpoints</div>
-        <ul class="nav-list" id="app-endpoints-list"><li style="color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem;">Loading endpoints...</li></ul>
-      </div>
-      <div class="sidebar-section">
-        <div class="sidebar-section-title" onclick="toggleSystemSection()"><span>\u2699\uFE0F System Endpoints</span><span id="system-toggle-arrow">\u25BC</span></div>
-        <ul class="nav-list" id="system-endpoints-list" style="display: block;"></ul>
-      </div>
-    </aside>
-    <main>
-      <div class="main-grid" id="main-content">
-        <div id="welcome-panel" class="detail-card" style="text-align: center; padding: 4rem 2rem;">
-          <h2 style="font-size: 2.25rem; margin-bottom: 1rem;">Welcome to ${title}</h2>
-          <p style="color: var(--text-muted); max-width: 600px; margin: 0 auto 2rem;">Select an endpoint in the sidebar to call it, view schemas, listen to event streams, or talk to the application orchestrator.</p>
-          <button class="btn" onclick="refreshDefinitions()">\u{1F504} Refresh Endpoints</button>
-        </div>
-        <div id="telemetry-panel" class="detail-card" style="display: none;">
-          <div class="endpoint-header"><div class="endpoint-title"><h2>Historical Telemetry logs</h2></div><button class="btn btn-secondary" onclick="closeTelemetryPanel()">Close</button></div>
-          <div style="overflow-x: auto;"><table class="telemetry-log-table"><thead><tr><th>Time</th><th>Type</th><th>Endpoint</th><th>Latency</th><th>Success</th></tr></thead><tbody id="telemetry-log-body"><tr><td colspan="5" style="color: var(--text-muted); text-align: center;">No logs fetched yet.</td></tr></tbody></table></div>
-        </div>
-        <div id="endpoint-panel" class="detail-card" style="display: none;"></div>
-      </div>
-    </main>
-    <aside class="right-sidebar">
-      <div class="sidebar-section-title">\u{1F916} Application Orchestrator</div>
-      <div class="orch-box">
-        <div class="orch-chat-history" id="orch-chat-box">
-          <div class="orch-msg orch-msg-agent">Hello! I am the Application Orchestrator. Type a natural language request to run workflows across system endpoints.</div>
-        </div>
-        <form onsubmit="handleOrchestratorSubmit(event)" style="display: flex; flex-direction: column; gap: 0.5rem;">
-          <textarea class="form-input" id="orch-prompt-input" placeholder="e.g. Process order #123 and notify user" style="height: 70px; resize: none; font-size: 0.85rem;"></textarea>
-          <button type="submit" class="btn" style="justify-content: center; padding: 0.5rem; font-size: 0.85rem;">\u{1F4AC} Prompt Orchestrator</button>
-        </form>
-        <div class="task-runner-panel">
-          <div class="sidebar-section-title" style="margin-bottom: 0.5rem;">\u{1F4CB} Autonomous Task Runner</div>
-          <div id="task-list-box" style="color: var(--text-muted); font-size: 0.75rem;">No tasks running.</div>
-        </div>
-      </div>
-    </aside>
-  </div>
-  <script>
-    let definitions = [];
-    let activeFid = null;
-    let activeTab = 'call';
-    let sseSource = null;
-
-    const themeBtn = document.getElementById('theme-toggle-btn');
-    themeBtn.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      document.documentElement.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
-    });
-
-    function toggleSystemSection() {
-      const list = document.getElementById('system-endpoints-list');
-      const arrow = document.getElementById('system-toggle-arrow');
-      list.style.display = list.style.display === 'none' ? 'block' : 'none';
-      arrow.innerText = list.style.display === 'none' ? '\u25BA' : '\u25BC';
-    }
-
-    async function refreshDefinitions() {
-      try {
-        const res = await fetch('api/getEndpointDefinitions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-        const data = await res.json();
-        definitions = data.payload || data;
-        renderSidebar();
-        if (activeFid) {
-          const updated = definitions.find(d => d.id === activeFid);
-          if (updated) renderEndpoint(updated);
-        }
-      } catch (err) { console.error("Failed to load endpoint definitions:", err); }
-    }
-
-    async function pollTaskList() {
-      try {
-        const res = await fetch('api/getTaskList', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-        const data = await res.json();
-        const payload = data.payload || data;
-        const box = document.getElementById('task-list-box');
-        if (!payload || !payload.tasks || payload.tasks.length === 0) {
-          box.innerHTML = '<div style="color: var(--text-muted);">No active task list.</div>';
-          return;
-        }
-        let html = '';
-        payload.tasks.forEach(t => {
-          const sClass = t.status === 'running' ? 'status-running' : (t.status === 'done' ? 'status-done' : 'status-pending');
-          html += \`<div class="task-item"><span>\${t.endpointId || t.prompt.slice(0, 20)}</span><span class="task-status \${sClass}">\${t.status}</span></div>\`;
-        });
-        box.innerHTML = html;
-      } catch(e) {}
-    }
-
-    function renderSidebar() {
-      const appList = document.getElementById('app-endpoints-list');
-      const sysList = document.getElementById('system-endpoints-list');
-      appList.innerHTML = ''; sysList.innerHTML = '';
-      let appCount = 0;
-      definitions.sort((a, b) => a.id.localeCompare(b.id)).forEach(def => {
-        const li = document.createElement('li');
-        li.className = 'nav-item';
-        li.id = 'nav-item-' + def.id;
-        if (activeFid === def.id) li.classList.add('active');
-        li.innerHTML = \`<button onclick="selectEndpoint('\${def.id}')"><span>\${def.id}</span><span class="method-badge">\${def.method}</span></button>\`;
-        if (def.category === 'krnl_system') sysList.appendChild(li); else { appList.appendChild(li); appCount++; }
-      });
-      if (appCount === 0) appList.innerHTML = '<li style="color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem;">No app endpoints</li>';
-    }
-
-    function selectEndpoint(fid) {
-      document.getElementById('welcome-panel').style.display = 'none';
-      document.getElementById('telemetry-panel').style.display = 'none';
-      document.getElementById('endpoint-panel').style.display = 'block';
-      if (activeFid) {
-        const prevLi = document.getElementById('nav-item-' + activeFid);
-        if (prevLi) prevLi.classList.remove('active');
-      }
-      activeFid = fid;
-      const activeLi = document.getElementById('nav-item-' + fid);
-      if (activeLi) activeLi.classList.add('active');
-      const def = definitions.find(d => d.id === fid);
-      if (def) renderEndpoint(def);
-    }
-
-    function switchTab(tab) {
-      activeTab = tab;
-      const def = definitions.find(d => d.id === activeFid);
-      if (def) renderEndpoint(def);
-    }
-
-    function renderEndpoint(def) {
-      const panel = document.getElementById('endpoint-panel');
-      const badgeClass = def.category === 'krnl_system' ? 'badge-system' : 'badge-app';
-      const isApp = def.category === 'app';
-      let tabsHtml = isApp ? \`<div class="tab-bar">
-        <button class="tab-btn \${activeTab === 'call' ? 'active' : ''}" onclick="switchTab('call')">Call Endpoint</button>
-        <button class="tab-btn \${activeTab === 'schema' ? 'active' : ''}" onclick="switchTab('schema')">Schema</button>
-        <button class="tab-btn \${activeTab === 'edit' ? 'active' : ''}" onclick="switchTab('edit')">Edit Definition</button>
-      </div>\` : '';
-      if (!isApp && activeTab !== 'call') activeTab = 'call';
-      let contentHtml = '';
-      if (activeTab === 'call') contentHtml = renderCallTab(def);
-      else if (activeTab === 'schema') contentHtml = renderSchemaTab(def);
-      else contentHtml = renderEditTab(def);
-
-      panel.innerHTML = \`<div class="endpoint-header"><div class="endpoint-title"><h2>\${def.id} <span class="category-badge \${badgeClass}">\${def.category}</span></h2><div style="color: var(--text-muted); font-size: 0.95rem;">\${def.description || ''}</div></div></div>\${tabsHtml}\${contentHtml}\`;
-      if (activeTab === 'call' && def.examplePayload) loadExamplePayload(def.examplePayload);
-    }
-
-    function renderSchemaTab(def) {
-      const inSchema = JSON.stringify(def.inputSchema || {}, null, 2);
-      const outSchema = JSON.stringify(def.outputSchema || {}, null, 2);
-      return \`
-        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-          <div>
-            <h3 style="font-size: 1rem; margin-bottom: 0.5rem; color: var(--primary);">Input Schema</h3>
-            <pre class="response-content" style="background: #040711; padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">\${inSchema}</pre>
-          </div>
-          <div>
-            <h3 style="font-size: 1rem; margin-bottom: 0.5rem; color: #10b981;">Output Schema</h3>
-            <pre class="response-content" style="background: #040711; padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">\${outSchema}</pre>
-          </div>
-        </div>
-      \`;
-    }
-
-    function renderCallTab(def) {
-      let policyHtml = '';
-      if (def.accessPolicy) {
-        const p = def.accessPolicy;
-        const allows = (p.allow || []).map(port => \`<span class="policy-tag tag-allow">Allow:\${port}</span>\`).join(' ');
-        const forbids = (p.forbid || []).map(port => \`<span class="policy-tag tag-forbid">Forbid:\${port}</span>\`).join(' ');
-        const keys = (p.allow_with_key || []).map(port => \`<span class="policy-tag tag-key">KeyReq:\${port}</span>\`).join(' ');
-        policyHtml = \`<div class="policy-card">
-          <div style="font-weight: bold; margin-bottom: 0.4rem;">Access Policy Control</div>
-          <div>Default: <strong>\${p.default_connection_behaviour || 'allow_unlisted'}</strong></div>
-          <div style="margin-top: 0.4rem;">\${allows} \${forbids} \${keys}</div>
-        </div>\`;
-      }
-
-      let inputsHtml = '';
-      if (def.method === 'POST') {
-        if (def.inputSchema?.properties) {
-          inputsHtml = '<div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">';
-          for (const [key, prop] of Object.entries(def.inputSchema.properties)) {
-            const desc = prop.description || '';
-            const req = (def.inputSchema.required || []).includes(key) ? 'required' : '';
-            inputsHtml += \`<div class="form-group"><label class="form-label" for="call-input-\${key}">\${key}</label>\`;
-            if (prop.type === 'boolean') inputsHtml += \`<div style="display:flex; align-items:center; gap:0.5rem;"><input type="checkbox" id="call-input-\${key}"> <span>\${desc}</span></div>\`;
-            else if (['number', 'integer'].includes(prop.type)) inputsHtml += \`<input type="number" class="form-input" id="call-input-\${key}" placeholder="\${desc}" \${req}>\`;
-            else if (prop.type === 'string') inputsHtml += \`<input type="text" class="form-input" id="call-input-\${key}" placeholder="\${desc}" \${req}>\`;
-            else inputsHtml += \`<textarea class="form-input form-textarea" id="call-input-\${key}" placeholder="\${desc}" \${req}></textarea>\`;
-            inputsHtml += '</div>';
-          }
-          inputsHtml += '</div>';
-        } else {
-          inputsHtml = '<div class="form-group"><label class="form-label" for="call-raw-json">Payload (JSON)</label><textarea class="form-input form-textarea" id="call-raw-json" placeholder="{\\n}"></textarea></div>';
-        }
-      } else {
-        inputsHtml = '<p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">GET requests take query parameters via URL, or no parameters.</p>';
-      }
-
-      const sseHtml = (def.emitters && def.emitters.length > 0) ? \`
-        <div class="sse-panel">
-          <div class="sse-header"><span style="font-weight: bold; color:#10b981;">Live Event Stream</span><button class="btn btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.75rem;" id="sse-btn" onclick="toggleSse('\${def.id}')">\u{1F534} Listen</button></div>
-          <div class="sse-log" id="sse-log-box">Not listening.</div>
-        </div>\` : '';
-
-      return \`
-        \${policyHtml}
-        <form onsubmit="handleCallSubmit(event)">
-          \${def.examplePayload ? \`<button type="button" class="btn btn-secondary" style="margin-bottom: 1.5rem; padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="fillExamplePayload()">\u{1F4CB} Load Example Payload</button>\` : ''}
-          \${inputsHtml}
-          <button type="submit" class="btn">\u{1F680} Call Endpoint</button>
-        </form>
-        <div class="response-box" id="response-box" style="display: none;"><div class="response-header"><span>RESPONSE</span><button class="btn btn-secondary" style="padding:0.2rem 0.5rem; font-size:0.7rem;" onclick="copyResponse()">Copy</button></div><pre class="response-content" id="response-text"></pre></div>
-        \${sseHtml}
-      \`;
-    }
-
-    function fillExamplePayload() {
-      const def = definitions.find(d => d.id === activeFid);
-      if (def && def.examplePayload) loadExamplePayload(def.examplePayload);
-    }
-
-    function loadExamplePayload(payload) {
-      const def = definitions.find(d => d.id === activeFid);
-      if (!def) return;
-      const hasProps = def.inputSchema && def.inputSchema.properties;
-      if (def.method === 'POST') {
-        if (hasProps) {
-          for (const key of Object.keys(def.inputSchema.properties)) {
-            const el = document.getElementById('call-input-' + key);
-            if (!el) continue;
-            const val = payload[key];
-            if (val === undefined) { if (el.type === 'checkbox') el.checked = false; else el.value = ''; }
-            else if (el.type === 'checkbox') el.checked = !!val;
-            else el.value = typeof val === 'object' ? JSON.stringify(val, null, 2) : val;
-          }
-        } else {
-          const el = document.getElementById('call-raw-json');
-          if (el) el.value = JSON.stringify(payload, null, 2);
-        }
-      }
-    }
-
-    async function handleCallSubmit(event) {
-      event.preventDefault();
-      const def = definitions.find(d => d.id === activeFid);
-      if (!def) return;
-      let body = {};
-      const hasProps = def.inputSchema && def.inputSchema.properties;
-      if (def.method === 'POST') {
-        if (hasProps) {
-          for (const key of Object.keys(def.inputSchema.properties)) {
-            const el = document.getElementById('call-input-' + key);
-            if (!el) continue;
-            if (el.type === 'checkbox') body[key] = el.checked;
-            else {
-              const val = el.value.trim();
-              if (val.startsWith('{') || val.startsWith('[')) { try { body[key] = JSON.parse(val); } catch(e) { body[key] = val; } }
-              else body[key] = isNaN(Number(val)) || val === '' ? val : Number(val);
-            }
-          }
-        } else {
-          const el = document.getElementById('call-raw-json');
-          if (el && el.value.trim() !== '') { try { body = JSON.parse(el.value); } catch(e) { alert("Invalid JSON"); return; } }
-        }
-      }
-      const resBox = document.getElementById('response-box');
-      const resText = document.getElementById('response-text');
-      resText.innerText = "Calling..."; resBox.style.display = 'block';
-      try {
-        const res = await fetch('api/' + def.id, { method: def.method, headers: { 'Content-Type': 'application/json' }, body: def.method === 'POST' ? JSON.stringify(body) : undefined });
-        const data = await res.json();
-        resText.innerText = JSON.stringify(data, null, 2);
-      } catch (err) { resText.innerText = "Error: " + err.message; }
-    }
-
-    async function handleOrchestratorSubmit(event) {
-      event.preventDefault();
-      const inputEl = document.getElementById('orch-prompt-input');
-      const promptText = inputEl.value.trim();
-      if (!promptText) return;
-      inputEl.value = '';
-
-      const chatBox = document.getElementById('orch-chat-box');
-      const userMsg = document.createElement('div');
-      userMsg.className = 'orch-msg orch-msg-user';
-      userMsg.innerText = promptText;
-      chatBox.appendChild(userMsg);
-
-      const agentMsg = document.createElement('div');
-      agentMsg.className = 'orch-msg orch-msg-agent';
-      agentMsg.innerText = 'Orchestrating request...';
-      chatBox.appendChild(agentMsg);
-      chatBox.scrollTop = chatBox.scrollHeight;
-
-      try {
-        const res = await fetch('api/ai', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: promptText })
-        });
-        const data = await res.json();
-        agentMsg.innerText = JSON.stringify(data, null, 2);
-      } catch(err) {
-        agentMsg.innerText = 'Error: ' + err.message;
-      }
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    function toggleSse(fid) {
-      const log = document.getElementById('sse-log-box');
-      const btn = document.getElementById('sse-btn');
-      if (sseSource) {
-        sseSource.close(); sseSource = null;
-        btn.innerText = '\u{1F534} Listen'; btn.style.background = '';
-        log.innerText = 'Disconnected.'; return;
-      }
-      btn.innerText = '\u{1F7E2} Active'; btn.style.background = '#10b981';
-      log.innerText = 'Listening...\\n';
-      sseSource = new EventSource('sse/' + fid);
-      sseSource.onmessage = (e) => { log.innerText += \`[\${new Date().toLocaleTimeString()}] \${e.data}\\n\`; log.scrollTop = log.scrollHeight; };
-      sseSource.onerror = () => { log.innerText += 'Error.\\n'; sseSource.close(); sseSource = null; btn.innerText = '\u{1F534} Listen'; btn.style.background = ''; };
-    }
-
-    function renderEditTab(def) {
-      const toolsVal = (def.agentTools || []).join(', ');
-      const dynVal = (def.dynamicWatchVars || []).join(', ');
-      const statVal = (def.staticWatchVars || []).join(', ');
-      const spec = def.intelligenceSpec || {};
-      const specNames = ['reasoning', 'planning', 'toolUsage', 'structuredOutput', 'jsonStrictness', 'coding', 'extraction', 'classification', 'summarization', 'creativity', 'determinism', 'context', 'vision', 'multimodal', 'outputComplexity'];
-      let slidersHtml = '<div class="slider-container">';
-      specNames.forEach(name => {
-        const val = spec[name] !== undefined ? spec[name] : 3;
-        slidersHtml += \`<div class="slider-item"><div class="slider-header"><span>\${name}</span><span id="spec-val-\${name}">\${val}</span></div><input type="range" class="slider-input" min="0" max="10" value="\${val}" id="edit-spec-\${name}" oninput="document.getElementById('spec-val-\${name}').innerText = this.value"></div>\`;
-      });
-      slidersHtml += '</div>';
-
-      return \`
-        <form onsubmit="handleEditSubmit(event)">
-          <div class="form-group"><label class="form-label">Description</label><input type="text" class="form-input" id="edit-desc" value="\${def.description || ''}"></div>
-          <div class="form-group"><label class="form-label">System Instructions Prompt</label><textarea class="form-input form-textarea" id="edit-system-inst">\${def.systemInstructions || ''}</textarea></div>
-          <div class="form-group"><label class="form-label">Example Payload (JSON)</label><textarea class="form-input form-textarea" id="edit-example-payload">\${def.examplePayload ? JSON.stringify(def.examplePayload, null, 2) : ''}</textarea></div>
-          <div class="form-group"><label class="form-label">Agent Tools</label><input type="text" class="form-input" id="edit-agent-tools" value="\${toolsVal}"></div>
-          <div class="form-group"><label class="form-label">Dynamic Watch Variables</label><input type="text" class="form-input" id="edit-dynamic-vars" value="\${dynVal}"></div>
-          <div class="form-group"><label class="form-label">Static Watch Variables</label><input type="text" class="form-input" id="edit-static-vars" value="\${statVal}"></div>
-          <div class="form-group"><label class="form-label">Intelligence Specification Requirement Levels</label>\${slidersHtml}</div>
-          <div class="form-group"><label class="form-label">Endpoint Persistent Memory (Learnings)</label><textarea class="form-input form-textarea" style="background: rgba(0,0,0,0.3);" readonly>\${def.memory || 'No learnings recorded yet.'}</textarea></div>
-          <div style="display: flex; gap: 1rem; margin-top: 1.5rem;"><button type="submit" class="btn">\u{1F4BE} Save Definition</button><span id="save-status-msg" style="align-self: center; font-weight: bold;"></span></div>
-        </form>
-      \`;
-    }
-
-    async function handleEditSubmit(event) {
-      event.preventDefault();
-      const statusSpan = document.getElementById('save-status-msg');
-      statusSpan.innerText = 'Saving...'; statusSpan.style.color = 'var(--text-muted)';
-      const specNames = ['reasoning', 'planning', 'toolUsage', 'structuredOutput', 'jsonStrictness', 'coding', 'extraction', 'classification', 'summarization', 'creativity', 'determinism', 'context', 'vision', 'multimodal', 'outputComplexity'];
-      const intelligenceSpec = {};
-      specNames.forEach(name => { intelligenceSpec[name] = Number(document.getElementById('edit-spec-' + name).value); });
-      let examplePayload = null;
-      const rawEx = document.getElementById('edit-example-payload').value.trim();
-      if (rawEx !== '') { try { examplePayload = JSON.parse(rawEx); } catch(e) { alert("Invalid JSON"); return; } }
-      const override = {
-        description: document.getElementById('edit-desc').value.trim(),
-        systemInstructions: document.getElementById('edit-system-inst').value.trim(),
-        examplePayload,
-        agentTools: document.getElementById('edit-agent-tools').value.split(',').map(s => s.trim()).filter(Boolean),
-        dynamicWatchVars: document.getElementById('edit-dynamic-vars').value.split(',').map(s => s.trim()).filter(Boolean),
-        staticWatchVars: document.getElementById('edit-static-vars').value.split(',').map(s => s.trim()).filter(Boolean),
-        intelligenceSpec
-      };
-      try {
-        const res = await fetch('api/setEndpointDefinition', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: activeFid, override }) });
-        const data = await res.json();
-        if (data.status === 'success' || data.payload) { statusSpan.innerText = '\u2713 Spec Saved!'; statusSpan.style.color = '#10b981'; await refreshDefinitions(); }
-        else { statusSpan.innerText = 'Error: ' + data.message; statusSpan.style.color = '#ef4444'; }
-      } catch (err) { statusSpan.innerText = 'Save failed.'; statusSpan.style.color = '#ef4444'; }
-      setTimeout(() => { statusSpan.innerText = ''; }, 3000);
-    }
-
-    async function loadTelemetryLog() {
-      document.getElementById('welcome-panel').style.display = 'none';
-      document.getElementById('endpoint-panel').style.display = 'none';
-      document.getElementById('telemetry-panel').style.display = 'block';
-      const tbody = document.getElementById('telemetry-log-body');
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Fetching...</td></tr>';
-      try {
-        const res = await fetch('api/getTelemetryLog', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 100 }) });
-        const data = await res.json();
-        const logs = data.payload || data || [];
-        tbody.innerHTML = '';
-        if (logs.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;">No logs.</td></tr>'; return; }
-        logs.forEach(log => {
-          const row = document.createElement('tr');
-          const time = new Date(log.timestamp).toLocaleTimeString();
-          const latencyVal = log.latencyMs || log.durationMs || 0;
-          row.innerHTML = \`<td>\${time}</td><td>\${log.type === 'ai_trace' ? '\u{1F916} AI' : '\u{1F4DE} Call'}</td><td style="font-family:var(--font-mono);font-weight:bold;">\${log.endpointId}</td><td>\${latencyVal.toFixed(1)} ms</td><td style="color:\${log.success ? '#10b981' : '#ef4444'};font-weight:bold;">\${log.success ? 'Success' : 'Failed'}</td>\`;
-          tbody.appendChild(row);
-        });
-      } catch (err) { tbody.innerHTML = \`<tr><td colspan="5" style="color:#ef4444;text-align:center;">Error: \${err.message}</td></tr>\`; }
-    }
-
-    function closeTelemetryPanel() { document.getElementById('telemetry-panel').style.display = 'none'; document.getElementById('welcome-panel').style.display = 'block'; }
-    function copyResponse() { navigator.clipboard.writeText(document.getElementById('response-text').innerText).then(() => { alert("Copied."); }); }
-    function disconnectSse() { if (sseSource) { sseSource.close(); sseSource = null; } }
-
-    window.addEventListener('DOMContentLoaded', async () => {
-      await refreshDefinitions();
-      setInterval(refreshDefinitions, 5000);
-      await pollTaskList();
-      setInterval(pollTaskList, 3000);
-    });
-  </script>
-</body>
-</html>`;
       }
     };
   }
@@ -7405,12 +6782,12 @@ Generate corrected JSON payload.`;
 });
 
 // src/krnl/core/K_LIB_Krnl_Runtime_Store.ts
-var import_fs10, import_path10, KrnlRuntimeStore;
+var import_fs12, import_path12, KrnlRuntimeStore;
 var init_K_LIB_Krnl_Runtime_Store = __esm({
   "src/krnl/core/K_LIB_Krnl_Runtime_Store.ts"() {
     "use strict";
-    import_fs10 = __toESM(require("fs"), 1);
-    import_path10 = __toESM(require("path"), 1);
+    import_fs12 = __toESM(require("fs"), 1);
+    import_path12 = __toESM(require("path"), 1);
     KrnlRuntimeStore = class {
       filePath;
       data = {
@@ -7422,12 +6799,12 @@ var init_K_LIB_Krnl_Runtime_Store = __esm({
         activeTasks: null
       };
       constructor(appRoot) {
-        this.filePath = import_path10.default.join(appRoot, "krnl_runtime_state.db");
+        this.filePath = import_path12.default.join(appRoot, "krnl_runtime_state.db");
       }
       async load() {
         try {
-          if (import_fs10.default.existsSync(this.filePath)) {
-            const raw = import_fs10.default.readFileSync(this.filePath, "utf-8");
+          if (import_fs12.default.existsSync(this.filePath)) {
+            const raw = import_fs12.default.readFileSync(this.filePath, "utf-8");
             this.data = JSON.parse(raw);
             if (!this.data.endpointDefinitions) this.data.endpointDefinitions = {};
             if (!this.data.endpointMemories) this.data.endpointMemories = {};
@@ -7523,7 +6900,7 @@ var init_K_LIB_Krnl_Runtime_Store = __esm({
       }
       async save() {
         try {
-          import_fs10.default.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), "utf-8");
+          import_fs12.default.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), "utf-8");
         } catch (e) {
           console.error("[KrnlRuntimeStore] Failed to save store:", e);
         }
@@ -7852,16 +7229,16 @@ var K_LIB_Krnl_SubApp_Worker_Host_exports = {};
 __export(K_LIB_Krnl_SubApp_Worker_Host_exports, {
   KrnlSubAppWorkerHost: () => KrnlSubAppWorkerHost
 });
-var import_worker_threads, import_url3, import_path11, import_meta2, __filename, __dirname, _rpcSeq, KrnlSubAppWorkerHost;
+var import_worker_threads, import_url3, import_path13, import_meta2, __filename, __dirname, _rpcSeq, KrnlSubAppWorkerHost;
 var init_K_LIB_Krnl_SubApp_Worker_Host = __esm({
   "src/krnl/core/K_LIB_Krnl_SubApp_Worker_Host.ts"() {
     "use strict";
     import_worker_threads = require("worker_threads");
     import_url3 = require("url");
-    import_path11 = __toESM(require("path"), 1);
+    import_path13 = __toESM(require("path"), 1);
     import_meta2 = {};
     __filename = (0, import_url3.fileURLToPath)(import_meta2.url);
-    __dirname = import_path11.default.dirname(__filename);
+    __dirname = import_path13.default.dirname(__filename);
     _rpcSeq = 0;
     KrnlSubAppWorkerHost = class _KrnlSubAppWorkerHost {
       prefix;
@@ -7914,7 +7291,7 @@ var init_K_LIB_Krnl_SubApp_Worker_Host = __esm({
        * Spawn a worker_thread for the given sub-app config and wait for the manifest.
        */
       static async create(config, timeoutMs = 3e4) {
-        const runtimePath = import_path11.default.resolve(__dirname, "K_LIB_Krnl_SubApp_Worker_Runtime.js");
+        const runtimePath = import_path13.default.resolve(__dirname, "K_LIB_Krnl_SubApp_Worker_Runtime.js");
         const worker = new import_worker_threads.Worker(runtimePath, {
           workerData: {
             entryPath: config.entryPath ?? "",
@@ -7977,11 +7354,11 @@ var K_LIB_Krnl_SubApp_Registry_exports = {};
 __export(K_LIB_Krnl_SubApp_Registry_exports, {
   KrnlSubAppLoader: () => KrnlSubAppLoader
 });
-var import_path12, import_url4, KrnlSubAppLoader;
+var import_path14, import_url4, KrnlSubAppLoader;
 var init_K_LIB_Krnl_SubApp_Registry = __esm({
   "src/krnl/core/K_LIB_Krnl_SubApp_Registry.ts"() {
     "use strict";
-    import_path12 = __toESM(require("path"), 1);
+    import_path14 = __toESM(require("path"), 1);
     import_url4 = require("url");
     init_K_LIB_Krnl_System_Magnetic_Loader();
     KrnlSubAppLoader = class {
@@ -8005,7 +7382,7 @@ var init_K_LIB_Krnl_SubApp_Registry = __esm({
         }
         let entry;
         if (mode === "local") {
-          const appDir = config.entryPath ? import_path12.default.dirname(config.entryPath) : "";
+          const appDir = config.entryPath ? import_path14.default.dirname(config.entryPath) : "";
           let entity;
           if (config.isKrnl === false || !config.ServiceClass) {
             const { KrnlNonKrnlAppAdapter: KrnlNonKrnlAppAdapter2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_System_App_Adapter(), K_LIB_Krnl_System_App_Adapter_exports));
@@ -8169,7 +7546,7 @@ var init_K_LIB_Krnl_Ep_Tools = __esm({
 });
 
 // src/krnl/core/K_ENT_Krnl_System_Entity_Base.ts
-var import_http4, import_net3, import_fs11, import_path13, import_url5, import_zod_to_json_schema2, krnlSystemEntityBase;
+var import_http3, import_net2, import_fs13, import_path15, import_url5, import_zod_to_json_schema2, krnlSystemEntityBase;
 var init_K_ENT_Krnl_System_Entity_Base = __esm({
   "src/krnl/core/K_ENT_Krnl_System_Entity_Base.ts"() {
     "use strict";
@@ -8187,10 +7564,10 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
     init_K_LIB_Krnl_Application_Orchestrator();
     init_K_LIB_Krnl_Runtime_Store();
     init_K_LIB_Krnl_Endpoint_Agent();
-    import_http4 = __toESM(require("http"), 1);
-    import_net3 = __toESM(require("net"), 1);
-    import_fs11 = __toESM(require("fs"), 1);
-    import_path13 = __toESM(require("path"), 1);
+    import_http3 = __toESM(require("http"), 1);
+    import_net2 = __toESM(require("net"), 1);
+    import_fs13 = __toESM(require("fs"), 1);
+    import_path15 = __toESM(require("path"), 1);
     import_url5 = require("url");
     import_zod_to_json_schema2 = require("zod-to-json-schema");
     krnlSystemEntityBase = class extends krnlEntityBase {
@@ -8337,7 +7714,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         } else if (options.sourcePath) {
           try {
             const resolved = options.sourcePath.startsWith("file:") ? (0, import_url5.fileURLToPath)(options.sourcePath) : options.sourcePath;
-            dataDir = import_path13.default.dirname(resolved);
+            dataDir = import_path15.default.dirname(resolved);
           } catch (_) {
           }
         }
@@ -8393,9 +7770,9 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
        */
       async _validateBootManifestDependencies() {
         try {
-          const manifestPath = import_path13.default.join(this._entityDataDir, "krnl.json");
-          if (!import_fs11.default.existsSync(manifestPath)) return;
-          const content = import_fs11.default.readFileSync(manifestPath, "utf-8");
+          const manifestPath = import_path15.default.join(this._entityDataDir, "krnl.json");
+          if (!import_fs13.default.existsSync(manifestPath)) return;
+          const content = import_fs13.default.readFileSync(manifestPath, "utf-8");
           const manifest = JSON.parse(content);
           if (!manifest.dependencies?.requiredRemotes) return;
           const availableEntities = /* @__PURE__ */ new Set();
@@ -8551,24 +7928,6 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
       async joinIngressNetwork(config) {
         return this.joinSiblingNetwork(config);
       }
-      async startCustomFrontend(name, appPath, options) {
-        try {
-          if (!this._siblingNetwork) {
-            this._siblingNetwork = new KrnlSiblingNetwork();
-            const discoveryPort = this.commPort > 0 ? this.commPort + 1e3 : 10101;
-            await this.startDiscovery(discoveryPort);
-          }
-          return await this._siblingNetwork.addFrontendMember(this, { name, appPath, options });
-        } catch (err) {
-          console.error(`[startCustomFrontend] Error starting custom frontend '${name}':`, err);
-          throw err;
-        }
-      }
-      async stopCustomFrontend(name, prefix = "modules") {
-        if (!this._ingressNetwork) return false;
-        const key = `${prefix}/${name.toLowerCase()}`;
-        return await this._ingressNetwork.removeMember(this, key);
-      }
       /**
        * getSiblingNetworkTopology (formerly getIngressNetworkTopology)
        *
@@ -8646,10 +8005,10 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         }
         return response;
       }
-      getNotFoundResponse(path16) {
+      getNotFoundResponse(path17) {
         const response = {
           status: "error",
-          message: `Route '${path16}' not found.`
+          message: `Route '${path17}' not found.`
         };
         if (this._documentationProvider && typeof this._documentationProvider.getDocsForLayer === "function") {
           const entryPoints = this._documentationProvider.getDocsForLayer("LAYER_1_ENTRY");
@@ -8725,7 +8084,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
       // ── Port Snapshot File ────────────────────────────────────────────────────
       /** Absolute path of the JSON port snapshot co-located with the assembler. */
       _getPortsFilePath() {
-        return import_path13.default.join(this._entityDataDir, `${this.entityName}.ports.json`);
+        return import_path15.default.join(this._entityDataDir, `${this.entityName}.ports.json`);
       }
       /**
        * _writePortsFile — persists portRegistry to disk.
@@ -8740,11 +8099,11 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
           ports: this.getRegisteredPorts()
         }, null, 2);
         try {
-          const dir = import_path13.default.dirname(filePath);
-          if (!import_fs11.default.existsSync(dir)) {
-            await import_fs11.default.promises.mkdir(dir, { recursive: true });
+          const dir = import_path15.default.dirname(filePath);
+          if (!import_fs13.default.existsSync(dir)) {
+            await import_fs13.default.promises.mkdir(dir, { recursive: true });
           }
-          await import_fs11.default.promises.writeFile(filePath, snapshot);
+          await import_fs13.default.promises.writeFile(filePath, snapshot);
         } catch (err) {
           Logger.error(`[${this.entityName}] Ports file write failed:`, err);
         }
@@ -8753,8 +8112,8 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
       _deletePortsFile() {
         const filePath = this._getPortsFilePath();
         try {
-          if (import_fs11.default.existsSync(filePath)) {
-            import_fs11.default.unlinkSync(filePath);
+          if (import_fs13.default.existsSync(filePath)) {
+            import_fs13.default.unlinkSync(filePath);
           }
         } catch (_) {
         }
@@ -8779,7 +8138,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         const cap = Math.min(preferred + 100, 65535);
         for (let port = preferred; port <= cap; port++) {
           const available = await new Promise((resolve) => {
-            const probe = import_net3.default.createServer();
+            const probe = import_net2.default.createServer();
             probe.once("error", () => resolve(false));
             probe.listen(port, host, () => probe.close(() => setTimeout(() => resolve(true), 50)));
           });
@@ -9032,7 +8391,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
             let ready = false;
             while (Date.now() - start < timeout) {
               ready = await new Promise((resolve) => {
-                const probe = import_net3.default.connect(assignedPort, "127.0.0.1");
+                const probe = import_net2.default.connect(assignedPort, "127.0.0.1");
                 probe.on("connect", () => {
                   probe.destroy();
                   resolve(true);
@@ -9253,7 +8612,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         if (this._isSubApp || this._isIngressNetworkMember) return;
         if (this._sharedServer) return;
         const resolvedPort = await this._probeAvailablePort(this._preferredPort, this.host);
-        this._sharedServer = import_http4.default.createServer();
+        this._sharedServer = import_http3.default.createServer();
         if (!this.unifiedHttpAdapter) {
           const { krnlUnifiedHttpAdapter: krnlUnifiedHttpAdapter2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_System_Unified_Http_Adapter(), K_LIB_Krnl_System_Unified_Http_Adapter_exports));
           this.unifiedHttpAdapter = new krnlUnifiedHttpAdapter2(this, resolvedPort, this.host);
@@ -9628,20 +8987,19 @@ __export(index_exports, {
   AsyncKit: () => AsyncKit,
   CUSTOM_ERROR_CODE: () => CUSTOM_ERROR_CODE,
   CacheKit: () => CacheKit,
-  DasyJS: () => DasyJS,
   FileCache: () => FileCache,
   FileLock: () => FileLock,
   GitManager: () => GitManager,
   KrnlAcpProtocol: () => KrnlAcpProtocol,
   KrnlAikoClient: () => KrnlAikoClient,
   KrnlApplicationOrchestrator: () => KrnlApplicationOrchestrator,
-  KrnlBlockContainerAdapter: () => KrnlBlockContainerAdapter,
   KrnlEndpointAgent: () => KrnlEndpointAgent,
   KrnlEndpointScheduler: () => KrnlEndpointScheduler,
   KrnlEnv: () => KrnlEnv,
   KrnlFS: () => KrnlFS,
   KrnlFrontend: () => KrnlFrontend,
-  KrnlFrontendAdapter: () => KrnlFrontendAdapter,
+  KrnlFrontendBuilder: () => KrnlFrontendBuilder,
+  KrnlFrontendGenerator: () => KrnlFrontendGenerator,
   KrnlHTTP: () => KrnlHTTP,
   KrnlIngressNetwork: () => KrnlIngressNetwork,
   KrnlMagneticLoader: () => KrnlMagneticLoader,
@@ -9669,7 +9027,6 @@ __export(index_exports, {
   buildEntityIntention: () => buildEntityIntention,
   createEnum: () => createEnum,
   defaultConnectionBehaviour: () => defaultConnectionBehaviour,
-  krnlBackendVisualEntityBase: () => krnlBackendVisualEntityBase,
   krnlCollector: () => krnlCollector,
   krnlData: () => krnlData,
   krnlDataFactory: () => krnlDataFactory,
@@ -9798,240 +9155,8 @@ init_K_LIB_Krnl_SubApp_Worker_Host();
 init_K_LIB_Krnl_System_Magnetic_Loader();
 init_K_LIB_Krnl_System_App_Adapter();
 init_K_LIB_Krnl_System_Frontend();
-init_K_LIB_Krnl_System_Frontend_Adapter();
-
-// src/krnl/core/K_LIB_Krnl_Block_Container_Adapter.ts
-var import_fs12 = __toESM(require("fs"), 1);
-var import_path14 = __toESM(require("path"), 1);
-init_K_LIB_Krnl_System_Frontend_Adapter();
-var KrnlBlockContainerAdapter = class extends KrnlFrontendAdapter {
-  blocksDir;
-  discoveredBlocks = /* @__PURE__ */ new Map();
-  blockWatcher = null;
-  constructor(name, containerRoot, options = {}) {
-    const appPath = import_fs12.default.existsSync(import_path14.default.join(containerRoot, "app")) ? import_path14.default.join(containerRoot, "app") : containerRoot;
-    super(name, appPath, options);
-    this.blocksDir = import_path14.default.join(containerRoot, "nextjs-blocks");
-    const parentHandleRequest = this.unifiedHttpAdapter._handleRequest.bind(this.unifiedHttpAdapter);
-    this.unifiedHttpAdapter._handleRequest = async (req, res) => {
-      const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
-      const pathname = url.pathname;
-      if (pathname === "/api/blocks" && req.method === "GET") {
-        res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-        res.end(JSON.stringify(this.getBlocksManifest()));
-        return;
-      }
-      if (pathname.startsWith("/api/blocks/") && req.method === "GET") {
-        const parts = pathname.split("/");
-        const blockId = parts[3];
-        const block = this.discoveredBlocks.get(blockId);
-        if (!block) {
-          res.writeHead(404, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-          res.end(JSON.stringify({ status: "error", message: `Block ${blockId} not found` }));
-          return;
-        }
-        if (parts[4] === "routes") {
-          res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-          res.end(JSON.stringify(block.routes));
-          return;
-        }
-        if (parts[4] === "apis") {
-          res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-          res.end(JSON.stringify(block.apis));
-          return;
-        }
-        res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-        res.end(JSON.stringify(block));
-        return;
-      }
-      if (pathname === "/api/routes" && req.method === "GET") {
-        const allRoutes = this.getBlocksManifest().flatMap((b) => b.routes.map((r) => ({ ...r, blockId: b.id })));
-        res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-        res.end(JSON.stringify(allRoutes));
-        return;
-      }
-      if (pathname === "/api/apis" && req.method === "GET") {
-        const allApis = this.getBlocksManifest().flatMap((b) => b.apis.map((a) => ({ ...a, blockId: b.id })));
-        res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-        res.end(JSON.stringify(allApis));
-        return;
-      }
-      if (pathname === "/api/manifests" && req.method === "GET") {
-        res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-        res.end(JSON.stringify({
-          containerName: this.entityName,
-          blocks: this.getBlocksManifest()
-        }));
-        return;
-      }
-      await parentHandleRequest(req, res);
-    };
-  }
-  async startApp() {
-    await this.loadBlocks();
-    this.setupBlockWatcher();
-    await super.startApp();
-  }
-  async loadBlocks() {
-    if (!import_fs12.default.existsSync(this.blocksDir)) {
-      import_fs12.default.mkdirSync(this.blocksDir, { recursive: true });
-    }
-    const entries = import_fs12.default.readdirSync(this.blocksDir, { withFileTypes: true });
-    const newDiscovered = /* @__PURE__ */ new Map();
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const blockId = entry.name;
-        const blockPath = import_path14.default.join(this.blocksDir, blockId);
-        try {
-          const desc = await this.scanBlock(blockId, blockPath);
-          newDiscovered.set(blockId, desc);
-        } catch (err) {
-          console.error(`[KrnlBlockContainerAdapter:${this.entityName}] Failed to scan block ${blockId}:`, err.message);
-        }
-      }
-    }
-    this.discoveredBlocks = newDiscovered;
-    console.log(`[KrnlBlockContainerAdapter:${this.entityName}] Discovered ${this.discoveredBlocks.size} blocks.`);
-  }
-  setupBlockWatcher() {
-    if (this.options.mode === "prod") return;
-    try {
-      this.blockWatcher = import_fs12.default.watch(this.blocksDir, { recursive: false }, () => {
-        this.loadBlocks().catch(console.error);
-      });
-    } catch (err) {
-      console.warn(`[KrnlBlockContainerAdapter:${this.entityName}] Failed to start block directory watcher:`, err.message);
-    }
-  }
-  async scanBlock(blockId, blockPath) {
-    let name = blockId;
-    let version = "1.0.0";
-    const pkgPath = import_path14.default.join(blockPath, "package.json");
-    if (import_fs12.default.existsSync(pkgPath)) {
-      try {
-        const pkg = JSON.parse(import_fs12.default.readFileSync(pkgPath, "utf8"));
-        name = pkg.displayName || pkg.name || blockId;
-        version = pkg.version || "1.0.0";
-      } catch (_) {
-      }
-    }
-    const blockTsPath = import_path14.default.join(blockPath, "block.ts");
-    const blockJsPath = import_path14.default.join(blockPath, "block.js");
-    if (import_fs12.default.existsSync(blockTsPath) || import_fs12.default.existsSync(blockJsPath)) {
-      try {
-        const imported = await (import_fs12.default.existsSync(blockTsPath) ? import(blockTsPath) : import(blockJsPath));
-        if (imported.block) {
-          name = imported.block.name || name;
-          version = imported.block.version || version;
-        }
-      } catch (_) {
-      }
-    }
-    const routes = [];
-    const apis = [];
-    const pagesDir = import_path14.default.join(blockPath, "pages");
-    const appDir = import_path14.default.join(blockPath, "app");
-    if (import_fs12.default.existsSync(pagesDir)) {
-      this._findPagesRoutesRecursive(pagesDir, pagesDir, routes, apis);
-    }
-    if (import_fs12.default.existsSync(appDir)) {
-      this._findAppRoutesRecursive(appDir, appDir, routes, apis);
-    }
-    return {
-      id: blockId,
-      name,
-      version,
-      routes,
-      apis
-    };
-  }
-  _findPagesRoutesRecursive(dir, baseDir, routes, apis) {
-    const files = import_fs12.default.readdirSync(dir);
-    for (const file of files) {
-      const fullPath = import_path14.default.join(dir, file);
-      const stat = import_fs12.default.statSync(fullPath);
-      if (stat.isDirectory()) {
-        this._findPagesRoutesRecursive(fullPath, baseDir, routes, apis);
-      } else if (file.endsWith(".ts") || file.endsWith(".js") || file.endsWith(".tsx") || file.endsWith(".jsx")) {
-        const rel = import_path14.default.relative(baseDir, fullPath);
-        const withoutExt = rel.substring(0, rel.lastIndexOf("."));
-        const routePath = withoutExt.replace(/\\/g, "/");
-        if (file.startsWith("_app.") || file.startsWith("_document.") || file.startsWith("_error.")) {
-          continue;
-        }
-        if (routePath.startsWith("api/")) {
-          apis.push({
-            path: `/${routePath}`,
-            methods: ["GET", "POST", "PUT", "DELETE"]
-          });
-          routes.push({
-            path: `/${routePath}`,
-            type: "api"
-          });
-        } else {
-          routes.push({
-            path: routePath === "index" ? "/" : `/${routePath}`,
-            type: "page"
-          });
-        }
-      }
-    }
-  }
-  _findAppRoutesRecursive(dir, baseDir, routes, apis) {
-    const files = import_fs12.default.readdirSync(dir);
-    for (const file of files) {
-      const fullPath = import_path14.default.join(dir, file);
-      const stat = import_fs12.default.statSync(fullPath);
-      if (stat.isDirectory()) {
-        this._findAppRoutesRecursive(fullPath, baseDir, routes, apis);
-      } else if (file.endsWith(".ts") || file.endsWith(".js") || file.endsWith(".tsx") || file.endsWith(".jsx")) {
-        const isRouteFile = file === "route.ts" || file === "route.js";
-        const isPageFile = file === "page.tsx" || file === "page.ts" || file === "page.js";
-        const isLayoutFile = file === "layout.tsx" || file === "layout.ts" || file === "layout.js";
-        if (isRouteFile || isPageFile || isLayoutFile) {
-          const dirIndex = dir.indexOf("app");
-          let routePath = dir.substring(dirIndex + 3).replace(/\\/g, "/");
-          if (!routePath.startsWith("/")) {
-            routePath = "/" + routePath;
-          }
-          if (routePath === "") routePath = "/";
-          if (isRouteFile) {
-            apis.push({
-              path: routePath,
-              methods: ["GET", "POST", "PUT", "DELETE"]
-            });
-            routes.push({
-              path: routePath,
-              type: "api"
-            });
-          } else if (isPageFile) {
-            routes.push({
-              path: routePath,
-              type: "page"
-            });
-          } else if (isLayoutFile) {
-            routes.push({
-              path: routePath,
-              type: "layout"
-            });
-          }
-        }
-      }
-    }
-  }
-  getBlocksManifest() {
-    return Array.from(this.discoveredBlocks.values());
-  }
-  dispose() {
-    if (this.blockWatcher) {
-      this.blockWatcher.close();
-      this.blockWatcher = null;
-    }
-    super.dispose();
-  }
-};
-
-// src/krnl/core/index.ts
+init_K_LIB_Krnl_Frontend_Generator();
+init_K_LIB_Krnl_Frontend_Builder();
 init_K_LIB_Krnl_Registry_Client();
 init_K_LIB_Krnl_Telemetry();
 
@@ -10068,180 +9193,6 @@ init_K_LIB_Krnl_Runtime_Store();
 init_K_LIB_Krnl_Task_Runner();
 init_K_LIB_Krnl_Planner_Agent();
 init_krnl_pb();
-
-// src/krnl/extensions/K_ENT_Krnl_Backend_Visual_Entity_Base.js
-init_K_ENT_Krnl_Entity_Base();
-
-// src/krnl/extensions/K_LIB_Krnl_Backend_Visual_Functionality_APIs.js
-function setBrndaComponentApi(entity) {
-  return (config = {}) => {
-    entity.brndaConfig = { ...entity.brndaConfig, ...config };
-    console.log(`[${entity.entityName}] Brnda config updated:`, entity.brndaConfig);
-    return entity.brndaConfig;
-  };
-}
-function setWeprComponentApi(entity) {
-  return (config = {}) => {
-    entity.weprConfig = { ...entity.weprConfig, ...config };
-    console.log(`[${entity.entityName}] Wepr config updated:`, entity.weprConfig);
-    return entity.weprConfig;
-  };
-}
-function setVisualCoreApi(entity) {
-  return (patch = {}) => {
-    entity.visualCore = {
-      ...entity.visualCore,
-      ...patch,
-      position: { ...entity.visualCore.position, ...patch.position },
-      rotation: { ...entity.visualCore.rotation, ...patch.rotation },
-      scale: { ...entity.visualCore.scale, ...patch.scale }
-    };
-    return entity.visualCore;
-  };
-}
-function getVisualSnapshotApi(entity) {
-  return () => entity.visualCore;
-}
-function syncAllFrontendsApi(entity) {
-  return async () => {
-    console.log(`[${entity.entityName}] Syncing all frontends...`);
-    return { status: "synced", timestamp: Date.now() };
-  };
-}
-
-// src/krnl/extensions/K_ENT_Krnl_Backend_Visual_Entity_Base.js
-var krnlBackendVisualEntityBase = class extends krnlEntityBase {
-  constructor(name, owner = null) {
-    super(name, owner);
-    this.visualCore = {
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      scale: { x: 1, y: 1, z: 1 },
-      visible: true,
-      color: "#ffffff"
-    };
-    this._setupVisualFunctionalities();
-  }
-  _setupVisualFunctionalities() {
-    this.addLocal({
-      id: "setBrndaComponent",
-      api: setBrndaComponentApi(this)
-    });
-    this.addLocal({
-      id: "setWeprComponent",
-      api: setWeprComponentApi(this)
-    });
-    this.addLocal({
-      id: "setVisualCore",
-      api: setVisualCoreApi(this)
-    });
-    this.addLocal({
-      id: "getVisualSnapshot",
-      api: getVisualSnapshotApi(this)
-    });
-    this.addLocal({
-      id: "syncAllFrontends",
-      api: syncAllFrontendsApi(this)
-    });
-  }
-  getVisualSnapshot() {
-    return { ...this.visualCore };
-  }
-};
-
-// src/krnl/extensions/K_LIB_Dasy_JS.js
-var DasyJS = class {
-  constructor(rootName = "dasy-root") {
-    this.rootName = rootName;
-    this.rootDir = null;
-  }
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////// INITIALIZATION AND PATH RESOLUTION ///////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  /**
-   * Initializes the file system access.
-   */
-  async init() {
-    const storageRoot = await navigator.storage.getDirectory();
-    this.rootDir = await storageRoot.getDirectoryHandle(this.rootName, {
-      create: true
-    });
-  }
-  /**
-   * Resolves a user path into normalized parts.
-   * @param {string} userPath 
-   * @returns {string[]}
-   */
-  resolve(userPath) {
-    const trimmed = (userPath || "").trim();
-    if (!trimmed) throw new Error("invalid path");
-    const relative = trimmed.replace(/^\/+/, "");
-    const normalized = relative.replace(/\\/g, "/");
-    if (normalized.includes("..")) {
-      throw new Error("invalid path");
-    }
-    return normalized.split("/").filter(Boolean);
-  }
-  /**
-   * Internal helper to get a file handle.
-   */
-  async getFileHandle(pathParts, create = false) {
-    let current = this.rootDir;
-    for (let i = 0; i < pathParts.length - 1; i++) {
-      current = await current.getDirectoryHandle(pathParts[i], { create });
-    }
-    return current.getFileHandle(pathParts.at(-1), { create });
-  }
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////// FILE OPERATIONS //////////////////////////////////////////////////
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  async createFile(filePath) {
-    const parts = this.resolve(filePath);
-    await this.getFileHandle(parts, true);
-  }
-  async deleteFile(filePath) {
-    const parts = this.resolve(filePath);
-    let current = this.rootDir;
-    for (let i = 0; i < parts.length - 1; i++) {
-      current = await current.getDirectoryHandle(parts[i]);
-    }
-    try {
-      await current.removeEntry(parts.at(-1));
-    } catch (err) {
-      if (err.name !== "NotFoundError") throw err;
-    }
-  }
-  async duplicateFile(source, destination) {
-    const data = await this.readBytes(source);
-    await this.writeBytes(destination, data);
-  }
-  async writeText(filePath, data) {
-    const parts = this.resolve(filePath);
-    const handle = await this.getFileHandle(parts, true);
-    const writable = await handle.createWritable();
-    await writable.write(data);
-    await writable.close();
-  }
-  async readText(filePath) {
-    const parts = this.resolve(filePath);
-    const handle = await this.getFileHandle(parts);
-    const file = await handle.getFile();
-    return file.text();
-  }
-  async writeBytes(filePath, data) {
-    const parts = this.resolve(filePath);
-    const handle = await this.getFileHandle(parts, true);
-    const writable = await handle.createWritable();
-    await writable.write(data);
-    await writable.close();
-  }
-  async readBytes(filePath) {
-    const parts = this.resolve(filePath);
-    const handle = await this.getFileHandle(parts);
-    const file = await handle.getFile();
-    return file.arrayBuffer();
-  }
-};
 
 // src/index.ts
 init_tools();
@@ -10465,20 +9416,19 @@ var PocerBlock = class extends krnlSystemEntityBase {
   AsyncKit,
   CUSTOM_ERROR_CODE,
   CacheKit,
-  DasyJS,
   FileCache,
   FileLock,
   GitManager,
   KrnlAcpProtocol,
   KrnlAikoClient,
   KrnlApplicationOrchestrator,
-  KrnlBlockContainerAdapter,
   KrnlEndpointAgent,
   KrnlEndpointScheduler,
   KrnlEnv,
   KrnlFS,
   KrnlFrontend,
-  KrnlFrontendAdapter,
+  KrnlFrontendBuilder,
+  KrnlFrontendGenerator,
   KrnlHTTP,
   KrnlIngressNetwork,
   KrnlMagneticLoader,
@@ -10506,7 +9456,6 @@ var PocerBlock = class extends krnlSystemEntityBase {
   buildEntityIntention,
   createEnum,
   defaultConnectionBehaviour,
-  krnlBackendVisualEntityBase,
   krnlCollector,
   krnlData,
   krnlDataFactory,

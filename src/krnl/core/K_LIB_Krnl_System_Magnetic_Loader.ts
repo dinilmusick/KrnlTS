@@ -86,45 +86,53 @@ export class KrnlMagneticLoader {
       }
     }
 
-    // 4. Auto-enable frontend if frontend/default folder exists
-    const frontendDir = path.join(baseDir, 'frontend', 'default');
-    if (fs.existsSync(frontendDir) && !isSubApp) {
-      const configPath = path.join(frontendDir, 'krnl-frontend.json');
-      let frontendOptions: any = { title: entity.entityName, theme: 'dark' };
-      if (fs.existsSync(configPath)) {
-        try {
-          const content = fs.readFileSync(configPath, 'utf-8');
-          frontendOptions = { ...frontendOptions, ...JSON.parse(content) };
-        } catch (_) {}
+    // 4. Handle unified frontend folder & sub-app frontend aggregation
+    let frontendDir = path.join(baseDir, 'frontend');
+    const oldFrontendsDir = path.join(baseDir, 'frontends');
+
+    // Auto-rename legacy 'frontends' directory to 'frontend' if present
+    if (!fs.existsSync(frontendDir) && fs.existsSync(oldFrontendsDir)) {
+      try {
+        fs.renameSync(oldFrontendsDir, frontendDir);
+        console.log(`[MagneticLoader] Renamed legacy 'frontends/' directory to 'frontend/' on '${entity.entityName}'.`);
+      } catch (err: any) {
+        console.warn(`[MagneticLoader] Failed to rename 'frontends/' -> 'frontend/': ${err.message}`);
       }
-      entity.enableFrontend(frontendOptions);
-      console.log(`[MagneticLoader] Auto-enabled default frontend for '${entity.entityName}' (found frontend/default folder).`);
     }
 
-    // 5. Scan and load custom frontends under frontend/ or frontends/ (except 'default')
-    let generalFrontendDir = path.join(baseDir, 'frontend');
-    if (!fs.existsSync(generalFrontendDir)) {
-      generalFrontendDir = path.join(baseDir, 'frontends');
-    }
-    if (fs.existsSync(generalFrontendDir) && !isSubApp) {
-      const entries = await fs.promises.readdir(generalFrontendDir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (entry.isDirectory() && entry.name !== 'default') {
-          const appPath = path.join(generalFrontendDir, entry.name);
-          if (fs.existsSync(path.join(appPath, 'package.json')) || fs.existsSync(path.join(appPath, 'krnl-frontend.json'))) {
-            let options: any = {};
-            const configPath = path.join(appPath, 'krnl-frontend.json');
-            if (fs.existsSync(configPath)) {
-              try {
-                options = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-              } catch (_) {}
+    if (fs.existsSync(frontendDir) && !isSubApp) {
+      entity.enableFrontend({ frontendDir });
+
+      // Register sub-app frontends with parent frontend
+      if (entity._subAppRegistry && entity._frontend) {
+        for (const [prefix, entry] of entity._subAppRegistry.entries()) {
+          const subAppDir = (entry.entity as any)?._entityDataDir;
+          if (subAppDir) {
+            const subFrontend = path.join(subAppDir, 'frontend');
+            if (fs.existsSync(subFrontend)) {
+              entity._frontend.registerSubAppFrontend(prefix, subFrontend);
             }
-            console.log(`[MagneticLoader] Detected custom frontend '${entry.name}' at '${appPath}'. Registering...`);
-            entity.startCustomFrontend(entry.name, appPath, options).catch((err: any) => {
-              console.error(`[MagneticLoader] Custom frontend '${entry.name}' startup error:`, err.message || err);
-            });
           }
         }
+      }
+
+      // Generate React component code programmatically based on endpoint uiSpecs
+      try {
+        const { KrnlFrontendGenerator } = await import('./K_LIB_Krnl_Frontend_Generator.js');
+        await KrnlFrontendGenerator.generate(entity, frontendDir);
+      } catch (err: any) {
+        console.error(`[MagneticLoader] Frontend generator error on '${entity.entityName}':`, err.message || err);
+      }
+
+      // Build bundle in-process using esbuild
+      try {
+        const { KrnlFrontendBuilder } = await import('./K_LIB_Krnl_Frontend_Builder.js');
+        await KrnlFrontendBuilder.build(frontendDir);
+        if (process.env.NODE_ENV !== 'production') {
+          await KrnlFrontendBuilder.watch(frontendDir);
+        }
+      } catch (err: any) {
+        console.error(`[MagneticLoader] Frontend builder error on '${entity.entityName}':`, err.message || err);
       }
     }
 

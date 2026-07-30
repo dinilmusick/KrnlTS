@@ -61,6 +61,9 @@ export interface KrnlEndpointDefinition {
   memory: string;                 // Orchestrator-written learnings for this EP
                                   // (freeform text; injected into EP agent context)
 
+  // ── UI Specification ──────────────────────────
+  uiSpec?: import("./types.js").KrnlUiSpec;
+
   // ── Runtime State ────────────────────────────
   runtimeEdited: boolean;         // true if any field has been overridden in KrnlRuntimeStore
 }

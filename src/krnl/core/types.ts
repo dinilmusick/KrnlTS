@@ -183,53 +183,30 @@ export interface KrnlSubAppEntry {
   addedAt:       number;
 }
 
+export interface KrnlUiFieldSpec {
+  field: string;
+  component: 'KrnlTextInput' | 'KrnlNumberInput' | 'KrnlToggle' | 'KrnlDropdown' 
+           | 'KrnlTextArea' | 'KrnlJsonInput' | 'KrnlJsonViewer' | 'KrnlCarousel' 
+           | 'KrnlTile' | 'KrnlSSELog';
+  label?: string;
+  options?: string[];
+  placeholder?: string;
+}
+
+export interface KrnlUiSpec {
+  ui_component_enabled: boolean;
+  ui_component_type?: 'form' | 'dashboard_tile' | 'monitor' | 'carousel';
+  inputs?: KrnlUiFieldSpec[];
+  outputs?: KrnlUiFieldSpec[];
+}
+
 export interface KrnlFrontendOptions {
   title?: string;
   theme?: 'dark' | 'light';
   logoUrl?: string;
   enableMonitoringApi?: boolean;
   customCss?: string;
-}
-
-export interface KrnlCustomFrontendOptions {
-  mode?: 'dev' | 'prod';
-  startupTimeoutMs?: number;
-  env?: Record<string, string>;
-  backendPort?: number;
-  backendHost?: string;
-  frontendPrefix?: string;
-}
-
-export interface KrnlFrontendMemberConfig {
-  name: string;
-  appPath: string;
-  options?: KrnlCustomFrontendOptions;
-}
-
-export interface KrnlBridgeDescriptor {
-  name: string;
-  backendPort?: number;
-  backendHost?: string;
-  on?: Record<string, (data: any, adapter: any) => void>;
-  expose?: string[];
-}
-
-export interface BlockRoute {
-  path: string;
-  type: 'page' | 'layout' | 'api';
-}
-
-export interface BlockApiEndpoint {
-  path: string;
-  methods: string[];
-}
-
-export interface BlockDescriptor {
-  id: string;
-  name: string;
-  version?: string;
-  routes: BlockRoute[];
-  apis: BlockApiEndpoint[];
+  frontendDir?: string;
 }
 
 export type {

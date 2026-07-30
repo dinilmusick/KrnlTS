@@ -1,0 +1,15 @@
+:root {
+  --krnl-font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --krnl-font-mono: 'JetBrains Mono', monospace;
+  --krnl-bg-base: #0a0e17;
+  --krnl-bg-surface: rgba(22, 28, 45, 0.65);
+  --krnl-border-color: rgba(255, 255, 255, 0.08);
+  --krnl-text-main: #f8fafc;
+  --krnl-text-muted: #94a3b8;
+  --krnl-primary: #3b82f6;
+  --krnl-primary-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  --krnl-accent: #10b981;
+  --krnl-danger: #ef4444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--krnl-font-sans); background: var(--krnl-bg-base); color: var(--krnl-text-main); }

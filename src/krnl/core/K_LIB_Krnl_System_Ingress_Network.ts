@@ -33,8 +33,7 @@
  */
 
 import type { krnlSystemEntityBase } from "./K_ENT_Krnl_System_Entity_Base.js";
-import { KrnlIngressNetworkMemberConfig, KrnlFrontendMemberConfig } from "./types.js";
-import { KrnlFrontendAdapter } from "./K_LIB_Krnl_System_Frontend_Adapter.js";
+import { KrnlIngressNetworkMemberConfig } from "./types.js";
 import http from 'http';
 import path from 'path';
 
@@ -46,9 +45,9 @@ import path from 'path';
  */
 export interface SiblingMemberEntry {
   entity:      any;
-  config:      KrnlIngressNetworkMemberConfig | KrnlFrontendMemberConfig;
+  config:      KrnlIngressNetworkMemberConfig;
   addedAt:     number;
-  memberType?: 'sibling' | 'frontend';
+  memberType?: 'sibling';
 }
 
 /** @deprecated Use SiblingMemberEntry. Alias for backward compatibility. */
@@ -126,49 +125,7 @@ export class KrnlSiblingNetwork {
     return entity;
   }
 
-  /**
-   * addFrontendMember — adds a custom frontend (static file server / SPA) to the sibling network.
-   */
-  async addFrontendMember(admin: any, config: KrnlFrontendMemberConfig): Promise<any> {
-    const prefix = config.options?.frontendPrefix || 'frontend';
-    const key = `${prefix}/${config.name.toLowerCase()}`;
-    if (this.members.has(key)) {
-      console.log(`[SiblingNetwork] Frontend member '${key}' already registered. Returning existing entity.`);
-      return this.members.get(key)!.entity;
-    }
 
-    const options = { ...config.options };
-    if (!options.backendPort || options.backendPort <= 0) {
-      options.backendPort = admin.commPort > 0 ? admin.commPort : (admin as any).options?.commPort || 10099;
-    }
-    if (!options.backendHost) {
-      const rawHost = admin.host;
-      options.backendHost = (rawHost === '::' || rawHost === '0.0.0.0' || rawHost === '') ? 'localhost' : rawHost;
-    }
-
-    const adapter = new KrnlFrontendAdapter(config.name, config.appPath, options);
-
-    adapter._isIngressNetworkMember = true;
-    if (typeof (adapter as any)._resolveReady === 'function') {
-      (adapter as any)._resolveReady();
-    }
-
-    admin.hierarchyManager.addComponentEntityInstance(adapter);
-    await admin.registerPort(key, -1);
-
-    this.members.set(key, {
-      entity:     adapter,
-      config,
-      addedAt:    Date.now(),
-      memberType: 'frontend'
-    });
-
-    adapter.startApp().catch((err: any) => {
-      console.error(`[SiblingNetwork] Frontend '${config.name}' startApp failed:`, err.message || err);
-    });
-
-    return adapter;
-  }
 
   /**
    * removeMember — removes a sibling from the peer network.

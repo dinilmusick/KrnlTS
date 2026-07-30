@@ -2,9 +2,9 @@ import { z } from 'zod';
 import http from 'http';
 import { Worker } from 'worker_threads';
 import { AsyncLocalStorage } from 'async_hooks';
-import fs from 'fs';
 import * as $protobuf from 'protobufjs';
 import Long from 'long';
+import fs from 'fs';
 import { ExecOptions, SpawnOptions } from 'child_process';
 import http$1 from 'node:http';
 
@@ -350,6 +350,7 @@ interface KrnlEndpointDefinition {
     emitters: string[];
     sourcePath: string | null;
     memory: string;
+    uiSpec?: KrnlUiSpec;
     runtimeEdited: boolean;
 }
 interface KrnlOrchestratorMemory {
@@ -566,47 +567,26 @@ interface KrnlSubAppEntry {
     entity: any;
     addedAt: number;
 }
+interface KrnlUiFieldSpec {
+    field: string;
+    component: 'KrnlTextInput' | 'KrnlNumberInput' | 'KrnlToggle' | 'KrnlDropdown' | 'KrnlTextArea' | 'KrnlJsonInput' | 'KrnlJsonViewer' | 'KrnlCarousel' | 'KrnlTile' | 'KrnlSSELog';
+    label?: string;
+    options?: string[];
+    placeholder?: string;
+}
+interface KrnlUiSpec {
+    ui_component_enabled: boolean;
+    ui_component_type?: 'form' | 'dashboard_tile' | 'monitor' | 'carousel';
+    inputs?: KrnlUiFieldSpec[];
+    outputs?: KrnlUiFieldSpec[];
+}
 interface KrnlFrontendOptions {
     title?: string;
     theme?: 'dark' | 'light';
     logoUrl?: string;
     enableMonitoringApi?: boolean;
     customCss?: string;
-}
-interface KrnlCustomFrontendOptions {
-    mode?: 'dev' | 'prod';
-    startupTimeoutMs?: number;
-    env?: Record<string, string>;
-    backendPort?: number;
-    backendHost?: string;
-    frontendPrefix?: string;
-}
-interface KrnlFrontendMemberConfig {
-    name: string;
-    appPath: string;
-    options?: KrnlCustomFrontendOptions;
-}
-interface KrnlBridgeDescriptor {
-    name: string;
-    backendPort?: number;
-    backendHost?: string;
-    on?: Record<string, (data: any, adapter: any) => void>;
-    expose?: string[];
-}
-interface BlockRoute {
-    path: string;
-    type: 'page' | 'layout' | 'api';
-}
-interface BlockApiEndpoint {
-    path: string;
-    methods: string[];
-}
-interface BlockDescriptor {
-    id: string;
-    name: string;
-    version?: string;
-    routes: BlockRoute[];
-    apis: BlockApiEndpoint[];
+    frontendDir?: string;
 }
 
 interface KrnlEventIntention {
@@ -1098,9 +1078,9 @@ declare class krnlUnifiedHttpAdapter {
  */
 interface SiblingMemberEntry {
     entity: any;
-    config: KrnlIngressNetworkMemberConfig | KrnlFrontendMemberConfig;
+    config: KrnlIngressNetworkMemberConfig;
     addedAt: number;
-    memberType?: 'sibling' | 'frontend';
+    memberType?: 'sibling';
 }
 /** @deprecated Use SiblingMemberEntry. Alias for backward compatibility. */
 type IngressMemberEntry = SiblingMemberEntry;
@@ -1124,10 +1104,6 @@ declare class KrnlSiblingNetwork {
      * ⚠ Do not call this for sub-apps. Use entity.loadSubApps() instead.
      */
     addMember(admin: krnlSystemEntityBase, config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase>;
-    /**
-     * addFrontendMember — adds a custom frontend (static file server / SPA) to the sibling network.
-     */
-    addFrontendMember(admin: any, config: KrnlFrontendMemberConfig): Promise<any>;
     /**
      * removeMember — removes a sibling from the peer network.
      */
@@ -1155,11 +1131,13 @@ type KrnlIngressNetwork = KrnlSiblingNetwork;
 declare class KrnlFrontend {
     system: any;
     options: KrnlFrontendOptions;
+    frontendDir: string;
+    subAppFrontendDirs: Map<string, string>;
     interactionsHistory: any[];
     constructor(system: any, options?: KrnlFrontendOptions);
+    registerSubAppFrontend(prefix: string, subFrontendDir: string): void;
     handleRequest(req: http.IncomingMessage, res: http.ServerResponse, subpath: string): Promise<void>;
-    _readJsonBody(req: http.IncomingMessage): Promise<any>;
-    _generatePageHtml(): string;
+    private _readJsonBody;
 }
 
 declare class KrnlAikoClient {
@@ -1498,8 +1476,6 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
     joinSiblingNetwork(config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase>;
     /** @deprecated Use joinSiblingNetwork(). */
     joinIngressNetwork(config: KrnlIngressNetworkMemberConfig): Promise<krnlSystemEntityBase>;
-    startCustomFrontend(name: string, appPath: string, options?: KrnlCustomFrontendOptions): Promise<krnlSystemEntityBase>;
-    stopCustomFrontend(name: string, prefix?: string): Promise<boolean>;
     /**
      * getSiblingNetworkTopology (formerly getIngressNetworkTopology)
      *
@@ -1876,45 +1852,44 @@ declare class KrnlNonKrnlAppAdapter extends krnlSystemEntityBase {
     dispose(): void;
 }
 
-declare class KrnlFrontendAdapter extends krnlSystemEntityBase {
-    childProcess: any;
-    appPort: number;
-    socketPath: string | null;
-    appPath: string;
-    options: KrnlCustomFrontendOptions;
-    originalConfigName: string | null;
-    patchedConfigName: string | null;
-    registeredRoutes: Set<string>;
-    routeWatcher: any;
-    status: 'stopped' | 'starting' | 'running' | 'failed';
-    lastLogLine: string;
-    statusMessage: string;
-    constructor(name: string, appPath: string, options?: KrnlCustomFrontendOptions);
-    loadBridgesFromFolder(folderPath: string): Promise<void>;
-    scanAndRegisterApiRoutes(): Promise<void>;
-    _findPagesRoutes(dir: string, baseDir: string, routes: string[]): void;
-    _findAppRoutes(dir: string, baseDir: string, routes: string[]): void;
-    setupApiRouteWatcher(): void;
-    startApp(): Promise<void>;
-    _patchNextConfig(basePath: string, isEsm: boolean): Promise<void>;
-    _restoreNextConfig(): void;
-    proxyRequest(req: http.IncomingMessage, res: http.ServerResponse, subPath: string): Promise<void>;
-    dispose(): void;
+declare class KrnlFrontendGenerator {
+    /**
+     * Main entrypoint: ensures skeleton exists, generates React components & index.tsx
+     */
+    static generate(entity: any, frontendDir: string): Promise<void>;
+    /**
+     * Ensures essential files (package.json, index.html, index.css, atoms/) exist in frontendDir
+     */
+    static ensureFrontendSkeleton(entity: any, frontendDir: string): void;
+    /**
+     * Verifies React dependencies are installed in frontend/
+     */
+    static checkReactDependencies(frontendDir: string): void;
+    /**
+     * Generates TSX source code for a single endpoint UI component
+     */
+    static generateComponentSource(fid: string, uiSpec: KrnlUiSpec, schema: any): string;
+    private static renderInputAtom;
+    private static renderOutputAtom;
+    /**
+     * Generates the root index.tsx aggregator with tabs for App components + Sub-Apps
+     */
+    static generateIndexSource(appName: string, uiEndpoints: {
+        id: string;
+    }[], subAppPrefixes: string[]): string;
 }
 
-declare class KrnlBlockContainerAdapter extends KrnlFrontendAdapter {
-    blocksDir: string;
-    discoveredBlocks: Map<string, BlockDescriptor>;
-    blockWatcher: fs.FSWatcher | null;
-    constructor(name: string, containerRoot: string, options?: KrnlCustomFrontendOptions);
-    startApp(): Promise<void>;
-    loadBlocks(): Promise<void>;
-    setupBlockWatcher(): void;
-    scanBlock(blockId: string, blockPath: string): Promise<BlockDescriptor>;
-    private _findPagesRoutesRecursive;
-    private _findAppRoutesRecursive;
-    getBlocksManifest(): BlockDescriptor[];
-    dispose(): void;
+declare class KrnlFrontendBuilder {
+    private static activeContexts;
+    /**
+     * Bundles frontend/src/index.tsx -> frontend/dist/bundle.js
+     */
+    static build(frontendDir: string): Promise<boolean>;
+    /**
+     * Starts esbuild watch mode for live updates during development
+     */
+    static watch(frontendDir: string): Promise<void>;
+    static stop(frontendDir: string): void;
 }
 
 interface KrnlRegistryApp {
@@ -2275,84 +2250,6 @@ declare namespace krnl {
     }
 }
 
-declare class krnlBackendVisualEntityBase extends krnlEntityBase {
-    constructor(name: any, owner?: null);
-    visualCore: {
-        position: {
-            x: number;
-            y: number;
-            z: number;
-        };
-        rotation: {
-            x: number;
-            y: number;
-            z: number;
-        };
-        scale: {
-            x: number;
-            y: number;
-            z: number;
-        };
-        visible: boolean;
-        color: string;
-    };
-    _setupVisualFunctionalities(): void;
-    getVisualSnapshot(): {
-        position: {
-            x: number;
-            y: number;
-            z: number;
-        };
-        rotation: {
-            x: number;
-            y: number;
-            z: number;
-        };
-        scale: {
-            x: number;
-            y: number;
-            z: number;
-        };
-        visible: boolean;
-        color: string;
-    };
-}
-
-/**
- * @file K_LIB_Dasy_JS.js
- * @description The library that provides file operations for reading and writing data with a uniform API using the Browser Origin Private File System (OPFS).
- */
-/**
- * DasyJS Class
- * Provides a uniform API for file operations on the JS platform using OPFS.
- */
-declare class DasyJS {
-    constructor(rootName?: string);
-    rootName: string;
-    rootDir: FileSystemDirectoryHandle | null;
-    /**
-     * Initializes the file system access.
-     */
-    init(): Promise<void>;
-    /**
-     * Resolves a user path into normalized parts.
-     * @param {string} userPath
-     * @returns {string[]}
-     */
-    resolve(userPath: string): string[];
-    /**
-     * Internal helper to get a file handle.
-     */
-    getFileHandle(pathParts: any, create?: boolean): Promise<FileSystemFileHandle>;
-    createFile(filePath: any): Promise<void>;
-    deleteFile(filePath: any): Promise<void>;
-    duplicateFile(source: any, destination: any): Promise<void>;
-    writeText(filePath: any, data: any): Promise<void>;
-    readText(filePath: any): Promise<string>;
-    writeBytes(filePath: any, data: any): Promise<void>;
-    readBytes(filePath: any): Promise<ArrayBuffer>;
-}
-
 /**
  * @file ObjectKit.ts
  * @description Deep clone, deep merge, deep equal, object diffing, and dot-notation in-memory path accessor tools.
@@ -2710,4 +2607,4 @@ declare class PocerBlock extends krnlSystemEntityBase {
     private _waitForPort;
 }
 
-export { AsyncKit, type BlockApiEndpoint, type BlockDescriptor, type BlockRoute, CUSTOM_ERROR_CODE, CacheKit, DasyJS, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, type IngressMemberEntry, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBlockContainerAdapter, type KrnlBridgeDescriptor, KrnlBuildValidator, type KrnlCustomFrontendOptions, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFrontend, KrnlFrontendAdapter, type KrnlFrontendMemberConfig, type KrnlFrontendOptions, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, type KrnlSubAppConfig, type KrnlSubAppDependency, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLoader, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlWatchVariable, KrnlWatchVariablesTracker, LRUCache, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SiblingMemberEntry, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlBackendVisualEntityBase, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };
+export { AsyncKit, CUSTOM_ERROR_CODE, CacheKit, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, type IngressMemberEntry, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBuildValidator, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, type KrnlFrontendOptions, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, type KrnlSubAppConfig, type KrnlSubAppDependency, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLoader, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, LRUCache, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SiblingMemberEntry, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };
