@@ -1204,15 +1204,20 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
       targetFunction;
       targetEntity;
       visibility;
+      uiSpec;
+      schema;
       isLocal = false;
       transport;
       hostEntity;
       constructor(config = {}) {
-        const { id, targetEntity, targetFunction, transport, visibility = "public" } = config;
+        const { id, targetEntity, targetFunction, transport, visibility = "public", uiSpec, schema } = config;
         this.id = id;
         this.targetFunction = targetFunction || id;
         this.targetEntity = targetEntity;
         this.visibility = visibility;
+        const targetLocalAtom = targetEntity?.localFunctionalities?.get?.(this.targetFunction);
+        this.uiSpec = uiSpec || targetLocalAtom?.uiSpec || targetLocalAtom?.ui_spec;
+        this.schema = schema || targetLocalAtom?.schema;
         if (transport) {
           this.transport = transport;
         } else if (targetEntity) {
