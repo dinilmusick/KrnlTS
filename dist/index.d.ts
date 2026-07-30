@@ -709,6 +709,8 @@ declare class krnlRemoteFunctionality {
     targetFunction: string;
     targetEntity: any;
     visibility: string;
+    uiSpec?: any;
+    schema?: any;
     isLocal: boolean;
     transport: krnlTransportAdapter;
     hostEntity: any;

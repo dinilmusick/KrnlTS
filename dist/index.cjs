@@ -5897,7 +5897,13 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
         if (normalized.startsWith("/subapps/")) {
           const parts = normalized.split("/").filter(Boolean);
           const prefix = parts[1]?.toLowerCase();
-          const subDir = this.subAppFrontendDirs.get(prefix);
+          let subDir = prefix ? this.subAppFrontendDirs.get(prefix) : void 0;
+          if (!subDir && prefix) {
+            const candidate1 = import_path11.default.join(this.system._entityDataDir || ".", "subapps", prefix, "frontend");
+            const candidate2 = import_path11.default.join(process.cwd(), "subapps", prefix, "frontend");
+            if (import_fs11.default.existsSync(candidate1)) subDir = candidate1;
+            else if (import_fs11.default.existsSync(candidate2)) subDir = candidate2;
+          }
           if (subDir && import_fs11.default.existsSync(subDir)) {
             const fileRel = parts.slice(2).join("/");
             if (fileRel === "styles.css") {

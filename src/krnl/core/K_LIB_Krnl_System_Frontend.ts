@@ -70,7 +70,13 @@ export class KrnlFrontend {
     if (normalized.startsWith('/subapps/')) {
       const parts = normalized.split('/').filter(Boolean); // ['subapps', prefix, ...]
       const prefix = parts[1]?.toLowerCase();
-      const subDir = this.subAppFrontendDirs.get(prefix);
+      let subDir = prefix ? this.subAppFrontendDirs.get(prefix) : undefined;
+      if (!subDir && prefix) {
+        const candidate1 = path.join(this.system._entityDataDir || '.', 'subapps', prefix, 'frontend');
+        const candidate2 = path.join(process.cwd(), 'subapps', prefix, 'frontend');
+        if (fs.existsSync(candidate1)) subDir = candidate1;
+        else if (fs.existsSync(candidate2)) subDir = candidate2;
+      }
 
       if (subDir && fs.existsSync(subDir)) {
         const fileRel = parts.slice(2).join('/'); // '', 'bundle.js', etc.
