@@ -4948,8 +4948,15 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
         const srcDir = import_path7.default.join(frontendDir, "src");
         const atomsDir = import_path7.default.join(srcDir, "atoms");
         import_fs8.default.mkdirSync(atomsDir, { recursive: true });
-        const libAtomsDir = import_path7.default.resolve(_dirname, "../frontend/atoms");
-        if (import_fs8.default.existsSync(libAtomsDir)) {
+        const candidates = [
+          import_path7.default.resolve(_dirname, "../src/krnl/frontend/atoms"),
+          import_path7.default.resolve(_dirname, "../../src/krnl/frontend/atoms"),
+          import_path7.default.resolve(_dirname, "../frontend/atoms"),
+          import_path7.default.resolve(process.cwd(), "node_modules/krnlts/src/krnl/frontend/atoms"),
+          import_path7.default.resolve(process.cwd(), "node_modules/krnlts/dist/frontend/atoms")
+        ];
+        const libAtomsDir = candidates.find((c) => import_fs8.default.existsSync(c));
+        if (libAtomsDir && import_fs8.default.existsSync(libAtomsDir)) {
           const files = import_fs8.default.readdirSync(libAtomsDir);
           for (const file of files) {
             const srcFile = import_path7.default.join(libAtomsDir, file);
@@ -5262,6 +5269,25 @@ export function KrnlTextInput({ label, value, onChange, placeholder, type = 'tex
           "utf-8"
         );
         import_fs8.default.writeFileSync(
+          import_path7.default.join(atomsDir, "KrnlTextArea.tsx"),
+          `import React from 'react';
+export function KrnlTextArea({ label, value, onChange, placeholder, rows = 4 }: any) {
+  return (
+    <div className="krnl-form-group">
+      {label && <label className="krnl-label">{label}</label>}
+      <textarea
+        className="krnl-input krnl-textarea"
+        value={value || ''}
+        onChange={(e) => onChange && onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+      />
+    </div>
+  );
+}`,
+          "utf-8"
+        );
+        import_fs8.default.writeFileSync(
           import_path7.default.join(atomsDir, "KrnlTile.tsx"),
           `import React from 'react';
 export function KrnlTile({ title, value }: any) {
@@ -5308,6 +5334,7 @@ export function KrnlCarousel({ items, renderItem }: any) {
           import_path7.default.join(atomsDir, "index.ts"),
           `export * from './KrnlButton.js';
 export * from './KrnlTextInput.js';
+export * from './KrnlTextArea.js';
 export * from './KrnlTile.js';
 export * from './KrnlJsonViewer.js';
 export * from './KrnlCarousel.js';

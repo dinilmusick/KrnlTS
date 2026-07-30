@@ -60,8 +60,15 @@ export class KrnlFrontendGenerator {
     fs.mkdirSync(atomsDir, { recursive: true });
 
     // Copy atoms from library to app's frontend/src/atoms/
-    const libAtomsDir = path.resolve(_dirname, '../frontend/atoms');
-    if (fs.existsSync(libAtomsDir)) {
+    const candidates = [
+      path.resolve(_dirname, '../src/krnl/frontend/atoms'),
+      path.resolve(_dirname, '../../src/krnl/frontend/atoms'),
+      path.resolve(_dirname, '../frontend/atoms'),
+      path.resolve(process.cwd(), 'node_modules/krnlts/src/krnl/frontend/atoms'),
+      path.resolve(process.cwd(), 'node_modules/krnlts/dist/frontend/atoms')
+    ];
+    const libAtomsDir = candidates.find(c => fs.existsSync(c));
+    if (libAtomsDir && fs.existsSync(libAtomsDir)) {
       const files = fs.readdirSync(libAtomsDir);
       for (const file of files) {
         const srcFile = path.join(libAtomsDir, file);
