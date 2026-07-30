@@ -423,6 +423,26 @@ export function KrnlTextInput({ label, value, onChange, placeholder, type = 'tex
     );
 
     fs.writeFileSync(
+      path.join(atomsDir, 'KrnlTextArea.tsx'),
+      `import React from 'react';
+export function KrnlTextArea({ label, value, onChange, placeholder, rows = 4 }: any) {
+  return (
+    <div className="krnl-form-group">
+      {label && <label className="krnl-label">{label}</label>}
+      <textarea
+        className="krnl-input krnl-textarea"
+        value={value || ''}
+        onChange={(e) => onChange && onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+      />
+    </div>
+  );
+}`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
       path.join(atomsDir, 'KrnlTile.tsx'),
       `import React from 'react';
 export function KrnlTile({ title, value }: any) {
@@ -472,6 +492,7 @@ export function KrnlCarousel({ items, renderItem }: any) {
       path.join(atomsDir, 'index.ts'),
       `export * from './KrnlButton.js';
 export * from './KrnlTextInput.js';
+export * from './KrnlTextArea.js';
 export * from './KrnlTile.js';
 export * from './KrnlJsonViewer.js';
 export * from './KrnlCarousel.js';
