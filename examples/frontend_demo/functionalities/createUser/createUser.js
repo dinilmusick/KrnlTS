@@ -8,7 +8,7 @@ export const createUserAtom = {
     ui_component_enabled: true,
     ui_component_type: "form",
     inputs: [
-      { field: "username", component: "KrnlTextInput", label: "Username" },
+      { field: "username", component: "KrnlDropdown", label: "Select Username", sharedComponentId: "nameSelector", bindMode: "selected" },
       { field: "email", component: "KrnlTextInput", label: "Email Address" },
       { field: "age", component: "KrnlNumberInput", label: "Age" },
       { field: "isAdmin", component: "KrnlToggle", label: "Is Administrator?" }

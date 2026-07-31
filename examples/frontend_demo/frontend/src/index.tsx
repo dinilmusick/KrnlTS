@@ -1,33 +1,36 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-
+import { SharedComponentProvider } from './atoms/index.js';
+import Endpoint_createUser from './components/createUser/index.js';
+import Endpoint_getNames from './components/getNames/index.js';
 
 function AppShell() {
-  const [activeTab, setActiveTab] = useState<string>('welcome');
+  const [activeTab, setActiveTab] = useState<string>('createUser');
 
   return (
-    <div className="krnl-app-shell">
-      <header className="krnl-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ fontSize: '1.5rem' }}>🔷</div>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 700 }}>MyFrontendSystem</h1>
-        </div>
-      </header>
+    <SharedComponentProvider>
+      <div className="krnl-app-shell">
+        <header className="krnl-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ fontSize: '1.5rem' }}>🔷</div>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 700 }}>MyFrontendSystem</h1>
+          </div>
+        </header>
 
-      <div className="krnl-nav-tabs">
-        
-        
+        <div className="krnl-nav-tabs">
+          <button className={`krnl-tab-btn ${activeTab === 'createUser' ? 'active' : ''}`} onClick={() => setActiveTab('createUser')}>createUser</button>
+          <button className={`krnl-tab-btn ${activeTab === 'getNames' ? 'active' : ''}`} onClick={() => setActiveTab('getNames')}>getNames</button>
+          
+        </div>
+
+        <main className="krnl-main-body">
+          {activeTab === 'createUser' && <Endpoint_createUser />}
+          {activeTab === 'getNames' && <Endpoint_getNames />}
+          
+          
+        </main>
       </div>
-
-      <main className="krnl-main-body">
-        
-        
-        <div style={{ textAlign: 'center', color: 'var(--krnl-text-muted)', paddingTop: '4rem' }}>
-          <h2>Welcome to MyFrontendSystem</h2>
-          <p style={{ marginTop: '0.5rem' }}>No UI-enabled endpoints or sub-apps registered yet.</p>
-        </div>
-      </main>
-    </div>
+    </SharedComponentProvider>
   );
 }
 

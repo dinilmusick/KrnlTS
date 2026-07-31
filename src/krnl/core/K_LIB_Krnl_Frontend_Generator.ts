@@ -170,7 +170,18 @@ body { font-family: var(--krnl-font-sans); background: var(--krnl-bg-base); colo
     inputs.forEach((i) => atomImports.add(i.component));
     outputs.forEach((o) => atomImports.add(o.component));
 
+    // Check for shared components
+    const sharedInputIds = inputs.filter((i) => i.sharedComponentId).map((i) => i.sharedComponentId!);
+    const sharedOutputIds = outputs.filter((o) => o.sharedComponentId).map((o) => o.sharedComponentId!);
+    const allSharedIds = Array.from(new Set([...sharedInputIds, ...sharedOutputIds]));
+
+    if (allSharedIds.length > 0) {
+      atomImports.add('useSharedSlot');
+    }
+
     const importStatement = `import { ${Array.from(atomImports).join(', ')} } from '../../atoms/index.js';`;
+
+    const autoFetchOutput = outputs.find((o) => o.autoFetch && o.sharedComponentId);
 
     return `import React, { useState, useEffect } from 'react';
 ${importStatement}
@@ -182,6 +193,13 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
   const [error, setError] = useState<string | null>(null);
   const [phantomActive, setPhantomActive] = useState(false);
 
+  ${allSharedIds
+    .map(
+      (id) =>
+        `const slot_${id.replace(/[^a-zA-Z0-9]/g, '_')} = useSharedSlot('${id}');`
+    )
+    .join('\n  ')}
+
   // Subscribe to live SSE events for phantom mirroring
   useEffect(() => {
     const sse = new EventSource('/sse/${fid}');
@@ -190,7 +208,10 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
         const msg = JSON.parse(evt.data);
         if (msg.type === 'frontend:interaction' || msg.input !== undefined) {
           if (msg.input) setFormData((prev) => ({ ...prev, ...msg.input }));
-          if (msg.output !== undefined) setResponse(msg.output?.payload !== undefined ? msg.output.payload : msg.output);
+          if (msg.output !== undefined) {
+            const payload = msg.output?.payload !== undefined ? msg.output.payload : msg.output;
+            setResponse(payload);
+          }
           setPhantomActive(true);
           setTimeout(() => setPhantomActive(false), 2000);
         }
@@ -199,27 +220,59 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
     return () => sse.close();
   }, []);
 
+  ${
+    autoFetchOutput
+      ? `// Auto-fetch output on mount
+  useEffect(() => {
+    executeRequest({});
+  }, []);`
+      : ''
+  }
+
+  // Populate output shared components when response arrives
+  useEffect(() => {
+    if (response === null) return;
+    ${outputs
+      .filter((o) => o.sharedComponentId)
+      .map((o) => {
+        const varName = `slot_${o.sharedComponentId!.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const pathExpr = o.dataPath
+          ? `(response && typeof response === 'object' ? response['${o.dataPath}'] : response)`
+          : `(response && response['${o.field}'] !== undefined ? response['${o.field}'] : response)`;
+        return `if (${pathExpr} !== undefined && Array.isArray(${pathExpr})) {
+      ${varName}.setOptions(${pathExpr});
+    }`;
+      })
+      .join('\n    ')}
+  }, [response]);
+
   const handleInputChange = (field: string, val: any) => {
     setFormData((prev) => ({ ...prev, [field]: val }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeRequest = async (overrideData?: Record<string, any>) => {
     setLoading(true);
     setError(null);
     try {
+      const payloadData = overrideData || formData;
       const res = await fetch('api/${fid}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payloadData),
       });
       const data = await res.json();
-      setResponse(data.payload !== undefined ? data.payload : data);
+      const payload = data.payload !== undefined ? data.payload : data;
+      setResponse(payload);
     } catch (err: any) {
       setError(err.message || 'Request failed');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeRequest();
   };
 
   return (
@@ -267,6 +320,24 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
 
   private static renderInputAtom(spec: KrnlUiFieldSpec): string {
     const label = spec.label || spec.field;
+    if (spec.sharedComponentId) {
+      const varName = `slot_${spec.sharedComponentId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const bindMode = spec.bindMode || 'selected';
+
+      switch (spec.component) {
+        case 'KrnlDropdown':
+          return `<KrnlDropdown label="${label}" value={formData['${spec.field}'] !== undefined ? formData['${spec.field}'] : (${varName}.value || '')} options={${varName}.options} onChange={(v) => { ${varName}.setValue(v); handleInputChange('${spec.field}', ${bindMode === 'all' ? `${varName}.options` : 'v'}); }} />`;
+        case 'KrnlCarousel':
+          return `<KrnlCarousel label="${label}" items={${varName}.options} renderItem={(item: any) => (
+            <div style={{ padding: '0.5rem', cursor: 'pointer', border: ${varName}.value === item ? '2px solid var(--krnl-primary)' : '1px solid var(--krnl-border-color)', borderRadius: '6px' }} onClick={() => { ${varName}.setValue(item); handleInputChange('${spec.field}', ${bindMode === 'all' ? `${varName}.options` : 'item'}); }}>
+              {typeof item === 'object' ? JSON.stringify(item) : String(item)}
+            </div>
+          )} />`;
+        default:
+          return `<KrnlDropdown label="${label}" value={formData['${spec.field}'] !== undefined ? formData['${spec.field}'] : (${varName}.value || '')} options={${varName}.options} onChange={(v) => { ${varName}.setValue(v); handleInputChange('${spec.field}', ${bindMode === 'all' ? `${varName}.options` : 'v'}); }} />`;
+      }
+    }
+
     switch (spec.component) {
       case 'KrnlTextInput':
         return `<KrnlTextInput label="${label}" value={formData['${spec.field}'] || ''} onChange={(v) => handleInputChange('${spec.field}', v)} placeholder="${spec.placeholder || ''}" />`;
@@ -290,6 +361,22 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
 
   private static renderOutputAtom(spec: KrnlUiFieldSpec): string {
     const label = spec.label || spec.field;
+    if (spec.sharedComponentId) {
+      const varName = `slot_${spec.sharedComponentId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      switch (spec.component) {
+        case 'KrnlDropdown':
+          return `<KrnlDropdown label="${label}" value={${varName}.value || ''} options={${varName}.options} onChange={(v) => ${varName}.setValue(v)} />`;
+        case 'KrnlCarousel':
+          return `<KrnlCarousel label="${label}" items={${varName}.options} renderItem={(item: any) => (
+            <div style={{ padding: '0.5rem', cursor: 'pointer', border: ${varName}.value === item ? '2px solid var(--krnl-primary)' : '1px solid var(--krnl-border-color)', borderRadius: '6px' }} onClick={() => ${varName}.setValue(item)}>
+              {typeof item === 'object' ? JSON.stringify(item) : String(item)}
+            </div>
+          )} />`;
+        default:
+          return `<KrnlJsonViewer label="${label}" data={${varName}.options} />`;
+      }
+    }
+
     switch (spec.component) {
       case 'KrnlJsonViewer':
         return `<KrnlJsonViewer label="${label}" data={response['${spec.field}'] !== undefined ? response['${spec.field}'] : response} />`;
@@ -321,6 +408,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
 
     return `import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { SharedComponentProvider } from './atoms/index.js';
 ${imports}
 
 function AppShell() {
@@ -329,58 +417,60 @@ function AppShell() {
   }');
 
   return (
-    <div className="krnl-app-shell">
-      <header className="krnl-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ fontSize: '1.5rem' }}>🔷</div>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 700 }}>${appName}</h1>
+    <SharedComponentProvider>
+      <div className="krnl-app-shell">
+        <header className="krnl-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ fontSize: '1.5rem' }}>🔷</div>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 700 }}>${appName}</h1>
+          </div>
+        </header>
+
+        <div className="krnl-nav-tabs">
+          ${uiEndpoints
+            .map(
+              (ep) =>
+                `<button className={\`krnl-tab-btn \${activeTab === '${ep.id}' ? 'active' : ''}\`} onClick={() => setActiveTab('${ep.id}')}>${ep.id}</button>`
+            )
+            .join('\n          ')}
+          ${subAppPrefixes
+            .map(
+              (sub) =>
+                `<button className={\`krnl-tab-btn \${activeTab === '${sub}' ? 'active' : ''}\`} onClick={() => setActiveTab('${sub}')}>📦 ${sub}</button>`
+            )
+            .join('\n          ')}
         </div>
-      </header>
 
-      <div className="krnl-nav-tabs">
-        ${uiEndpoints
-          .map(
-            (ep) =>
-              `<button className={\`krnl-tab-btn \${activeTab === '${ep.id}' ? 'active' : ''}\`} onClick={() => setActiveTab('${ep.id}')}>${ep.id}</button>`
-          )
-          .join('\n        ')}
-        ${subAppPrefixes
-          .map(
-            (sub) =>
-              `<button className={\`krnl-tab-btn \${activeTab === '${sub}' ? 'active' : ''}\`} onClick={() => setActiveTab('${sub}')}>📦 ${sub}</button>`
-          )
-          .join('\n        ')}
+        <main className="krnl-main-body">
+          ${uiEndpoints
+            .map(
+              (ep) =>
+                `{activeTab === '${ep.id}' && <Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, '_')} />}`
+            )
+            .join('\n          ')}
+          ${subAppPrefixes
+            .map(
+              (sub) =>
+                `{activeTab === '${sub}' && (
+            <iframe
+              src="/frontend/subapps/${sub}/"
+              title="${sub}"
+              style={{ width: '100%', height: 'calc(100vh - 160px)', border: 'none', borderRadius: '8px' }}
+            />
+          )}`
+            )
+            .join('\n          ')}
+          ${
+            uiEndpoints.length === 0 && subAppPrefixes.length === 0
+              ? `<div style={{ textAlign: 'center', color: 'var(--krnl-text-muted)', paddingTop: '4rem' }}>
+            <h2>Welcome to ${appName}</h2>
+            <p style={{ marginTop: '0.5rem' }}>No UI-enabled endpoints or sub-apps registered yet.</p>
+          </div>`
+              : ''
+          }
+        </main>
       </div>
-
-      <main className="krnl-main-body">
-        ${uiEndpoints
-          .map(
-            (ep) =>
-              `{activeTab === '${ep.id}' && <Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, '_')} />}`
-          )
-          .join('\n        ')}
-        ${subAppPrefixes
-          .map(
-            (sub) =>
-              `{activeTab === '${sub}' && (
-          <iframe
-            src="/frontend/subapps/${sub}/"
-            title="${sub}"
-            style={{ width: '100%', height: 'calc(100vh - 160px)', border: 'none', borderRadius: '8px' }}
-          />
-        )}`
-          )
-          .join('\n        ')}
-        ${
-          uiEndpoints.length === 0 && subAppPrefixes.length === 0
-            ? `<div style={{ textAlign: 'center', color: 'var(--krnl-text-muted)', paddingTop: '4rem' }}>
-          <h2>Welcome to ${appName}</h2>
-          <p style={{ marginTop: '0.5rem' }}>No UI-enabled endpoints or sub-apps registered yet.</p>
-        </div>`
-            : ''
-        }
-      </main>
-    </div>
+    </SharedComponentProvider>
   );
 }
 
@@ -588,6 +678,64 @@ export function KrnlSSELog({ label }: any) {
     );
 
     fs.writeFileSync(
+      path.join(atomsDir, 'KrnlSharedState.tsx'),
+      `import React, { createContext, useContext, useState } from 'react';
+
+export interface SharedSlot {
+  options: any[];
+  value: any;
+}
+
+export const SharedComponentContext = createContext<Map<string, SharedSlot>>(new Map());
+export const SharedComponentSetContext = createContext<(id: string, patch: Partial<SharedSlot>) => void>(() => {});
+
+export function SharedComponentProvider({ children }: { children: React.ReactNode }) {
+  const [store, setStore] = useState<Map<string, SharedSlot>>(new Map());
+
+  const update = (id: string, patch: Partial<SharedSlot>) => {
+    setStore((prev) => {
+      const m = new Map(prev);
+      const existing = m.get(id) || { options: [], value: null };
+      m.set(id, { ...existing, ...patch });
+      return m;
+    });
+  };
+
+  return (
+    <SharedComponentContext.Provider value={store}>
+      <SharedComponentSetContext.Provider value={update}>
+        {children}
+      </SharedComponentSetContext.Provider>
+    </SharedComponentContext.Provider>
+  );
+}
+
+export function useSharedSlot(id?: string) {
+  const store = useContext(SharedComponentContext);
+  const update = useContext(SharedComponentSetContext);
+
+  if (!id) {
+    return {
+      options: [],
+      value: null,
+      setOptions: () => {},
+      setValue: () => {},
+    };
+  }
+
+  const slot = store.get(id) || { options: [], value: null };
+
+  return {
+    options: slot.options,
+    value: slot.value,
+    setOptions: (opts: any[]) => update(id, { options: opts }),
+    setValue: (v: any) => update(id, { value: v }),
+  };
+}`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
       path.join(atomsDir, 'index.ts'),
       `export * from './KrnlButton.js';
 export * from './KrnlTextInput.js';
@@ -600,6 +748,7 @@ export * from './KrnlJsonViewer.js';
 export * from './KrnlCarousel.js';
 export * from './KrnlTile.js';
 export * from './KrnlSSELog.js';
+export * from './KrnlSharedState.js';
 export * from './KrnlButton';
 export * from './KrnlTextInput';
 export * from './KrnlNumberInput';
@@ -611,8 +760,10 @@ export * from './KrnlJsonViewer';
 export * from './KrnlCarousel';
 export * from './KrnlTile';
 export * from './KrnlSSELog';
+export * from './KrnlSharedState';
 `,
       'utf-8'
     );
   }
 }
+

@@ -26,9 +26,9 @@
     mod
   ));
 
-  // ../../../../node_modules/react/cjs/react.development.js
+  // ../../../../../node_modules/react/cjs/react.development.js
   var require_react_development = __commonJS({
-    "../../../../node_modules/react/cjs/react.development.js"(exports, module) {
+    "../../../../../node_modules/react/cjs/react.development.js"(exports, module) {
       "use strict";
       (function() {
         function defineDeprecationWarning(methodName, info) {
@@ -998,9 +998,9 @@
     }
   });
 
-  // ../../../../node_modules/react/index.js
+  // ../../../../../node_modules/react/index.js
   var require_react = __commonJS({
-    "../../../../node_modules/react/index.js"(exports, module) {
+    "../../../../../node_modules/react/index.js"(exports, module) {
       "use strict";
       if (false) {
         module.exports = null;
@@ -1010,9 +1010,9 @@
     }
   });
 
-  // ../../../../node_modules/scheduler/cjs/scheduler.development.js
+  // ../../../../../node_modules/scheduler/cjs/scheduler.development.js
   var require_scheduler_development = __commonJS({
-    "../../../../node_modules/scheduler/cjs/scheduler.development.js"(exports) {
+    "../../../../../node_modules/scheduler/cjs/scheduler.development.js"(exports) {
       "use strict";
       (function() {
         function performWorkUntilDeadline() {
@@ -1269,9 +1269,9 @@
     }
   });
 
-  // ../../../../node_modules/scheduler/index.js
+  // ../../../../../node_modules/scheduler/index.js
   var require_scheduler = __commonJS({
-    "../../../../node_modules/scheduler/index.js"(exports, module) {
+    "../../../../../node_modules/scheduler/index.js"(exports, module) {
       "use strict";
       if (false) {
         module.exports = null;
@@ -1281,9 +1281,9 @@
     }
   });
 
-  // ../../../../node_modules/react-dom/cjs/react-dom.development.js
+  // ../../../../../node_modules/react-dom/cjs/react-dom.development.js
   var require_react_dom_development = __commonJS({
-    "../../../../node_modules/react-dom/cjs/react-dom.development.js"(exports) {
+    "../../../../../node_modules/react-dom/cjs/react-dom.development.js"(exports) {
       "use strict";
       (function() {
         function noop() {
@@ -1330,7 +1330,7 @@
           return dispatcher;
         }
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-        var React2 = require_react(), Internals = {
+        var React5 = require_react(), Internals = {
           d: {
             f: noop,
             r: function() {
@@ -1348,7 +1348,7 @@
           },
           p: 0,
           findDOMNode: null
-        }, REACT_PORTAL_TYPE = Symbol.for("react.portal"), ReactSharedInternals = React2.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+        }, REACT_PORTAL_TYPE = Symbol.for("react.portal"), ReactSharedInternals = React5.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
         "function" === typeof Map && null != Map.prototype && "function" === typeof Map.prototype.forEach && "function" === typeof Set && null != Set.prototype && "function" === typeof Set.prototype.clear && "function" === typeof Set.prototype.forEach || console.error(
           "React depends on Map and Set built-in types. Make sure that you load a polyfill in older browsers. https://reactjs.org/link/react-polyfills"
         );
@@ -1525,9 +1525,9 @@
     }
   });
 
-  // ../../../../node_modules/react-dom/index.js
+  // ../../../../../node_modules/react-dom/index.js
   var require_react_dom = __commonJS({
-    "../../../../node_modules/react-dom/index.js"(exports, module) {
+    "../../../../../node_modules/react-dom/index.js"(exports, module) {
       "use strict";
       if (false) {
         checkDCE();
@@ -1538,9 +1538,9 @@
     }
   });
 
-  // ../../../../node_modules/react-dom/cjs/react-dom-client.development.js
+  // ../../../../../node_modules/react-dom/cjs/react-dom-client.development.js
   var require_react_dom_client_development = __commonJS({
-    "../../../../node_modules/react-dom/cjs/react-dom-client.development.js"(exports) {
+    "../../../../../node_modules/react-dom/cjs/react-dom-client.development.js"(exports) {
       "use strict";
       (function() {
         function findHook(fiber, id) {
@@ -2883,7 +2883,7 @@
           "number" === type && getActiveElement(node.ownerDocument) === node || node.defaultValue === "" + value || (node.defaultValue = "" + value);
         }
         function validateOptionProps(element, props) {
-          null == props.value && ("object" === typeof props.children && null !== props.children ? React2.Children.forEach(props.children, function(child) {
+          null == props.value && ("object" === typeof props.children && null !== props.children ? React5.Children.forEach(props.children, function(child) {
             null == child || "string" === typeof child || "number" === typeof child || "bigint" === typeof child || didWarnInvalidChild || (didWarnInvalidChild = true, console.error(
               "Cannot infer the option value of complex children. Pass a `value` prop or use a plain string as children to <option>."
             ));
@@ -18515,14 +18515,14 @@
           ));
         }
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-        var Scheduler = require_scheduler(), React2 = require_react(), ReactDOM = require_react_dom(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
+        var Scheduler = require_scheduler(), React5 = require_react(), ReactDOM = require_react_dom(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
         Symbol.for("react.scope");
         var REACT_ACTIVITY_TYPE = Symbol.for("react.activity");
         Symbol.for("react.legacy_hidden");
         Symbol.for("react.tracing_marker");
         var REACT_MEMO_CACHE_SENTINEL = Symbol.for("react.memo_cache_sentinel");
         Symbol.for("react.view_transition");
-        var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React2.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, ReactDOMSharedInternals = ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, NotPending = Object.freeze({
+        var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React5.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, ReactDOMSharedInternals = ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, NotPending = Object.freeze({
           pending: false,
           data: null,
           method: null,
@@ -21310,7 +21310,7 @@
           }
         };
         (function() {
-          var isomorphicReactPackageVersion = React2.version;
+          var isomorphicReactPackageVersion = React5.version;
           if ("19.2.4" !== isomorphicReactPackageVersion)
             throw Error(
               'Incompatible React versions: The "react" and "react-dom" packages must have the exact same version. Instead got:\n  - react:      ' + (isomorphicReactPackageVersion + "\n  - react-dom:  19.2.4\nLearn more: https://react.dev/warnings/version-mismatch")
@@ -21437,9 +21437,9 @@
     }
   });
 
-  // ../../../../node_modules/react-dom/client.js
+  // ../../../../../node_modules/react-dom/client.js
   var require_client = __commonJS({
-    "../../../../node_modules/react-dom/client.js"(exports, module) {
+    "../../../../../node_modules/react-dom/client.js"(exports, module) {
       "use strict";
       if (false) {
         checkDCE();
@@ -21450,9 +21450,9 @@
     }
   });
 
-  // ../../../../node_modules/react/cjs/react-jsx-runtime.development.js
+  // ../../../../../node_modules/react/cjs/react-jsx-runtime.development.js
   var require_react_jsx_runtime_development = __commonJS({
-    "../../../../node_modules/react/cjs/react-jsx-runtime.development.js"(exports) {
+    "../../../../../node_modules/react/cjs/react-jsx-runtime.development.js"(exports) {
       "use strict";
       (function() {
         function getComponentNameFromType(type) {
@@ -21664,18 +21664,18 @@
         function isValidElement(object) {
           return "object" === typeof object && null !== object && object.$$typeof === REACT_ELEMENT_TYPE;
         }
-        var React2 = require_react(), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy"), REACT_ACTIVITY_TYPE = Symbol.for("react.activity"), REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), ReactSharedInternals = React2.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty = Object.prototype.hasOwnProperty, isArrayImpl = Array.isArray, createTask = console.createTask ? console.createTask : function() {
+        var React5 = require_react(), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy"), REACT_ACTIVITY_TYPE = Symbol.for("react.activity"), REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), ReactSharedInternals = React5.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty = Object.prototype.hasOwnProperty, isArrayImpl = Array.isArray, createTask = console.createTask ? console.createTask : function() {
           return null;
         };
-        React2 = {
+        React5 = {
           react_stack_bottom_frame: function(callStackForError) {
             return callStackForError();
           }
         };
         var specialPropKeyWarningShown;
         var didWarnAboutElementRef = {};
-        var unknownOwnerDebugStack = React2.react_stack_bottom_frame.bind(
-          React2,
+        var unknownOwnerDebugStack = React5.react_stack_bottom_frame.bind(
+          React5,
           UnknownOwner
         )();
         var unknownOwnerDebugTask = createTask(getTaskName(UnknownOwner));
@@ -21707,9 +21707,9 @@
     }
   });
 
-  // ../../../../node_modules/react/jsx-runtime.js
+  // ../../../../../node_modules/react/jsx-runtime.js
   var require_jsx_runtime = __commonJS({
-    "../../../../node_modules/react/jsx-runtime.js"(exports, module) {
+    "../../../../../node_modules/react/jsx-runtime.js"(exports, module) {
       "use strict";
       if (false) {
         module.exports = null;
@@ -21719,28 +21719,359 @@
     }
   });
 
-  // examples/frontend_demo/frontend/src/index.tsx
-  var import_react = __toESM(require_react(), 1);
+  // frontend_demo/frontend/src/index.tsx
+  var import_react4 = __toESM(require_react(), 1);
   var import_client = __toESM(require_client(), 1);
+
+  // frontend_demo/frontend/src/atoms/KrnlButton.tsx
   var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
-  function AppShell() {
-    const [activeTab, setActiveTab] = (0, import_react.useState)("welcome");
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "krnl-app-shell", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("header", { className: "krnl-header", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: "0.75rem" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "1.5rem" }, children: "\u{1F537}" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", { style: { fontSize: "1.25rem", fontWeight: 700 }, children: "MyFrontendSystem" })
-      ] }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "krnl-nav-tabs" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("main", { className: "krnl-main-body", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { textAlign: "center", color: "var(--krnl-text-muted)", paddingTop: "4rem" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", { children: "Welcome to MyFrontendSystem" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { marginTop: "0.5rem" }, children: "No UI-enabled endpoints or sub-apps registered yet." })
-      ] }) })
+  function KrnlButton({ label, onClick, disabled, loading }) {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "krnl-btn", onClick, disabled: disabled || loading, children: loading ? "Processing..." : label });
+  }
+
+  // frontend_demo/frontend/src/atoms/KrnlTextInput.tsx
+  var import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
+  function KrnlTextInput({ label, value, onChange, placeholder, type = "text" }) {
+    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "krnl-form-group", children: [
+      label && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("label", { className: "krnl-label", children: label }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "input",
+        {
+          type,
+          className: "krnl-input",
+          value: value || "",
+          onChange: (e) => onChange && onChange(e.target.value),
+          placeholder
+        }
+      )
     ] });
+  }
+
+  // frontend_demo/frontend/src/atoms/KrnlNumberInput.tsx
+  var import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
+  function KrnlNumberInput({ label, value, onChange, placeholder }) {
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "krnl-form-group", children: [
+      label && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("label", { className: "krnl-label", children: label }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+        "input",
+        {
+          type: "number",
+          className: "krnl-input",
+          value: value ?? "",
+          onChange: (e) => onChange && onChange(Number(e.target.value)),
+          placeholder
+        }
+      )
+    ] });
+  }
+
+  // frontend_demo/frontend/src/atoms/KrnlToggle.tsx
+  var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
+  function KrnlToggle({ label, value, onChange }) {
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "krnl-form-group krnl-toggle-group", children: [
+      label && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("label", { className: "krnl-label", children: label }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+        "input",
+        {
+          type: "checkbox",
+          checked: !!value,
+          onChange: (e) => onChange && onChange(e.target.checked)
+        }
+      )
+    ] });
+  }
+
+  // frontend_demo/frontend/src/atoms/KrnlDropdown.tsx
+  var import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
+  function KrnlDropdown({ label, value, options = [], onChange }) {
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "krnl-form-group", children: [
+      label && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("label", { className: "krnl-label", children: label }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("select", { className: "krnl-input", value: value || "", onChange: (e) => onChange && onChange(e.target.value), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "", children: "Select option..." }),
+        options.map((opt, idx) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: typeof opt === "string" ? opt : opt.value, children: typeof opt === "string" ? opt : opt.label }, idx))
+      ] })
+    ] });
+  }
+
+  // frontend_demo/frontend/src/atoms/KrnlTextArea.tsx
+  var import_jsx_runtime6 = __toESM(require_jsx_runtime(), 1);
+
+  // frontend_demo/frontend/src/atoms/KrnlJsonInput.tsx
+  var import_jsx_runtime7 = __toESM(require_jsx_runtime(), 1);
+
+  // frontend_demo/frontend/src/atoms/KrnlJsonViewer.tsx
+  var import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
+
+  // frontend_demo/frontend/src/atoms/KrnlCarousel.tsx
+  var import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
+
+  // frontend_demo/frontend/src/atoms/KrnlTile.tsx
+  var import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
+  function KrnlTile({ title, value }) {
+    return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "krnl-tile", children: [
+      title && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "krnl-tile-title", children: title }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "krnl-tile-value", children: typeof value === "object" ? JSON.stringify(value, null, 2) : String(value) })
+    ] });
+  }
+
+  // frontend_demo/frontend/src/atoms/KrnlSSELog.tsx
+  var import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
+
+  // frontend_demo/frontend/src/atoms/KrnlSharedState.tsx
+  var import_react = __toESM(require_react(), 1);
+  var import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
+  var SharedComponentContext = (0, import_react.createContext)(/* @__PURE__ */ new Map());
+  var SharedComponentSetContext = (0, import_react.createContext)(() => {
+  });
+  function SharedComponentProvider({ children }) {
+    const [store, setStore] = (0, import_react.useState)(/* @__PURE__ */ new Map());
+    const update = (id, patch) => {
+      setStore((prev) => {
+        const m = new Map(prev);
+        const existing = m.get(id) || { options: [], value: null };
+        m.set(id, { ...existing, ...patch });
+        return m;
+      });
+    };
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(SharedComponentContext.Provider, { value: store, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(SharedComponentSetContext.Provider, { value: update, children }) });
+  }
+  function useSharedSlot(id) {
+    const store = (0, import_react.useContext)(SharedComponentContext);
+    const update = (0, import_react.useContext)(SharedComponentSetContext);
+    if (!id) {
+      return {
+        options: [],
+        value: null,
+        setOptions: () => {
+        },
+        setValue: () => {
+        }
+      };
+    }
+    const slot = store.get(id) || { options: [], value: null };
+    return {
+      options: slot.options,
+      value: slot.value,
+      setOptions: (opts) => update(id, { options: opts }),
+      setValue: (v) => update(id, { value: v })
+    };
+  }
+
+  // frontend_demo/frontend/src/components/createUser/index.tsx
+  var import_react2 = __toESM(require_react(), 1);
+  var import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
+  function Endpoint_createUser() {
+    const [formData, setFormData] = (0, import_react2.useState)({});
+    const [response, setResponse] = (0, import_react2.useState)(null);
+    const [loading, setLoading] = (0, import_react2.useState)(false);
+    const [error, setError] = (0, import_react2.useState)(null);
+    const [phantomActive, setPhantomActive] = (0, import_react2.useState)(false);
+    const slot_nameSelector = useSharedSlot("nameSelector");
+    (0, import_react2.useEffect)(() => {
+      const sse = new EventSource("/sse/createUser");
+      sse.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.type === "frontend:interaction" || msg.input !== void 0) {
+            if (msg.input) setFormData((prev) => ({ ...prev, ...msg.input }));
+            if (msg.output !== void 0) {
+              const payload = msg.output?.payload !== void 0 ? msg.output.payload : msg.output;
+              setResponse(payload);
+            }
+            setPhantomActive(true);
+            setTimeout(() => setPhantomActive(false), 2e3);
+          }
+        } catch (e) {
+        }
+      };
+      return () => sse.close();
+    }, []);
+    (0, import_react2.useEffect)(() => {
+      if (response === null) return;
+    }, [response]);
+    const handleInputChange = (field, val) => {
+      setFormData((prev) => ({ ...prev, [field]: val }));
+    };
+    const executeRequest = async (overrideData) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const payloadData = overrideData || formData;
+        const res = await fetch("api/createUser", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payloadData)
+        });
+        const data = await res.json();
+        const payload = data.payload !== void 0 ? data.payload : data;
+        setResponse(payload);
+      } catch (err) {
+        setError(err.message || "Request failed");
+      } finally {
+        setLoading(false);
+      }
+    };
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      await executeRequest();
+    };
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+      "div",
+      {
+        className: `krnl-endpoint-card ${phantomActive ? "krnl-phantom-active" : ""}`,
+        style: {
+          background: "var(--krnl-bg-surface)",
+          padding: "1.5rem",
+          borderRadius: "12px",
+          border: phantomActive ? "2px solid var(--krnl-accent)" : "1px solid var(--krnl-border-color)",
+          transition: "all 0.3s ease",
+          boxShadow: phantomActive ? "0 0 20px rgba(16, 185, 129, 0.4)" : "none",
+          position: "relative"
+        },
+        children: [
+          phantomActive && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "krnl-phantom-badge", style: { position: "absolute", top: "12px", right: "12px", background: "var(--krnl-accent)", color: "#000", padding: "0.2rem 0.6rem", borderRadius: "12px", fontSize: "0.75rem", fontWeight: "bold" }, children: "\u{1F916} Phantom Execution Active" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h3", { style: { marginBottom: "1rem", color: "var(--krnl-primary)" }, children: "Endpoint: createUser" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("form", { onSubmit: handleSubmit, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(KrnlDropdown, { label: "Select Username", value: formData["username"] !== void 0 ? formData["username"] : slot_nameSelector.value || "", options: slot_nameSelector.options, onChange: (v) => {
+              slot_nameSelector.setValue(v);
+              handleInputChange("username", v);
+            } }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(KrnlTextInput, { label: "Email Address", value: formData["email"] || "", onChange: (v) => handleInputChange("email", v), placeholder: "" }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(KrnlNumberInput, { label: "Age", value: formData["age"] || "", onChange: (v) => handleInputChange("age", v), placeholder: "" }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(KrnlToggle, { label: "Is Administrator?", value: !!formData["isAdmin"], onChange: (v) => handleInputChange("isAdmin", v) }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(KrnlButton, { type: "submit", disabled: loading, children: loading ? "Executing..." : "Execute createUser" })
+          ] }),
+          error && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { style: { color: "var(--krnl-danger)", marginTop: "1rem" }, children: [
+            "Error: ",
+            error
+          ] }),
+          response !== null && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { style: { marginTop: "1.5rem", borderTop: "1px solid var(--krnl-border-color)", paddingTop: "1rem" }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h4", { style: { marginBottom: "0.5rem", color: "var(--krnl-accent)" }, children: "Output Response" }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(KrnlTile, { title: "User ID", value: String(response["id"] !== void 0 ? response["id"] : response) }),
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(KrnlTile, { title: "Username", value: String(response["username"] !== void 0 ? response["username"] : response) })
+          ] })
+        ]
+      }
+    );
+  }
+
+  // frontend_demo/frontend/src/components/getNames/index.tsx
+  var import_react3 = __toESM(require_react(), 1);
+  var import_jsx_runtime14 = __toESM(require_jsx_runtime(), 1);
+  function Endpoint_getNames() {
+    const [formData, setFormData] = (0, import_react3.useState)({});
+    const [response, setResponse] = (0, import_react3.useState)(null);
+    const [loading, setLoading] = (0, import_react3.useState)(false);
+    const [error, setError] = (0, import_react3.useState)(null);
+    const [phantomActive, setPhantomActive] = (0, import_react3.useState)(false);
+    const slot_nameSelector = useSharedSlot("nameSelector");
+    (0, import_react3.useEffect)(() => {
+      const sse = new EventSource("/sse/getNames");
+      sse.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.type === "frontend:interaction" || msg.input !== void 0) {
+            if (msg.input) setFormData((prev) => ({ ...prev, ...msg.input }));
+            if (msg.output !== void 0) {
+              const payload = msg.output?.payload !== void 0 ? msg.output.payload : msg.output;
+              setResponse(payload);
+            }
+            setPhantomActive(true);
+            setTimeout(() => setPhantomActive(false), 2e3);
+          }
+        } catch (e) {
+        }
+      };
+      return () => sse.close();
+    }, []);
+    (0, import_react3.useEffect)(() => {
+      executeRequest({});
+    }, []);
+    (0, import_react3.useEffect)(() => {
+      if (response === null) return;
+      if ((response && typeof response === "object" ? response["names"] : response) !== void 0 && Array.isArray(response && typeof response === "object" ? response["names"] : response)) {
+        slot_nameSelector.setOptions(response && typeof response === "object" ? response["names"] : response);
+      }
+    }, [response]);
+    const handleInputChange = (field, val) => {
+      setFormData((prev) => ({ ...prev, [field]: val }));
+    };
+    const executeRequest = async (overrideData) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const payloadData = overrideData || formData;
+        const res = await fetch("api/getNames", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payloadData)
+        });
+        const data = await res.json();
+        const payload = data.payload !== void 0 ? data.payload : data;
+        setResponse(payload);
+      } catch (err) {
+        setError(err.message || "Request failed");
+      } finally {
+        setLoading(false);
+      }
+    };
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      await executeRequest();
+    };
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+      "div",
+      {
+        className: `krnl-endpoint-card ${phantomActive ? "krnl-phantom-active" : ""}`,
+        style: {
+          background: "var(--krnl-bg-surface)",
+          padding: "1.5rem",
+          borderRadius: "12px",
+          border: phantomActive ? "2px solid var(--krnl-accent)" : "1px solid var(--krnl-border-color)",
+          transition: "all 0.3s ease",
+          boxShadow: phantomActive ? "0 0 20px rgba(16, 185, 129, 0.4)" : "none",
+          position: "relative"
+        },
+        children: [
+          phantomActive && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className: "krnl-phantom-badge", style: { position: "absolute", top: "12px", right: "12px", background: "var(--krnl-accent)", color: "#000", padding: "0.2rem 0.6rem", borderRadius: "12px", fontSize: "0.75rem", fontWeight: "bold" }, children: "\u{1F916} Phantom Execution Active" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("h3", { style: { marginBottom: "1rem", color: "var(--krnl-primary)" }, children: "Endpoint: getNames" }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("form", { onSubmit: handleSubmit, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(KrnlButton, { type: "submit", disabled: loading, children: loading ? "Executing..." : "Execute getNames" }) }),
+          error && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { style: { color: "var(--krnl-danger)", marginTop: "1rem" }, children: [
+            "Error: ",
+            error
+          ] }),
+          response !== null && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { style: { marginTop: "1.5rem", borderTop: "1px solid var(--krnl-border-color)", paddingTop: "1rem" }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("h4", { style: { marginBottom: "0.5rem", color: "var(--krnl-accent)" }, children: "Output Response" }),
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(KrnlDropdown, { label: "Available Usernames", value: slot_nameSelector.value || "", options: slot_nameSelector.options, onChange: (v) => slot_nameSelector.setValue(v) })
+          ] })
+        ]
+      }
+    );
+  }
+
+  // frontend_demo/frontend/src/index.tsx
+  var import_jsx_runtime15 = __toESM(require_jsx_runtime(), 1);
+  function AppShell() {
+    const [activeTab, setActiveTab] = (0, import_react4.useState)("createUser");
+    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(SharedComponentProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "krnl-app-shell", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("header", { className: "krnl-header", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: "0.75rem" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { style: { fontSize: "1.5rem" }, children: "\u{1F537}" }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("h1", { style: { fontSize: "1.25rem", fontWeight: 700 }, children: "MyFrontendSystem" })
+      ] }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "krnl-nav-tabs", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: `krnl-tab-btn ${activeTab === "createUser" ? "active" : ""}`, onClick: () => setActiveTab("createUser"), children: "createUser" }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: `krnl-tab-btn ${activeTab === "getNames" ? "active" : ""}`, onClick: () => setActiveTab("getNames"), children: "getNames" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("main", { className: "krnl-main-body", children: [
+        activeTab === "createUser" && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Endpoint_createUser, {}),
+        activeTab === "getNames" && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(Endpoint_getNames, {})
+      ] })
+    ] }) });
   }
   var rootElement = document.getElementById("root");
   if (rootElement) {
     const root = (0, import_client.createRoot)(rootElement);
-    root.render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AppShell, {}));
+    root.render(/* @__PURE__ */ (0, import_jsx_runtime15.jsx)(AppShell, {}));
   }
 })();
 /*! Bundled license information:

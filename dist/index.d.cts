@@ -573,6 +573,18 @@ interface KrnlUiFieldSpec {
     label?: string;
     options?: string[];
     placeholder?: string;
+    /** Names a globally shared UI component instance across endpoints. */
+    sharedComponentId?: string;
+    /** Dot-path into response to extract data array (e.g. 'names' or 'data.items'). */
+    dataPath?: string;
+    /** For object array responses: key for option value (e.g. 'id'). */
+    valueKey?: string;
+    /** For object array responses: key for option label (e.g. 'name'). */
+    labelKey?: string;
+    /** Input bind mode: 'selected' sends single item, 'all' sends full array. Defaults to 'selected'. */
+    bindMode?: 'selected' | 'all';
+    /** If true, output source endpoint is auto-called on mount to pre-populate shared component. */
+    autoFetch?: boolean;
 }
 interface KrnlUiSpec {
     ui_component_enabled: boolean;
