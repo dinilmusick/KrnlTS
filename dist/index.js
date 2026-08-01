@@ -6,15 +6,15 @@ import {
 } from "./chunk-UBJAGRZU.js";
 import {
   KrnlSubAppLoader
-} from "./chunk-3XCE3NND.js";
+} from "./chunk-ROIIWDC6.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-DR5SYXKL.js";
+} from "./chunk-UZ6XBVBA.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-D4AYAN7R.js";
+} from "./chunk-U456N3UN.js";
 import {
   CUSTOM_ERROR_CODE,
   KrnlApplicationOrchestrator,
@@ -48,15 +48,15 @@ import {
   krnlSystemCommComponent,
   krnlSystemEntityBase,
   krnlTransportAdapter
-} from "./chunk-L6QWEO3N.js";
+} from "./chunk-64OFBVSQ.js";
 import {
   KrnlFrontendGenerator,
   init_K_LIB_Krnl_Frontend_Generator
-} from "./chunk-TJNSET5I.js";
+} from "./chunk-FXURIBDM.js";
 import {
   KrnlFrontendBuilder,
   init_K_LIB_Krnl_Frontend_Builder
-} from "./chunk-N6IKP5ZD.js";
+} from "./chunk-7H365WPE.js";
 import {
   AsyncKit,
   CacheKit,
@@ -73,7 +73,7 @@ import {
   StringKit,
   TTLCache
 } from "./chunk-7Q2FYUWU.js";
-import "./chunk-P6AECYWT.js";
+import "./chunk-QKFRPHJH.js";
 import {
   telemetry
 } from "./chunk-AHWZBXWV.js";
@@ -81,7 +81,7 @@ import {
   KrnlAcpProtocol,
   KrnlMcpProtocol,
   krnlUnifiedHttpAdapter
-} from "./chunk-QQ5BIW7T.js";
+} from "./chunk-3X7STFEB.js";
 import {
   KrnlPolicy,
   Logger,
@@ -94,7 +94,7 @@ import {
   krnlServiceSuites,
   krnlSystemTypes
 } from "./chunk-43SQEXFM.js";
-import "./chunk-PNKVD2UK.js";
+import "./chunk-KFQGP6VL.js";
 
 // src/krnl/core/K_ENT_Krnl_Sub_System_Orchestrator_Base.ts
 var krnlSubSystemOrchestratorBase = class extends krnlEntityBase {

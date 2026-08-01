@@ -609,7 +609,15 @@ body {
     const nodeModulesReact = path.join(frontendDir, 'node_modules', 'react');
     const rootNodeModulesReact = path.resolve(frontendDir, '../../node_modules/react');
 
-    if (!fs.existsSync(nodeModulesReact) && !fs.existsSync(rootNodeModulesReact)) {
+    let hasReact = fs.existsSync(nodeModulesReact) || fs.existsSync(rootNodeModulesReact);
+    if (!hasReact) {
+      try {
+        require.resolve('react', { paths: [frontendDir, process.cwd()] });
+        hasReact = true;
+      } catch (_) {}
+    }
+
+    if (!hasReact) {
       console.error(`
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ [KrnlFrontend] WARNING: UI components are enabled but React is missing! │

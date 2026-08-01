@@ -5511,7 +5511,15 @@ body {
       static checkReactDependencies(frontendDir) {
         const nodeModulesReact = import_path8.default.join(frontendDir, "node_modules", "react");
         const rootNodeModulesReact = import_path8.default.resolve(frontendDir, "../../node_modules/react");
-        if (!import_fs9.default.existsSync(nodeModulesReact) && !import_fs9.default.existsSync(rootNodeModulesReact)) {
+        let hasReact = import_fs9.default.existsSync(nodeModulesReact) || import_fs9.default.existsSync(rootNodeModulesReact);
+        if (!hasReact) {
+          try {
+            require.resolve("react", { paths: [frontendDir, process.cwd()] });
+            hasReact = true;
+          } catch (_) {
+          }
+        }
+        if (!hasReact) {
           console.error(`
 \u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
 \u2502 [KrnlFrontend] WARNING: UI components are enabled but React is missing! \u2502
