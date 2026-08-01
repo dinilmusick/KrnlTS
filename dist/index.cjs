@@ -798,10 +798,10 @@ var init_ObjectKit = __esm({
       /**
        * Accesses an in-memory object by dot-notation.
        */
-      static getPath(obj, path17, defaultValue) {
-        if (!path17)
+      static getPath(obj, path18, defaultValue) {
+        if (!path18)
           return obj;
-        const parts = path17.split(".");
+        const parts = path18.split(".");
         let current = obj;
         for (const part of parts) {
           if (current === null || current === void 0) {
@@ -814,10 +814,10 @@ var init_ObjectKit = __esm({
       /**
        * Mutates or sets an in-memory object by dot-notation.
        */
-      static setPath(obj, path17, value) {
-        if (!path17)
+      static setPath(obj, path18, value) {
+        if (!path18)
           return obj;
-        const parts = path17.split(".");
+        const parts = path18.split(".");
         let current = obj;
         for (let i = 0; i < parts.length - 1; i++) {
           const part = parts[i];
@@ -3657,10 +3657,10 @@ var init_KrnlHTTP = __esm({
        */
       static createClient(baseUrl, defaultHeaders = {}) {
         return {
-          get: (path17, opts = {}) => _KrnlHTTP.get(`${baseUrl}${path17}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
-          post: (path17, body, opts = {}) => _KrnlHTTP.post(`${baseUrl}${path17}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
-          put: (path17, body, opts = {}) => _KrnlHTTP.put(`${baseUrl}${path17}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
-          del: (path17, opts = {}) => _KrnlHTTP.del(`${baseUrl}${path17}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } })
+          get: (path18, opts = {}) => _KrnlHTTP.get(`${baseUrl}${path18}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+          post: (path18, body, opts = {}) => _KrnlHTTP.post(`${baseUrl}${path18}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+          put: (path18, body, opts = {}) => _KrnlHTTP.put(`${baseUrl}${path18}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+          del: (path18, opts = {}) => _KrnlHTTP.del(`${baseUrl}${path18}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } })
         };
       }
       /**
@@ -4463,11 +4463,13 @@ var K_LIB_Krnl_System_Unified_Http_Adapter_exports = {};
 __export(K_LIB_Krnl_System_Unified_Http_Adapter_exports, {
   krnlUnifiedHttpAdapter: () => krnlUnifiedHttpAdapter
 });
-var import_http, krnlUnifiedHttpAdapter;
+var import_http, import_fs7, import_path6, krnlUnifiedHttpAdapter;
 var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Unified_Http_Adapter.ts"() {
     "use strict";
     import_http = __toESM(require("http"), 1);
+    import_fs7 = __toESM(require("fs"), 1);
+    import_path6 = __toESM(require("path"), 1);
     init_K_LIB_Krnl_Protocol_MCP();
     init_K_LIB_Krnl_Protocol_ACP();
     init_K_LIB_Krnl_Base_Concepts();
@@ -4528,7 +4530,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
       }
       async _handleRequest(req, res) {
         const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
-        const path17 = url.pathname;
+        const reqPath = url.pathname;
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         res.setHeader("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id");
@@ -4538,12 +4540,12 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
           return;
         }
         if (this.system._subAppRegistry?.size > 0) {
-          const segments = path17.split("/").filter(Boolean);
+          const segments = reqPath.split("/").filter(Boolean);
           const prefix = segments[0]?.toLowerCase();
           if (prefix && this.system._subAppRegistry.has(prefix)) {
             const entry = this.system._subAppRegistry.get(prefix);
             let subPath = "/" + segments.slice(1).join("/") + url.search;
-            if (path17.endsWith("/") && !subPath.endsWith("/")) subPath += "/";
+            if (reqPath.endsWith("/") && !subPath.endsWith("/")) subPath += "/";
             if (entry.executionMode === "worker") {
               const fid = segments[1] ?? "heartbeat";
               const body = req.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : await this._readJsonBody(req);
@@ -4566,16 +4568,16 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
           }
         }
         if (this.system._siblingNetwork) {
-          const segments = path17.split("/").filter(Boolean);
+          const segments = reqPath.split("/").filter(Boolean);
           const prefix = segments[0]?.toLowerCase();
           if (prefix && this.system._siblingNetwork.members.has(prefix)) {
-            if (segments.length === 3 && segments[1] === "frontend" && segments[2] === "default" && !path17.endsWith("/")) {
-              res.writeHead(302, { "Location": path17 + "/" + url.search });
+            if (segments.length === 3 && segments[1] === "frontend" && segments[2] === "default" && !reqPath.endsWith("/")) {
+              res.writeHead(302, { "Location": reqPath + "/" + url.search });
               res.end();
               return;
             }
             let subPath = "/" + segments.slice(1).join("/") + url.search;
-            if (path17.endsWith("/") && !subPath.endsWith("/")) subPath += "/";
+            if (reqPath.endsWith("/") && !subPath.endsWith("/")) subPath += "/";
             await this.system._siblingNetwork.routeHttpRequest(prefix, req, res, subPath);
             return;
           }
@@ -4587,19 +4589,25 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             }
           }
         }
-        if (path17 === "/frontend" || path17.startsWith("/frontend/")) {
+        if (reqPath === "/frontend" || reqPath.startsWith("/frontend/")) {
+          if (!this.system._frontend && this.system._entityDataDir) {
+            const frontendDir = import_path6.default.join(this.system._entityDataDir, "frontend");
+            if (import_fs7.default.existsSync(frontendDir)) {
+              this.system.enableFrontend({ frontendDir });
+            }
+          }
           if (this.system._frontend) {
-            const subPath = path17.slice("/frontend".length) || "/";
+            const subPath = reqPath.slice("/frontend".length) || "/";
             await this.system._frontend.handleRequest(req, res, subPath);
           } else {
             this._sendJson(res, 404, { status: "error", message: "Frontend not enabled." });
           }
           return;
         }
-        const isKrnlRoute = path17.startsWith("/call/") || path17.startsWith("/sse/") || path17.startsWith("/mcp") || path17.startsWith("/acp") || path17 === "/manifest" || path17 === "/health";
+        const isKrnlRoute = reqPath.startsWith("/call/") || reqPath.startsWith("/sse/") || reqPath.startsWith("/mcp") || reqPath.startsWith("/acp") || reqPath === "/manifest" || reqPath === "/health";
         if (!isKrnlRoute) {
           if (this.enableFriendlyRouting) {
-            let fid = path17.slice(1);
+            let fid = reqPath.slice(1);
             if (fid.endsWith("/")) fid = fid.slice(0, -1);
             const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid);
             const resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
@@ -4633,12 +4641,12 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
               return;
             }
           }
-          this._sendJson(res, 404, this.system.getNotFoundResponse(path17));
+          this._sendJson(res, 404, this.system.getNotFoundResponse(reqPath));
           return;
         }
         try {
-          if (path17.startsWith("/call/")) {
-            const fid = path17.split("/")[2];
+          if (reqPath.startsWith("/call/")) {
+            const fid = reqPath.split("/")[2];
             const body = await this._readJsonBody(req);
             const result = await this.system.call(fid, body, {
               unwrap: false,
@@ -4648,12 +4656,12 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             this._sendJson(res, 200, result);
             return;
           }
-          if (path17.startsWith("/sse/")) {
-            const fid = path17.split("/")[2];
+          if (reqPath.startsWith("/sse/")) {
+            const fid = reqPath.split("/")[2];
             this._handleSse(req, res, fid);
             return;
           }
-          if (path17 === "/ai") {
+          if (reqPath === "/ai") {
             const { message } = await this._readJsonBody(req);
             if (!this.system._aiOrchestrator) {
               const { KrnlAikoClient: KrnlAikoClient2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Aiko_Client(), K_LIB_Krnl_Aiko_Client_exports));
@@ -4667,7 +4675,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             this._sendJson(res, 200, result);
             return;
           }
-          if (path17 === "/ai/manifest") {
+          if (reqPath === "/ai/manifest") {
             const agents = this.system._aiOrchestrator?.getAgentSummaries() ?? [];
             this._sendJson(res, 200, {
               aiEnabled: !!this.system._aiOrchestrator,
@@ -4676,7 +4684,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             });
             return;
           }
-          if (path17 === "/mcp") {
+          if (reqPath === "/mcp") {
             const body = await this._readJsonBody(req);
             const result = await this.mcp.handleRequest(body, {
               callerPort: req.socket?.remotePort,
@@ -4685,7 +4693,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             this._sendJson(res, 200, result);
             return;
           }
-          if (path17 === "/health") {
+          if (reqPath === "/health") {
             const healthData = { status: "ok", entity: this.system.entityName };
             if (this.system._subappErrors && this.system._subappErrors.length > 0) {
               healthData.status = "issues";
@@ -4694,12 +4702,12 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             this._sendJson(res, 200, healthData);
             return;
           }
-          if (path17.startsWith("/acp")) {
-            if (path17 === "/acp/info" || path17 === "/acp") {
+          if (reqPath.startsWith("/acp")) {
+            if (reqPath === "/acp/info" || reqPath === "/acp") {
               this._sendJson(res, 200, this.acp.getInfo());
-            } else if (path17 === "/acp/capabilities") {
+            } else if (reqPath === "/acp/capabilities") {
               this._sendJson(res, 200, this.acp.getCapabilities());
-            } else if (path17 === "/acp/messages" && req.method === "POST") {
+            } else if (reqPath === "/acp/messages" && req.method === "POST") {
               const body = await this._readJsonBody(req);
               const result = await this.acp.handleMessage(body, {
                 callerPort: req.socket?.remotePort,
@@ -4711,7 +4719,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             }
             return;
           }
-          if (path17 === "/manifest") {
+          if (reqPath === "/manifest") {
             if (this.system._ingressNetwork) {
               this._sendJson(res, 200, this.system._ingressNetwork.getGrossManifest(`http://${req.headers.host}`));
             } else {
@@ -4720,7 +4728,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             return;
           }
         } catch (error) {
-          Logger.error(`[HttpAdapter] Fatal handler error ${path17}:`, error.message || error);
+          Logger.error(`[HttpAdapter] Fatal handler error ${reqPath}:`, error.message || error);
           this._sendJson(res, 200, {
             status: "error",
             message: error.message || String(error),
@@ -4788,12 +4796,12 @@ var K_LIB_Krnl_System_App_Adapter_exports = {};
 __export(K_LIB_Krnl_System_App_Adapter_exports, {
   KrnlNonKrnlAppAdapter: () => KrnlNonKrnlAppAdapter
 });
-var import_fs7, import_path6, import_http2, import_net, KrnlNonKrnlAppAdapter;
+var import_fs8, import_path7, import_http2, import_net, KrnlNonKrnlAppAdapter;
 var init_K_LIB_Krnl_System_App_Adapter = __esm({
   "src/krnl/core/K_LIB_Krnl_System_App_Adapter.ts"() {
     "use strict";
-    import_fs7 = __toESM(require("fs"), 1);
-    import_path6 = __toESM(require("path"), 1);
+    import_fs8 = __toESM(require("fs"), 1);
+    import_path7 = __toESM(require("path"), 1);
     import_http2 = __toESM(require("http"), 1);
     import_net = __toESM(require("net"), 1);
     init_K_ENT_Krnl_System_Entity_Base();
@@ -4815,9 +4823,9 @@ var init_K_LIB_Krnl_System_App_Adapter = __esm({
         let command = "node";
         let args = ["."];
         try {
-          const pkgPath = import_path6.default.join(this.appPath, "package.json");
-          if (import_fs7.default.existsSync(pkgPath)) {
-            const packageJson = JSON.parse(import_fs7.default.readFileSync(pkgPath, "utf8"));
+          const pkgPath = import_path7.default.join(this.appPath, "package.json");
+          if (import_fs8.default.existsSync(pkgPath)) {
+            const packageJson = JSON.parse(import_fs8.default.readFileSync(pkgPath, "utf8"));
             if (packageJson.scripts?.start) {
               command = "npm";
               args = ["run", "start"];
@@ -4897,17 +4905,17 @@ var K_LIB_Krnl_Frontend_Generator_exports = {};
 __export(K_LIB_Krnl_Frontend_Generator_exports, {
   KrnlFrontendGenerator: () => KrnlFrontendGenerator
 });
-var import_fs8, import_path7, import_url, import_meta, _metaUrl, _filename, _dirname, KrnlFrontendGenerator;
+var import_fs9, import_path8, import_url, import_meta, _metaUrl, _filename, _dirname, KrnlFrontendGenerator;
 var init_K_LIB_Krnl_Frontend_Generator = __esm({
   "src/krnl/core/K_LIB_Krnl_Frontend_Generator.ts"() {
     "use strict";
-    import_fs8 = __toESM(require("fs"), 1);
-    import_path7 = __toESM(require("path"), 1);
+    import_fs9 = __toESM(require("fs"), 1);
+    import_path8 = __toESM(require("path"), 1);
     import_url = require("url");
     import_meta = {};
     _metaUrl = typeof import_meta !== "undefined" && import_meta.url ? import_meta.url : null;
     _filename = _metaUrl ? (0, import_url.fileURLToPath)(_metaUrl) : "";
-    _dirname = _metaUrl ? import_path7.default.dirname(_filename) : "";
+    _dirname = _metaUrl ? import_path8.default.dirname(_filename) : "";
     KrnlFrontendGenerator = class {
       /**
        * Main entrypoint: ensures skeleton exists, generates React components & index.tsx
@@ -4929,43 +4937,43 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
           this.checkReactDependencies(frontendDir);
         }
         this.generateAtoms(frontendDir);
-        const componentsDir = import_path7.default.join(frontendDir, "src", "components");
-        import_fs8.default.mkdirSync(componentsDir, { recursive: true });
+        const componentsDir = import_path8.default.join(frontendDir, "src", "components");
+        import_fs9.default.mkdirSync(componentsDir, { recursive: true });
         for (const ep of uiEndpoints) {
-          const epDir = import_path7.default.join(componentsDir, ep.id);
-          import_fs8.default.mkdirSync(epDir, { recursive: true });
+          const epDir = import_path8.default.join(componentsDir, ep.id);
+          import_fs9.default.mkdirSync(epDir, { recursive: true });
           const compSource = this.generateComponentSource(ep.id, ep.uiSpec, ep.schema);
-          import_fs8.default.writeFileSync(import_path7.default.join(epDir, "index.tsx"), compSource, "utf-8");
+          import_fs9.default.writeFileSync(import_path8.default.join(epDir, "index.tsx"), compSource, "utf-8");
         }
         const subAppPrefixes = Array.from(entity._subAppRegistry?.keys() || []);
         const indexSource = this.generateIndexSource(entity.entityName, uiEndpoints, subAppPrefixes);
-        import_fs8.default.writeFileSync(import_path7.default.join(frontendDir, "src", "index.tsx"), indexSource, "utf-8");
+        import_fs9.default.writeFileSync(import_path8.default.join(frontendDir, "src", "index.tsx"), indexSource, "utf-8");
       }
       /**
        * Ensures essential files (package.json, index.html, index.css, atoms/) exist in frontendDir
        */
       static ensureFrontendSkeleton(entity, frontendDir) {
-        const srcDir = import_path7.default.join(frontendDir, "src");
-        const atomsDir = import_path7.default.join(srcDir, "atoms");
-        import_fs8.default.mkdirSync(atomsDir, { recursive: true });
+        const srcDir = import_path8.default.join(frontendDir, "src");
+        const atomsDir = import_path8.default.join(srcDir, "atoms");
+        import_fs9.default.mkdirSync(atomsDir, { recursive: true });
         const candidates = [
-          import_path7.default.resolve(_dirname, "../src/krnl/frontend/atoms"),
-          import_path7.default.resolve(_dirname, "../../src/krnl/frontend/atoms"),
-          import_path7.default.resolve(_dirname, "../frontend/atoms"),
-          import_path7.default.resolve(process.cwd(), "node_modules/krnlts/src/krnl/frontend/atoms"),
-          import_path7.default.resolve(process.cwd(), "node_modules/krnlts/dist/frontend/atoms")
+          import_path8.default.resolve(_dirname, "../src/krnl/frontend/atoms"),
+          import_path8.default.resolve(_dirname, "../../src/krnl/frontend/atoms"),
+          import_path8.default.resolve(_dirname, "../frontend/atoms"),
+          import_path8.default.resolve(process.cwd(), "node_modules/krnlts/src/krnl/frontend/atoms"),
+          import_path8.default.resolve(process.cwd(), "node_modules/krnlts/dist/frontend/atoms")
         ];
-        const libAtomsDir = candidates.find((c) => import_fs8.default.existsSync(c));
-        if (libAtomsDir && import_fs8.default.existsSync(libAtomsDir)) {
-          const files = import_fs8.default.readdirSync(libAtomsDir);
+        const libAtomsDir = candidates.find((c) => import_fs9.default.existsSync(c));
+        if (libAtomsDir && import_fs9.default.existsSync(libAtomsDir)) {
+          const files = import_fs9.default.readdirSync(libAtomsDir);
           for (const file of files) {
-            const srcFile = import_path7.default.join(libAtomsDir, file);
-            const destFile = import_path7.default.join(atomsDir, file);
-            import_fs8.default.copyFileSync(srcFile, destFile);
+            const srcFile = import_path8.default.join(libAtomsDir, file);
+            const destFile = import_path8.default.join(atomsDir, file);
+            import_fs9.default.copyFileSync(srcFile, destFile);
           }
         }
-        const pkgPath = import_path7.default.join(frontendDir, "package.json");
-        if (!import_fs8.default.existsSync(pkgPath)) {
+        const pkgPath = import_path8.default.join(frontendDir, "package.json");
+        if (!import_fs9.default.existsSync(pkgPath)) {
           const pkgContent = {
             name: `${entity.entityName.toLowerCase()}-frontend`,
             version: "1.0.0",
@@ -4979,10 +4987,10 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
               "@types/react-dom": "^18.2.0"
             }
           };
-          import_fs8.default.writeFileSync(pkgPath, JSON.stringify(pkgContent, null, 2), "utf-8");
+          import_fs9.default.writeFileSync(pkgPath, JSON.stringify(pkgContent, null, 2), "utf-8");
         }
-        const htmlPath = import_path7.default.join(frontendDir, "index.html");
-        if (!import_fs8.default.existsSync(htmlPath)) {
+        const htmlPath = import_path8.default.join(frontendDir, "index.html");
+        if (!import_fs9.default.existsSync(htmlPath)) {
           const htmlContent = `<!DOCTYPE html>
 <html lang="en" data-theme="glass-brutalism">
 <head>
@@ -5002,10 +5010,10 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
   <script src="bundle.js"></script>
 </body>
 </html>`;
-          import_fs8.default.writeFileSync(htmlPath, htmlContent, "utf-8");
+          import_fs9.default.writeFileSync(htmlPath, htmlContent, "utf-8");
         }
-        const cssPath = import_path7.default.join(frontendDir, "index.css");
-        if (!import_fs8.default.existsSync(cssPath)) {
+        const cssPath = import_path8.default.join(frontendDir, "index.css");
+        if (!import_fs9.default.existsSync(cssPath)) {
           const defaultCss = `/* =============================================================
    KRNL Glass-Brutalism Fallback Design System
    Apple precision + glassmorphism depth + neo-brutalist structure
@@ -5430,16 +5438,16 @@ body {
   .krnl-sphere-neutral { width: 260px; height: 260px; }
 }
 `;
-          import_fs8.default.writeFileSync(cssPath, defaultCss, "utf-8");
+          import_fs9.default.writeFileSync(cssPath, defaultCss, "utf-8");
         }
       }
       /**
        * Verifies React dependencies are installed in frontend/
        */
       static checkReactDependencies(frontendDir) {
-        const nodeModulesReact = import_path7.default.join(frontendDir, "node_modules", "react");
-        const rootNodeModulesReact = import_path7.default.resolve(frontendDir, "../../node_modules/react");
-        if (!import_fs8.default.existsSync(nodeModulesReact) && !import_fs8.default.existsSync(rootNodeModulesReact)) {
+        const nodeModulesReact = import_path8.default.join(frontendDir, "node_modules", "react");
+        const rootNodeModulesReact = import_path8.default.resolve(frontendDir, "../../node_modules/react");
+        if (!import_fs9.default.existsSync(nodeModulesReact) && !import_fs9.default.existsSync(rootNodeModulesReact)) {
           console.error(`
 \u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
 \u2502 [KrnlFrontend] WARNING: UI components are enabled but React is missing! \u2502
@@ -5718,10 +5726,10 @@ if (rootElement) {
 `;
       }
       static generateAtoms(frontendDir) {
-        const atomsDir = import_path7.default.join(frontendDir, "src", "atoms");
-        import_fs8.default.mkdirSync(atomsDir, { recursive: true });
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "KrnlButton.tsx"),
+        const atomsDir = import_path8.default.join(frontendDir, "src", "atoms");
+        import_fs9.default.mkdirSync(atomsDir, { recursive: true });
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "KrnlButton.tsx"),
           `import React from 'react';
 export function KrnlButton({ label, onClick, disabled, loading, variant = 'primary', icon = '\u26A1', type, children }: any) {
   const textLabel = label || (typeof children === 'string' ? children : undefined) || 'Action';
@@ -5740,8 +5748,8 @@ export function KrnlButton({ label, onClick, disabled, loading, variant = 'prima
 }`,
           "utf-8"
         );
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "KrnlTextInput.tsx"),
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "KrnlTextInput.tsx"),
           `import React from 'react';
 export function KrnlTextInput({ label, value, onChange, placeholder, type = 'text' }: any) {
   return (
@@ -5759,8 +5767,8 @@ export function KrnlTextInput({ label, value, onChange, placeholder, type = 'tex
 }`,
           "utf-8"
         );
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "KrnlTextArea.tsx"),
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "KrnlTextArea.tsx"),
           `import React from 'react';
 export function KrnlTextArea({ label, value, onChange, placeholder, rows = 4 }: any) {
   return (
@@ -5778,8 +5786,8 @@ export function KrnlTextArea({ label, value, onChange, placeholder, rows = 4 }: 
 }`,
           "utf-8"
         );
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "KrnlTile.tsx"),
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "KrnlTile.tsx"),
           `import React from 'react';
 export function KrnlTile({ title, value }: any) {
   return (
@@ -5791,8 +5799,8 @@ export function KrnlTile({ title, value }: any) {
 }`,
           "utf-8"
         );
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "KrnlJsonViewer.tsx"),
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "KrnlJsonViewer.tsx"),
           `import React from 'react';
 export function KrnlJsonViewer({ data, label }: any) {
   return (
@@ -5804,8 +5812,8 @@ export function KrnlJsonViewer({ data, label }: any) {
 }`,
           "utf-8"
         );
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "KrnlCarousel.tsx"),
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "KrnlCarousel.tsx"),
           `import React from 'react';
 export function KrnlCarousel({ items, renderItem }: any) {
   if (!items || !items.length) return <div className="krnl-empty">No items available</div>;
@@ -5821,8 +5829,8 @@ export function KrnlCarousel({ items, renderItem }: any) {
 }`,
           "utf-8"
         );
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "KrnlNumberInput.tsx"),
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "KrnlNumberInput.tsx"),
           `import React from 'react';
 export function KrnlNumberInput({ label, value, onChange, placeholder }: any) {
   return (
@@ -5840,8 +5848,8 @@ export function KrnlNumberInput({ label, value, onChange, placeholder }: any) {
 }`,
           "utf-8"
         );
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "KrnlToggle.tsx"),
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "KrnlToggle.tsx"),
           `import React from 'react';
 export function KrnlToggle({ label, value, onChange }: any) {
   return (
@@ -5857,8 +5865,8 @@ export function KrnlToggle({ label, value, onChange }: any) {
 }`,
           "utf-8"
         );
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "KrnlDropdown.tsx"),
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "KrnlDropdown.tsx"),
           `import React from 'react';
 export function KrnlDropdown({ label, value, options = [], onChange }: any) {
   return (
@@ -5877,8 +5885,8 @@ export function KrnlDropdown({ label, value, options = [], onChange }: any) {
 }`,
           "utf-8"
         );
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "KrnlJsonInput.tsx"),
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "KrnlJsonInput.tsx"),
           `import React from 'react';
 export function KrnlJsonInput({ label, onChange }: any) {
   return (
@@ -5896,8 +5904,8 @@ export function KrnlJsonInput({ label, onChange }: any) {
 }`,
           "utf-8"
         );
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "KrnlSSELog.tsx"),
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "KrnlSSELog.tsx"),
           `import React from 'react';
 export function KrnlSSELog({ label }: any) {
   return (
@@ -5908,8 +5916,8 @@ export function KrnlSSELog({ label }: any) {
 }`,
           "utf-8"
         );
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "KrnlSharedState.tsx"),
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "KrnlSharedState.tsx"),
           `import React, { createContext, useContext, useState } from 'react';
 
 export interface SharedSlot {
@@ -5965,8 +5973,8 @@ export function useSharedSlot(id?: string) {
 }`,
           "utf-8"
         );
-        import_fs8.default.writeFileSync(
-          import_path7.default.join(atomsDir, "index.ts"),
+        import_fs9.default.writeFileSync(
+          import_path8.default.join(atomsDir, "index.ts"),
           `export * from './KrnlButton.js';
 export * from './KrnlTextInput.js';
 export * from './KrnlNumberInput.js';
@@ -6004,31 +6012,31 @@ var K_LIB_Krnl_Frontend_Builder_exports = {};
 __export(K_LIB_Krnl_Frontend_Builder_exports, {
   KrnlFrontendBuilder: () => KrnlFrontendBuilder
 });
-var import_fs9, import_path8, KrnlFrontendBuilder;
+var import_fs10, import_path9, KrnlFrontendBuilder;
 var init_K_LIB_Krnl_Frontend_Builder = __esm({
   "src/krnl/core/K_LIB_Krnl_Frontend_Builder.ts"() {
     "use strict";
-    import_fs9 = __toESM(require("fs"), 1);
-    import_path8 = __toESM(require("path"), 1);
+    import_fs10 = __toESM(require("fs"), 1);
+    import_path9 = __toESM(require("path"), 1);
     KrnlFrontendBuilder = class {
       static activeContexts = /* @__PURE__ */ new Map();
       /**
        * Bundles frontend/src/index.tsx -> frontend/dist/bundle.js
        */
       static async build(frontendDir) {
-        const entryFile = import_path8.default.join(frontendDir, "src", "index.tsx");
-        if (!import_fs9.default.existsSync(entryFile)) {
+        const entryFile = import_path9.default.join(frontendDir, "src", "index.tsx");
+        if (!import_fs10.default.existsSync(entryFile)) {
           return false;
         }
-        const distDir = import_path8.default.join(frontendDir, "dist");
-        import_fs9.default.mkdirSync(distDir, { recursive: true });
+        const distDir = import_path9.default.join(frontendDir, "dist");
+        import_fs10.default.mkdirSync(distDir, { recursive: true });
         try {
           const esbuild = await import("esbuild");
           console.log(`[KrnlFrontendBuilder] Bundling ${entryFile} -> ${distDir}/bundle.js...`);
           await esbuild.build({
             entryPoints: [entryFile],
             bundle: true,
-            outfile: import_path8.default.join(distDir, "bundle.js"),
+            outfile: import_path9.default.join(distDir, "bundle.js"),
             loader: {
               ".css": "css",
               ".tsx": "tsx",
@@ -6059,8 +6067,8 @@ var init_K_LIB_Krnl_Frontend_Builder = __esm({
         if (this.activeContexts.has(frontendDir)) {
           return;
         }
-        const entryFile = import_path8.default.join(frontendDir, "src", "index.tsx");
-        if (!import_fs9.default.existsSync(entryFile)) {
+        const entryFile = import_path9.default.join(frontendDir, "src", "index.tsx");
+        if (!import_fs10.default.existsSync(entryFile)) {
           return;
         }
         try {
@@ -6068,7 +6076,7 @@ var init_K_LIB_Krnl_Frontend_Builder = __esm({
           const ctx = await esbuild.context({
             entryPoints: [entryFile],
             bundle: true,
-            outfile: import_path8.default.join(frontendDir, "dist", "bundle.js"),
+            outfile: import_path9.default.join(frontendDir, "dist", "bundle.js"),
             loader: {
               ".css": "css",
               ".tsx": "tsx",
@@ -6103,12 +6111,12 @@ __export(K_LIB_Krnl_System_Magnetic_Loader_exports, {
   magneticStorage: () => magneticStorage,
   subappLocalStorage: () => subappLocalStorage
 });
-var import_fs10, import_path9, import_url2, import_async_hooks, magneticStorage, subappLocalStorage, KrnlMagneticLoader;
+var import_fs11, import_path10, import_url2, import_async_hooks, magneticStorage, subappLocalStorage, KrnlMagneticLoader;
 var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Magnetic_Loader.ts"() {
     "use strict";
-    import_fs10 = __toESM(require("fs"), 1);
-    import_path9 = __toESM(require("path"), 1);
+    import_fs11 = __toESM(require("fs"), 1);
+    import_path10 = __toESM(require("path"), 1);
     import_url2 = require("url");
     import_async_hooks = require("async_hooks");
     init_K_ENT_Krnl_System_Entity_Base();
@@ -6123,32 +6131,32 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
        */
       static async loadAll(entity, baseDir) {
         console.log(`[MagneticLoader] loadAll called for entity '${entity.entityName}' with baseDir '${baseDir}'`);
-        const functionalitiesDir = import_path9.default.join(baseDir, "functionalities");
-        if (import_fs10.default.existsSync(functionalitiesDir)) {
-          const funcDirs = await import_fs10.default.promises.readdir(functionalitiesDir, { withFileTypes: true });
+        const functionalitiesDir = import_path10.default.join(baseDir, "functionalities");
+        if (import_fs11.default.existsSync(functionalitiesDir)) {
+          const funcDirs = await import_fs11.default.promises.readdir(functionalitiesDir, { withFileTypes: true });
           for (const dirent of funcDirs) {
             if (dirent.isDirectory()) {
-              await this.loadFunctionality(entity, import_path9.default.join(functionalitiesDir, dirent.name), dirent.name);
+              await this.loadFunctionality(entity, import_path10.default.join(functionalitiesDir, dirent.name), dirent.name);
             }
           }
         }
-        const entitiesDir = import_path9.default.join(baseDir, "entities");
-        if (import_fs10.default.existsSync(entitiesDir)) {
-          const entDirs = await import_fs10.default.promises.readdir(entitiesDir, { withFileTypes: true });
+        const entitiesDir = import_path10.default.join(baseDir, "entities");
+        if (import_fs11.default.existsSync(entitiesDir)) {
+          const entDirs = await import_fs11.default.promises.readdir(entitiesDir, { withFileTypes: true });
           for (const dirent of entDirs) {
             if (dirent.isDirectory()) {
-              await this.loadEntity(entity, import_path9.default.join(entitiesDir, dirent.name), dirent.name);
+              await this.loadEntity(entity, import_path10.default.join(entitiesDir, dirent.name), dirent.name);
             }
           }
         }
-        const subappsDir = import_path9.default.join(baseDir, "subapps");
+        const subappsDir = import_path10.default.join(baseDir, "subapps");
         const isSubApp = subappLocalStorage.getStore() || entity._isSubApp || entity._isIngressNetworkMember;
-        if (import_fs10.default.existsSync(subappsDir) && !isSubApp) {
-          const apps = await import_fs10.default.promises.readdir(subappsDir, { withFileTypes: true });
+        if (import_fs11.default.existsSync(subappsDir) && !isSubApp) {
+          const apps = await import_fs11.default.promises.readdir(subappsDir, { withFileTypes: true });
           const subappConfigs = [];
           for (const dirent of apps) {
             if (dirent.isDirectory()) {
-              const appPath = import_path9.default.join(subappsDir, dirent.name);
+              const appPath = import_path10.default.join(subappsDir, dirent.name);
               const buildOk = await this.ensureSubAppBuilt(appPath, dirent.name, entity);
               if (!buildOk) {
                 continue;
@@ -6160,11 +6168,11 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             }
           }
           if (subappConfigs.length > 0) {
-            const krnlJsonPath = import_path9.default.join(baseDir, "krnl.json");
+            const krnlJsonPath = import_path10.default.join(baseDir, "krnl.json");
             let subappModes = {};
-            if (import_fs10.default.existsSync(krnlJsonPath)) {
+            if (import_fs11.default.existsSync(krnlJsonPath)) {
               try {
-                const parsed = JSON.parse(import_fs10.default.readFileSync(krnlJsonPath, "utf-8"));
+                const parsed = JSON.parse(import_fs11.default.readFileSync(krnlJsonPath, "utf-8"));
                 subappModes = parsed.subapps || {};
               } catch (_) {
               }
@@ -6176,24 +6184,24 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             await entity.loadSubApps(subappConfigs);
           }
         }
-        let frontendDir = import_path9.default.join(baseDir, "frontend");
-        const oldFrontendsDir = import_path9.default.join(baseDir, "frontends");
-        if (!import_fs10.default.existsSync(frontendDir) && import_fs10.default.existsSync(oldFrontendsDir)) {
+        let frontendDir = import_path10.default.join(baseDir, "frontend");
+        const oldFrontendsDir = import_path10.default.join(baseDir, "frontends");
+        if (!import_fs11.default.existsSync(frontendDir) && import_fs11.default.existsSync(oldFrontendsDir)) {
           try {
-            import_fs10.default.renameSync(oldFrontendsDir, frontendDir);
+            import_fs11.default.renameSync(oldFrontendsDir, frontendDir);
             console.log(`[MagneticLoader] Renamed legacy 'frontends/' directory to 'frontend/' on '${entity.entityName}'.`);
           } catch (err) {
             console.warn(`[MagneticLoader] Failed to rename 'frontends/' -> 'frontend/': ${err.message}`);
           }
         }
-        if (import_fs10.default.existsSync(frontendDir) && !isSubApp) {
+        if (import_fs11.default.existsSync(frontendDir) && !isSubApp) {
           entity.enableFrontend({ frontendDir });
           if (entity._subAppRegistry && entity._frontend) {
             for (const [prefix, entry] of entity._subAppRegistry.entries()) {
               const subAppDir = entry.entity?._entityDataDir;
               if (subAppDir) {
-                const subFrontend = import_path9.default.join(subAppDir, "frontend");
-                if (import_fs10.default.existsSync(subFrontend)) {
+                const subFrontend = import_path10.default.join(subAppDir, "frontend");
+                if (import_fs11.default.existsSync(subFrontend)) {
                   entity._frontend.registerSubAppFrontend(prefix, subFrontend);
                 }
               }
@@ -6217,10 +6225,10 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         }
         const hasAiConfig = [...entity.localFunctionalities.values()].some((f) => f.ai?.enabled);
         let hasAiStore = false;
-        const storePath = import_path9.default.join(baseDir, "krnl_runtime_state.db");
-        if (import_fs10.default.existsSync(storePath)) {
+        const storePath = import_path10.default.join(baseDir, "krnl_runtime_state.db");
+        if (import_fs11.default.existsSync(storePath)) {
           try {
-            const storeContent = JSON.parse(import_fs10.default.readFileSync(storePath, "utf-8"));
+            const storeContent = JSON.parse(import_fs11.default.readFileSync(storePath, "utf-8"));
             if (storeContent?.endpointAgentProfiles && Object.keys(storeContent.endpointAgentProfiles).length > 0) {
               hasAiStore = true;
             }
@@ -6233,9 +6241,9 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         }
       }
       static async loadFunctionality(entity, funcDir, funcName) {
-        const descriptorPath = import_path9.default.join(funcDir, `${funcName}.js`);
+        const descriptorPath = import_path10.default.join(funcDir, `${funcName}.js`);
         let atom = null;
-        if (import_fs10.default.existsSync(descriptorPath)) {
+        if (import_fs11.default.existsSync(descriptorPath)) {
           const mod = await import((0, import_url2.pathToFileURL)(descriptorPath).href);
           atom = mod[`${funcName}Atom`] || mod.default || mod.Atom;
         }
@@ -6245,54 +6253,54 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             visibility: "public",
             emitters: {}
           };
-          const statePath = import_path9.default.join(funcDir, "state_data", "state.js");
-          if (import_fs10.default.existsSync(statePath)) {
+          const statePath = import_path10.default.join(funcDir, "state_data", "state.js");
+          if (import_fs11.default.existsSync(statePath)) {
             const mod = await import((0, import_url2.pathToFileURL)(statePath).href);
             atom.initialState = mod[`${funcName.toLowerCase()}InitialState`] || mod.initialState || mod.default;
           }
-          const logicPath = import_path9.default.join(funcDir, "main_function", "logic.js");
-          if (import_fs10.default.existsSync(logicPath)) {
+          const logicPath = import_path10.default.join(funcDir, "main_function", "logic.js");
+          if (import_fs11.default.existsSync(logicPath)) {
             const mod = await import((0, import_url2.pathToFileURL)(logicPath).href);
             atom.api = mod.main || mod.default;
           }
-          const lifecyclePath = import_path9.default.join(funcDir, "main_function", "lifecycle.js");
-          if (import_fs10.default.existsSync(lifecyclePath)) {
+          const lifecyclePath = import_path10.default.join(funcDir, "main_function", "lifecycle.js");
+          if (import_fs11.default.existsSync(lifecyclePath)) {
             const mod = await import((0, import_url2.pathToFileURL)(lifecyclePath).href);
             atom.onMount = mod.onMount;
             atom.onTeardown = mod.onTeardown;
           }
-          const eventsDir2 = import_path9.default.join(funcDir, "events");
-          if (import_fs10.default.existsSync(eventsDir2)) {
-            const eventFiles = await import_fs10.default.promises.readdir(eventsDir2);
+          const eventsDir2 = import_path10.default.join(funcDir, "events");
+          if (import_fs11.default.existsSync(eventsDir2)) {
+            const eventFiles = await import_fs11.default.promises.readdir(eventsDir2);
             for (const file of eventFiles) {
               if (file.endsWith(".js")) {
-                const name = import_path9.default.basename(file, ".js");
+                const name = import_path10.default.basename(file, ".js");
                 atom.emitters[name] = {};
               }
             }
           }
         }
         const helpers = {};
-        const helpersDir = import_path9.default.join(funcDir, "helper_functions");
-        if (import_fs10.default.existsSync(helpersDir)) {
-          const files = await import_fs10.default.promises.readdir(helpersDir);
+        const helpersDir = import_path10.default.join(funcDir, "helper_functions");
+        if (import_fs11.default.existsSync(helpersDir)) {
+          const files = await import_fs11.default.promises.readdir(helpersDir);
           for (const file of files) {
             if (file.endsWith(".js")) {
-              const name = import_path9.default.basename(file, ".js");
-              const mod = await import((0, import_url2.pathToFileURL)(import_path9.default.join(helpersDir, file)).href);
+              const name = import_path10.default.basename(file, ".js");
+              const mod = await import((0, import_url2.pathToFileURL)(import_path10.default.join(helpersDir, file)).href);
               helpers[name] = mod[name] || mod.default || mod;
               this.registerGlobalWrapper(name);
             }
           }
         }
         const events = {};
-        const eventsDir = import_path9.default.join(funcDir, "events");
-        if (import_fs10.default.existsSync(eventsDir)) {
-          const files = await import_fs10.default.promises.readdir(eventsDir);
+        const eventsDir = import_path10.default.join(funcDir, "events");
+        if (import_fs11.default.existsSync(eventsDir)) {
+          const files = await import_fs11.default.promises.readdir(eventsDir);
           for (const file of files) {
             if (file.endsWith(".js")) {
-              const name = import_path9.default.basename(file, ".js");
-              const mod = await import((0, import_url2.pathToFileURL)(import_path9.default.join(eventsDir, file)).href);
+              const name = import_path10.default.basename(file, ".js");
+              const mod = await import((0, import_url2.pathToFileURL)(import_path10.default.join(eventsDir, file)).href);
               events[name] = mod[name] || mod.default || mod;
               this.registerGlobalWrapper(name);
             }
@@ -6309,8 +6317,8 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         entity.addLocal(atom);
       }
       static async loadEntity(parent, entDir, entName) {
-        const fileToImport = import_path9.default.join(entDir, `${entName}.js`);
-        if (import_fs10.default.existsSync(fileToImport)) {
+        const fileToImport = import_path10.default.join(entDir, `${entName}.js`);
+        if (import_fs11.default.existsSync(fileToImport)) {
           const mod = await import((0, import_url2.pathToFileURL)(fileToImport).href);
           const ClassToUse = mod[entName] || mod.default;
           if (ClassToUse) {
@@ -6320,24 +6328,24 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         }
       }
       static async ensureSubAppBuilt(appPath, appName, entity) {
-        const packageJsonPath = import_path9.default.join(appPath, "package.json");
-        if (!import_fs10.default.existsSync(packageJsonPath)) {
+        const packageJsonPath = import_path10.default.join(appPath, "package.json");
+        if (!import_fs11.default.existsSync(packageJsonPath)) {
           return true;
         }
-        const assemblerPath = import_path9.default.join(appPath, "assembler.js");
-        let distPath = import_path9.default.join(appPath, "dist", `${appName}.js`);
-        if (import_fs10.default.existsSync(packageJsonPath)) {
+        const assemblerPath = import_path10.default.join(appPath, "assembler.js");
+        let distPath = import_path10.default.join(appPath, "dist", `${appName}.js`);
+        if (import_fs11.default.existsSync(packageJsonPath)) {
           try {
-            const pkgJson = JSON.parse(import_fs10.default.readFileSync(packageJsonPath, "utf-8"));
+            const pkgJson = JSON.parse(import_fs11.default.readFileSync(packageJsonPath, "utf-8"));
             if (pkgJson.main) {
-              distPath = import_path9.default.resolve(appPath, pkgJson.main);
+              distPath = import_path10.default.resolve(appPath, pkgJson.main);
             }
           } catch (_) {
           }
         }
         let gitUpdated = false;
-        const gitDir = import_path9.default.join(appPath, ".git");
-        if (import_fs10.default.existsSync(gitDir)) {
+        const gitDir = import_path10.default.join(appPath, ".git");
+        if (import_fs11.default.existsSync(gitDir)) {
           console.log(`[MagneticLoader] Checking for git remote updates for sub-app '${appName}'...`);
           try {
             const { exec: exec3 } = await import("child_process");
@@ -6357,20 +6365,20 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             console.warn(`[MagneticLoader] Warning: git update check failed for '${appName}':`, err.message || err);
           }
         }
-        if (!import_fs10.default.existsSync(assemblerPath) || !import_fs10.default.existsSync(distPath) || !import_fs10.default.existsSync(import_path9.default.join(appPath, "node_modules")) || gitUpdated) {
+        if (!import_fs11.default.existsSync(assemblerPath) || !import_fs11.default.existsSync(distPath) || !import_fs11.default.existsSync(import_path10.default.join(appPath, "node_modules")) || gitUpdated) {
           console.log(`[MagneticLoader] Sub-app '${appName}' ${gitUpdated ? "was updated via git" : "is missing build artifacts"}. Initiating auto-build...`);
           try {
-            const pkgJson = JSON.parse(import_fs10.default.readFileSync(packageJsonPath, "utf-8"));
+            const pkgJson = JSON.parse(import_fs11.default.readFileSync(packageJsonPath, "utf-8"));
             const hasBuildScript = pkgJson.scripts && pkgJson.scripts.build;
             if (!hasBuildScript) {
               throw new Error(`package.json is missing a 'build' script.`);
             }
-            const nodeModulesPath = import_path9.default.join(appPath, "node_modules");
-            if (!import_fs10.default.existsSync(nodeModulesPath)) {
+            const nodeModulesPath = import_path10.default.join(appPath, "node_modules");
+            if (!import_fs11.default.existsSync(nodeModulesPath)) {
               let installCmd = "npm install --no-audit --no-fund";
-              if (import_fs10.default.existsSync(import_path9.default.join(appPath, "pnpm-lock.yaml"))) {
+              if (import_fs11.default.existsSync(import_path10.default.join(appPath, "pnpm-lock.yaml"))) {
                 installCmd = "pnpm install";
-              } else if (import_fs10.default.existsSync(import_path9.default.join(appPath, "yarn.lock"))) {
+              } else if (import_fs11.default.existsSync(import_path10.default.join(appPath, "yarn.lock"))) {
                 installCmd = "yarn install";
               }
               console.log(`[MagneticLoader] Installing dependencies for '${appName}' using '${installCmd}'...`);
@@ -6379,13 +6387,13 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
               const execPromise2 = promisify3(exec4);
               await execPromise2(installCmd, { cwd: appPath });
             } else {
-              const pkgJson2 = JSON.parse(import_fs10.default.readFileSync(packageJsonPath, "utf-8"));
+              const pkgJson2 = JSON.parse(import_fs11.default.readFileSync(packageJsonPath, "utf-8"));
               const hasKrnlts = pkgJson2.dependencies && pkgJson2.dependencies.krnlts || pkgJson2.devDependencies && pkgJson2.devDependencies.krnlts;
               if (hasKrnlts) {
                 let updateCmd = "npm update krnlts";
-                if (import_fs10.default.existsSync(import_path9.default.join(appPath, "pnpm-lock.yaml"))) {
+                if (import_fs11.default.existsSync(import_path10.default.join(appPath, "pnpm-lock.yaml"))) {
                   updateCmd = "pnpm update krnlts";
-                } else if (import_fs10.default.existsSync(import_path9.default.join(appPath, "yarn.lock"))) {
+                } else if (import_fs11.default.existsSync(import_path10.default.join(appPath, "yarn.lock"))) {
                   updateCmd = "yarn upgrade krnlts";
                 }
                 console.log(`[MagneticLoader] Automatically updating krnlts dependency for '${appName}' using '${updateCmd}'...`);
@@ -6400,9 +6408,9 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
               }
             }
             let buildCmd = "npm run build";
-            if (import_fs10.default.existsSync(import_path9.default.join(appPath, "pnpm-lock.yaml"))) {
+            if (import_fs11.default.existsSync(import_path10.default.join(appPath, "pnpm-lock.yaml"))) {
               buildCmd = "pnpm run build";
-            } else if (import_fs10.default.existsSync(import_path9.default.join(appPath, "yarn.lock"))) {
+            } else if (import_fs11.default.existsSync(import_path10.default.join(appPath, "yarn.lock"))) {
               buildCmd = "yarn build";
             }
             console.log(`[MagneticLoader] Building '${appName}' using '${buildCmd}'...`);
@@ -6410,11 +6418,11 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             const { promisify: promisify2 } = await import("util");
             const execPromise = promisify2(exec3);
             await execPromise(buildCmd, { cwd: appPath });
-            if (!import_fs10.default.existsSync(assemblerPath)) {
+            if (!import_fs11.default.existsSync(assemblerPath)) {
               console.log(`[MagneticLoader] Automatically generating assembler.js for '${appName}'...`);
               const code = `export { ${appName} as default } from "./dist/${appName}.js";
 `;
-              import_fs10.default.writeFileSync(assemblerPath, code, "utf-8");
+              import_fs11.default.writeFileSync(assemblerPath, code, "utf-8");
             }
             console.log(`[MagneticLoader] Sub-app '${appName}' successfully built and prepared.`);
           } catch (err) {
@@ -6431,8 +6439,8 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         return true;
       }
       static async detectSubApp(appPath, appName) {
-        const assemblerPath = import_path9.default.join(appPath, "assembler.js");
-        if (import_fs10.default.existsSync(assemblerPath)) {
+        const assemblerPath = import_path10.default.join(appPath, "assembler.js");
+        if (import_fs11.default.existsSync(assemblerPath)) {
           const mod = await import((0, import_url2.pathToFileURL)(assemblerPath).href);
           const ServiceClass = mod[appName] || mod.default;
           if (ServiceClass) {
@@ -6445,9 +6453,9 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             };
           }
         }
-        const packageJsonPath = import_path9.default.join(appPath, "package.json");
-        if (import_fs10.default.existsSync(packageJsonPath)) {
-          if (import_fs10.default.existsSync(import_path9.default.join(appPath, "KrnlFrontendModule.ts"))) {
+        const packageJsonPath = import_path10.default.join(appPath, "package.json");
+        if (import_fs11.default.existsSync(packageJsonPath)) {
+          if (import_fs11.default.existsSync(import_path10.default.join(appPath, "KrnlFrontendModule.ts"))) {
             return null;
           }
           return {
@@ -6479,11 +6487,11 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
 });
 
 // src/krnl/core/K_LIB_Krnl_System_Ingress_Network.ts
-var import_path10, KrnlSiblingNetwork, KrnlIngressNetwork;
+var import_path11, KrnlSiblingNetwork, KrnlIngressNetwork;
 var init_K_LIB_Krnl_System_Ingress_Network = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Ingress_Network.ts"() {
     "use strict";
-    import_path10 = __toESM(require("path"), 1);
+    import_path11 = __toESM(require("path"), 1);
     KrnlSiblingNetwork = class {
       members = /* @__PURE__ */ new Map();
       /**
@@ -6511,7 +6519,7 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
           const memberPort = config.port ?? -1;
           const args = config.constructorArgs ?? [];
           const { subappLocalStorage: subappLocalStorage2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_System_Magnetic_Loader(), K_LIB_Krnl_System_Magnetic_Loader_exports));
-          const appDir = config.entryPath ? import_path10.default.dirname(config.entryPath) : "";
+          const appDir = config.entryPath ? import_path11.default.dirname(config.entryPath) : "";
           entity = await subappLocalStorage2.run({ appPath: appDir }, async () => {
             const ent = new ServiceClass(memberPort, ...args);
             if (ent._magneticLoadPromise) {
@@ -6606,12 +6614,12 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
 });
 
 // src/krnl/core/K_LIB_Krnl_System_Frontend.ts
-var import_fs11, import_path11, KrnlFrontend;
+var import_fs12, import_path12, KrnlFrontend;
 var init_K_LIB_Krnl_System_Frontend = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Frontend.ts"() {
     "use strict";
-    import_fs11 = __toESM(require("fs"), 1);
-    import_path11 = __toESM(require("path"), 1);
+    import_fs12 = __toESM(require("fs"), 1);
+    import_path12 = __toESM(require("path"), 1);
     KrnlFrontend = class {
       system;
       options;
@@ -6626,7 +6634,7 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
           enableMonitoringApi: true,
           ...options
         };
-        this.frontendDir = options.frontendDir || import_path11.default.join(system._entityDataDir, "frontend");
+        this.frontendDir = options.frontendDir || import_path12.default.join(system._entityDataDir, "frontend");
       }
       registerSubAppFrontend(prefix, subFrontendDir) {
         this.subAppFrontendDirs.set(prefix.toLowerCase(), subFrontendDir);
@@ -6636,18 +6644,18 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
         const rawPath = subpath.split("?")[0];
         const normalized = rawPath.replace(/\/$/, "") || "/";
         if ((normalized === "/" || normalized === "/index.html") && req.method === "GET") {
-          const htmlPath = import_path11.default.join(this.frontendDir, "index.html");
-          if (import_fs11.default.existsSync(htmlPath)) {
+          const htmlPath = import_path12.default.join(this.frontendDir, "index.html");
+          if (import_fs12.default.existsSync(htmlPath)) {
             res.writeHead(200, { "Content-Type": "text/html" });
-            res.end(import_fs11.default.readFileSync(htmlPath));
+            res.end(import_fs12.default.readFileSync(htmlPath));
             return;
           }
         }
         if (normalized === "/bundle.js" && req.method === "GET") {
-          const bundlePath = import_path11.default.join(this.frontendDir, "dist", "bundle.js");
-          if (import_fs11.default.existsSync(bundlePath)) {
+          const bundlePath = import_path12.default.join(this.frontendDir, "dist", "bundle.js");
+          if (import_fs12.default.existsSync(bundlePath)) {
             res.writeHead(200, { "Content-Type": "application/javascript" });
-            res.end(import_fs11.default.readFileSync(bundlePath));
+            res.end(import_fs12.default.readFileSync(bundlePath));
             return;
           }
           res.writeHead(404, { "Content-Type": "application/javascript" });
@@ -6655,22 +6663,22 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
           return;
         }
         if ((normalized === "/styles.css" || normalized === "/index.css") && req.method === "GET") {
-          const cssPath = import_path11.default.join(this.frontendDir, "index.css");
-          if (import_fs11.default.existsSync(cssPath)) {
+          const cssPath = import_path12.default.join(this.frontendDir, "index.css");
+          if (import_fs12.default.existsSync(cssPath)) {
             res.writeHead(200, { "Content-Type": "text/css" });
-            res.end(import_fs11.default.readFileSync(cssPath));
+            res.end(import_fs12.default.readFileSync(cssPath));
             return;
           }
           const libCssCandidates = [
-            import_path11.default.resolve(process.cwd(), "dist/frontend/index.css"),
-            import_path11.default.resolve(process.cwd(), "src/krnl/frontend/index.css"),
-            import_path11.default.resolve(process.cwd(), "node_modules/krnlts/dist/frontend/index.css"),
-            import_path11.default.resolve(process.cwd(), "node_modules/krnlts/src/krnl/frontend/index.css")
+            import_path12.default.resolve(process.cwd(), "dist/frontend/index.css"),
+            import_path12.default.resolve(process.cwd(), "src/krnl/frontend/index.css"),
+            import_path12.default.resolve(process.cwd(), "node_modules/krnlts/dist/frontend/index.css"),
+            import_path12.default.resolve(process.cwd(), "node_modules/krnlts/src/krnl/frontend/index.css")
           ];
-          const fallbackCssPath = libCssCandidates.find((c) => import_fs11.default.existsSync(c));
+          const fallbackCssPath = libCssCandidates.find((c) => import_fs12.default.existsSync(c));
           if (fallbackCssPath) {
             res.writeHead(200, { "Content-Type": "text/css" });
-            res.end(import_fs11.default.readFileSync(fallbackCssPath));
+            res.end(import_fs12.default.readFileSync(fallbackCssPath));
             return;
           }
           res.writeHead(404, { "Content-Type": "text/css" });
@@ -6682,41 +6690,41 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
           const prefix = parts[1]?.toLowerCase();
           let subDir = prefix ? this.subAppFrontendDirs.get(prefix) : void 0;
           if (!subDir && prefix) {
-            const candidate1 = import_path11.default.join(this.system._entityDataDir || ".", "subapps", prefix, "frontend");
-            const candidate2 = import_path11.default.join(process.cwd(), "subapps", prefix, "frontend");
-            if (import_fs11.default.existsSync(candidate1)) subDir = candidate1;
-            else if (import_fs11.default.existsSync(candidate2)) subDir = candidate2;
+            const candidate1 = import_path12.default.join(this.system._entityDataDir || ".", "subapps", prefix, "frontend");
+            const candidate2 = import_path12.default.join(process.cwd(), "subapps", prefix, "frontend");
+            if (import_fs12.default.existsSync(candidate1)) subDir = candidate1;
+            else if (import_fs12.default.existsSync(candidate2)) subDir = candidate2;
           }
-          if (subDir && import_fs11.default.existsSync(subDir)) {
+          if (subDir && import_fs12.default.existsSync(subDir)) {
             const fileRel = parts.slice(2).join("/");
             if (fileRel === "styles.css") {
-              const cssPath = import_path11.default.join(this.frontendDir, "index.css");
-              if (import_fs11.default.existsSync(cssPath)) {
+              const cssPath = import_path12.default.join(this.frontendDir, "index.css");
+              if (import_fs12.default.existsSync(cssPath)) {
                 res.writeHead(200, { "Content-Type": "text/css" });
-                res.end(import_fs11.default.readFileSync(cssPath));
+                res.end(import_fs12.default.readFileSync(cssPath));
                 return;
               }
             }
             if (!fileRel || fileRel === "index.html") {
-              const subHtml = import_path11.default.join(subDir, "index.html");
-              if (import_fs11.default.existsSync(subHtml)) {
+              const subHtml = import_path12.default.join(subDir, "index.html");
+              if (import_fs12.default.existsSync(subHtml)) {
                 res.writeHead(200, { "Content-Type": "text/html" });
-                res.end(import_fs11.default.readFileSync(subHtml));
+                res.end(import_fs12.default.readFileSync(subHtml));
                 return;
               }
             }
             if (fileRel === "bundle.js") {
-              const subBundle = import_path11.default.join(subDir, "dist", "bundle.js");
-              if (import_fs11.default.existsSync(subBundle)) {
+              const subBundle = import_path12.default.join(subDir, "dist", "bundle.js");
+              if (import_fs12.default.existsSync(subBundle)) {
                 res.writeHead(200, { "Content-Type": "application/javascript" });
-                res.end(import_fs11.default.readFileSync(subBundle));
+                res.end(import_fs12.default.readFileSync(subBundle));
                 return;
               }
             }
-            const assetPath = import_path11.default.join(subDir, fileRel);
-            if (import_fs11.default.existsSync(assetPath) && import_fs11.default.statSync(assetPath).isFile()) {
+            const assetPath = import_path12.default.join(subDir, fileRel);
+            if (import_fs12.default.existsSync(assetPath) && import_fs12.default.statSync(assetPath).isFile()) {
               res.writeHead(200);
-              res.end(import_fs11.default.readFileSync(assetPath));
+              res.end(import_fs12.default.readFileSync(assetPath));
               return;
             }
           }
@@ -7576,12 +7584,12 @@ Generate corrected JSON payload.`;
 });
 
 // src/krnl/core/K_LIB_Krnl_Runtime_Store.ts
-var import_fs12, import_path12, KrnlRuntimeStore;
+var import_fs13, import_path13, KrnlRuntimeStore;
 var init_K_LIB_Krnl_Runtime_Store = __esm({
   "src/krnl/core/K_LIB_Krnl_Runtime_Store.ts"() {
     "use strict";
-    import_fs12 = __toESM(require("fs"), 1);
-    import_path12 = __toESM(require("path"), 1);
+    import_fs13 = __toESM(require("fs"), 1);
+    import_path13 = __toESM(require("path"), 1);
     KrnlRuntimeStore = class {
       filePath;
       data = {
@@ -7593,12 +7601,12 @@ var init_K_LIB_Krnl_Runtime_Store = __esm({
         activeTasks: null
       };
       constructor(appRoot) {
-        this.filePath = import_path12.default.join(appRoot, "krnl_runtime_state.db");
+        this.filePath = import_path13.default.join(appRoot, "krnl_runtime_state.db");
       }
       async load() {
         try {
-          if (import_fs12.default.existsSync(this.filePath)) {
-            const raw = import_fs12.default.readFileSync(this.filePath, "utf-8");
+          if (import_fs13.default.existsSync(this.filePath)) {
+            const raw = import_fs13.default.readFileSync(this.filePath, "utf-8");
             this.data = JSON.parse(raw);
             if (!this.data.endpointDefinitions) this.data.endpointDefinitions = {};
             if (!this.data.endpointMemories) this.data.endpointMemories = {};
@@ -7694,7 +7702,7 @@ var init_K_LIB_Krnl_Runtime_Store = __esm({
       }
       async save() {
         try {
-          import_fs12.default.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), "utf-8");
+          import_fs13.default.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), "utf-8");
         } catch (e) {
           console.error("[KrnlRuntimeStore] Failed to save store:", e);
         }
@@ -8023,16 +8031,16 @@ var K_LIB_Krnl_SubApp_Worker_Host_exports = {};
 __export(K_LIB_Krnl_SubApp_Worker_Host_exports, {
   KrnlSubAppWorkerHost: () => KrnlSubAppWorkerHost
 });
-var import_worker_threads, import_url3, import_path13, import_meta2, __filename, __dirname, _rpcSeq, KrnlSubAppWorkerHost;
+var import_worker_threads, import_url3, import_path14, import_meta2, __filename, __dirname, _rpcSeq, KrnlSubAppWorkerHost;
 var init_K_LIB_Krnl_SubApp_Worker_Host = __esm({
   "src/krnl/core/K_LIB_Krnl_SubApp_Worker_Host.ts"() {
     "use strict";
     import_worker_threads = require("worker_threads");
     import_url3 = require("url");
-    import_path13 = __toESM(require("path"), 1);
+    import_path14 = __toESM(require("path"), 1);
     import_meta2 = {};
     __filename = (0, import_url3.fileURLToPath)(import_meta2.url);
-    __dirname = import_path13.default.dirname(__filename);
+    __dirname = import_path14.default.dirname(__filename);
     _rpcSeq = 0;
     KrnlSubAppWorkerHost = class _KrnlSubAppWorkerHost {
       prefix;
@@ -8085,7 +8093,7 @@ var init_K_LIB_Krnl_SubApp_Worker_Host = __esm({
        * Spawn a worker_thread for the given sub-app config and wait for the manifest.
        */
       static async create(config, timeoutMs = 3e4) {
-        const runtimePath = import_path13.default.resolve(__dirname, "K_LIB_Krnl_SubApp_Worker_Runtime.js");
+        const runtimePath = import_path14.default.resolve(__dirname, "K_LIB_Krnl_SubApp_Worker_Runtime.js");
         const worker = new import_worker_threads.Worker(runtimePath, {
           workerData: {
             entryPath: config.entryPath ?? "",
@@ -8148,11 +8156,11 @@ var K_LIB_Krnl_SubApp_Registry_exports = {};
 __export(K_LIB_Krnl_SubApp_Registry_exports, {
   KrnlSubAppLoader: () => KrnlSubAppLoader
 });
-var import_path14, import_url4, KrnlSubAppLoader;
+var import_path15, import_url4, KrnlSubAppLoader;
 var init_K_LIB_Krnl_SubApp_Registry = __esm({
   "src/krnl/core/K_LIB_Krnl_SubApp_Registry.ts"() {
     "use strict";
-    import_path14 = __toESM(require("path"), 1);
+    import_path15 = __toESM(require("path"), 1);
     import_url4 = require("url");
     init_K_LIB_Krnl_System_Magnetic_Loader();
     KrnlSubAppLoader = class {
@@ -8176,7 +8184,7 @@ var init_K_LIB_Krnl_SubApp_Registry = __esm({
         }
         let entry;
         if (mode === "local") {
-          const appDir = config.entryPath ? import_path14.default.dirname(config.entryPath) : "";
+          const appDir = config.entryPath ? import_path15.default.dirname(config.entryPath) : "";
           let entity;
           if (config.isKrnl === false || !config.ServiceClass) {
             const { KrnlNonKrnlAppAdapter: KrnlNonKrnlAppAdapter2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_System_App_Adapter(), K_LIB_Krnl_System_App_Adapter_exports));
@@ -8340,7 +8348,7 @@ var init_K_LIB_Krnl_Ep_Tools = __esm({
 });
 
 // src/krnl/core/K_ENT_Krnl_System_Entity_Base.ts
-var import_http3, import_net2, import_fs13, import_path15, import_url5, import_zod_to_json_schema2, krnlSystemEntityBase;
+var import_http3, import_net2, import_fs14, import_path16, import_url5, import_zod_to_json_schema2, krnlSystemEntityBase;
 var init_K_ENT_Krnl_System_Entity_Base = __esm({
   "src/krnl/core/K_ENT_Krnl_System_Entity_Base.ts"() {
     "use strict";
@@ -8360,8 +8368,8 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
     init_K_LIB_Krnl_Endpoint_Agent();
     import_http3 = __toESM(require("http"), 1);
     import_net2 = __toESM(require("net"), 1);
-    import_fs13 = __toESM(require("fs"), 1);
-    import_path15 = __toESM(require("path"), 1);
+    import_fs14 = __toESM(require("fs"), 1);
+    import_path16 = __toESM(require("path"), 1);
     import_url5 = require("url");
     import_zod_to_json_schema2 = require("zod-to-json-schema");
     krnlSystemEntityBase = class extends krnlEntityBase {
@@ -8508,7 +8516,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         } else if (options.sourcePath) {
           try {
             const resolved = options.sourcePath.startsWith("file:") ? (0, import_url5.fileURLToPath)(options.sourcePath) : options.sourcePath;
-            dataDir = import_path15.default.dirname(resolved);
+            dataDir = import_path16.default.dirname(resolved);
           } catch (_) {
           }
         }
@@ -8564,9 +8572,9 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
        */
       async _validateBootManifestDependencies() {
         try {
-          const manifestPath = import_path15.default.join(this._entityDataDir, "krnl.json");
-          if (!import_fs13.default.existsSync(manifestPath)) return;
-          const content = import_fs13.default.readFileSync(manifestPath, "utf-8");
+          const manifestPath = import_path16.default.join(this._entityDataDir, "krnl.json");
+          if (!import_fs14.default.existsSync(manifestPath)) return;
+          const content = import_fs14.default.readFileSync(manifestPath, "utf-8");
           const manifest = JSON.parse(content);
           if (!manifest.dependencies?.requiredRemotes) return;
           const availableEntities = /* @__PURE__ */ new Set();
@@ -8799,10 +8807,10 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         }
         return response;
       }
-      getNotFoundResponse(path17) {
+      getNotFoundResponse(path18) {
         const response = {
           status: "error",
-          message: `Route '${path17}' not found.`
+          message: `Route '${path18}' not found.`
         };
         if (this._documentationProvider && typeof this._documentationProvider.getDocsForLayer === "function") {
           const entryPoints = this._documentationProvider.getDocsForLayer("LAYER_1_ENTRY");
@@ -8878,7 +8886,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
       // ── Port Snapshot File ────────────────────────────────────────────────────
       /** Absolute path of the JSON port snapshot co-located with the assembler. */
       _getPortsFilePath() {
-        return import_path15.default.join(this._entityDataDir, `${this.entityName}.ports.json`);
+        return import_path16.default.join(this._entityDataDir, `${this.entityName}.ports.json`);
       }
       /**
        * _writePortsFile — persists portRegistry to disk.
@@ -8893,11 +8901,11 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
           ports: this.getRegisteredPorts()
         }, null, 2);
         try {
-          const dir = import_path15.default.dirname(filePath);
-          if (!import_fs13.default.existsSync(dir)) {
-            await import_fs13.default.promises.mkdir(dir, { recursive: true });
+          const dir = import_path16.default.dirname(filePath);
+          if (!import_fs14.default.existsSync(dir)) {
+            await import_fs14.default.promises.mkdir(dir, { recursive: true });
           }
-          await import_fs13.default.promises.writeFile(filePath, snapshot);
+          await import_fs14.default.promises.writeFile(filePath, snapshot);
         } catch (err) {
           Logger.error(`[${this.entityName}] Ports file write failed:`, err);
         }
@@ -8906,8 +8914,8 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
       _deletePortsFile() {
         const filePath = this._getPortsFilePath();
         try {
-          if (import_fs13.default.existsSync(filePath)) {
-            import_fs13.default.unlinkSync(filePath);
+          if (import_fs14.default.existsSync(filePath)) {
+            import_fs14.default.unlinkSync(filePath);
           }
         } catch (_) {
         }

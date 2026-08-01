@@ -4,6 +4,8 @@
  */
 
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import { KrnlMcpProtocol } from './K_LIB_Krnl_Protocol_MCP.js';
 import { KrnlAcpProtocol } from './K_LIB_Krnl_Protocol_ACP.js';
 import { Logger } from './K_LIB_Krnl_Base_Concepts.js';
@@ -72,7 +74,7 @@ export class krnlUnifiedHttpAdapter {
 
     async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
         const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
-        const path = url.pathname;
+        const reqPath = url.pathname;
 
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -89,12 +91,12 @@ export class krnlUnifiedHttpAdapter {
         // Local-mode sub-apps: call their unifiedHttpAdapter._handleRequest directly (in-process).
         // Worker-mode sub-apps: parse body here, send via MessagePort, write response.
         if (this.system._subAppRegistry?.size > 0) {
-            const segments = path.split('/').filter(Boolean);
+            const segments = reqPath.split('/').filter(Boolean);
             const prefix = segments[0]?.toLowerCase();
             if (prefix && this.system._subAppRegistry.has(prefix)) {
                 const entry = this.system._subAppRegistry.get(prefix)!;
                 let subPath = '/' + segments.slice(1).join('/') + url.search;
-                if (path.endsWith('/') && !subPath.endsWith('/')) subPath += '/';
+                if (reqPath.endsWith('/') && !subPath.endsWith('/')) subPath += '/';
 
                 if (entry.executionMode === 'worker') {
                     // Worker mode: parse the request and route via MessagePort IPC
@@ -126,16 +128,16 @@ export class krnlUnifiedHttpAdapter {
         // The sibling network (formerly ingress network) connects STANDALONE independent apps.
         // This routing block handles custom frontends registered via the sibling network.
         if (this.system._siblingNetwork) {
-            const segments = path.split('/').filter(Boolean);
+            const segments = reqPath.split('/').filter(Boolean);
             const prefix = segments[0]?.toLowerCase();
             if (prefix && this.system._siblingNetwork.members.has(prefix)) {
-                if (segments.length === 3 && segments[1] === 'frontend' && segments[2] === 'default' && !path.endsWith('/')) {
-                    res.writeHead(302, { 'Location': path + '/' + url.search });
+                if (segments.length === 3 && segments[1] === 'frontend' && segments[2] === 'default' && !reqPath.endsWith('/')) {
+                    res.writeHead(302, { 'Location': reqPath + '/' + url.search });
                     res.end();
                     return;
                 }
                 let subPath = '/' + segments.slice(1).join('/') + url.search;
-                if (path.endsWith('/') && !subPath.endsWith('/')) subPath += '/';
+                if (reqPath.endsWith('/') && !subPath.endsWith('/')) subPath += '/';
                 await this.system._siblingNetwork.routeHttpRequest(prefix, req, res, subPath);
                 return;
             }
@@ -149,9 +151,16 @@ export class krnlUnifiedHttpAdapter {
             }
         }
 
-        if (path === '/frontend' || path.startsWith('/frontend/')) {
+        if (reqPath === '/frontend' || reqPath.startsWith('/frontend/')) {
+            if (!this.system._frontend && this.system._entityDataDir) {
+                const frontendDir = path.join(this.system._entityDataDir, 'frontend');
+                if (fs.existsSync(frontendDir)) {
+                    this.system.enableFrontend({ frontendDir });
+                }
+            }
+
             if (this.system._frontend) {
-                const subPath = path.slice('/frontend'.length) || '/';
+                const subPath = reqPath.slice('/frontend'.length) || '/';
                 await this.system._frontend.handleRequest(req, res, subPath);
             } else {
                 this._sendJson(res, 404, { status: 'error', message: 'Frontend not enabled.' });
@@ -159,16 +168,16 @@ export class krnlUnifiedHttpAdapter {
             return;
         }
 
-        const isKrnlRoute = path.startsWith('/call/') || 
-                           path.startsWith('/sse/') || 
-                           path.startsWith('/mcp') || 
-                           path.startsWith('/acp') || 
-                           path === '/manifest' ||
-                           path === '/health';
+        const isKrnlRoute = reqPath.startsWith('/call/') || 
+                           reqPath.startsWith('/sse/') || 
+                           reqPath.startsWith('/mcp') || 
+                           reqPath.startsWith('/acp') || 
+                           reqPath === '/manifest' ||
+                           reqPath === '/health';
 
         if (!isKrnlRoute) {
             if (this.enableFriendlyRouting) {
-                let fid = path.slice(1);
+                let fid = reqPath.slice(1);
                 if (fid.endsWith('/')) fid = fid.slice(0, -1); 
 
                 const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid);
@@ -213,13 +222,13 @@ export class krnlUnifiedHttpAdapter {
                 }
             }
 
-            this._sendJson(res, 404, this.system.getNotFoundResponse(path));
+            this._sendJson(res, 404, this.system.getNotFoundResponse(reqPath));
             return;
         }
 
         try {
-            if (path.startsWith('/call/')) {
-                const fid = path.split('/')[2];
+            if (reqPath.startsWith('/call/')) {
+                const fid = reqPath.split('/')[2];
                 const body = await this._readJsonBody(req);
                 const result = await this.system.call(fid, body, {
                     unwrap: false,
@@ -230,13 +239,13 @@ export class krnlUnifiedHttpAdapter {
                 return;
             }
 
-            if (path.startsWith('/sse/')) {
-                const fid = path.split('/')[2];
+            if (reqPath.startsWith('/sse/')) {
+                const fid = reqPath.split('/')[2];
                 this._handleSse(req, res, fid);
                 return;
             }
 
-            if (path === '/ai') {
+            if (reqPath === '/ai') {
                 const { message } = await this._readJsonBody(req);
                 if (!this.system._aiOrchestrator) {
                     const { KrnlAikoClient } = await import("./K_LIB_Krnl_Aiko_Client.js");
@@ -251,7 +260,7 @@ export class krnlUnifiedHttpAdapter {
                 return;
             }
 
-            if (path === '/ai/manifest') {
+            if (reqPath === '/ai/manifest') {
                 const agents = this.system._aiOrchestrator?.getAgentSummaries() ?? [];
                 this._sendJson(res, 200, { 
                     aiEnabled: !!this.system._aiOrchestrator, 
@@ -261,7 +270,7 @@ export class krnlUnifiedHttpAdapter {
                 return;
             }
 
-            if (path === '/mcp') {
+            if (reqPath === '/mcp') {
                 const body = await this._readJsonBody(req);
                 const result = await (this.mcp as any).handleRequest(body, {
                     callerPort: req.socket?.remotePort,
@@ -271,7 +280,7 @@ export class krnlUnifiedHttpAdapter {
                 return;
             }
 
-            if (path === '/health') {
+            if (reqPath === '/health') {
                 const healthData: any = { status: "ok", entity: this.system.entityName };
                 if (this.system._subappErrors && this.system._subappErrors.length > 0) {
                     healthData.status = "issues";
@@ -281,12 +290,12 @@ export class krnlUnifiedHttpAdapter {
                 return;
             }
 
-            if (path.startsWith('/acp')) {
-                if (path === '/acp/info' || path === '/acp') {
+            if (reqPath.startsWith('/acp')) {
+                if (reqPath === '/acp/info' || reqPath === '/acp') {
                     this._sendJson(res, 200, this.acp.getInfo());
-                } else if (path === '/acp/capabilities') {
+                } else if (reqPath === '/acp/capabilities') {
                     this._sendJson(res, 200, this.acp.getCapabilities());
-                } else if (path === '/acp/messages' && req.method === 'POST') {
+                } else if (reqPath === '/acp/messages' && req.method === 'POST') {
                     const body = await this._readJsonBody(req);
                     const result = await (this.acp as any).handleMessage(body, {
                         callerPort: req.socket?.remotePort,
@@ -299,7 +308,7 @@ export class krnlUnifiedHttpAdapter {
                 return;
             }
 
-            if (path === '/manifest') {
+            if (reqPath === '/manifest') {
                 if (this.system._ingressNetwork) {
                     this._sendJson(res, 200, this.system._ingressNetwork.getGrossManifest(`http://${req.headers.host}`));
                 } else {
@@ -309,7 +318,7 @@ export class krnlUnifiedHttpAdapter {
             }
 
         } catch (error: any) {
-            Logger.error(`[HttpAdapter] Fatal handler error ${path}:`, error.message || error);
+            Logger.error(`[HttpAdapter] Fatal handler error ${reqPath}:`, error.message || error);
             this._sendJson(res, 200, { 
                 status: "error", 
                 message: error.message || String(error),
