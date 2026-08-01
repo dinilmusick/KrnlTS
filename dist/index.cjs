@@ -5666,7 +5666,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
        */
       static generateIndexSource(appName, uiEndpoints, subAppPrefixes) {
         const imports = uiEndpoints.map(
-          (ep) => `import Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, "_")} from './components/${ep.id}/index.js';`
+          (ep) => `import Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, "_")} from './components/${ep.id}/index';`
         ).join("\n");
         return `import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';

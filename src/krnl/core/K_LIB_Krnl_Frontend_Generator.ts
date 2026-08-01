@@ -814,7 +814,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
     const imports = uiEndpoints
       .map(
         (ep) =>
-          `import Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, '_')} from './components/${ep.id}/index.js';`
+          `import Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, '_')} from './components/${ep.id}/index';`
       )
       .join('\n');
 
