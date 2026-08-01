@@ -4984,14 +4984,20 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
         const htmlPath = import_path7.default.join(frontendDir, "index.html");
         if (!import_fs8.default.existsSync(htmlPath)) {
           const htmlContent = `<!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="glass-brutalism">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${entity.entityName} Frontend</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="/frontend/index.css">
 </head>
 <body>
+  <div class="krnl-sphere krnl-sphere-accent"></div>
+  <div class="krnl-sphere krnl-sphere-neutral"></div>
   <div id="root"></div>
   <script src="bundle.js"></script>
 </body>
@@ -5000,21 +5006,390 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
         }
         const cssPath = import_path7.default.join(frontendDir, "index.css");
         if (!import_fs8.default.existsSync(cssPath)) {
-          const defaultCss = `:root {
-  --krnl-font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-  --krnl-font-mono: 'JetBrains Mono', monospace;
-  --krnl-bg-base: #0a0e17;
-  --krnl-bg-surface: rgba(22, 28, 45, 0.65);
-  --krnl-border-color: rgba(255, 255, 255, 0.08);
-  --krnl-text-main: #f8fafc;
-  --krnl-text-muted: #94a3b8;
-  --krnl-primary: #3b82f6;
-  --krnl-primary-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-  --krnl-accent: #10b981;
-  --krnl-danger: #ef4444;
+          const defaultCss = `/* =============================================================
+   KRNL Glass-Brutalism Fallback Design System
+   Apple precision + glassmorphism depth + neo-brutalist structure
+   Override any --krnl-* token in your own index.css to restyle.
+   ============================================================= */
+
+/* \u2500\u2500 Google Fonts fallback \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* \u2500\u2500 Design Tokens \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+:root {
+  /* Typography */
+  --krnl-font: 'Inter', -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
+  --krnl-font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Page base \u2014 Apple near-white */
+  --krnl-bg: #f5f5f7;
+  --krnl-text: #1d1d1f;
+  --krnl-text-muted: #6e6e73;
+
+  /* Matte glass \u2014 panels, cards, containers (recede back) */
+  --krnl-matte-bg: rgba(245, 245, 247, 0.50);
+  --krnl-matte-bg-hover: rgba(255, 255, 255, 0.68);
+  --krnl-matte-blur: blur(22px);
+
+  /* Gloss \u2014 buttons, focused inputs (float forward) */
+  --krnl-gloss-bg: linear-gradient(160deg, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.38) 100%);
+  --krnl-gloss-shine: inset 0 1px 0 rgba(255,255,255,0.90);
+
+  /* Neo-brutalist borders & shadows */
+  --krnl-border: 2px solid #1d1d1f;
+  --krnl-border-input: 2px solid #1d1d1f;
+  --krnl-radius: 14px;
+  --krnl-radius-sm: 8px;
+  --krnl-shadow: 5px 5px 0px #1d1d1f;
+  --krnl-shadow-hover: 8px 8px 0px #1d1d1f;
+  --krnl-shadow-btn: 4px 4px 0px #1d1d1f;
+  --krnl-shadow-btn-hover: 6px 6px 0px #1d1d1f;
+  --krnl-shadow-btn-active: 2px 2px 0px #1d1d1f;
+
+  /* Semantic accents \u2014 very light pastels, dark text on all */
+  --krnl-accent:      #c8dff5; /* Powder blue  */
+  --krnl-accent-fg:   #1d1d1f;
+  --krnl-success:     #bfe8d4; /* Mint         */
+  --krnl-success-fg:  #1d1d1f;
+  --krnl-danger:      #f5c8c8; /* Blush        */
+  --krnl-danger-fg:   #1d1d1f;
+  --krnl-warning:     #f5e8a3; /* Butter       */
+  --krnl-warning-fg:  #1d1d1f;
+
+  /* Phantom / live-mode indicator */
+  --krnl-phantom-glow: 0 0 22px rgba(48, 209, 88, 0.40);
+  --krnl-phantom-border: 2px solid #30d158;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--krnl-font-sans); background: var(--krnl-bg-base); color: var(--krnl-text-main); }
+
+/* \u2500\u2500 Reset \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--krnl-font);
+  background-color: var(--krnl-bg);
+  color: var(--krnl-text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* \u2500\u2500 Ambient Sphere Orbs (show through glass panels) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-sphere {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.30;
+  pointer-events: none;
+  z-index: 0;
+}
+.krnl-sphere-accent {
+  width: 520px; height: 520px;
+  background: radial-gradient(circle, #c8dff5 0%, #bfe8d4 100%);
+  top: -140px; right: -100px;
+}
+.krnl-sphere-neutral {
+  width: 420px; height: 420px;
+  background: radial-gradient(circle, #f5e8a3 0%, #f5c8c8 100%);
+  bottom: -120px; left: -80px;
+}
+
+/* \u2500\u2500 App Shell \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-app-shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* \u2500\u2500 Header (matte glass) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  background: var(--krnl-matte-bg);
+  backdrop-filter: var(--krnl-matte-blur);
+  -webkit-backdrop-filter: var(--krnl-matte-blur);
+  border-bottom: var(--krnl-border);
+  box-shadow: 0 3px 0px #1d1d1f;
+  letter-spacing: -0.02em;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.krnl-header h1 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--krnl-text);
+}
+
+/* \u2500\u2500 Nav Tabs (matte glass bar) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-nav-tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 2rem;
+  background: var(--krnl-matte-bg);
+  backdrop-filter: var(--krnl-matte-blur);
+  -webkit-backdrop-filter: var(--krnl-matte-blur);
+  border-bottom: var(--krnl-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.krnl-nav-tabs::-webkit-scrollbar { display: none; }
+
+.krnl-tab-btn {
+  background: var(--krnl-gloss-bg);
+  box-shadow: var(--krnl-gloss-shine);
+  border: var(--krnl-border);
+  color: var(--krnl-text);
+  font-family: var(--krnl-font);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 0.45rem 1rem;
+  border-radius: var(--krnl-radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: box-shadow 0.12s ease, transform 0.12s ease;
+}
+.krnl-tab-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--krnl-gloss-shine), 4px 4px 0px #1d1d1f;
+}
+.krnl-tab-btn.active {
+  background: var(--krnl-accent);
+  color: var(--krnl-accent-fg);
+  box-shadow: var(--krnl-gloss-shine), var(--krnl-shadow-btn);
+  transform: translateY(-1px);
+}
+
+/* \u2500\u2500 Main Content Area \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-main-body {
+  flex: 1;
+  padding: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-content: flex-start;
+  overflow-y: auto;
+}
+
+/* \u2500\u2500 Endpoint Card (matte glass panel) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-endpoint-card {
+  background: var(--krnl-matte-bg);
+  backdrop-filter: var(--krnl-matte-blur);
+  -webkit-backdrop-filter: var(--krnl-matte-blur);
+  border: var(--krnl-border);
+  border-radius: var(--krnl-radius);
+  box-shadow: var(--krnl-shadow);
+  padding: 1.75rem;
+  min-width: 320px;
+  max-width: 520px;
+  flex: 1 1 320px;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  position: relative;
+}
+.krnl-endpoint-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--krnl-shadow-hover);
+  background: var(--krnl-matte-bg-hover);
+}
+.krnl-endpoint-card.krnl-phantom-active {
+  border: var(--krnl-phantom-border);
+  box-shadow: var(--krnl-phantom-glow);
+}
+
+.krnl-endpoint-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--krnl-text-muted);
+  margin-bottom: 1.25rem;
+}
+
+/* \u2500\u2500 Form Atoms \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+
+.krnl-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--krnl-text-muted);
+}
+
+/* Inputs \u2014 gloss surface (floats above matte panel) */
+.krnl-input,
+.krnl-select,
+.krnl-textarea {
+  background: var(--krnl-gloss-bg);
+  box-shadow: var(--krnl-gloss-shine);
+  border: var(--krnl-border-input);
+  border-radius: var(--krnl-radius-sm);
+  color: var(--krnl-text);
+  font-family: var(--krnl-font);
+  font-size: 0.9rem;
+  padding: 0.65rem 0.85rem;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.krnl-input:focus,
+.krnl-select:focus,
+.krnl-textarea:focus {
+  border-color: #1d1d1f;
+  box-shadow: var(--krnl-gloss-shine), 0 0 0 3px rgba(200, 223, 245, 0.50);
+}
+.krnl-textarea { resize: vertical; min-height: 90px; }
+
+.krnl-toggle-group {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* \u2500\u2500 Buttons (gloss \u2014 float above matte panel) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--krnl-font);
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  padding: 0.6rem 1.35rem;
+  border-radius: var(--krnl-radius-sm);
+  border: var(--krnl-border);
+  cursor: pointer;
+  user-select: none;
+  transition: box-shadow 0.1s ease, transform 0.1s ease;
+  /* Gloss finish */
+  background: var(--krnl-gloss-bg);
+  box-shadow: var(--krnl-gloss-shine), var(--krnl-shadow-btn);
+  color: var(--krnl-text);
+}
+.krnl-btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--krnl-gloss-shine), var(--krnl-shadow-btn-hover);
+}
+.krnl-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: var(--krnl-gloss-shine), var(--krnl-shadow-btn-active);
+}
+.krnl-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Semantic button variants */
+.krnl-btn-primary  { background: var(--krnl-accent);  color: var(--krnl-accent-fg); }
+.krnl-btn-success  { background: var(--krnl-success); color: var(--krnl-success-fg); }
+.krnl-btn-danger   { background: var(--krnl-danger);  color: var(--krnl-danger-fg); }
+.krnl-btn-warning  { background: var(--krnl-warning); color: var(--krnl-warning-fg); }
+
+/* \u2500\u2500 JSON Viewer \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-json-viewer {
+  background: rgba(245, 245, 247, 0.30);
+  backdrop-filter: blur(8px);
+  border: var(--krnl-border);
+  border-radius: var(--krnl-radius-sm);
+  padding: 1rem;
+  margin-top: 0.5rem;
+}
+.krnl-json-code {
+  font-family: var(--krnl-font-mono);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--krnl-text);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* \u2500\u2500 Tile \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-tile {
+  background: var(--krnl-matte-bg);
+  backdrop-filter: var(--krnl-matte-blur);
+  border: var(--krnl-border);
+  border-radius: var(--krnl-radius);
+  box-shadow: var(--krnl-shadow);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.krnl-tile-title  { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--krnl-text-muted); }
+.krnl-tile-value  { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.04em; color: var(--krnl-text); }
+.krnl-tile-subtitle { font-size: 0.75rem; color: var(--krnl-text-muted); }
+
+/* \u2500\u2500 Carousel \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-carousel {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 0.5rem;
+  scrollbar-width: thin;
+}
+.krnl-carousel-item {
+  scroll-snap-align: start;
+  flex: 0 0 220px;
+  background: var(--krnl-gloss-bg);
+  box-shadow: var(--krnl-gloss-shine), var(--krnl-shadow);
+  border: var(--krnl-border);
+  border-radius: var(--krnl-radius-sm);
+  padding: 1rem;
+  font-size: 0.88rem;
+}
+
+/* \u2500\u2500 Phantom Badge \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-phantom-badge {
+  position: absolute;
+  top: -10px; right: -10px;
+  background: #30d158;
+  color: #fff;
+  font-family: var(--krnl-font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 2px solid #1d1d1f;
+  box-shadow: 2px 2px 0px #1d1d1f;
+}
+
+/* \u2500\u2500 JSON Builder Rows \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-json-rows { display: flex; flex-direction: column; gap: 0.5rem; }
+.krnl-json-row  { display: flex; gap: 0.5rem; align-items: center; }
+.krnl-json-key  { flex: 2; }
+.krnl-json-type { flex: 1; }
+.krnl-json-val  { flex: 3; }
+
+/* \u2500\u2500 Empty State \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.krnl-empty {
+  color: var(--krnl-text-muted);
+  font-size: 0.88rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+/* \u2500\u2500 Responsive \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+@media (max-width: 768px) {
+  .krnl-header, .krnl-nav-tabs { padding-left: 1rem; padding-right: 1rem; }
+  .krnl-main-body { padding: 1rem; }
+  .krnl-endpoint-card { max-width: 100%; min-width: 0; }
+  .krnl-sphere-accent { width: 320px; height: 320px; }
+  .krnl-sphere-neutral { width: 260px; height: 260px; }
+}
 `;
           import_fs8.default.writeFileSync(cssPath, defaultCss, "utf-8");
         }
@@ -5260,9 +5635,9 @@ function AppShell() {
     <SharedComponentProvider>
       <div className="krnl-app-shell">
         <header className="krnl-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ fontSize: '1.5rem' }}>\u{1F537}</div>
-            <h1 style={{ fontSize: '1.25rem', fontWeight: 700 }}>${appName}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>\u2B21</span>
+            <h1>${appName}</h1>
           </div>
         </header>
 
@@ -5311,10 +5686,15 @@ if (rootElement) {
         import_fs8.default.writeFileSync(
           import_path7.default.join(atomsDir, "KrnlButton.tsx"),
           `import React from 'react';
-export function KrnlButton({ label, onClick, disabled, loading }: any) {
+export function KrnlButton({ label, onClick, disabled, loading, variant = 'primary', type, children }: any) {
   return (
-    <button className="krnl-btn" onClick={onClick} disabled={disabled || loading}>
-      {loading ? 'Processing...' : label}
+    <button
+      type={type || 'button'}
+      className={\`krnl-btn krnl-btn-\${variant}\`}
+      onClick={onClick}
+      disabled={disabled || loading}
+    >
+      {loading ? 'Processing...' : (children || label)}
     </button>
   );
 }`,

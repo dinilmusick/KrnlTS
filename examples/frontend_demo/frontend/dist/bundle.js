@@ -21725,8 +21725,17 @@
 
   // frontend_demo/frontend/src/atoms/KrnlButton.tsx
   var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
-  function KrnlButton({ label, onClick, disabled, loading }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "krnl-btn", onClick, disabled: disabled || loading, children: loading ? "Processing..." : label });
+  function KrnlButton({ label, onClick, disabled, loading, variant = "primary", type, children }) {
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "button",
+      {
+        type: type || "button",
+        className: `krnl-btn krnl-btn-${variant}`,
+        onClick,
+        disabled: disabled || loading,
+        children: loading ? "Processing..." : children || label
+      }
+    );
   }
 
   // frontend_demo/frontend/src/atoms/KrnlTextInput.tsx
@@ -22054,9 +22063,9 @@
   function AppShell() {
     const [activeTab, setActiveTab] = (0, import_react4.useState)("createUser");
     return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(SharedComponentProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "krnl-app-shell", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("header", { className: "krnl-header", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: "0.75rem" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { style: { fontSize: "1.5rem" }, children: "\u{1F537}" }),
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("h1", { style: { fontSize: "1.25rem", fontWeight: 700 }, children: "MyFrontendSystem" })
+      /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("header", { className: "krnl-header", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: "0.65rem" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { style: { fontSize: "1.2rem", lineHeight: 1 }, children: "\u2B21" }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("h1", { children: "MyFrontendSystem" })
       ] }) }),
       /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "krnl-nav-tabs", children: [
         /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { className: `krnl-tab-btn ${activeTab === "createUser" ? "active" : ""}`, onClick: () => setActiveTab("createUser"), children: "createUser" }),

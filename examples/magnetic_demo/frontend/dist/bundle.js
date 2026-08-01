@@ -21780,9 +21780,9 @@
   function AppShell() {
     const [activeTab, setActiveTab] = (0, import_react2.useState)("authservice");
     return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(SharedComponentProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "krnl-app-shell", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("header", { className: "krnl-header", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: "0.75rem" }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: { fontSize: "1.5rem" }, children: "\u{1F537}" }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h1", { style: { fontSize: "1.25rem", fontWeight: 700 }, children: "MyMagneticSystem" })
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("header", { className: "krnl-header", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: "0.65rem" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { style: { fontSize: "1.2rem", lineHeight: 1 }, children: "\u2B21" }),
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("h1", { children: "MyMagneticSystem" })
       ] }) }),
       /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "krnl-nav-tabs", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("button", { className: `krnl-tab-btn ${activeTab === "authservice" ? "active" : ""}`, onClick: () => setActiveTab("authservice"), children: "\u{1F4E6} authservice" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("main", { className: "krnl-main-body", children: activeTab === "authservice" && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(

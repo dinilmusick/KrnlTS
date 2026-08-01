@@ -11,9 +11,9 @@ function AppShell() {
     <SharedComponentProvider>
       <div className="krnl-app-shell">
         <header className="krnl-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ fontSize: '1.5rem' }}>🔷</div>
-            <h1 style={{ fontSize: '1.25rem', fontWeight: 700 }}>MyFrontendSystem</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>⬡</span>
+            <h1>MyFrontendSystem</h1>
           </div>
         </header>
 
