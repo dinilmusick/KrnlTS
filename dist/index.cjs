@@ -5459,9 +5459,60 @@ body {
         }
       }
       /**
+       * Validates uiSpec definitions at build time to enforce protocol constraints and catch errors early
+       */
+      static validateUiSpec(fid, uiSpec) {
+        const errors = [];
+        const ALLOWED_COMPONENTS = /* @__PURE__ */ new Set([
+          "KrnlTextInput",
+          "KrnlNumberInput",
+          "KrnlToggle",
+          "KrnlDropdown",
+          "KrnlTextArea",
+          "KrnlJsonInput",
+          "KrnlJsonViewer",
+          "KrnlCarousel",
+          "KrnlTile",
+          "KrnlSSELog"
+        ]);
+        const checkFieldSpec = (spec, location) => {
+          if (!spec.field || typeof spec.field !== "string") {
+            errors.push(`[ERR_UISPEC_MISSING_FIELD] Endpoint '${fid}' ${location} is missing required 'field' name.`);
+          }
+          if (spec.component && !ALLOWED_COMPONENTS.has(spec.component)) {
+            errors.push(`[ERR_UISPEC_INVALID_COMPONENT] Endpoint '${fid}' ${location} '${spec.field}' uses unknown component '${spec.component}'. Allowed components: ${Array.from(ALLOWED_COMPONENTS).join(", ")}`);
+          }
+          if (spec.sharedComponentId && typeof spec.sharedComponentId !== "string") {
+            errors.push(`[ERR_UISPEC_INVALID_SLOT] Endpoint '${fid}' ${location} '${spec.field}' sharedComponentId must be a string.`);
+          }
+          if (spec.bindMode && spec.bindMode !== "selected" && spec.bindMode !== "all") {
+            errors.push(`[ERR_UISPEC_INVALID_BINDMODE] Endpoint '${fid}' ${location} '${spec.field}' bindMode '${spec.bindMode}' is invalid. Allowed: 'selected' | 'all'`);
+          }
+          if (spec.autoFetch && !spec.sharedComponentId) {
+            errors.push(`[ERR_UISPEC_AUTOFETCH_MISSING_SLOT] Endpoint '${fid}' ${location} '${spec.field}' sets autoFetch=true but lacks sharedComponentId.`);
+          }
+        };
+        (uiSpec.inputs || []).forEach((spec) => checkFieldSpec(spec, "input"));
+        (uiSpec.outputs || []).forEach((spec) => checkFieldSpec(spec, "output"));
+        return {
+          valid: errors.length === 0,
+          errors
+        };
+      }
+      /**
        * Generates TSX source code for a single endpoint UI component
        */
       static generateComponentSource(fid, uiSpec, schema) {
+        const validation = this.validateUiSpec(fid, uiSpec);
+        if (!validation.valid) {
+          console.error(`
+\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510
+\u2502 [KrnlUiSpecValidator] BUILD ERROR IN ENDPOINT '${fid}':
+${validation.errors.map((e) => `\u2502  - ${e}`).join("\n")}
+\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518
+`);
+          throw new Error(`[KrnlUiSpecValidationError] Invalid uiSpec in endpoint '${fid}': ${validation.errors.join("; ")}`);
+        }
         const inputs = uiSpec.inputs || [];
         const outputs = uiSpec.outputs || [];
         const atomImports = /* @__PURE__ */ new Set();
@@ -5867,16 +5918,37 @@ export function KrnlToggle({ label, value, onChange }: any) {
         );
         import_fs9.default.writeFileSync(
           import_path8.default.join(atomsDir, "KrnlDropdown.tsx"),
-          `import React from 'react';
+          `import React, { useEffect } from 'react';
 export function KrnlDropdown({ label, value, options = [], onChange }: any) {
+  const normOptions = (Array.isArray(options) ? options : []).map((opt: any) => {
+    if (typeof opt === 'string') return { label: opt, value: opt };
+    if (typeof opt === 'number') return { label: String(opt), value: String(opt) };
+    if (opt && typeof opt === 'object') {
+      const val = opt.value !== undefined ? opt.value : (opt.name !== undefined ? opt.name : (opt.id !== undefined ? opt.id : (opt.key !== undefined ? opt.key : JSON.stringify(opt))));
+      const lbl = opt.label !== undefined ? opt.label : (opt.displayName !== undefined ? opt.displayName : (opt.name !== undefined ? opt.name : (opt.id !== undefined ? opt.id : val)));
+      return { label: String(lbl), value: String(val) };
+    }
+    return { label: String(opt), value: String(opt) };
+  });
+
+  useEffect(() => {
+    if (!value && normOptions.length > 0 && normOptions[0].value && onChange) {
+      onChange(normOptions[0].value);
+    }
+  }, [normOptions, value]);
+
   return (
     <div className="krnl-form-group">
       {label && <label className="krnl-label">{label}</label>}
-      <select className="krnl-input" value={value || ''} onChange={(e) => onChange && onChange(e.target.value)}>
-        <option value="">Select option...</option>
-        {options.map((opt: any, idx: number) => (
-          <option key={idx} value={typeof opt === 'string' ? opt : opt.value}>
-            {typeof opt === 'string' ? opt : opt.label}
+      <select
+        className="krnl-input krnl-select"
+        value={value || (normOptions.length > 0 ? normOptions[0].value : '')}
+        onChange={(e) => onChange && onChange(e.target.value)}
+      >
+        {normOptions.length === 0 && <option value="" disabled>Select option...</option>}
+        {normOptions.map((opt: any, idx: number) => (
+          <option key={\`\${opt.value}-\${idx}\`} value={opt.value}>
+            {opt.label}
           </option>
         ))}
       </select>

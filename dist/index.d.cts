@@ -1881,6 +1881,13 @@ declare class KrnlFrontendGenerator {
      */
     static checkReactDependencies(frontendDir: string): void;
     /**
+     * Validates uiSpec definitions at build time to enforce protocol constraints and catch errors early
+     */
+    static validateUiSpec(fid: string, uiSpec: KrnlUiSpec): {
+        valid: boolean;
+        errors: string[];
+    };
+    /**
      * Generates TSX source code for a single endpoint UI component
      */
     static generateComponentSource(fid: string, uiSpec: KrnlUiSpec, schema: any): string;
