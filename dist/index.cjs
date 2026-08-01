@@ -4922,7 +4922,7 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
        */
       static async generate(entity, frontendDir) {
         this.ensureFrontendSkeleton(entity, frontendDir);
-        const uiEndpoints = [];
+        const uiEndpointsMap = /* @__PURE__ */ new Map();
         const allFuncs = [
           ...entity.localFunctionalities?.values() || [],
           ...entity.remoteFunctionalities?.values() || []
@@ -4930,9 +4930,20 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
         for (const fn of allFuncs) {
           const uiSpec = fn.uiSpec || fn.ui_spec;
           if (uiSpec && uiSpec.ui_component_enabled) {
-            uiEndpoints.push({ id: fn.id, uiSpec, schema: fn.schema });
+            if (uiEndpointsMap.has(fn.id)) {
+              console.warn(`
+\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510`);
+              console.warn(`\u2502 [KrnlFrontendGenerator] DUPLICATE ENDPOINT ID DETECTED: '${fn.id}'`);
+              console.warn(`\u2502 Endpoint '${fn.id}' is registered in both localFunctionalities AND remoteFunctionalities.`);
+              console.warn(`\u2502 Only the first registration (local) will be used for UI generation.`);
+              console.warn(`\u2502 FIX: Do not register the same endpoint ID in both local and remote maps.`);
+              console.warn(`\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518`);
+            } else {
+              uiEndpointsMap.set(fn.id, { id: fn.id, uiSpec, schema: fn.schema });
+            }
           }
         }
+        const uiEndpoints = Array.from(uiEndpointsMap.values());
         if (uiEndpoints.length > 0) {
           this.checkReactDependencies(frontendDir);
         }
@@ -5119,9 +5130,10 @@ body {
   text-align: center;
 }
 
-/* \u2500\u2500 Nav Tabs (matte glass bar) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* \u2500\u2500 Nav Tabs (matte glass bar, wrapping + icon-only) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .krnl-nav-tabs {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   width: 100%;
   gap: 0.5rem;
@@ -5130,12 +5142,16 @@ body {
   backdrop-filter: var(--krnl-matte-blur);
   -webkit-backdrop-filter: var(--krnl-matte-blur);
   border-bottom: var(--krnl-border);
-  overflow-x: auto;
-  scrollbar-width: none;
 }
-.krnl-nav-tabs::-webkit-scrollbar { display: none; }
 
+/* Tab buttons \u2014 icon-only by default, reveal label on hover */
 .krnl-tab-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  overflow: hidden;
   background: var(--krnl-gloss-bg);
   box-shadow: var(--krnl-gloss-shine);
   border: var(--krnl-border);
@@ -5144,21 +5160,55 @@ body {
   font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: -0.01em;
-  padding: 0.45rem 1rem;
+  /* Collapsed icon-only size */
+  padding: 0.45rem 0.65rem;
+  min-width: 2.4rem;
+  max-width: 2.4rem;
   border-radius: var(--krnl-radius-sm);
   cursor: pointer;
   white-space: nowrap;
-  transition: box-shadow 0.12s ease, transform 0.12s ease;
+  transition: box-shadow 0.15s ease, transform 0.15s ease, max-width 0.25s ease, padding 0.25s ease, gap 0.25s ease;
 }
-.krnl-tab-btn:hover {
+
+/* Tab button label \u2014 hidden until hover */
+.krnl-tab-btn .krnl-tab-label {
+  display: inline-block;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width 0.25s ease, opacity 0.2s ease;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Expand on hover */
+.krnl-tab-btn:hover,
+.krnl-tab-btn:focus-visible {
+  max-width: 14rem;
+  padding: 0.45rem 1rem;
+  gap: 0.4rem;
   transform: translateY(-1px);
   box-shadow: var(--krnl-gloss-shine), 4px 4px 0px rgba(0, 0, 0, 0.95);
 }
+.krnl-tab-btn:hover .krnl-tab-label,
+.krnl-tab-btn:focus-visible .krnl-tab-label {
+  max-width: 10rem;
+  opacity: 1;
+}
+
+/* Active tab \u2014 always show icon + label */
 .krnl-tab-btn.active {
   background: var(--krnl-accent);
   color: var(--krnl-accent-fg);
   box-shadow: var(--krnl-gloss-shine), var(--krnl-shadow-btn);
   transform: translateY(-1px);
+  max-width: 14rem;
+  padding: 0.45rem 1rem;
+  gap: 0.4rem;
+}
+.krnl-tab-btn.active .krnl-tab-label {
+  max-width: 10rem;
+  opacity: 1;
 }
 
 /* \u2500\u2500 Main Content Area \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
@@ -5750,10 +5800,13 @@ function AppShell() {
 
         <div className="krnl-nav-tabs">
           ${uiEndpoints.map(
-          (ep) => `<button className={\`krnl-tab-btn \${activeTab === '${ep.id}' ? 'active' : ''}\`} onClick={() => setActiveTab('${ep.id}')}>${ep.id}</button>`
+          (ep) => {
+            const icon = "\u2B21";
+            return `<button className={\`krnl-tab-btn \${activeTab === '${ep.id}' ? 'active' : ''}\`} onClick={() => setActiveTab('${ep.id}')} title="${ep.id}"><span>${icon}</span><span className="krnl-tab-label">${ep.id}</span></button>`;
+          }
         ).join("\n          ")}
           ${subAppPrefixes.map(
-          (sub) => `<button className={\`krnl-tab-btn \${activeTab === '${sub}' ? 'active' : ''}\`} onClick={() => setActiveTab('${sub}')}>\u{1F4E6} ${sub}</button>`
+          (sub) => `<button className={\`krnl-tab-btn \${activeTab === '${sub}' ? 'active' : ''}\`} onClick={() => setActiveTab('${sub}')} title="${sub}"><span>\u{1F4E6}</span><span className="krnl-tab-label">${sub}</span></button>`
         ).join("\n          ")}
         </div>
 
