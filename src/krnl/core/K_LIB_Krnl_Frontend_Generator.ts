@@ -576,39 +576,50 @@ body {
    */
   static validateUiSpec(fid: string, uiSpec: KrnlUiSpec): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
-    const ALLOWED_COMPONENTS = new Set([
+    const ALLOWED_INPUT_COMPONENTS = new Set([
       'KrnlTextInput',
       'KrnlNumberInput',
       'KrnlToggle',
       'KrnlDropdown',
       'KrnlTextArea',
-      'KrnlJsonInput',
+      'KrnlJsonInput'
+    ]);
+    const ALLOWED_OUTPUT_COMPONENTS = new Set([
       'KrnlJsonViewer',
       'KrnlCarousel',
       'KrnlTile',
       'KrnlSSELog'
     ]);
 
-    const checkFieldSpec = (spec: KrnlUiFieldSpec, location: 'input' | 'output') => {
+    (uiSpec.inputs || []).forEach((spec) => {
       if (!spec.field || typeof spec.field !== 'string') {
-        errors.push(`[ERR_UISPEC_MISSING_FIELD] Endpoint '${fid}' ${location} is missing required 'field' name.`);
+        errors.push(`[ERR_UISPEC_MISSING_FIELD] Endpoint '${fid}' input is missing required 'field' name.`);
       }
-      if (spec.component && !ALLOWED_COMPONENTS.has(spec.component)) {
-        errors.push(`[ERR_UISPEC_INVALID_COMPONENT] Endpoint '${fid}' ${location} '${spec.field}' uses unknown component '${spec.component}'. Allowed components: ${Array.from(ALLOWED_COMPONENTS).join(', ')}`);
+      if (spec.component && !ALLOWED_INPUT_COMPONENTS.has(spec.component)) {
+        errors.push(`[ERR_UISPEC_INVALID_INPUT_COMPONENT] Endpoint '${fid}' input '${spec.field}' uses invalid component '${spec.component}'. Allowed input components: ${Array.from(ALLOWED_INPUT_COMPONENTS).join(', ')}`);
       }
       if (spec.sharedComponentId && typeof spec.sharedComponentId !== 'string') {
-        errors.push(`[ERR_UISPEC_INVALID_SLOT] Endpoint '${fid}' ${location} '${spec.field}' sharedComponentId must be a string.`);
+        errors.push(`[ERR_UISPEC_INVALID_SLOT] Endpoint '${fid}' input '${spec.field}' sharedComponentId must be a string.`);
       }
       if (spec.bindMode && spec.bindMode !== 'selected' && spec.bindMode !== 'all') {
-        errors.push(`[ERR_UISPEC_INVALID_BINDMODE] Endpoint '${fid}' ${location} '${spec.field}' bindMode '${spec.bindMode}' is invalid. Allowed: 'selected' | 'all'`);
+        errors.push(`[ERR_UISPEC_INVALID_BINDMODE] Endpoint '${fid}' input '${spec.field}' bindMode '${spec.bindMode}' is invalid. Allowed: 'selected' | 'all'`);
+      }
+      if (spec.autoFetch) {
+        errors.push(`[ERR_UISPEC_INVALID_AUTOFETCH] Endpoint '${fid}' input '${spec.field}' cannot use autoFetch. autoFetch is only allowed on output provider components.`);
+      }
+    });
+
+    (uiSpec.outputs || []).forEach((spec) => {
+      if (!spec.field || typeof spec.field !== 'string') {
+        errors.push(`[ERR_UISPEC_MISSING_FIELD] Endpoint '${fid}' output is missing required 'field' name.`);
+      }
+      if (spec.component && !ALLOWED_OUTPUT_COMPONENTS.has(spec.component)) {
+        errors.push(`[ERR_UISPEC_INVALID_OUTPUT_COMPONENT] Endpoint '${fid}' output '${spec.field}' uses input component '${spec.component}'. Output fields must use display components: ${Array.from(ALLOWED_OUTPUT_COMPONENTS).join(', ')}.`);
       }
       if (spec.autoFetch && !spec.sharedComponentId) {
-        errors.push(`[ERR_UISPEC_AUTOFETCH_MISSING_SLOT] Endpoint '${fid}' ${location} '${spec.field}' sets autoFetch=true but lacks sharedComponentId.`);
+        errors.push(`[ERR_UISPEC_AUTOFETCH_MISSING_SLOT] Endpoint '${fid}' output '${spec.field}' sets autoFetch=true but lacks sharedComponentId.`);
       }
-    };
-
-    (uiSpec.inputs || []).forEach((spec) => checkFieldSpec(spec, 'input'));
-    (uiSpec.outputs || []).forEach((spec) => checkFieldSpec(spec, 'output'));
+    });
 
     return {
       valid: errors.length === 0,
