@@ -1,31 +1,15 @@
 import React from 'react';
-
-export interface KrnlTextInputProps {
-  label?: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  required?: boolean;
-}
-
-export const KrnlTextInput: React.FC<KrnlTextInputProps> = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-  required
-}) => {
+export function KrnlTextInput({ label, value, onChange, placeholder, type = 'text' }: any) {
   return (
     <div className="krnl-form-group">
-      {label && <label className="krnl-label">{label}{required && ' *'}</label>}
+      {label && <label className="krnl-label">{label}</label>}
       <input
-        type="text"
+        type={type}
         className="krnl-input"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={value || ''}
+        onChange={(e) => onChange && onChange(e.target.value)}
         placeholder={placeholder}
-        required={required}
       />
     </div>
   );
-};
+}

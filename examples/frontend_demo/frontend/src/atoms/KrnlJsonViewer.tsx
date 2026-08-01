@@ -1,22 +1,9 @@
 import React from 'react';
-
-export interface KrnlJsonViewerProps {
-  label?: string;
-  data: any;
-}
-
-export const KrnlJsonViewer: React.FC<KrnlJsonViewerProps> = ({
-  label,
-  data
-}) => {
-  const jsonString = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-
+export function KrnlJsonViewer({ data, label }: any) {
   return (
-    <div className="krnl-form-group">
-      {label && <label className="krnl-label">{label}</label>}
-      <pre className="krnl-json-viewer">
-        <code>{jsonString}</code>
-      </pre>
+    <div className="krnl-json-viewer">
+      {label && <div className="krnl-label">{label}</div>}
+      <pre className="krnl-json-code">{JSON.stringify(data, null, 2)}</pre>
     </div>
   );
-};
+}
