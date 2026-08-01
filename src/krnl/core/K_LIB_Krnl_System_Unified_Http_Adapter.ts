@@ -151,7 +151,7 @@ export class krnlUnifiedHttpAdapter {
             }
         }
 
-        if (reqPath === '/frontend' || reqPath.startsWith('/frontend/')) {
+        if (reqPath === '/inspect' || reqPath.startsWith('/inspect/') || reqPath === '/frontend' || reqPath.startsWith('/frontend/')) {
             if (!this.system._frontend && this.system._entityDataDir) {
                 const frontendDir = path.join(this.system._entityDataDir, 'frontend');
                 if (fs.existsSync(frontendDir)) {
@@ -160,7 +160,7 @@ export class krnlUnifiedHttpAdapter {
             }
 
             if (this.system._frontend) {
-                const subPath = reqPath.slice('/frontend'.length) || '/';
+                const subPath = reqPath.startsWith('/frontend') ? (reqPath.slice('/frontend'.length) || '/') : reqPath;
                 await this.system._frontend.handleRequest(req, res, subPath);
             } else {
                 this._sendJson(res, 404, { status: 'error', message: 'Frontend not enabled.' });

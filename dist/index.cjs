@@ -4589,7 +4589,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             }
           }
         }
-        if (reqPath === "/frontend" || reqPath.startsWith("/frontend/")) {
+        if (reqPath === "/inspect" || reqPath.startsWith("/inspect/") || reqPath === "/frontend" || reqPath.startsWith("/frontend/")) {
           if (!this.system._frontend && this.system._entityDataDir) {
             const frontendDir = import_path6.default.join(this.system._entityDataDir, "frontend");
             if (import_fs7.default.existsSync(frontendDir)) {
@@ -4597,7 +4597,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             }
           }
           if (this.system._frontend) {
-            const subPath = reqPath.slice("/frontend".length) || "/";
+            const subPath = reqPath.startsWith("/frontend") ? reqPath.slice("/frontend".length) || "/" : reqPath;
             await this.system._frontend.handleRequest(req, res, subPath);
           } else {
             this._sendJson(res, 404, { status: "error", message: "Frontend not enabled." });
@@ -7322,9 +7322,10 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
       }
       async handleRequest(req, res, subpath) {
         const rawPath = subpath.split("?")[0];
-        const normalized = rawPath.replace(/\/$/, "") || "/";
-        if (normalized.startsWith("/inspect")) {
-          const inspectPath = normalized.replace(/^\/inspect\/?/, "");
+        const normalized = rawPath.startsWith("/") ? rawPath : "/" + rawPath;
+        const cleanPath = normalized.replace(/\/$/, "") || "/";
+        if (cleanPath.startsWith("/inspect")) {
+          const inspectPath = cleanPath.replace(/^\/inspect\/?/, "");
           res.writeHead(200, { "Content-Type": "application/json" });
           switch (inspectPath) {
             case "manifest":

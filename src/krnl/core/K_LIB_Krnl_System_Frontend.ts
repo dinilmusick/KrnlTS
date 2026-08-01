@@ -56,11 +56,12 @@ export class KrnlFrontend {
 
   async handleRequest(req: http.IncomingMessage, res: http.ServerResponse, subpath: string): Promise<void> {
     const rawPath = subpath.split('?')[0];
-    const normalized = rawPath.replace(/\/$/, '') || '/';
+    const normalized = rawPath.startsWith('/') ? rawPath : '/' + rawPath;
+    const cleanPath = normalized.replace(/\/$/, '') || '/';
 
     // 0. Inspection API Routing (/inspect/*)
-    if (normalized.startsWith('/inspect')) {
-      const inspectPath = normalized.replace(/^\/inspect\/?/, '');
+    if (cleanPath.startsWith('/inspect')) {
+      const inspectPath = cleanPath.replace(/^\/inspect\/?/, '');
       res.writeHead(200, { 'Content-Type': 'application/json' });
 
       switch (inspectPath) {
