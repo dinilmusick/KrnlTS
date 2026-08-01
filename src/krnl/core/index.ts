@@ -20,6 +20,7 @@ export * from "./K_LIB_Krnl_System_App_Adapter.js";
 export * from "./K_LIB_Krnl_System_Frontend.js";
 export * from "./K_LIB_Krnl_Frontend_Generator.js";
 export * from "./K_LIB_Krnl_Frontend_Builder.js";
+export * from "./K_LIB_Krnl_Frontend_Inspector.js";
 export * from "./K_LIB_Krnl_Registry_Client.js";
 export { telemetry } from "./K_LIB_Krnl_Telemetry.js";
 export type {

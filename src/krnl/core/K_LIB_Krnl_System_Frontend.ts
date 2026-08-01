@@ -3,12 +3,15 @@ import path from 'path';
 import http from 'http';
 import { KrnlFrontendOptions } from './types.js';
 
+import { KrnlFrontendInspector, LogEntry, InteractionRecord } from './K_LIB_Krnl_Frontend_Inspector.js';
+
 export class KrnlFrontend {
   system: any;
   options: KrnlFrontendOptions;
   frontendDir: string;
   subAppFrontendDirs: Map<string, string> = new Map();
-  interactionsHistory: any[] = [];
+  interactionsHistory: InteractionRecord[] = [];
+  capturedLogs: LogEntry[] = [];
 
   constructor(system: any, options: KrnlFrontendOptions = {}) {
     this.system = system;
@@ -19,6 +22,31 @@ export class KrnlFrontend {
       ...options
     };
     this.frontendDir = options.frontendDir || path.join(system._entityDataDir, 'frontend');
+    this._interceptConsole();
+  }
+
+  private _interceptConsole() {
+    const origLog = console.log;
+    const origWarn = console.warn;
+    const origErr = console.error;
+
+    console.log = (...args: any[]) => {
+      this.capturedLogs.push({ level: 'log', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '), ts: new Date().toISOString() });
+      if (this.capturedLogs.length > 500) this.capturedLogs.shift();
+      origLog.apply(console, args);
+    };
+
+    console.warn = (...args: any[]) => {
+      this.capturedLogs.push({ level: 'warn', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '), ts: new Date().toISOString() });
+      if (this.capturedLogs.length > 500) this.capturedLogs.shift();
+      origWarn.apply(console, args);
+    };
+
+    console.error = (...args: any[]) => {
+      this.capturedLogs.push({ level: 'error', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '), ts: new Date().toISOString() });
+      if (this.capturedLogs.length > 500) this.capturedLogs.shift();
+      origErr.apply(console, args);
+    };
   }
 
   registerSubAppFrontend(prefix: string, subFrontendDir: string): void {
@@ -29,6 +57,65 @@ export class KrnlFrontend {
   async handleRequest(req: http.IncomingMessage, res: http.ServerResponse, subpath: string): Promise<void> {
     const rawPath = subpath.split('?')[0];
     const normalized = rawPath.replace(/\/$/, '') || '/';
+
+    // 0. Inspection API Routing (/inspect/*)
+    if (normalized.startsWith('/inspect')) {
+      const inspectPath = normalized.replace(/^\/inspect\/?/, '');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+
+      switch (inspectPath) {
+        case 'manifest':
+          res.end(JSON.stringify(KrnlFrontendInspector.manifest(this.system, this.frontendDir)));
+          return;
+        case 'source':
+          res.end(JSON.stringify(KrnlFrontendInspector.source(this.frontendDir)));
+          return;
+        case 'dom':
+          res.end(JSON.stringify(KrnlFrontendInspector.domSnapshot(this.system, this.frontendDir)));
+          return;
+        case 'a11y':
+          res.end(JSON.stringify(KrnlFrontendInspector.a11yTree(this.system, this.frontendDir)));
+          return;
+        case 'components':
+          res.end(JSON.stringify(KrnlFrontendInspector.components(this.system, this.frontendDir)));
+          return;
+        case 'endpoints':
+          res.end(JSON.stringify(KrnlFrontendInspector.endpoints(this.system)));
+          return;
+        case 'elements':
+          res.end(JSON.stringify(KrnlFrontendInspector.elements(this.system, this.frontendDir)));
+          return;
+        case 'forms':
+          res.end(JSON.stringify(KrnlFrontendInspector.forms(this.system)));
+          return;
+        case 'shared-slots':
+          res.end(JSON.stringify(KrnlFrontendInspector.sharedSlots(this.system)));
+          return;
+        case 'console':
+          res.end(JSON.stringify(KrnlFrontendInspector.consoleLog(this.capturedLogs)));
+          return;
+        case 'network':
+          res.end(JSON.stringify(KrnlFrontendInspector.network(this.interactionsHistory)));
+          return;
+        case 'har':
+          res.end(JSON.stringify(KrnlFrontendInspector.har(this.interactionsHistory, this.system)));
+          return;
+        case 'audit':
+          res.end(JSON.stringify(KrnlFrontendInspector.audit(this.system, this.frontendDir, this.capturedLogs)));
+          return;
+        case 'telemetry':
+          res.end(JSON.stringify(KrnlFrontendInspector.telemetry(this.system, this.interactionsHistory)));
+          return;
+        case 'health':
+        case '':
+          res.end(JSON.stringify(KrnlFrontendInspector.health(this.system, this.frontendDir, this.capturedLogs, this.interactionsHistory)));
+          return;
+        default:
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'error', message: `Unknown inspect route '/inspect/${inspectPath}'` }));
+          return;
+      }
+    }
 
     // 1. Root index.html
     if ((normalized === '/' || normalized === '/index.html') && req.method === 'GET') {
@@ -183,21 +270,49 @@ export class KrnlFrontend {
         body = Object.fromEntries(url.searchParams.entries());
       }
 
+      const startTime = Date.now();
       try {
         const result = await this.system.call(fid, body, {
           unwrap: false,
           callerPort: req.socket?.remotePort,
           accessKey: req.headers['x-krnl-access-key'] as string | undefined,
         });
+
+        this.interactionsHistory.push({
+          method: req.method || 'POST',
+          url: req.url || `/frontend/api/${fid}`,
+          body,
+          responseStatus: 200,
+          responseBody: result,
+          durationMs: Date.now() - startTime,
+          ts: new Date().toISOString(),
+          callerIp: req.socket?.remoteAddress
+        });
+        if (this.interactionsHistory.length > 200) this.interactionsHistory.shift();
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
       } catch (e: any) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
+        const errResp = {
           status: 'error',
           message: e.message,
           errorDocumentation: e.errorDocumentation || null
-        }));
+        };
+
+        this.interactionsHistory.push({
+          method: req.method || 'POST',
+          url: req.url || `/frontend/api/${fid}`,
+          body,
+          responseStatus: 500,
+          responseBody: errResp,
+          durationMs: Date.now() - startTime,
+          ts: new Date().toISOString(),
+          callerIp: req.socket?.remoteAddress
+        });
+        if (this.interactionsHistory.length > 200) this.interactionsHistory.shift();
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(errResp));
       }
       return;
     }

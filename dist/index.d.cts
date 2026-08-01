@@ -1143,13 +1143,300 @@ declare class KrnlSiblingNetwork {
 declare const KrnlIngressNetwork: typeof KrnlSiblingNetwork;
 type KrnlIngressNetwork = KrnlSiblingNetwork;
 
+interface LogEntry {
+    level: 'log' | 'warn' | 'error';
+    msg: string;
+    ts: string;
+}
+interface InteractionRecord {
+    method: string;
+    url: string;
+    body: any;
+    responseStatus: number;
+    responseBody: any;
+    durationMs: number;
+    ts: string;
+    callerIp?: string;
+}
+declare class KrnlFrontendInspector {
+    static manifest(system: any, frontendDir: string): {
+        status: string;
+        data: {
+            appName: any;
+            frontendUrl: string;
+            theme: string;
+            cssFile: string;
+            bundleBuilt: boolean;
+            bundleFile: string;
+            generatedAt: string;
+            totalEndpoints: number;
+            totalSubApps: number;
+            tabLayout: any[];
+        };
+        summary: string;
+    };
+    static source(frontendDir: string): {
+        status: string;
+        message: string;
+        data?: undefined;
+        summary?: undefined;
+    } | {
+        status: string;
+        data: {
+            html: string;
+            sizeBytes: number;
+            scriptTags: number;
+            stylesheetLinks: number;
+            hasReactRoot: boolean;
+        };
+        summary: string;
+        message?: undefined;
+    };
+    static domSnapshot(system: any, frontendDir: string): {
+        status: string;
+        data: {
+            tag: string;
+            attrs: {
+                lang: string;
+                'data-theme': string;
+            };
+            children: {
+                tag: string;
+                children: {
+                    tag: string;
+                    class: string;
+                    children: ({
+                        tag: string;
+                        class: string;
+                        text: any;
+                        children?: undefined;
+                    } | {
+                        tag: string;
+                        class: string;
+                        children: {
+                            tag: string;
+                            class: string;
+                            title: any;
+                            text: any;
+                            label: any;
+                        }[];
+                        text?: undefined;
+                    })[];
+                }[];
+            }[];
+        };
+        summary: string;
+    };
+    static a11yTree(system: any, frontendDir: string): {
+        status: string;
+        data: {
+            ariaSnapshot: string;
+            tree: any[];
+        };
+        wcagViolations: never[];
+        summary: string;
+    };
+    static components(system: any, frontendDir: string): {
+        status: string;
+        data: {
+            atoms: string[];
+            components: {
+                id: any;
+                file: string;
+                inputs: any;
+                outputs: any;
+                sharedSlots: any[];
+                hasPhantomMirroring: boolean;
+                sseUrl: any;
+                apiUrl: any;
+            }[];
+        };
+        summary: string;
+    };
+    static endpoints(system: any): {
+        status: string;
+        data: {
+            fid: any;
+            uiEnabled: boolean;
+            schema: any;
+            uiSpec: any;
+            apiUrl: string;
+            sseUrl: string;
+            uiSpecValid: boolean;
+            uiSpecErrors: never[];
+        }[];
+        summary: string;
+    };
+    static elements(system: any, frontendDir: string): {
+        status: string;
+        data: {
+            buttons: any[];
+            inputs: any[];
+            selects: any[];
+            toggles: any[];
+            textareas: any[];
+            total: number;
+        };
+        summary: string;
+    };
+    static forms(system: any): {
+        status: string;
+        data: {
+            endpointId: any;
+            fields: any;
+            submitTarget: string;
+            method: string;
+            hasSharedSlotInputs: any;
+        }[];
+        summary: string;
+    };
+    static sharedSlots(system: any): {
+        status: string;
+        data: any[];
+        summary: string;
+    };
+    static consoleLog(capturedLogs: LogEntry[]): {
+        status: string;
+        data: {
+            logs: LogEntry[];
+            warns: LogEntry[];
+            errors: LogEntry[];
+            total: number;
+        };
+        summary: string;
+    };
+    static network(interactions: InteractionRecord[]): {
+        status: string;
+        data: {
+            requests: InteractionRecord[];
+            totalRequests: number;
+            totalErrors: number;
+        };
+        summary: string;
+    };
+    static har(interactions: InteractionRecord[], system: any): {
+        log: {
+            version: string;
+            creator: {
+                name: string;
+                version: string;
+            };
+            pages: {
+                id: string;
+                startedDateTime: string;
+                title: any;
+                pageTimings: {};
+            }[];
+            entries: {
+                pageref: string;
+                startedDateTime: string;
+                time: number;
+                request: {
+                    method: string;
+                    url: string;
+                    httpVersion: string;
+                    headers: {
+                        name: string;
+                        value: string;
+                    }[];
+                    queryString: never[];
+                    cookies: never[];
+                    headersSize: number;
+                    bodySize: number;
+                    postData: {
+                        mimeType: string;
+                        text: string;
+                    };
+                };
+                response: {
+                    status: number;
+                    statusText: string;
+                    httpVersion: string;
+                    headers: {
+                        name: string;
+                        value: string;
+                    }[];
+                    cookies: never[];
+                    content: {
+                        size: number;
+                        mimeType: string;
+                        text: string;
+                    };
+                    redirectURL: string;
+                    headersSize: number;
+                    bodySize: number;
+                };
+                cache: {};
+                timings: {
+                    send: number;
+                    wait: number;
+                    receive: number;
+                };
+            }[];
+        };
+    };
+    static audit(system: any, frontendDir: string, capturedLogs: LogEntry[]): {
+        status: string;
+        data: {
+            score: number;
+            categories: {
+                accessibility: {
+                    score: number;
+                    title: string;
+                };
+                bestPractices: {
+                    score: number;
+                    title: string;
+                };
+                uiSpec: {
+                    score: number;
+                    title: string;
+                };
+            };
+            passed: any[];
+            warnings: any[];
+            failures: any[];
+            auditRules: number;
+            passingRules: number;
+            failingRules: number;
+        };
+        summary: string;
+    };
+    static telemetry(system: any, interactions: InteractionRecord[]): {
+        status: string;
+        data: {
+            sseActiveStreams: never[];
+            apiCallHistory: any[];
+            phantomExecutions: never[];
+            totalApiCalls: number;
+        };
+        summary: string;
+    };
+    static health(system: any, frontendDir: string, capturedLogs: LogEntry[], interactions: InteractionRecord[]): {
+        status: string;
+        data: {
+            healthy: boolean;
+            appName: any;
+            endpointsCount: number;
+            uiComponentsCount: number;
+            sharedSlotsCount: number;
+            consoleErrors: number;
+            auditScore: number;
+            issues: any[];
+        };
+        summary: string;
+    };
+}
+
 declare class KrnlFrontend {
     system: any;
     options: KrnlFrontendOptions;
     frontendDir: string;
     subAppFrontendDirs: Map<string, string>;
-    interactionsHistory: any[];
+    interactionsHistory: InteractionRecord[];
+    capturedLogs: LogEntry[];
     constructor(system: any, options?: KrnlFrontendOptions);
+    private _interceptConsole;
     registerSubAppFrontend(prefix: string, subFrontendDir: string): void;
     handleRequest(req: http.IncomingMessage, res: http.ServerResponse, subpath: string): Promise<void>;
     private _readJsonBody;
@@ -2630,4 +2917,4 @@ declare class PocerBlock extends krnlSystemEntityBase {
     private _waitForPort;
 }
 
-export { AsyncKit, CUSTOM_ERROR_CODE, CacheKit, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, type IngressMemberEntry, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBuildValidator, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, type KrnlFrontendOptions, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, type KrnlSubAppConfig, type KrnlSubAppDependency, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLoader, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, LRUCache, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SiblingMemberEntry, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };
+export { AsyncKit, CUSTOM_ERROR_CODE, CacheKit, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBuildValidator, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, type KrnlSubAppConfig, type KrnlSubAppDependency, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLoader, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, LRUCache, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SiblingMemberEntry, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };

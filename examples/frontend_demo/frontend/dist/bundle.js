@@ -1330,7 +1330,7 @@
           return dispatcher;
         }
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-        var React5 = require_react(), Internals = {
+        var React6 = require_react(), Internals = {
           d: {
             f: noop,
             r: function() {
@@ -1348,7 +1348,7 @@
           },
           p: 0,
           findDOMNode: null
-        }, REACT_PORTAL_TYPE = Symbol.for("react.portal"), ReactSharedInternals = React5.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+        }, REACT_PORTAL_TYPE = Symbol.for("react.portal"), ReactSharedInternals = React6.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
         "function" === typeof Map && null != Map.prototype && "function" === typeof Map.prototype.forEach && "function" === typeof Set && null != Set.prototype && "function" === typeof Set.prototype.clear && "function" === typeof Set.prototype.forEach || console.error(
           "React depends on Map and Set built-in types. Make sure that you load a polyfill in older browsers. https://reactjs.org/link/react-polyfills"
         );
@@ -2883,7 +2883,7 @@
           "number" === type && getActiveElement(node.ownerDocument) === node || node.defaultValue === "" + value || (node.defaultValue = "" + value);
         }
         function validateOptionProps(element, props) {
-          null == props.value && ("object" === typeof props.children && null !== props.children ? React5.Children.forEach(props.children, function(child) {
+          null == props.value && ("object" === typeof props.children && null !== props.children ? React6.Children.forEach(props.children, function(child) {
             null == child || "string" === typeof child || "number" === typeof child || "bigint" === typeof child || didWarnInvalidChild || (didWarnInvalidChild = true, console.error(
               "Cannot infer the option value of complex children. Pass a `value` prop or use a plain string as children to <option>."
             ));
@@ -18515,14 +18515,14 @@
           ));
         }
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-        var Scheduler = require_scheduler(), React5 = require_react(), ReactDOM = require_react_dom(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
+        var Scheduler = require_scheduler(), React6 = require_react(), ReactDOM = require_react_dom(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
         Symbol.for("react.scope");
         var REACT_ACTIVITY_TYPE = Symbol.for("react.activity");
         Symbol.for("react.legacy_hidden");
         Symbol.for("react.tracing_marker");
         var REACT_MEMO_CACHE_SENTINEL = Symbol.for("react.memo_cache_sentinel");
         Symbol.for("react.view_transition");
-        var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React5.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, ReactDOMSharedInternals = ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, NotPending = Object.freeze({
+        var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React6.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, ReactDOMSharedInternals = ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, NotPending = Object.freeze({
           pending: false,
           data: null,
           method: null,
@@ -21310,7 +21310,7 @@
           }
         };
         (function() {
-          var isomorphicReactPackageVersion = React5.version;
+          var isomorphicReactPackageVersion = React6.version;
           if ("19.2.4" !== isomorphicReactPackageVersion)
             throw Error(
               'Incompatible React versions: The "react" and "react-dom" packages must have the exact same version. Instead got:\n  - react:      ' + (isomorphicReactPackageVersion + "\n  - react-dom:  19.2.4\nLearn more: https://react.dev/warnings/version-mismatch")
@@ -21664,18 +21664,18 @@
         function isValidElement(object) {
           return "object" === typeof object && null !== object && object.$$typeof === REACT_ELEMENT_TYPE;
         }
-        var React5 = require_react(), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy"), REACT_ACTIVITY_TYPE = Symbol.for("react.activity"), REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), ReactSharedInternals = React5.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty = Object.prototype.hasOwnProperty, isArrayImpl = Array.isArray, createTask = console.createTask ? console.createTask : function() {
+        var React6 = require_react(), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy"), REACT_ACTIVITY_TYPE = Symbol.for("react.activity"), REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), ReactSharedInternals = React6.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty = Object.prototype.hasOwnProperty, isArrayImpl = Array.isArray, createTask = console.createTask ? console.createTask : function() {
           return null;
         };
-        React5 = {
+        React6 = {
           react_stack_bottom_frame: function(callStackForError) {
             return callStackForError();
           }
         };
         var specialPropKeyWarningShown;
         var didWarnAboutElementRef = {};
-        var unknownOwnerDebugStack = React5.react_stack_bottom_frame.bind(
-          React5,
+        var unknownOwnerDebugStack = React6.react_stack_bottom_frame.bind(
+          React6,
           UnknownOwner
         )();
         var unknownOwnerDebugTask = createTask(getTaskName(UnknownOwner));
@@ -21720,7 +21720,7 @@
   });
 
   // examples/frontend_demo/frontend/src/index.tsx
-  var import_react4 = __toESM(require_react(), 1);
+  var import_react5 = __toESM(require_react(), 1);
   var import_client = __toESM(require_client(), 1);
 
   // examples/frontend_demo/frontend/src/atoms/KrnlButton.tsx
@@ -21796,14 +21796,38 @@
   }
 
   // examples/frontend_demo/frontend/src/atoms/KrnlDropdown.tsx
+  var import_react = __toESM(require_react(), 1);
   var import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
   function KrnlDropdown({ label, value, options = [], onChange }) {
+    const normOptions = (Array.isArray(options) ? options : []).map((opt) => {
+      if (typeof opt === "string") return { label: opt, value: opt };
+      if (typeof opt === "number") return { label: String(opt), value: String(opt) };
+      if (opt && typeof opt === "object") {
+        const val = opt.value !== void 0 ? opt.value : opt.name !== void 0 ? opt.name : opt.id !== void 0 ? opt.id : opt.key !== void 0 ? opt.key : JSON.stringify(opt);
+        const lbl = opt.label !== void 0 ? opt.label : opt.displayName !== void 0 ? opt.displayName : opt.name !== void 0 ? opt.name : opt.id !== void 0 ? opt.id : val;
+        return { label: String(lbl), value: String(val) };
+      }
+      return { label: String(opt), value: String(opt) };
+    });
+    (0, import_react.useEffect)(() => {
+      if (!value && normOptions.length > 0 && normOptions[0].value && onChange) {
+        onChange(normOptions[0].value);
+      }
+    }, [normOptions, value]);
     return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "krnl-form-group", children: [
       label && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("label", { className: "krnl-label", children: label }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("select", { className: "krnl-input", value: value || "", onChange: (e) => onChange && onChange(e.target.value), children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "", children: "Select option..." }),
-        options.map((opt, idx) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: typeof opt === "string" ? opt : opt.value, children: typeof opt === "string" ? opt : opt.label }, idx))
-      ] })
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+        "select",
+        {
+          className: "krnl-input krnl-select",
+          value: value || (normOptions.length > 0 ? normOptions[0].value : ""),
+          onChange: (e) => onChange && onChange(e.target.value),
+          children: [
+            normOptions.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: "", disabled: true, children: "Select option..." }),
+            normOptions.map((opt, idx) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: opt.value, children: opt.label }, `${opt.value}-${idx}`))
+          ]
+        }
+      )
     ] });
   }
 
@@ -21832,13 +21856,13 @@
   var import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
 
   // examples/frontend_demo/frontend/src/atoms/KrnlSharedState.tsx
-  var import_react = __toESM(require_react(), 1);
+  var import_react2 = __toESM(require_react(), 1);
   var import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
-  var SharedComponentContext = (0, import_react.createContext)(/* @__PURE__ */ new Map());
-  var SharedComponentSetContext = (0, import_react.createContext)(() => {
+  var SharedComponentContext = (0, import_react2.createContext)(/* @__PURE__ */ new Map());
+  var SharedComponentSetContext = (0, import_react2.createContext)(() => {
   });
   function SharedComponentProvider({ children }) {
-    const [store, setStore] = (0, import_react.useState)(/* @__PURE__ */ new Map());
+    const [store, setStore] = (0, import_react2.useState)(/* @__PURE__ */ new Map());
     const update = (id, patch) => {
       setStore((prev) => {
         const m = new Map(prev);
@@ -21850,8 +21874,8 @@
     return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(SharedComponentContext.Provider, { value: store, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(SharedComponentSetContext.Provider, { value: update, children }) });
   }
   function useSharedSlot(id) {
-    const store = (0, import_react.useContext)(SharedComponentContext);
-    const update = (0, import_react.useContext)(SharedComponentSetContext);
+    const store = (0, import_react2.useContext)(SharedComponentContext);
+    const update = (0, import_react2.useContext)(SharedComponentSetContext);
     if (!id) {
       return {
         options: [],
@@ -21872,16 +21896,16 @@
   }
 
   // examples/frontend_demo/frontend/src/components/createUser/index.tsx
-  var import_react2 = __toESM(require_react(), 1);
+  var import_react3 = __toESM(require_react(), 1);
   var import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
   function Endpoint_createUser() {
-    const [formData, setFormData] = (0, import_react2.useState)({});
-    const [response, setResponse] = (0, import_react2.useState)(null);
-    const [loading, setLoading] = (0, import_react2.useState)(false);
-    const [error, setError] = (0, import_react2.useState)(null);
-    const [phantomActive, setPhantomActive] = (0, import_react2.useState)(false);
+    const [formData, setFormData] = (0, import_react3.useState)({});
+    const [response, setResponse] = (0, import_react3.useState)(null);
+    const [loading, setLoading] = (0, import_react3.useState)(false);
+    const [error, setError] = (0, import_react3.useState)(null);
+    const [phantomActive, setPhantomActive] = (0, import_react3.useState)(false);
     const slot_nameSelector = useSharedSlot("nameSelector");
-    (0, import_react2.useEffect)(() => {
+    (0, import_react3.useEffect)(() => {
       const sse = new EventSource("/sse/createUser");
       sse.onmessage = (evt) => {
         try {
@@ -21900,7 +21924,7 @@
       };
       return () => sse.close();
     }, []);
-    (0, import_react2.useEffect)(() => {
+    (0, import_react3.useEffect)(() => {
       if (response === null) return;
     }, [response]);
     const handleInputChange = (field, val) => {
@@ -21970,16 +21994,16 @@
   }
 
   // examples/frontend_demo/frontend/src/components/getNames/index.tsx
-  var import_react3 = __toESM(require_react(), 1);
+  var import_react4 = __toESM(require_react(), 1);
   var import_jsx_runtime14 = __toESM(require_jsx_runtime(), 1);
   function Endpoint_getNames() {
-    const [formData, setFormData] = (0, import_react3.useState)({});
-    const [response, setResponse] = (0, import_react3.useState)(null);
-    const [loading, setLoading] = (0, import_react3.useState)(false);
-    const [error, setError] = (0, import_react3.useState)(null);
-    const [phantomActive, setPhantomActive] = (0, import_react3.useState)(false);
+    const [formData, setFormData] = (0, import_react4.useState)({});
+    const [response, setResponse] = (0, import_react4.useState)(null);
+    const [loading, setLoading] = (0, import_react4.useState)(false);
+    const [error, setError] = (0, import_react4.useState)(null);
+    const [phantomActive, setPhantomActive] = (0, import_react4.useState)(false);
     const slot_nameSelector = useSharedSlot("nameSelector");
-    (0, import_react3.useEffect)(() => {
+    (0, import_react4.useEffect)(() => {
       const sse = new EventSource("/sse/getNames");
       sse.onmessage = (evt) => {
         try {
@@ -21998,10 +22022,10 @@
       };
       return () => sse.close();
     }, []);
-    (0, import_react3.useEffect)(() => {
+    (0, import_react4.useEffect)(() => {
       executeRequest({});
     }, []);
-    (0, import_react3.useEffect)(() => {
+    (0, import_react4.useEffect)(() => {
       if (response === null) return;
       if ((response && typeof response === "object" ? response["names"] : response) !== void 0 && Array.isArray(response && typeof response === "object" ? response["names"] : response)) {
         slot_nameSelector.setOptions(response && typeof response === "object" ? response["names"] : response);
@@ -22066,7 +22090,7 @@
   // examples/frontend_demo/frontend/src/index.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime(), 1);
   function AppShell() {
-    const [activeTab, setActiveTab] = (0, import_react4.useState)("createUser");
+    const [activeTab, setActiveTab] = (0, import_react5.useState)("createUser");
     return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(SharedComponentProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { className: "krnl-app-shell", children: [
       /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("header", { className: "krnl-header", children: /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: "0.65rem" }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { style: { fontSize: "1.2rem", lineHeight: 1 }, children: "\u2B21" }),
