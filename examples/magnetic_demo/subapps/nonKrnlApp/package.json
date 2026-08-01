@@ -2,7 +2,9 @@
   "name": "non-krnl-app",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "scripts": {
+    "build": "mkdir -p dist && echo 'export const nonKrnlApp = {}; export default nonKrnlApp;' > dist/nonKrnlApp.js",
     "start": "node index.js"
   }
 }

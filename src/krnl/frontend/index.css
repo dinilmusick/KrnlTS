@@ -11,43 +11,43 @@
   --krnl-font: 'Inter', -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
   --krnl-font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
 
-  /* Page base — Apple near-white */
-  --krnl-bg: #f5f5f7;
-  --krnl-text: #1d1d1f;
-  --krnl-text-muted: #6e6e73;
+  /* Page base — Sleek Dark Mode */
+  --krnl-bg: #0d0f17;
+  --krnl-text: #f1f5f9;
+  --krnl-text-muted: #94a3b8;
 
   /* Matte glass — panels, cards, containers (recede back) */
-  --krnl-matte-bg: rgba(245, 245, 247, 0.50);
-  --krnl-matte-bg-hover: rgba(255, 255, 255, 0.68);
-  --krnl-matte-blur: blur(22px);
+  --krnl-matte-bg: rgba(18, 24, 38, 0.65);
+  --krnl-matte-bg-hover: rgba(26, 34, 52, 0.80);
+  --krnl-matte-blur: blur(24px);
 
   /* Gloss — buttons, focused inputs (float forward) */
-  --krnl-gloss-bg: linear-gradient(160deg, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.38) 100%);
-  --krnl-gloss-shine: inset 0 1px 0 rgba(255,255,255,0.90);
+  --krnl-gloss-bg: linear-gradient(160deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.04) 100%);
+  --krnl-gloss-shine: inset 0 1px 0 rgba(255,255,255,0.22);
 
   /* Neo-brutalist borders & shadows */
-  --krnl-border: 2px solid #1d1d1f;
-  --krnl-border-input: 2px solid #1d1d1f;
+  --krnl-border: 2px solid rgba(255, 255, 255, 0.85);
+  --krnl-border-input: 2px solid rgba(255, 255, 255, 0.85);
   --krnl-radius: 14px;
   --krnl-radius-sm: 8px;
-  --krnl-shadow: 5px 5px 0px #1d1d1f;
-  --krnl-shadow-hover: 8px 8px 0px #1d1d1f;
-  --krnl-shadow-btn: 4px 4px 0px #1d1d1f;
-  --krnl-shadow-btn-hover: 6px 6px 0px #1d1d1f;
-  --krnl-shadow-btn-active: 2px 2px 0px #1d1d1f;
+  --krnl-shadow: 5px 5px 0px rgba(0, 0, 0, 0.90);
+  --krnl-shadow-hover: 8px 8px 0px rgba(0, 0, 0, 0.95);
+  --krnl-shadow-btn: 4px 4px 0px rgba(0, 0, 0, 0.90);
+  --krnl-shadow-btn-hover: 6px 6px 0px rgba(0, 0, 0, 0.95);
+  --krnl-shadow-btn-active: 2px 2px 0px rgba(0, 0, 0, 0.90);
 
-  /* Semantic accents — very light pastels, dark text on all */
-  --krnl-accent:      #c8dff5; /* Powder blue  */
-  --krnl-accent-fg:   #1d1d1f;
-  --krnl-success:     #bfe8d4; /* Mint         */
-  --krnl-success-fg:  #1d1d1f;
-  --krnl-danger:      #f5c8c8; /* Blush        */
-  --krnl-danger-fg:   #1d1d1f;
-  --krnl-warning:     #f5e8a3; /* Butter       */
-  --krnl-warning-fg:  #1d1d1f;
+  /* Semantic accents — desaturated glow pastels for dark bg */
+  --krnl-accent:      #2b4c7e; /* Dark powder blue */
+  --krnl-accent-fg:   #f1f5f9;
+  --krnl-success:     #1f4d36; /* Dark mint */
+  --krnl-success-fg:  #f1f5f9;
+  --krnl-danger:      #5c2424; /* Dark blush red */
+  --krnl-danger-fg:   #f1f5f9;
+  --krnl-warning:     #5e4e19; /* Dark butter yellow */
+  --krnl-warning-fg:  #f1f5f9;
 
   /* Phantom / live-mode indicator */
-  --krnl-phantom-glow: 0 0 22px rgba(48, 209, 88, 0.40);
+  --krnl-phantom-glow: 0 0 24px rgba(48, 209, 88, 0.50);
   --krnl-phantom-border: 2px solid #30d158;
 }
 
