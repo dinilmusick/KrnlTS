@@ -61,6 +61,21 @@ export class KrnlFrontend {
         res.end(fs.readFileSync(cssPath));
         return;
       }
+
+      // Built-in library fallback CSS authority
+      const libCssCandidates = [
+        path.resolve(process.cwd(), 'dist/frontend/index.css'),
+        path.resolve(process.cwd(), 'src/krnl/frontend/index.css'),
+        path.resolve(process.cwd(), 'node_modules/krnlts/dist/frontend/index.css'),
+        path.resolve(process.cwd(), 'node_modules/krnlts/src/krnl/frontend/index.css')
+      ];
+      const fallbackCssPath = libCssCandidates.find(c => fs.existsSync(c));
+      if (fallbackCssPath) {
+        res.writeHead(200, { 'Content-Type': 'text/css' });
+        res.end(fs.readFileSync(fallbackCssPath));
+        return;
+      }
+
       res.writeHead(404, { 'Content-Type': 'text/css' });
       res.end('/* styles.css / index.css not found */');
       return;

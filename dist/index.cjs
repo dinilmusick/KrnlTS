@@ -6613,6 +6613,18 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
             res.end(import_fs11.default.readFileSync(cssPath));
             return;
           }
+          const libCssCandidates = [
+            import_path11.default.resolve(process.cwd(), "dist/frontend/index.css"),
+            import_path11.default.resolve(process.cwd(), "src/krnl/frontend/index.css"),
+            import_path11.default.resolve(process.cwd(), "node_modules/krnlts/dist/frontend/index.css"),
+            import_path11.default.resolve(process.cwd(), "node_modules/krnlts/src/krnl/frontend/index.css")
+          ];
+          const fallbackCssPath = libCssCandidates.find((c) => import_fs11.default.existsSync(c));
+          if (fallbackCssPath) {
+            res.writeHead(200, { "Content-Type": "text/css" });
+            res.end(import_fs11.default.readFileSync(fallbackCssPath));
+            return;
+          }
           res.writeHead(404, { "Content-Type": "text/css" });
           res.end("/* styles.css / index.css not found */");
           return;
