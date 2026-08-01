@@ -168,6 +168,19 @@ export class krnlUnifiedHttpAdapter {
             return;
         }
 
+        if ((reqPath === '/' || reqPath === '/index.html') && req.method === 'GET' && (this.system._frontend || this.system._entityDataDir)) {
+            if (!this.system._frontend && this.system._entityDataDir) {
+                const frontendDir = path.join(this.system._entityDataDir, 'frontend');
+                if (fs.existsSync(frontendDir)) {
+                    this.system.enableFrontend({ frontendDir });
+                }
+            }
+            if (this.system._frontend) {
+                await this.system._frontend.handleRequest(req, res, '/index.html');
+                return;
+            }
+        }
+
         const isKrnlRoute = reqPath.startsWith('/call/') || 
                            reqPath.startsWith('/sse/') || 
                            reqPath.startsWith('/mcp') || 
