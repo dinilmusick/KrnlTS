@@ -4,6 +4,7 @@ async function main() {
     console.log("=== Starting Glass-Brutalism Theme Showcase Server ===");
     const port = 10099;
     const system = new MyFrontendSystem(port, { host: "127.0.0.1" });
+    system.enableFrontend();
     await system._startSharedServer();
     await system.startDiscovery();
     await system.whenReady();

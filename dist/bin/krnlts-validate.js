@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import "../chunk-PNKVD2UK.js";
 
 // src/krnl/tools/K_LIB_Krnl_Build_Validator.ts
 import * as fs from "fs";

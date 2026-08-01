@@ -32,7 +32,14 @@ export class KrnlFrontend {
 
     // 1. Root index.html
     if ((normalized === '/' || normalized === '/index.html') && req.method === 'GET') {
-      const htmlPath = path.join(this.frontendDir, 'index.html');
+      let htmlPath = path.join(this.frontendDir, 'index.html');
+      if (!fs.existsSync(htmlPath)) {
+        // Trigger auto-skeleton ensure if missing
+        try {
+          const { KrnlFrontendGenerator } = require('./K_LIB_Krnl_Frontend_Generator.js');
+          KrnlFrontendGenerator.ensureFrontendSkeleton(this.system, this.frontendDir);
+        } catch (_) {}
+      }
       if (fs.existsSync(htmlPath)) {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(fs.readFileSync(htmlPath));

@@ -1,3 +1,5 @@
+import "../chunk-PNKVD2UK.js";
+
 // src/bin/krnlts-watch.ts
 import fs from "fs";
 import path from "path";

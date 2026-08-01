@@ -1,7 +1,4 @@
 import {
-  KrnlFrontendGenerator
-} from "./chunk-XT3EVYBY.js";
-import {
   KrnlFrontendBuilder
 } from "./chunk-3RGJWCHR.js";
 import {
@@ -12,15 +9,15 @@ import {
 } from "./chunk-UBJAGRZU.js";
 import {
   KrnlSubAppLoader
-} from "./chunk-ZITLWMKA.js";
+} from "./chunk-CPPSH5IO.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-NPQ2FZV3.js";
+} from "./chunk-DY3XWB2H.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-TUJOOUWW.js";
+} from "./chunk-Y4V5ZGBS.js";
 import {
   CUSTOM_ERROR_CODE,
   KrnlApplicationOrchestrator,
@@ -53,7 +50,11 @@ import {
   krnlSystemCommComponent,
   krnlSystemEntityBase,
   krnlTransportAdapter
-} from "./chunk-QEFLLKVD.js";
+} from "./chunk-D5JOZQ7Z.js";
+import {
+  KrnlFrontendGenerator,
+  init_K_LIB_Krnl_Frontend_Generator
+} from "./chunk-AO6KWIDI.js";
 import {
   AsyncKit,
   CacheKit,
@@ -70,7 +71,7 @@ import {
   StringKit,
   TTLCache
 } from "./chunk-7Q2FYUWU.js";
-import "./chunk-SFVDKJHO.js";
+import "./chunk-P6AECYWT.js";
 import {
   telemetry
 } from "./chunk-AHWZBXWV.js";
@@ -78,7 +79,7 @@ import {
   KrnlAcpProtocol,
   KrnlMcpProtocol,
   krnlUnifiedHttpAdapter
-} from "./chunk-O6HQB7PU.js";
+} from "./chunk-6VRLXJ55.js";
 import {
   KrnlPolicy,
   Logger,
@@ -91,6 +92,7 @@ import {
   krnlServiceSuites,
   krnlSystemTypes
 } from "./chunk-43SQEXFM.js";
+import "./chunk-PNKVD2UK.js";
 
 // src/krnl/core/K_ENT_Krnl_Sub_System_Orchestrator_Base.ts
 var krnlSubSystemOrchestratorBase = class extends krnlEntityBase {
@@ -163,6 +165,9 @@ var krnlNetworkOrchestratorEntityBase = class extends krnlSystemEntityBase {
     });
   }
 };
+
+// src/krnl/core/index.ts
+init_K_LIB_Krnl_Frontend_Generator();
 
 // src/krnl/core/K_LIB_Krnl_Intention_Types.ts
 function buildEntityIntention(entity) {

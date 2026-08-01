@@ -6644,7 +6644,14 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
         const rawPath = subpath.split("?")[0];
         const normalized = rawPath.replace(/\/$/, "") || "/";
         if ((normalized === "/" || normalized === "/index.html") && req.method === "GET") {
-          const htmlPath = import_path12.default.join(this.frontendDir, "index.html");
+          let htmlPath = import_path12.default.join(this.frontendDir, "index.html");
+          if (!import_fs12.default.existsSync(htmlPath)) {
+            try {
+              const { KrnlFrontendGenerator: KrnlFrontendGenerator2 } = (init_K_LIB_Krnl_Frontend_Generator(), __toCommonJS(K_LIB_Krnl_Frontend_Generator_exports));
+              KrnlFrontendGenerator2.ensureFrontendSkeleton(this.system, this.frontendDir);
+            } catch (_) {
+            }
+          }
           if (import_fs12.default.existsSync(htmlPath)) {
             res.writeHead(200, { "Content-Type": "text/html" });
             res.end(import_fs12.default.readFileSync(htmlPath));
