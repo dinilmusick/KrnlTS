@@ -4604,7 +4604,8 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
           }
           return;
         }
-        if ((reqPath === "/" || reqPath === "/index.html") && req.method === "GET" && (this.system._frontend || this.system._entityDataDir)) {
+        const isFrontendAsset = reqPath === "/" || reqPath === "/index.html" || reqPath === "/bundle.js" || reqPath === "/styles.css" || reqPath === "/index.css";
+        if (isFrontendAsset && req.method === "GET" && (this.system._frontend || this.system._entityDataDir)) {
           if (!this.system._frontend && this.system._entityDataDir) {
             const frontendDir = import_path6.default.join(this.system._entityDataDir, "frontend");
             if (import_fs7.default.existsSync(frontendDir)) {
@@ -4612,7 +4613,8 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             }
           }
           if (this.system._frontend) {
-            await this.system._frontend.handleRequest(req, res, "/index.html");
+            const assetPath = reqPath === "/" ? "/index.html" : reqPath;
+            await this.system._frontend.handleRequest(req, res, assetPath);
             return;
           }
         }
