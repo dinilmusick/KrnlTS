@@ -6659,7 +6659,17 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
           }
         }
         if (normalized === "/bundle.js" && req.method === "GET") {
-          const bundlePath = import_path12.default.join(this.frontendDir, "dist", "bundle.js");
+          let bundlePath = import_path12.default.join(this.frontendDir, "dist", "bundle.js");
+          if (!import_fs12.default.existsSync(bundlePath)) {
+            try {
+              const { KrnlFrontendGenerator: KrnlFrontendGenerator2 } = (init_K_LIB_Krnl_Frontend_Generator(), __toCommonJS(K_LIB_Krnl_Frontend_Generator_exports));
+              const { KrnlFrontendBuilder: KrnlFrontendBuilder2 } = (init_K_LIB_Krnl_Frontend_Builder(), __toCommonJS(K_LIB_Krnl_Frontend_Builder_exports));
+              KrnlFrontendGenerator2.generate(this.system, this.frontendDir);
+              KrnlFrontendBuilder2.build(this.frontendDir);
+            } catch (e) {
+              console.error("[KrnlFrontend] On-demand bundle build error:", e);
+            }
+          }
           if (import_fs12.default.existsSync(bundlePath)) {
             res.writeHead(200, { "Content-Type": "application/javascript" });
             res.end(import_fs12.default.readFileSync(bundlePath));

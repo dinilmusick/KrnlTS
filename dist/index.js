@@ -1,7 +1,4 @@
 import {
-  KrnlFrontendBuilder
-} from "./chunk-3RGJWCHR.js";
-import {
   KrnlRegistryClient
 } from "./chunk-4MELRUJ6.js";
 import {
@@ -9,15 +6,15 @@ import {
 } from "./chunk-UBJAGRZU.js";
 import {
   KrnlSubAppLoader
-} from "./chunk-CPPSH5IO.js";
+} from "./chunk-SQA4A5JZ.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-DY3XWB2H.js";
+} from "./chunk-7LXWJGHI.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-Y4V5ZGBS.js";
+} from "./chunk-IC24DDAI.js";
 import {
   CUSTOM_ERROR_CODE,
   KrnlApplicationOrchestrator,
@@ -50,11 +47,15 @@ import {
   krnlSystemCommComponent,
   krnlSystemEntityBase,
   krnlTransportAdapter
-} from "./chunk-D5JOZQ7Z.js";
+} from "./chunk-36JYUY2S.js";
 import {
   KrnlFrontendGenerator,
   init_K_LIB_Krnl_Frontend_Generator
 } from "./chunk-AO6KWIDI.js";
+import {
+  KrnlFrontendBuilder,
+  init_K_LIB_Krnl_Frontend_Builder
+} from "./chunk-N6IKP5ZD.js";
 import {
   AsyncKit,
   CacheKit,
@@ -168,6 +169,7 @@ var krnlNetworkOrchestratorEntityBase = class extends krnlSystemEntityBase {
 
 // src/krnl/core/index.ts
 init_K_LIB_Krnl_Frontend_Generator();
+init_K_LIB_Krnl_Frontend_Builder();
 
 // src/krnl/core/K_LIB_Krnl_Intention_Types.ts
 function buildEntityIntention(entity) {

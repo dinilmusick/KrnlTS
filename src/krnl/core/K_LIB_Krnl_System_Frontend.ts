@@ -49,7 +49,17 @@ export class KrnlFrontend {
 
     // 2. Main bundle JS
     if (normalized === '/bundle.js' && req.method === 'GET') {
-      const bundlePath = path.join(this.frontendDir, 'dist', 'bundle.js');
+      let bundlePath = path.join(this.frontendDir, 'dist', 'bundle.js');
+      if (!fs.existsSync(bundlePath)) {
+        try {
+          const { KrnlFrontendGenerator } = require('./K_LIB_Krnl_Frontend_Generator.js');
+          const { KrnlFrontendBuilder } = require('./K_LIB_Krnl_Frontend_Builder.js');
+          KrnlFrontendGenerator.generate(this.system, this.frontendDir);
+          KrnlFrontendBuilder.build(this.frontendDir);
+        } catch (e) {
+          console.error('[KrnlFrontend] On-demand bundle build error:', e);
+        }
+      }
       if (fs.existsSync(bundlePath)) {
         res.writeHead(200, { 'Content-Type': 'application/javascript' });
         res.end(fs.readFileSync(bundlePath));
