@@ -710,9 +710,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
       <h3 style={{ marginBottom: '1rem', color: 'var(--krnl-primary)' }}>Endpoint: ${fid}</h3>
       <form onSubmit={handleSubmit}>
         ${inputs.map((inSpec) => this.renderInputAtom(inSpec)).join('\n        ')}
-        <KrnlButton type="submit" disabled={loading}>
-          {loading ? 'Executing...' : 'Execute ${fid}'}
-        </KrnlButton>
+        <KrnlButton type="submit" disabled={loading} label={loading ? 'Executing...' : 'Execute ${fid}'} icon="⚡" />
       </form>
 
       {error && <div style={{ color: 'var(--krnl-danger)', marginTop: '1rem' }}>Error: {error}</div>}
@@ -904,17 +902,17 @@ if (rootElement) {
       path.join(atomsDir, 'KrnlButton.tsx'),
       `import React from 'react';
 export function KrnlButton({ label, onClick, disabled, loading, variant = 'primary', icon = '⚡', type, children }: any) {
-  const content = children || label || 'Action';
+  const textLabel = label || (typeof children === 'string' ? children : undefined) || 'Action';
   return (
     <button
       type={type || 'button'}
       className={\`krnl-btn krnl-btn-\${variant}\`}
       onClick={onClick}
       disabled={disabled || loading}
-      title={typeof content === 'string' ? content : undefined}
+      title={typeof textLabel === 'string' ? textLabel : undefined}
     >
       <span className="krnl-btn-icon">{icon}</span>
-      <span className="krnl-btn-label">{loading ? 'Processing...' : content}</span>
+      <span className="krnl-btn-label">{loading ? 'Processing...' : (children || textLabel)}</span>
     </button>
   );
 }`,
