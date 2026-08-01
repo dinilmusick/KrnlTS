@@ -139,19 +139,19 @@ export class KrnlFrontendGenerator {
   --krnl-font: 'Inter', -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
   --krnl-font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
 
-  /* Page base — Sleek Dark Mode */
-  --krnl-bg: #0d0f17;
+  /* Page base — Pastel Matte Black */
+  --krnl-bg: #16181d;
   --krnl-text: #f1f5f9;
-  --krnl-text-muted: #94a3b8;
+  --krnl-text-muted: #8e95a5;
 
   /* Matte glass — panels, cards, containers (recede back) */
-  --krnl-matte-bg: rgba(18, 24, 38, 0.65);
-  --krnl-matte-bg-hover: rgba(26, 34, 52, 0.80);
+  --krnl-matte-bg: rgba(26, 29, 36, 0.75);
+  --krnl-matte-bg-hover: rgba(34, 38, 48, 0.88);
   --krnl-matte-blur: blur(24px);
 
   /* Gloss — buttons, focused inputs (float forward) */
-  --krnl-gloss-bg: linear-gradient(160deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.04) 100%);
-  --krnl-gloss-shine: inset 0 1px 0 rgba(255,255,255,0.22);
+  --krnl-gloss-bg: linear-gradient(160deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.03) 100%);
+  --krnl-gloss-shine: inset 0 1px 0 rgba(255,255,255,0.20);
 
   /* Neo-brutalist borders & shadows */
   --krnl-border: 2px solid rgba(255, 255, 255, 0.85);
@@ -191,25 +191,8 @@ body {
   position: relative;
 }
 
-/* ── Ambient Sphere Orbs (show through glass panels) ───────── */
-.krnl-sphere {
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.30;
-  pointer-events: none;
-  z-index: 0;
-}
-.krnl-sphere-accent {
-  width: 520px; height: 520px;
-  background: radial-gradient(circle, #c8dff5 0%, #bfe8d4 100%);
-  top: -140px; right: -100px;
-}
-.krnl-sphere-neutral {
-  width: 420px; height: 420px;
-  background: radial-gradient(circle, #f5e8a3 0%, #f5c8c8 100%);
-  bottom: -120px; left: -80px;
-}
+/* ── Ambient Sphere Orbs (hidden for solid pastel black theme) ── */
+.krnl-sphere { display: none; }
 
 /* ── App Shell ─────────────────────────────────────────────── */
 .krnl-app-shell {
