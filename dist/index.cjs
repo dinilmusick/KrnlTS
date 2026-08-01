@@ -6623,7 +6623,7 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
           res.end("/* bundle.js not found. Ensure frontend component generation & build completed. */");
           return;
         }
-        if (normalized === "/styles.css" && req.method === "GET") {
+        if ((normalized === "/styles.css" || normalized === "/index.css") && req.method === "GET") {
           const cssPath = import_path11.default.join(this.frontendDir, "index.css");
           if (import_fs11.default.existsSync(cssPath)) {
             res.writeHead(200, { "Content-Type": "text/css" });
@@ -6631,7 +6631,7 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
             return;
           }
           res.writeHead(404, { "Content-Type": "text/css" });
-          res.end("/* styles.css not found */");
+          res.end("/* styles.css / index.css not found */");
           return;
         }
         if (normalized.startsWith("/subapps/")) {

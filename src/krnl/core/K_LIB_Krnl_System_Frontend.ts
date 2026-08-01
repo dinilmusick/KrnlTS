@@ -54,7 +54,7 @@ export class KrnlFrontend {
     }
 
     // 3. Central Parent Stylesheet (Styles trickle down to sub-apps from here)
-    if (normalized === '/styles.css' && req.method === 'GET') {
+    if ((normalized === '/styles.css' || normalized === '/index.css') && req.method === 'GET') {
       const cssPath = path.join(this.frontendDir, 'index.css');
       if (fs.existsSync(cssPath)) {
         res.writeHead(200, { 'Content-Type': 'text/css' });
@@ -62,7 +62,7 @@ export class KrnlFrontend {
         return;
       }
       res.writeHead(404, { 'Content-Type': 'text/css' });
-      res.end('/* styles.css not found */');
+      res.end('/* styles.css / index.css not found */');
       return;
     }
 
