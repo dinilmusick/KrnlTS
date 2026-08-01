@@ -4589,37 +4589,37 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             }
           }
         }
-        if (reqPath === "/inspect" || reqPath.startsWith("/inspect/") || reqPath === "/frontend" || reqPath.startsWith("/frontend/")) {
-          if (!this.system._frontend && this.system._entityDataDir) {
-            const frontendDir = import_path6.default.join(this.system._entityDataDir, "frontend");
-            if (import_fs7.default.existsSync(frontendDir)) {
-              this.system.enableFrontend({ frontendDir });
-            }
-          }
-          if (this.system._frontend) {
-            const subPath = reqPath.startsWith("/frontend") ? reqPath.slice("/frontend".length) || "/" : reqPath;
-            await this.system._frontend.handleRequest(req, res, subPath);
-          } else {
-            this._sendJson(res, 404, { status: "error", message: "Frontend not enabled." });
-          }
-          return;
-        }
-        const isFrontendAsset = reqPath === "/" || reqPath === "/index.html" || reqPath === "/bundle.js" || reqPath === "/styles.css" || reqPath === "/index.css";
-        if (isFrontendAsset && req.method === "GET" && (this.system._frontend || this.system._entityDataDir)) {
-          if (!this.system._frontend && this.system._entityDataDir) {
-            const frontendDir = import_path6.default.join(this.system._entityDataDir, "frontend");
-            if (import_fs7.default.existsSync(frontendDir)) {
-              this.system.enableFrontend({ frontendDir });
-            }
-          }
-          if (this.system._frontend) {
-            const assetPath = reqPath === "/" ? "/index.html" : reqPath;
-            await this.system._frontend.handleRequest(req, res, assetPath);
-            return;
-          }
-        }
         const isKrnlRoute = reqPath.startsWith("/call/") || reqPath.startsWith("/sse/") || reqPath.startsWith("/mcp") || reqPath.startsWith("/acp") || reqPath === "/manifest" || reqPath === "/health";
         if (!isKrnlRoute) {
+          if (reqPath === "/inspect" || reqPath.startsWith("/inspect/") || reqPath === "/frontend" || reqPath.startsWith("/frontend/")) {
+            if (!this.system._frontend && this.system._entityDataDir) {
+              const frontendDir = import_path6.default.join(this.system._entityDataDir, "frontend");
+              if (import_fs7.default.existsSync(frontendDir)) {
+                this.system.enableFrontend({ frontendDir });
+              }
+            }
+            if (this.system._frontend) {
+              const subPath = reqPath.startsWith("/frontend") ? reqPath.slice("/frontend".length) || "/" : reqPath;
+              await this.system._frontend.handleRequest(req, res, subPath);
+            } else {
+              this._sendJson(res, 404, { status: "error", message: "Frontend not enabled." });
+            }
+            return;
+          }
+          const isFrontendAsset = reqPath === "/" || reqPath === "/index.html" || reqPath === "/bundle.js" || reqPath === "/styles.css" || reqPath === "/index.css";
+          if (isFrontendAsset && req.method === "GET" && (this.system._frontend || this.system._entityDataDir)) {
+            if (!this.system._frontend && this.system._entityDataDir) {
+              const frontendDir = import_path6.default.join(this.system._entityDataDir, "frontend");
+              if (import_fs7.default.existsSync(frontendDir)) {
+                this.system.enableFrontend({ frontendDir });
+              }
+            }
+            if (this.system._frontend) {
+              const assetPath = reqPath === "/" ? "/index.html" : reqPath;
+              await this.system._frontend.handleRequest(req, res, assetPath);
+              return;
+            }
+          }
           if (this.enableFriendlyRouting) {
             let fid = reqPath.slice(1);
             if (fid.endsWith("/")) fid = fid.slice(0, -1);
