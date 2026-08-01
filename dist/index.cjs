@@ -5202,12 +5202,14 @@ body {
   margin-bottom: 1.25rem;
 }
 
-/* \u2500\u2500 Form Atoms \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* \u2500\u2500 Form Atoms (centered, icon-first, hover-reveal text) \u2500\u2500\u2500\u2500\u2500 */
 .krnl-form-group {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 0.45rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  width: 100%;
 }
 
 .krnl-label {
@@ -5216,6 +5218,20 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--krnl-text-muted);
+  text-align: center;
+  opacity: 0;
+  max-height: 0px;
+  overflow: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease, max-height 0.2s ease, transform 0.2s ease;
+}
+
+.krnl-form-group:hover .krnl-label,
+.krnl-form-group:focus-within .krnl-label {
+  opacity: 1;
+  max-height: 30px;
+  transform: translateY(0);
+  margin-bottom: 0.2rem;
 }
 
 /* Inputs \u2014 gloss surface (floats above matte panel) */
@@ -5231,6 +5247,7 @@ body {
   font-size: 0.9rem;
   padding: 0.65rem 0.85rem;
   width: 100%;
+  text-align: center;
   outline: none;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
@@ -5240,15 +5257,16 @@ body {
   border-color: #1d1d1f;
   box-shadow: var(--krnl-gloss-shine), 0 0 0 3px rgba(200, 223, 245, 0.50);
 }
-.krnl-textarea { resize: vertical; min-height: 90px; }
+.krnl-textarea { resize: vertical; min-height: 90px; text-align: left; }
 
 .krnl-toggle-group {
   flex-direction: row;
+  justify-content: center;
   align-items: center;
   gap: 0.75rem;
 }
 
-/* \u2500\u2500 Buttons (gloss \u2014 float above matte panel) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* \u2500\u2500 Buttons (gloss, centered icon-first, hover-to-reveal text) \u2500\u2500 */
 .krnl-btn {
   display: inline-flex;
   align-items: center;
@@ -5258,20 +5276,49 @@ body {
   font-size: 0.88rem;
   font-weight: 700;
   letter-spacing: -0.01em;
-  padding: 0.6rem 1.35rem;
+  padding: 0.65rem 1rem;
   border-radius: var(--krnl-radius-sm);
   border: var(--krnl-border);
   cursor: pointer;
   user-select: none;
-  transition: box-shadow 0.1s ease, transform 0.1s ease;
-  /* Gloss finish */
+  margin: 0 auto;
+  transition: box-shadow 0.15s ease, transform 0.15s ease, padding 0.2s ease;
   background: var(--krnl-gloss-bg);
   box-shadow: var(--krnl-gloss-shine), var(--krnl-shadow-btn);
   color: var(--krnl-text);
 }
+
+.krnl-btn-icon {
+  font-size: 1.1rem;
+  filter: grayscale(100%);
+  display: inline-block;
+  line-height: 1;
+}
+
+.krnl-btn-label {
+  display: inline-block;
+  max-width: 0px;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+}
+
+.krnl-btn:hover .krnl-btn-label,
+.krnl-btn:focus .krnl-btn-label {
+  max-width: 200px;
+  opacity: 1;
+  margin-left: 0.25rem;
+}
+
+.krnl-btn:hover .krnl-btn-icon {
+  filter: grayscale(0%);
+}
+
 .krnl-btn:hover:not(:disabled) {
   transform: translate(-1px, -1px);
   box-shadow: var(--krnl-gloss-shine), var(--krnl-shadow-btn-hover);
+  padding: 0.65rem 1.35rem;
 }
 .krnl-btn:active:not(:disabled) {
   transform: translate(2px, 2px);
@@ -5678,15 +5725,18 @@ if (rootElement) {
         import_fs8.default.writeFileSync(
           import_path7.default.join(atomsDir, "KrnlButton.tsx"),
           `import React from 'react';
-export function KrnlButton({ label, onClick, disabled, loading, variant = 'primary', type, children }: any) {
+export function KrnlButton({ label, onClick, disabled, loading, variant = 'primary', icon = '\u26A1', type, children }: any) {
+  const content = children || label || 'Action';
   return (
     <button
       type={type || 'button'}
       className={\`krnl-btn krnl-btn-\${variant}\`}
       onClick={onClick}
       disabled={disabled || loading}
+      title={typeof content === 'string' ? content : undefined}
     >
-      {loading ? 'Processing...' : (children || label)}
+      <span className="krnl-btn-icon">{icon}</span>
+      <span className="krnl-btn-label">{loading ? 'Processing...' : content}</span>
     </button>
   );
 }`,
