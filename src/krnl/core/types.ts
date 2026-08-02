@@ -193,16 +193,34 @@ export interface KrnlUiFieldSpec {
   placeholder?: string;
   /** Names a globally shared UI component instance across endpoints. */
   sharedComponentId?: string;
-  /** Dot-path into response to extract data array (e.g. 'names' or 'data.items'). */
+  /**
+   * SELECTION-SOURCE PATTERN (mandatory for finite-choice inputs):
+   * The endpoint ID in this same app whose response supplies the options for this field.
+   * When set, the UI generator will:
+   *   1. Auto-call that endpoint on component mount.
+   *   2. Populate this field's dropdown from the response.
+   *   3. Eliminate manual text-entry for finite-choice fields.
+   *
+   * MUST be paired with a KrnlDropdown component.
+   * Example: { field: 'provider', component: 'KrnlDropdown', sourceEndpointId: 'ListProviders', dataPath: 'providers' }
+   */
+  sourceEndpointId?: string;
+  /** Dot-path into response to extract data array (e.g. 'providers' or 'data.items'). */
   dataPath?: string;
-  /** For object array responses: key for option value (e.g. 'id'). */
+  /** For object array responses: key for option value (e.g. 'id', 'name'). */
   valueKey?: string;
-  /** For object array responses: key for option label (e.g. 'name'). */
+  /** For object array responses: key for option label (e.g. 'displayName', 'name'). */
   labelKey?: string;
   /** Input bind mode: 'selected' sends single item, 'all' sends full array. Defaults to 'selected'. */
   bindMode?: 'selected' | 'all';
   /** If true, output source endpoint is auto-called on mount to pre-populate shared component. */
   autoFetch?: boolean;
+  /**
+   * DEPENDENT DROPDOWN: field name in this same form whose value should filter this dropdown.
+   * When the upstream field changes, this dropdown re-fetches its options filtered by the new value.
+   * Example: modelName dropdown filters by the selected provider.
+   */
+  filterBy?: string;
 }
 
 export interface KrnlUiSpec {

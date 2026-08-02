@@ -659,6 +659,29 @@ body {
       if (spec.sharedComponentId && typeof spec.sharedComponentId !== 'string') {
         errors.push(`[ERR_UISPEC_INVALID_SLOT] Endpoint '${fid}' input '${spec.field}' sharedComponentId must be a string.`);
       }
+      if (spec.sourceEndpointId && typeof spec.sourceEndpointId !== 'string') {
+        errors.push(`[ERR_UISPEC_INVALID_SOURCE_ENDPOINT] Endpoint '${fid}' input '${spec.field}' sourceEndpointId must be a string.`);
+      }
+      // SELECTION-SOURCE PATTERN ENFORCEMENT 1: sourceEndpointId requires KrnlDropdown
+      if (spec.sourceEndpointId && spec.component !== 'KrnlDropdown') {
+        errors.push(`[ERR_UISPEC_SOURCE_ENDPOINT_REQUIRES_DROPDOWN] Endpoint '${fid}' input '${spec.field}' sets sourceEndpointId='${spec.sourceEndpointId}' but uses component '${spec.component}'. Selection-source fields MUST use component 'KrnlDropdown'.`);
+      }
+      // SELECTION-SOURCE PATTERN ENFORCEMENT 2: KrnlDropdown must be backed by a source
+      if (spec.component === 'KrnlDropdown' && !spec.sharedComponentId && !spec.sourceEndpointId && (!spec.options || spec.options.length === 0)) {
+        errors.push(`[ERR_UISPEC_DROPDOWN_MISSING_SOURCE] Endpoint '${fid}' input '${spec.field}' uses component 'KrnlDropdown' but provides no selection source. Must set 'sharedComponentId', 'sourceEndpointId', or static 'options'.`);
+      }
+      // SELECTION-SOURCE PATTERN ENFORCEMENT 3: Selection candidate fields must not use text inputs
+      const SELECTION_FIELD_PATTERNS = ['provider', 'model', 'modelName', 'model_name', 'profile', 'key_id', 'keyId'];
+      if (spec.component === 'KrnlTextInput' && SELECTION_FIELD_PATTERNS.includes(spec.field)) {
+        console.warn(`\n┌─────────────────────────────────────────────────────────────────────────┐`);
+        console.warn(`│ [KrnlUiSpecValidator] SELECTION-SOURCE PATTERN WARNING:                │`);
+        console.warn(`│ Endpoint '${fid}' input '${spec.field}' uses KrnlTextInput.                │`);
+        console.warn(`│ Field '${spec.field}' is a finite-choice selection candidate.            │`);
+        console.warn(`│ KRNL ARCHITECTURE RULE: Users MUST NOT type finite selections manually.  │`);
+        console.warn(`│ FIX: Change component to 'KrnlDropdown' and specify 'sharedComponentId' │`);
+        console.warn(`│      or 'sourceEndpointId' pointing to the options-providing endpoint.  │`);
+        console.warn(`└─────────────────────────────────────────────────────────────────────────┘\n`);
+      }
       if (spec.bindMode && spec.bindMode !== 'selected' && spec.bindMode !== 'all') {
         errors.push(`[ERR_UISPEC_INVALID_BINDMODE] Endpoint '${fid}' input '${spec.field}' bindMode '${spec.bindMode}' is invalid. Allowed: 'selected' | 'all'`);
       }
