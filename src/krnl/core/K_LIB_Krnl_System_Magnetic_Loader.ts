@@ -49,7 +49,7 @@ export class KrnlMagneticLoader {
     //    The execution mode (local | worker) is read from the parent's krnl.json.
     const subappsDir = path.join(baseDir, 'subapps');
     const isSubApp = subappLocalStorage.getStore() || (entity as any)._isSubApp || (entity as any)._isIngressNetworkMember;
-    if (fs.existsSync(subappsDir) && !isSubApp) {
+    if (fs.existsSync(subappsDir)) {
       const apps = await fs.promises.readdir(subappsDir, { withFileTypes: true });
       const subappConfigs: KrnlSubAppConfig[] = [];
       for (const dirent of apps) {
@@ -109,20 +109,20 @@ export class KrnlMagneticLoader {
       const hasLocalFuncs = entity.localFunctionalities && entity.localFunctionalities.size > 0;
       const indexExists = fs.existsSync(path.join(frontendDir, 'src', 'index.tsx'));
 
-      if (!isSubApp || hasLocalFuncs || !indexExists) {
-        // Register sub-app frontends with parent frontend
-        if (entity._subAppRegistry && entity._frontend) {
-          for (const [prefix, entry] of entity._subAppRegistry.entries()) {
-            const subAppDir = (entry.entity as any)?._entityDataDir;
-            if (subAppDir) {
-              const subFrontend = path.join(subAppDir, 'frontend');
-              if (fs.existsSync(subFrontend)) {
-                entity._frontend.registerSubAppFrontend(prefix, subFrontend);
-              }
+      // Always register sub-app frontends with parent frontend if entity has a frontend manager
+      if (entity._subAppRegistry) {
+        for (const [prefix, entry] of entity._subAppRegistry.entries()) {
+          const subAppDir = (entry.entity as any)?._entityDataDir || (entry.entity as any)?._sourceDir;
+          if (subAppDir) {
+            const subFrontend = path.join(subAppDir, 'frontend');
+            if (fs.existsSync(subFrontend) && entity._frontend) {
+              entity._frontend.registerSubAppFrontend(prefix, subFrontend);
             }
           }
         }
+      }
 
+      if (!isSubApp || hasLocalFuncs || !indexExists) {
         // Generate React component code programmatically based on endpoint uiSpecs
         try {
           const { KrnlFrontendGenerator } = await import('./K_LIB_Krnl_Frontend_Generator.js');

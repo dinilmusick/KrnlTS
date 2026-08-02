@@ -369,6 +369,14 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     for (const config of configs) {
       try {
         await KrnlSubAppLoader.load(this as any, config);
+        const prefix = config.prefix.toLowerCase();
+        const entry = this._subAppRegistry.get(prefix);
+        if (entry && entry.entity) {
+          const subAppDir = (entry.entity as any)?._entityDataDir || (entry.entity as any)?._sourceDir;
+          if (subAppDir && fs.existsSync(path.join(subAppDir, 'frontend')) && (this as any)._frontend) {
+            (this as any)._frontend.registerSubAppFrontend(prefix, path.join(subAppDir, 'frontend'));
+          }
+        }
       } catch (err: any) {
         const errMsg = err.message || String(err);
         console.error(`[SubAppRegistry] Failed to load sub-app '${config.prefix}':`, errMsg);

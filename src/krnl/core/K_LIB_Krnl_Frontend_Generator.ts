@@ -743,6 +743,7 @@ ${validation.errors.map((e) => `│  - ${e}`).join('\n')}
 
     const importStatement = `import { ${Array.from(atomImports).join(', ')} } from '../../atoms/index.js';`;
 
+    const sourceEndpointInputs = inputs.filter((i) => i.sourceEndpointId);
     const autoFetchOutput = outputs.find((o) => o.autoFetch && o.sharedComponentId);
 
     return `import React, { useState, useEffect } from 'react';
@@ -782,14 +783,26 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
     return () => sse.close();
   }, []);
 
-  ${
-    autoFetchOutput
-      ? `// Auto-fetch output on mount
+  // Auto-fetch endpoint or option sources on mount
   useEffect(() => {
-    executeRequest({});
-  }, []);`
-      : ''
-  }
+    ${autoFetchOutput ? `executeRequest({});` : ''}
+    ${sourceEndpointInputs
+      .map(
+        (i) => `
+    fetch('/call/${i.sourceEndpointId}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .then((r) => r.json())
+      .then((d) => {
+        const payload = d.payload !== undefined ? d.payload : d;
+        let list = payload.${i.dataPath || i.field} || payload.data || payload.items || payload.providers || payload.models || payload.agents || payload;
+        if (list && typeof list === 'object' && !Array.isArray(list)) list = Object.keys(list).map(k => ({ id: k, name: k, value: k }));
+        if (Array.isArray(list) && ${i.sharedComponentId ? `slot_${i.sharedComponentId.replace(/[^a-zA-Z0-9]/g, '_')}` : 'null'}) {
+          slot_${i.sharedComponentId!.replace(/[^a-zA-Z0-9]/g, '_')}.setOptions(list);
+        }
+      })
+      .catch(() => {});`
+      )
+      .join('\n    ')}
+  }, []);
 
   // Populate output shared components when response arrives
   useEffect(() => {
