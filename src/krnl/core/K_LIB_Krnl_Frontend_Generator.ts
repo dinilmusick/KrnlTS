@@ -794,7 +794,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
     setError(null);
     try {
       const payloadData = overrideData || formData;
-      const res = await fetch('api/${fid}', {
+      const res = await fetch('/call/${fid}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadData),

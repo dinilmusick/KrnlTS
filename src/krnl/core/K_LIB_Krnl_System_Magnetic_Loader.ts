@@ -100,8 +100,10 @@ export class KrnlMagneticLoader {
       }
     }
 
-    if (fs.existsSync(frontendDir) && !isSubApp) {
-      entity.enableFrontend({ frontendDir });
+    if (fs.existsSync(frontendDir)) {
+      if (!isSubApp) {
+        entity.enableFrontend({ frontendDir });
+      }
 
       // Register sub-app frontends with parent frontend
       if (entity._subAppRegistry && entity._frontend) {
@@ -128,7 +130,7 @@ export class KrnlMagneticLoader {
       try {
         const { KrnlFrontendBuilder } = await import('./K_LIB_Krnl_Frontend_Builder.js');
         await KrnlFrontendBuilder.build(frontendDir);
-        if (process.env.NODE_ENV !== 'production') {
+        if (process.env.NODE_ENV !== 'production' && !isSubApp) {
           await KrnlFrontendBuilder.watch(frontendDir);
         }
       } catch (err: any) {
