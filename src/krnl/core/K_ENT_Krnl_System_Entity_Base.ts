@@ -384,6 +384,19 @@ export class krnlSystemEntityBase extends krnlEntityBase {
         (this as any)._subappErrors.push({ subapp: config.prefix, error: errMsg });
       }
     }
+
+    // Re-generate & rebuild frontend aggregator so index.tsx includes tabs for loaded sub-apps
+    if ((this as any)._frontend && (this as any)._frontend.frontendDir) {
+      try {
+        const { KrnlFrontendGenerator } = await import('./K_LIB_Krnl_Frontend_Generator.js');
+        const { KrnlFrontendBuilder } = await import('./K_LIB_Krnl_Frontend_Builder.js');
+        const frontendDir = (this as any)._frontend.frontendDir;
+        await KrnlFrontendGenerator.generate(this, frontendDir);
+        await KrnlFrontendBuilder.build(frontendDir);
+      } catch (err: any) {
+        console.warn(`[SubAppRegistry] Frontend aggregation rebuild warning on '${this.entityName}':`, err.message);
+      }
+    }
   }
 
   /**
