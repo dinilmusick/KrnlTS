@@ -57,7 +57,15 @@ export class KrnlFrontendGenerator {
     }
 
     // Generate root index.tsx aggregator
-    const subAppPrefixes = Array.from(entity._subAppRegistry?.keys() || []) as string[];
+    const subAppPrefixesSet = new Set<string>(entity._subAppRegistry?.keys() || []);
+    if (entity.hierarchyManager?.ownedComponents) {
+      for (const [childId, childEntity] of entity.hierarchyManager.ownedComponents.entries()) {
+        if (childEntity && childEntity._frontend) {
+          subAppPrefixesSet.add(childId.toLowerCase());
+        }
+      }
+    }
+    const subAppPrefixes = Array.from(subAppPrefixesSet);
     const indexSource = this.generateIndexSource(entity.entityName, uiEndpoints, subAppPrefixes);
     fs.writeFileSync(path.join(frontendDir, 'src', 'index.tsx'), indexSource, 'utf-8');
   }
