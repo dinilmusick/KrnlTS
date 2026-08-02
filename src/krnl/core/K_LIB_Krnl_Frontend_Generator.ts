@@ -992,8 +992,8 @@ function AppShell() {
               (sub) =>
                 `{activeTab === '${sub}' && (
             <iframe
-              src="/frontend/subapps/${sub}/"
-              title="${sub}"
+              src="/\${sub}/frontend/"
+              title="\${sub}"
               style={{ width: '100%', height: 'calc(100vh - 160px)', border: 'none', borderRadius: '8px' }}
             />
           )}`
