@@ -798,11 +798,24 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
       .filter((o) => o.sharedComponentId)
       .map((o) => {
         const varName = `slot_${o.sharedComponentId!.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        const pathExpr = o.dataPath
-          ? `(response && typeof response === 'object' ? response['${o.dataPath}'] : response)`
-          : `(response && response['${o.field}'] !== undefined ? response['${o.field}'] : response)`;
-        return `if (${pathExpr} !== undefined && Array.isArray(${pathExpr})) {
-      ${varName}.setOptions(${pathExpr});
+        const fieldKey = o.field;
+        const dataPath = o.dataPath;
+        return `
+    let extracted: any = null;
+    if (response && typeof response === 'object') {
+      ${dataPath ? `extracted = response['${dataPath}'];` : `extracted = response['${fieldKey}'] !== undefined ? response['${fieldKey}'] : response;`}
+    }
+    if (extracted && typeof extracted === 'object' && !Array.isArray(extracted)) {
+      if (extracted.status === 'success' && extracted.data) extracted = extracted.data;
+      else if (extracted.providers && Array.isArray(extracted.providers)) extracted = extracted.providers;
+      else if (extracted.models && Array.isArray(extracted.models)) extracted = extracted.models;
+      else if (extracted.agents && Array.isArray(extracted.agents)) extracted = extracted.agents;
+      else if (extracted.keys && typeof extracted.keys === 'object') {
+        extracted = Object.keys(extracted).map(k => ({ id: k, name: k, value: k }));
+      }
+    }
+    if (Array.isArray(extracted)) {
+      ${varName}.setOptions(extracted);
     }`;
       })
       .join('\n    ')}
@@ -1007,7 +1020,7 @@ function AppShell() {
           ${uiEndpoints
             .map(
               (ep) =>
-                `{activeTab === '${ep.id}' && <Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, '_')} />}`
+                `<div style={{ display: activeTab === '${ep.id}' ? 'block' : 'none' }}><Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, '_')} /></div>`
             )
             .join('\n          ')}
           ${subAppPrefixes
