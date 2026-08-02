@@ -75,6 +75,15 @@ export class KrnlSubAppLoader {
       // Ensure _isSubApp is set (it should be via subappLocalStorage, but set defensively)
       entity._isSubApp = true;
 
+      // Automatically boot the sub-app so its endpoints & frontend generation complete
+      if (typeof entity.boot === 'function') {
+        try {
+          await entity.boot();
+        } catch (bootErr: any) {
+          console.warn(`[SubAppRegistry] Auto-boot warning on sub-app '${prefix}':`, bootErr.message || bootErr);
+        }
+      }
+
       // Resolve the ready-promise so consumers can await whenReady() without blocking
       // on _startSharedServer (which is suppressed for sub-apps).
       if (typeof entity._resolveReady === 'function') {
