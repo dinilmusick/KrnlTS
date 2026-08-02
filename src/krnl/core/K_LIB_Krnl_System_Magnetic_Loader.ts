@@ -105,36 +105,42 @@ export class KrnlMagneticLoader {
         entity.enableFrontend({ frontendDir });
       }
 
-      // Register sub-app frontends with parent frontend
-      if (entity._subAppRegistry && entity._frontend) {
-        for (const [prefix, entry] of entity._subAppRegistry.entries()) {
-          const subAppDir = (entry.entity as any)?._entityDataDir;
-          if (subAppDir) {
-            const subFrontend = path.join(subAppDir, 'frontend');
-            if (fs.existsSync(subFrontend)) {
-              entity._frontend.registerSubAppFrontend(prefix, subFrontend);
+      // If entity is a sub-app and already has generated components, preserve them instead of running blank generation
+      const hasLocalFuncs = entity.localFunctionalities && entity.localFunctionalities.size > 0;
+      const indexExists = fs.existsSync(path.join(frontendDir, 'src', 'index.tsx'));
+
+      if (!isSubApp || hasLocalFuncs || !indexExists) {
+        // Register sub-app frontends with parent frontend
+        if (entity._subAppRegistry && entity._frontend) {
+          for (const [prefix, entry] of entity._subAppRegistry.entries()) {
+            const subAppDir = (entry.entity as any)?._entityDataDir;
+            if (subAppDir) {
+              const subFrontend = path.join(subAppDir, 'frontend');
+              if (fs.existsSync(subFrontend)) {
+                entity._frontend.registerSubAppFrontend(prefix, subFrontend);
+              }
             }
           }
         }
-      }
 
-      // Generate React component code programmatically based on endpoint uiSpecs
-      try {
-        const { KrnlFrontendGenerator } = await import('./K_LIB_Krnl_Frontend_Generator.js');
-        await KrnlFrontendGenerator.generate(entity, frontendDir);
-      } catch (err: any) {
-        console.error(`[MagneticLoader] Frontend generator error on '${entity.entityName}':`, err.message || err);
-      }
-
-      // Build bundle in-process using esbuild
-      try {
-        const { KrnlFrontendBuilder } = await import('./K_LIB_Krnl_Frontend_Builder.js');
-        await KrnlFrontendBuilder.build(frontendDir);
-        if (process.env.NODE_ENV !== 'production' && !isSubApp) {
-          await KrnlFrontendBuilder.watch(frontendDir);
+        // Generate React component code programmatically based on endpoint uiSpecs
+        try {
+          const { KrnlFrontendGenerator } = await import('./K_LIB_Krnl_Frontend_Generator.js');
+          await KrnlFrontendGenerator.generate(entity, frontendDir);
+        } catch (err: any) {
+          console.error(`[MagneticLoader] Frontend generator error on '${entity.entityName}':`, err.message || err);
         }
-      } catch (err: any) {
-        console.error(`[MagneticLoader] Frontend builder error on '${entity.entityName}':`, err.message || err);
+
+        // Build bundle in-process using esbuild
+        try {
+          const { KrnlFrontendBuilder } = await import('./K_LIB_Krnl_Frontend_Builder.js');
+          await KrnlFrontendBuilder.build(frontendDir);
+          if (process.env.NODE_ENV !== 'production' && !isSubApp) {
+            await KrnlFrontendBuilder.watch(frontendDir);
+          }
+        } catch (err: any) {
+          console.error(`[MagneticLoader] Frontend builder error on '${entity.entityName}':`, err.message || err);
+        }
       }
     }
 
