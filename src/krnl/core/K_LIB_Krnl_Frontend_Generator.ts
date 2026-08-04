@@ -475,17 +475,8 @@ body {
 
 .krnl-btn-label {
   display: inline-block;
-  max-width: 0px;
-  opacity: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  transition: max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
-}
-
-.krnl-btn:hover .krnl-btn-label,
-.krnl-btn:focus .krnl-btn-label {
-  max-width: 200px;
   opacity: 1;
+  white-space: nowrap;
   margin-left: 0.25rem;
 }
 
