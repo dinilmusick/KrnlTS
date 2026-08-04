@@ -6444,6 +6444,12 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             console.warn(`[MagneticLoader] Failed to rename 'frontends/' -> 'frontend/': ${err.message}`);
           }
         }
+        if (entity._frontendEnabled && !import_fs11.default.existsSync(frontendDir)) {
+          try {
+            import_fs11.default.mkdirSync(frontendDir, { recursive: true });
+          } catch (_) {
+          }
+        }
         if (import_fs11.default.existsSync(frontendDir)) {
           if (!isSubApp) {
             entity.enableFrontend({ frontendDir });
@@ -9489,6 +9495,9 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
        */
       async boot() {
         this._bootBarrier.signalPhase1Complete();
+        if (!this._isSubApp && !this._sharedServer) {
+          await this.activateServiceSuite("UNIFIED_HTTP");
+        }
         await this.whenReady();
       }
       /**

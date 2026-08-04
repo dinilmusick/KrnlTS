@@ -296,6 +296,9 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    */
   async boot(): Promise<void> {
     this._bootBarrier.signalPhase1Complete();
+    if (!this._isSubApp && !this._sharedServer) {
+      await this.activateServiceSuite("UNIFIED_HTTP");
+    }
     await this.whenReady();
   }
 

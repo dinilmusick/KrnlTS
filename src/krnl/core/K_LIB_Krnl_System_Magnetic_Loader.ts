@@ -100,6 +100,12 @@ export class KrnlMagneticLoader {
       }
     }
 
+    if ((entity as any)._frontendEnabled && !fs.existsSync(frontendDir)) {
+      try {
+        fs.mkdirSync(frontendDir, { recursive: true });
+      } catch (_) {}
+    }
+
     if (fs.existsSync(frontendDir)) {
       if (!isSubApp) {
         entity.enableFrontend({ frontendDir });
