@@ -5650,8 +5650,26 @@ ${validation.errors.map((e) => `\u2502  - ${e}`).join("\n")}
 `);
           throw new Error(`[KrnlUiSpecValidationError] Invalid uiSpec in endpoint '${fid}': ${validation.errors.join("; ")}`);
         }
-        const inputs = uiSpec.inputs || [];
+        let inputs = uiSpec.inputs || [];
         const outputs = uiSpec.outputs || [];
+        if (inputs.length === 0 && schema && schema.input) {
+          try {
+            let shape = {};
+            if (typeof schema.input._def?.shape === "function") {
+              shape = schema.input._def.shape();
+            } else if (schema.input.shape) {
+              shape = schema.input.shape;
+            }
+            inputs = Object.keys(shape).map((field) => ({
+              field,
+              label: field,
+              component: "KrnlTextInput",
+              placeholder: `Enter ${field}`
+            }));
+          } catch (e) {
+            console.warn(`[KrnlFrontendGenerator] Could not infer input fields for '${fid}':`, e);
+          }
+        }
         const atomImports = /* @__PURE__ */ new Set();
         atomImports.add("KrnlButton");
         inputs.forEach((i) => atomImports.add(i.component));
