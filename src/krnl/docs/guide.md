@@ -184,3 +184,33 @@ await orchestrator.disconnectPeerRoute("SourceSystem", route.id);
 ```
 
 See runnable reference: `examples/example7/OrchestratorSystem/OrchestratorSystem.js`.
+
+---
+
+## ⏱️ 10. Process Sequencing & Execution Gates (`requires`)
+
+To prevent race conditions where endpoints or magnetic processes execute before required imports or services are ready, KrnlTS enforces process sequencing at both build time and runtime.
+
+### Two-Phase Boot Barrier (`KrnlBootBarrier`)
+`krnlSystemEntityBase` features an automated boot barrier:
+- **Phase 1**: Initial endpoint registration (`addLocal()`).
+- **Phase 2**: Released when `await super.boot()` is called, triggering `signalPhase1Complete()` and unblocking `KrnlMagneticLoader.loadAll()` for UI compilation and magnetic scanning.
+
+### Functionality `requires` Preconditions
+Endpoints registered via `addLocal()` or Atom descriptors can declare execution gates:
+```javascript
+this.addLocal({
+    id: "processOrder",
+    requires: {
+        functionalitiesExecuted: ["validateCart"],          // Upstream FIDs that MUST have run first
+        flags: ["krnl:magnetic_load_complete"],              // System milestone flags
+        check: (system) => system.hasFlag("authenticated")   // Custom boolean check
+    },
+    api: async (input, { entity: system }) => { ... }
+});
+```
+
+### Errors & Static Checks
+- **Runtime Error (`ERR_REQUIRES_UNSATISFIED`)**: Thrown if execution is attempted before preconditions are met.
+- **Static Compiler Validation (`[ERR_REQUIRES_UNKNOWN_FID]`)**: `npx krnlts-validate` verifies that all targets in `requires.functionalitiesExecuted` exist in the codebase.
+
