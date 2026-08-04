@@ -15,26 +15,28 @@ export class KrnlFrontendGenerator {
     this.ensureFrontendSkeleton(entity, frontendDir);
 
     const uiEndpointsMap = new Map<string, { id: string; uiSpec: KrnlUiSpec; schema: any }>();
-    const allFuncs = [
-      ...(entity.localFunctionalities?.values() || []),
-      ...(entity.remoteFunctionalities?.values() || [])
-    ];
-
-    for (const fn of allFuncs) {
-      const uiSpec: KrnlUiSpec = fn.uiSpec || (fn as any).ui_spec;
-      if (uiSpec && uiSpec.ui_component_enabled) {
-        if (uiEndpointsMap.has(fn.id)) {
-          console.warn(`\n┌─────────────────────────────────────────────────────────────────────────┐`);
-          console.warn(`│ [KrnlFrontendGenerator] DUPLICATE ENDPOINT ID DETECTED: '${fn.id}'`);
-          console.warn(`│ Endpoint '${fn.id}' is registered in both localFunctionalities AND remoteFunctionalities.`);
-          console.warn(`│ Only the first registration (local) will be used for UI generation.`);
-          console.warn(`│ FIX: Do not register the same endpoint ID in both local and remote maps.`);
-          console.warn(`└─────────────────────────────────────────────────────────────────────────┘`);
-        } else {
-          uiEndpointsMap.set(fn.id, { id: fn.id, uiSpec, schema: fn.schema });
+    const collectEndpoints = (ent: any) => {
+      const funcs = [
+        ...(ent.localFunctionalities?.values() || []),
+        ...(ent.remoteFunctionalities?.values() || [])
+      ];
+      for (const fn of funcs) {
+        const uiSpec: KrnlUiSpec = fn.uiSpec || (fn as any).ui_spec || { ui_component_enabled: true };
+        if (uiSpec && uiSpec.ui_component_enabled) {
+          if (!uiEndpointsMap.has(fn.id)) {
+            uiEndpointsMap.set(fn.id, { id: fn.id, uiSpec, schema: fn.schema });
+          }
         }
       }
-    }
+      const children = ent.hierarchyManager?.ownedComponents || ent.components;
+      if (children && typeof children.values === 'function') {
+        for (const child of children.values()) {
+          collectEndpoints(child);
+        }
+      }
+    };
+
+    collectEndpoints(entity);
 
     const uiEndpoints = Array.from(uiEndpointsMap.values());
 

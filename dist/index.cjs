@@ -4969,26 +4969,27 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
       static async generate(entity, frontendDir) {
         this.ensureFrontendSkeleton(entity, frontendDir);
         const uiEndpointsMap = /* @__PURE__ */ new Map();
-        const allFuncs = [
-          ...entity.localFunctionalities?.values() || [],
-          ...entity.remoteFunctionalities?.values() || []
-        ];
-        for (const fn of allFuncs) {
-          const uiSpec = fn.uiSpec || fn.ui_spec;
-          if (uiSpec && uiSpec.ui_component_enabled) {
-            if (uiEndpointsMap.has(fn.id)) {
-              console.warn(`
-\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510`);
-              console.warn(`\u2502 [KrnlFrontendGenerator] DUPLICATE ENDPOINT ID DETECTED: '${fn.id}'`);
-              console.warn(`\u2502 Endpoint '${fn.id}' is registered in both localFunctionalities AND remoteFunctionalities.`);
-              console.warn(`\u2502 Only the first registration (local) will be used for UI generation.`);
-              console.warn(`\u2502 FIX: Do not register the same endpoint ID in both local and remote maps.`);
-              console.warn(`\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518`);
-            } else {
-              uiEndpointsMap.set(fn.id, { id: fn.id, uiSpec, schema: fn.schema });
+        const collectEndpoints = (ent) => {
+          const funcs = [
+            ...ent.localFunctionalities?.values() || [],
+            ...ent.remoteFunctionalities?.values() || []
+          ];
+          for (const fn of funcs) {
+            const uiSpec = fn.uiSpec || fn.ui_spec || { ui_component_enabled: true };
+            if (uiSpec && uiSpec.ui_component_enabled) {
+              if (!uiEndpointsMap.has(fn.id)) {
+                uiEndpointsMap.set(fn.id, { id: fn.id, uiSpec, schema: fn.schema });
+              }
             }
           }
-        }
+          const children = ent.hierarchyManager?.ownedComponents || ent.components;
+          if (children && typeof children.values === "function") {
+            for (const child of children.values()) {
+              collectEndpoints(child);
+            }
+          }
+        };
+        collectEndpoints(entity);
         const uiEndpoints = Array.from(uiEndpointsMap.values());
         if (uiEndpoints.length > 0) {
           this.checkReactDependencies(frontendDir);
