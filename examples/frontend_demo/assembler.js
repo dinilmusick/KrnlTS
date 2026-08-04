@@ -5,6 +5,9 @@ export class MyFrontendSystem extends krnlSystemEntityBase {
     constructor(port = 10099, options = {}) {
         super("MyFrontendSystem", null, port, options.host || "0.0.0.0", { ...options, sourcePath: import.meta.url });
     }
+    async boot() {
+        await super.boot();
+    }
 }
 
 export default MyFrontendSystem;

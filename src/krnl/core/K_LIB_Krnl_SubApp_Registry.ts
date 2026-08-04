@@ -65,23 +65,18 @@ export class KrnlSubAppLoader {
         if (config.entryPath) options.sourcePath = pathToFileURL(config.entryPath).href;
         entity = await subappLocalStorage.run({ appPath: appDir }, async () => {
           const inst = new config.ServiceClass!(-1, options, ...(config.constructorArgs ?? []));
+          if (typeof inst.boot === 'function') {
+            try {
+              await inst.boot();
+            } catch (bootErr: any) {
+              console.warn(`[SubAppRegistry] Auto-boot warning on sub-app '${prefix}':`, bootErr.message || bootErr);
+            }
+          }
           if (inst._magneticLoadPromise) {
             await inst._magneticLoadPromise;
           }
           return inst;
         });
-      }
-
-      // Ensure _isSubApp is set (it should be via subappLocalStorage, but set defensively)
-      entity._isSubApp = true;
-
-      // Automatically boot the sub-app so its endpoints & frontend generation complete
-      if (typeof entity.boot === 'function') {
-        try {
-          await entity.boot();
-        } catch (bootErr: any) {
-          console.warn(`[SubAppRegistry] Auto-boot warning on sub-app '${prefix}':`, bootErr.message || bootErr);
-        }
       }
 
       // Resolve the ready-promise so consumers can await whenReady() without blocking

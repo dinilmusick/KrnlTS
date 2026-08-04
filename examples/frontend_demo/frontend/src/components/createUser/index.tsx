@@ -30,7 +30,11 @@ export default function Endpoint_createUser() {
     return () => sse.close();
   }, []);
 
-  
+  // Auto-fetch endpoint or option sources on mount
+  useEffect(() => {
+    
+    
+  }, []);
 
   // Populate output shared components when response arrives
   useEffect(() => {
@@ -47,7 +51,7 @@ export default function Endpoint_createUser() {
     setError(null);
     try {
       const payloadData = overrideData || formData;
-      const res = await fetch('api/createUser', {
+      const res = await fetch('/call/createUser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadData),

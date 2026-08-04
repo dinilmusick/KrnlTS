@@ -6,6 +6,9 @@ export class AuthService extends krnlSystemEntityBase {
         // Source path option is required so the magnetic loader knows where this class is located
         super("AuthService", null, port, options.host || "0.0.0.0", { ...options, sourcePath: import.meta.url });
     }
+    async boot() {
+        await super.boot();
+    }
 }
 
 export default AuthService;

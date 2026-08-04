@@ -6,7 +6,7 @@
 
 import { krnlEmitter } from "./K_LIB_Krnl_Messaging_Concepts.js";
 import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
-import type { KrnlEndpointAccessPolicy } from "./types.js";
+import type { KrnlEndpointAccessPolicy, KrnlRequiresSpec } from "./types.js";
 import type { KrnlIntentionFunctionality } from "./K_LIB_Krnl_Intention_Types.js";
 import type { KrnlIntelligenceSpec } from "./K_LIB_Krnl_Ai_Concepts.js";
 
@@ -82,6 +82,9 @@ export class krnlLocalFunctionality {
   intention?: KrnlIntentionFunctionality;
   ai?: any;
 
+  requires?: KrnlRequiresSpec;
+  _hasBeenExecuted: boolean = false;
+
   constructor(config: any = {}) {
     const {
       id,
@@ -98,6 +101,7 @@ export class krnlLocalFunctionality {
       accessPolicy = null,
       accessKey = null,
       tests = [],
+      requires = null,
     } = config;
 
     if (!id) throw new Error("LocalFunctionality requires an ID.");
@@ -107,6 +111,7 @@ export class krnlLocalFunctionality {
     this.initialState = initialState;
     this.api = api;
     this.sourcePath = sourcePath;
+    if (requires) this.requires = requires;
     this.helpers = new Map(Object.entries(helpers));
     this.emitters = new Map();
     this.schema = schema;
@@ -329,6 +334,15 @@ export class krnlLocalFunctionality {
       }
     }
 
+    // ── DEPENDENCY GATE ──────────────────────────────────────────────
+    if (this.requires) {
+      const gateError = await this._checkRequires();
+      if (gateError) {
+        if (trace) activeTelemetry.endTrace(this.id, trace, false);
+        return { status: 'error', message: `[DependencyGate] ${gateError}`, payload: null };
+      }
+    }
+
     // --- INPUT VALIDATION ---
     if (this.schema && this.schema.input) {
       try {
@@ -413,6 +427,7 @@ export class krnlLocalFunctionality {
         }
       }
 
+      this._hasBeenExecuted = true;
       return {
         status: 'success',
         payload: result
@@ -454,6 +469,34 @@ export class krnlLocalFunctionality {
         payload: null
       };
     }
+  }
+
+  private async _checkRequires(): Promise<string | null> {
+    const r = this.requires!;
+    const entity = this.hostEntity as any;
+
+    // 1. Check sibling functionalities executed
+    for (const fid of (r.functionalitiesExecuted ?? [])) {
+      const sibling = entity?.localFunctionalities?.get(fid);
+      if (!sibling?._hasBeenExecuted) {
+        return `Requires functionality '${fid}' to have been executed first.`;
+      }
+    }
+
+    // 2. Check named entity flags
+    for (const flag of (r.flags ?? [])) {
+      if (!entity?._krnlFlags?.has(flag)) {
+        return `Requires flag '${flag}' to be set. Check boot sequence or entity initialization.`;
+      }
+    }
+
+    // 3. Custom evaluation check
+    if (typeof r.check === 'function') {
+      const result = await r.check(entity);
+      if (result) return result;
+    }
+
+    return null;
   }
 }
 

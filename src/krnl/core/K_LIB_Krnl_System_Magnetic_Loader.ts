@@ -135,8 +135,11 @@ export class KrnlMagneticLoader {
         try {
           const { KrnlFrontendBuilder } = await import('./K_LIB_Krnl_Frontend_Builder.js');
           await KrnlFrontendBuilder.build(frontendDir);
+          // Start esbuild watcher in background (fire-and-forget) — it should not block boot
           if (process.env.NODE_ENV !== 'production' && !isSubApp) {
-            await KrnlFrontendBuilder.watch(frontendDir);
+            KrnlFrontendBuilder.watch(frontendDir).catch((err: any) => {
+              console.warn(`[MagneticLoader] esbuild watcher error on '${entity.entityName}':`, err.message || err);
+            });
           }
         } catch (err: any) {
           console.error(`[MagneticLoader] Frontend builder error on '${entity.entityName}':`, err.message || err);
@@ -162,7 +165,10 @@ export class KrnlMagneticLoader {
     if (hasAiConfig || hasAiStore) {
       console.log(`[MagneticLoader] Automatically initializing AI Layer on '${entity.entityName}'...`);
       await entity.initializeAiLayer(baseDir);
+      (entity as any).setFlag?.('krnl:ai_layer_ready');
     }
+
+    (entity as any).setFlag?.('krnl:magnetic_load_complete');
   }
 
   static async loadFunctionality(entity: krnlSystemEntityBase, funcDir: string, funcName: string): Promise<void> {

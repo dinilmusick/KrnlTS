@@ -6,6 +6,9 @@ export class MyMagneticSystem extends krnlSystemEntityBase {
         // We supply import.meta.url so that the loader can resolve directory paths relative to this file!
         super("MyMagneticSystem", null, port, options.host || "0.0.0.0", { ...options, sourcePath: import.meta.url });
     }
+    async boot() {
+        await super.boot();
+    }
 }
 
 export default MyMagneticSystem;

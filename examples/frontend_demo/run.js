@@ -37,6 +37,7 @@ async function main() {
     const system = new MyFrontendSystem(port, { host: "127.0.0.1" });
     await system._startSharedServer();
     await system.startDiscovery();
+    await system.boot();
     await system.whenReady();
     console.log("System initialized successfully.");
 

@@ -541,6 +541,14 @@ type KrnlSubAppExecutionMode = 'local' | 'worker';
  * sub-app inside a parent. The executionMode is read from the parent's krnl.json
  * and injected here by the MagneticLoader; sub-apps do not declare it themselves.
  */
+interface KrnlRequiresSpec {
+    /** IDs of functionalities that must have been executed at least once. */
+    functionalitiesExecuted?: string[];
+    /** Arbitrary named flags that must be set to true on the host entity. */
+    flags?: string[];
+    /** Custom async check function — returns null if OK, error string if blocked. */
+    check?: (entity: any) => Promise<string | null> | string | null;
+}
 interface KrnlSubAppConfig {
     /** Directory name of the sub-app under subapps/ */
     prefix: string;
@@ -575,16 +583,34 @@ interface KrnlUiFieldSpec {
     placeholder?: string;
     /** Names a globally shared UI component instance across endpoints. */
     sharedComponentId?: string;
-    /** Dot-path into response to extract data array (e.g. 'names' or 'data.items'). */
+    /**
+     * SELECTION-SOURCE PATTERN (mandatory for finite-choice inputs):
+     * The endpoint ID in this same app whose response supplies the options for this field.
+     * When set, the UI generator will:
+     *   1. Auto-call that endpoint on component mount.
+     *   2. Populate this field's dropdown from the response.
+     *   3. Eliminate manual text-entry for finite-choice fields.
+     *
+     * MUST be paired with a KrnlDropdown component.
+     * Example: { field: 'provider', component: 'KrnlDropdown', sourceEndpointId: 'ListProviders', dataPath: 'providers' }
+     */
+    sourceEndpointId?: string;
+    /** Dot-path into response to extract data array (e.g. 'providers' or 'data.items'). */
     dataPath?: string;
-    /** For object array responses: key for option value (e.g. 'id'). */
+    /** For object array responses: key for option value (e.g. 'id', 'name'). */
     valueKey?: string;
-    /** For object array responses: key for option label (e.g. 'name'). */
+    /** For object array responses: key for option label (e.g. 'displayName', 'name'). */
     labelKey?: string;
     /** Input bind mode: 'selected' sends single item, 'all' sends full array. Defaults to 'selected'. */
     bindMode?: 'selected' | 'all';
     /** If true, output source endpoint is auto-called on mount to pre-populate shared component. */
     autoFetch?: boolean;
+    /**
+     * DEPENDENT DROPDOWN: field name in this same form whose value should filter this dropdown.
+     * When the upstream field changes, this dropdown re-fetches its options filtered by the new value.
+     * Example: modelName dropdown filters by the selected provider.
+     */
+    filterBy?: string;
 }
 interface KrnlUiSpec {
     ui_component_enabled: boolean;
@@ -686,6 +712,8 @@ declare class krnlLocalFunctionality {
     hostEntity: any;
     intention?: KrnlIntentionFunctionality;
     ai?: any;
+    requires?: KrnlRequiresSpec;
+    _hasBeenExecuted: boolean;
     constructor(config?: any);
     _createObservedState(initialState: any): any;
     _notifyStateChanged(prop: string, value: any): void;
@@ -712,6 +740,7 @@ declare class krnlLocalFunctionality {
     bindToEntity(entity: any): this;
     teardown(): void;
     execute(input: any, opts?: any): Promise<any>;
+    private _checkRequires;
 }
 /**
  * KRNL REMOTE FUNCTIONALITY
@@ -1442,6 +1471,20 @@ declare class KrnlFrontend {
     private _readJsonBody;
 }
 
+declare class KrnlBootBarrier {
+    private _phase1Complete;
+    private _resolve;
+    readonly promise: Promise<void>;
+    /**
+     * Signals that Phase 1 (developer boot / addLocal registration) has completed.
+     */
+    signalPhase1Complete(): void;
+    /**
+     * Awaited by the magnetic loader before scanning and generating components.
+     */
+    waitForPhase1(): Promise<void>;
+}
+
 declare class KrnlAikoClient {
     private baseUrl;
     lastUsedModelId: string | null;
@@ -1695,6 +1738,12 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
     _registryHeartbeatInterval: any;
     _registryEvictionInterval: any;
     _registryApps: Map<string, any>;
+    _bootBarrier: KrnlBootBarrier;
+    _krnlFlags: Set<string>;
+    /** Sets a named readiness flag on the entity. */
+    setFlag(flag: string): void;
+    /** Checks if a named readiness flag is set on the entity. */
+    hasFlag(flag: string): boolean;
     /**
      * @param name
      * @param owner
@@ -2890,6 +2939,58 @@ declare class KrnlBuildValidator {
     };
 }
 
+/**
+ * KrnlTS Source Analyzer
+ *
+ * Performs static analysis of KrnlTS entity source files to enforce
+ * architectural constraints that prevent runtime timing bugs.
+ *
+ * KEY CONSTRAINT ENFORCED:
+ *   "All addLocal() calls with uiSpec MUST appear before the first
+ *    KrnlMagneticLoader.loadAll() call in boot(). Violating this causes
+ *    the frontend generator to see zero endpoints → blank UI."
+ */
+declare class KrnlSourceAnalyzer {
+    /**
+     * Extracts all addLocal() call positions and their uiSpec presence from source.
+     */
+    static getAddLocalCalls(source: string): Array<{
+        line: number;
+        hasUiSpec: boolean;
+        id: string;
+    }>;
+    /**
+     * Finds the line number of KrnlMagneticLoader.loadAll() or MagneticLoader.loadAll() in source.
+     */
+    static getMagneticLoaderLine(source: string): number;
+    /**
+     * Checks for bare relative fetch URLs (missing leading slash) in generated component source.
+     * These cause page blanks when the browser treats them as relative to the current path.
+     */
+    static getBareRelativeFetches(source: string): number[];
+    /**
+     * Validates a single entity source file for boot-order constraints.
+     *
+     * RULE 1: addLocal() calls with uiSpec MUST appear before KrnlMagneticLoader.loadAll()
+     * RULE 2: Every addLocal() with ui_component_enabled MUST have ui_component_enabled: true
+     */
+    static validateEntitySource(filePath: string): {
+        valid: boolean;
+        errors: string[];
+        warnings: string[];
+    };
+    /**
+     * Validates all entity source files in the project.
+     * Scans for *.ts and *.js files in src/ that extend krnlSystemEntityBase or krnlEntityBase.
+     */
+    static validateProject(projectRoot: string): {
+        valid: boolean;
+        errors: string[];
+        warnings: string[];
+    };
+    private static findEntityFiles;
+}
+
 interface PocerBlockConfig {
     image: string;
     containerName: string;
@@ -2917,4 +3018,4 @@ declare class PocerBlock extends krnlSystemEntityBase {
     private _waitForPort;
 }
 
-export { AsyncKit, CUSTOM_ERROR_CODE, CacheKit, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBuildValidator, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, type KrnlSubAppConfig, type KrnlSubAppDependency, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLoader, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, LRUCache, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SiblingMemberEntry, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };
+export { AsyncKit, CUSTOM_ERROR_CODE, CacheKit, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLoader, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, LRUCache, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SiblingMemberEntry, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };

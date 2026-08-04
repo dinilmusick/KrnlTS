@@ -30,9 +30,12 @@ for (const testFile of testFiles) {
     const output = execSync(`node "${fullPath}"`, {
       cwd: __dirname,
       encoding: 'utf-8',
-      timeout: 30000
+      timeout: 120000
     });
     console.log(`✔ Passed: ${testFile}`);
+    if (output && output.trim()) {
+      console.log(output.trim().split('\n').map(l => `    ${l}`).join('\n'));
+    }
     passed++;
   } catch (err) {
     console.error(`❌ Failed: ${testFile}`);

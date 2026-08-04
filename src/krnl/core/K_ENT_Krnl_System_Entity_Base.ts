@@ -40,6 +40,7 @@ import {
 } from "./types.js";
 import { KrnlSiblingNetwork } from "./K_LIB_Krnl_System_Ingress_Network.js";
 import { KrnlFrontend } from "./K_LIB_Krnl_System_Frontend.js";
+import { KrnlBootBarrier } from "./K_LIB_Krnl_Boot_Barrier.js";
 
 // AI Imports
 import { KrnlAikoClient } from "./K_LIB_Krnl_Aiko_Client.js";
@@ -170,6 +171,20 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   _registryEvictionInterval: any = null;
   _registryApps: Map<string, any> = new Map();
 
+  _bootBarrier: KrnlBootBarrier;
+  _krnlFlags: Set<string> = new Set();
+
+  /** Sets a named readiness flag on the entity. */
+  setFlag(flag: string): void {
+    this._krnlFlags.add(flag);
+    console.log(`[${this.entityName}] Flag set: '${flag}'`);
+  }
+
+  /** Checks if a named readiness flag is set on the entity. */
+  hasFlag(flag: string): boolean {
+    return this._krnlFlags.has(flag);
+  }
+
   /**
    * @param name
    * @param owner
@@ -245,6 +260,8 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     // ── Startup Diagnostics ──────────────────────────────
     this._emitStartupDiagnostics();
 
+    this._bootBarrier = new KrnlBootBarrier();
+
     this._isSubApp = !!subappStore;
     if (this._isSubApp) {
       this._resolveReady();
@@ -263,6 +280,8 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     if (options._skipMagneticLoading) {
       return;
     }
+    // Hold phase 2 loading until phase 1 (boot addLocal calls) is completed
+    await this._bootBarrier.waitForPhase1();
     try {
       const { KrnlMagneticLoader } = await import('./K_LIB_Krnl_System_Magnetic_Loader.js');
       await KrnlMagneticLoader.loadAll(this as any, this._entityDataDir);
@@ -276,6 +295,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
    * Boot validation & startup entrypoint
    */
   async boot(): Promise<void> {
+    this._bootBarrier.signalPhase1Complete();
     await this.whenReady();
   }
 
@@ -925,6 +945,10 @@ export class krnlSystemEntityBase extends krnlEntityBase {
     this._deletePortsFile();
 
     // 4. Dispose self
+    try {
+      const { KrnlFrontendBuilder } = await import('./K_LIB_Krnl_Frontend_Builder.js');
+      KrnlFrontendBuilder.stop(this._entityDataDir);
+    } catch (_) {}
     this.dispose();
 
     console.log(`[${this.entityName}] ── Shutdown complete ──`);

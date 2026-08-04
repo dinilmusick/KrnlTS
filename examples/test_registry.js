@@ -11,6 +11,7 @@ async function run() {
   console.log("\n[TEST 1] Initializing Registry Host (SystemA) on 10099...");
   const systemA = new krnlSystemEntityBase("SystemA", null, 10099);
   await systemA.activateServiceSuite("UNIFIED_HTTP");
+  await systemA.boot();
   await systemA.startDiscovery(10111);
   console.log("SystemA is now running on port 10099.");
 
@@ -18,6 +19,7 @@ async function run() {
   console.log("\n[TEST 2] Initializing Client App (SystemB) on a dynamic port...");
   const systemB = new krnlSystemEntityBase("SystemB", null, 10600);
   await systemB.activateServiceSuite("UNIFIED_HTTP");
+  await systemB.boot();
   await systemB.startDiscovery(10111);
   console.log(`SystemB is now running on finalized port ${systemB.port}.`);
 
@@ -60,7 +62,6 @@ async function run() {
   console.log("\nCleaning up remaining processes...");
   await systemA.shutdown();
   console.log("Exhibit Completed successfully.");
-  process.exit(0);
 }
 
 run().catch(err => {

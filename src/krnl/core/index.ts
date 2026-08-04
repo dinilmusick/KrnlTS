@@ -15,6 +15,7 @@ export * from "./types.js";
 export * from "./K_LIB_Krnl_System_Ingress_Network.js";  // KrnlSiblingNetwork + KrnlIngressNetwork alias
 export * from "./K_LIB_Krnl_SubApp_Registry.js";
 export * from "./K_LIB_Krnl_SubApp_Worker_Host.js";
+export * from "./K_LIB_Krnl_Boot_Barrier.js";
 export * from "./K_LIB_Krnl_System_Magnetic_Loader.js";
 export * from "./K_LIB_Krnl_System_App_Adapter.js";
 export * from "./K_LIB_Krnl_System_Frontend.js";

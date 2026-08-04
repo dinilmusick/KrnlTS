@@ -26,9 +26,9 @@
     mod
   ));
 
-  // ../../../../node_modules/react/cjs/react.development.js
+  // ../../../../../node_modules/react/cjs/react.development.js
   var require_react_development = __commonJS({
-    "../../../../node_modules/react/cjs/react.development.js"(exports, module) {
+    "../../../../../node_modules/react/cjs/react.development.js"(exports, module) {
       "use strict";
       (function() {
         function defineDeprecationWarning(methodName, info) {
@@ -998,9 +998,9 @@
     }
   });
 
-  // ../../../../node_modules/react/index.js
+  // ../../../../../node_modules/react/index.js
   var require_react = __commonJS({
-    "../../../../node_modules/react/index.js"(exports, module) {
+    "../../../../../node_modules/react/index.js"(exports, module) {
       "use strict";
       if (false) {
         module.exports = null;
@@ -1010,9 +1010,9 @@
     }
   });
 
-  // ../../../../node_modules/scheduler/cjs/scheduler.development.js
+  // ../../../../../node_modules/scheduler/cjs/scheduler.development.js
   var require_scheduler_development = __commonJS({
-    "../../../../node_modules/scheduler/cjs/scheduler.development.js"(exports) {
+    "../../../../../node_modules/scheduler/cjs/scheduler.development.js"(exports) {
       "use strict";
       (function() {
         function performWorkUntilDeadline() {
@@ -1269,9 +1269,9 @@
     }
   });
 
-  // ../../../../node_modules/scheduler/index.js
+  // ../../../../../node_modules/scheduler/index.js
   var require_scheduler = __commonJS({
-    "../../../../node_modules/scheduler/index.js"(exports, module) {
+    "../../../../../node_modules/scheduler/index.js"(exports, module) {
       "use strict";
       if (false) {
         module.exports = null;
@@ -1281,9 +1281,9 @@
     }
   });
 
-  // ../../../../node_modules/react-dom/cjs/react-dom.development.js
+  // ../../../../../node_modules/react-dom/cjs/react-dom.development.js
   var require_react_dom_development = __commonJS({
-    "../../../../node_modules/react-dom/cjs/react-dom.development.js"(exports) {
+    "../../../../../node_modules/react-dom/cjs/react-dom.development.js"(exports) {
       "use strict";
       (function() {
         function noop() {
@@ -1525,9 +1525,9 @@
     }
   });
 
-  // ../../../../node_modules/react-dom/index.js
+  // ../../../../../node_modules/react-dom/index.js
   var require_react_dom = __commonJS({
-    "../../../../node_modules/react-dom/index.js"(exports, module) {
+    "../../../../../node_modules/react-dom/index.js"(exports, module) {
       "use strict";
       if (false) {
         checkDCE();
@@ -1538,9 +1538,9 @@
     }
   });
 
-  // ../../../../node_modules/react-dom/cjs/react-dom-client.development.js
+  // ../../../../../node_modules/react-dom/cjs/react-dom-client.development.js
   var require_react_dom_client_development = __commonJS({
-    "../../../../node_modules/react-dom/cjs/react-dom-client.development.js"(exports) {
+    "../../../../../node_modules/react-dom/cjs/react-dom-client.development.js"(exports) {
       "use strict";
       (function() {
         function findHook(fiber, id) {
@@ -21437,9 +21437,9 @@
     }
   });
 
-  // ../../../../node_modules/react-dom/client.js
+  // ../../../../../node_modules/react-dom/client.js
   var require_client = __commonJS({
-    "../../../../node_modules/react-dom/client.js"(exports, module) {
+    "../../../../../node_modules/react-dom/client.js"(exports, module) {
       "use strict";
       if (false) {
         checkDCE();
@@ -21450,9 +21450,9 @@
     }
   });
 
-  // ../../../../node_modules/react/cjs/react-jsx-runtime.development.js
+  // ../../../../../node_modules/react/cjs/react-jsx-runtime.development.js
   var require_react_jsx_runtime_development = __commonJS({
-    "../../../../node_modules/react/cjs/react-jsx-runtime.development.js"(exports) {
+    "../../../../../node_modules/react/cjs/react-jsx-runtime.development.js"(exports) {
       "use strict";
       (function() {
         function getComponentNameFromType(type) {
@@ -21707,9 +21707,9 @@
     }
   });
 
-  // ../../../../node_modules/react/jsx-runtime.js
+  // ../../../../../node_modules/react/jsx-runtime.js
   var require_jsx_runtime = __commonJS({
-    "../../../../node_modules/react/jsx-runtime.js"(exports, module) {
+    "../../../../../node_modules/react/jsx-runtime.js"(exports, module) {
       "use strict";
       if (false) {
         module.exports = null;
@@ -21719,11 +21719,11 @@
     }
   });
 
-  // examples/frontend_demo/frontend/src/index.tsx
+  // frontend_demo/frontend/src/index.tsx
   var import_react5 = __toESM(require_react(), 1);
   var import_client = __toESM(require_client(), 1);
 
-  // examples/frontend_demo/frontend/src/atoms/KrnlButton.tsx
+  // frontend_demo/frontend/src/atoms/KrnlButton.tsx
   var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
   function KrnlButton({ label, onClick, disabled, loading, variant = "primary", icon = "\u26A1", type, children }) {
     const textLabel = label || (typeof children === "string" ? children : void 0) || "Action";
@@ -21743,7 +21743,7 @@
     );
   }
 
-  // examples/frontend_demo/frontend/src/atoms/KrnlTextInput.tsx
+  // frontend_demo/frontend/src/atoms/KrnlTextInput.tsx
   var import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
   function KrnlTextInput({ label, value, onChange, placeholder, type = "text" }) {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "krnl-form-group", children: [
@@ -21761,7 +21761,7 @@
     ] });
   }
 
-  // examples/frontend_demo/frontend/src/atoms/KrnlNumberInput.tsx
+  // frontend_demo/frontend/src/atoms/KrnlNumberInput.tsx
   var import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
   function KrnlNumberInput({ label, value, onChange, placeholder }) {
     return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "krnl-form-group", children: [
@@ -21779,7 +21779,7 @@
     ] });
   }
 
-  // examples/frontend_demo/frontend/src/atoms/KrnlToggle.tsx
+  // frontend_demo/frontend/src/atoms/KrnlToggle.tsx
   var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
   function KrnlToggle({ label, value, onChange }) {
     return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "krnl-form-group krnl-toggle-group", children: [
@@ -21795,7 +21795,7 @@
     ] });
   }
 
-  // examples/frontend_demo/frontend/src/atoms/KrnlDropdown.tsx
+  // frontend_demo/frontend/src/atoms/KrnlDropdown.tsx
   var import_react = __toESM(require_react(), 1);
   var import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
   function KrnlDropdown({ label, value, options = [], onChange }) {
@@ -21831,19 +21831,19 @@
     ] });
   }
 
-  // examples/frontend_demo/frontend/src/atoms/KrnlTextArea.tsx
+  // frontend_demo/frontend/src/atoms/KrnlTextArea.tsx
   var import_jsx_runtime6 = __toESM(require_jsx_runtime(), 1);
 
-  // examples/frontend_demo/frontend/src/atoms/KrnlJsonInput.tsx
+  // frontend_demo/frontend/src/atoms/KrnlJsonInput.tsx
   var import_jsx_runtime7 = __toESM(require_jsx_runtime(), 1);
 
-  // examples/frontend_demo/frontend/src/atoms/KrnlJsonViewer.tsx
+  // frontend_demo/frontend/src/atoms/KrnlJsonViewer.tsx
   var import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
 
-  // examples/frontend_demo/frontend/src/atoms/KrnlCarousel.tsx
+  // frontend_demo/frontend/src/atoms/KrnlCarousel.tsx
   var import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
 
-  // examples/frontend_demo/frontend/src/atoms/KrnlTile.tsx
+  // frontend_demo/frontend/src/atoms/KrnlTile.tsx
   var import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
   function KrnlTile({ title, value }) {
     return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "krnl-tile", children: [
@@ -21852,10 +21852,10 @@
     ] });
   }
 
-  // examples/frontend_demo/frontend/src/atoms/KrnlSSELog.tsx
+  // frontend_demo/frontend/src/atoms/KrnlSSELog.tsx
   var import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
 
-  // examples/frontend_demo/frontend/src/atoms/KrnlSharedState.tsx
+  // frontend_demo/frontend/src/atoms/KrnlSharedState.tsx
   var import_react2 = __toESM(require_react(), 1);
   var import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
   var SharedComponentContext = (0, import_react2.createContext)(/* @__PURE__ */ new Map());
@@ -21895,7 +21895,7 @@
     };
   }
 
-  // examples/frontend_demo/frontend/src/components/createUser/index.tsx
+  // frontend_demo/frontend/src/components/createUser/index.tsx
   var import_react3 = __toESM(require_react(), 1);
   var import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
   function Endpoint_createUser() {
@@ -21925,6 +21925,8 @@
       return () => sse.close();
     }, []);
     (0, import_react3.useEffect)(() => {
+    }, []);
+    (0, import_react3.useEffect)(() => {
       if (response === null) return;
     }, [response]);
     const handleInputChange = (field, val) => {
@@ -21935,7 +21937,7 @@
       setError(null);
       try {
         const payloadData = overrideData || formData;
-        const res = await fetch("api/createUser", {
+        const res = await fetch("/call/createUser", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payloadData)
@@ -21993,7 +21995,7 @@
     );
   }
 
-  // examples/frontend_demo/frontend/src/components/getNames/index.tsx
+  // frontend_demo/frontend/src/components/getNames/index.tsx
   var import_react4 = __toESM(require_react(), 1);
   var import_jsx_runtime14 = __toESM(require_jsx_runtime(), 1);
   function Endpoint_getNames() {
@@ -22087,7 +22089,7 @@
     );
   }
 
-  // examples/frontend_demo/frontend/src/index.tsx
+  // frontend_demo/frontend/src/index.tsx
   var import_jsx_runtime15 = __toESM(require_jsx_runtime(), 1);
   function AppShell() {
     const [activeTab, setActiveTab] = (0, import_react5.useState)("createUser");

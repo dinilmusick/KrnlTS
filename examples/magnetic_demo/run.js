@@ -42,6 +42,7 @@ async function main() {
 
     await system._startSharedServer();
     await system.startDiscovery();
+    await system.boot();
     await system.whenReady();
 
     console.log("\n1. Testing Magnetic Functionality...");

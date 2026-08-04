@@ -18,15 +18,23 @@ function AppShell() {
 
         <div className="krnl-nav-tabs">
           
-          <button className={`krnl-tab-btn ${activeTab === 'authservice' ? 'active' : ''}`} onClick={() => setActiveTab('authservice')}>📦 authservice</button>
+          <button className={`krnl-tab-btn ${activeTab === 'authservice' ? 'active' : ''}`} onClick={() => setActiveTab('authservice')} title="authservice"><span>📦</span><span className="krnl-tab-label">authservice</span></button>
+          <button className={`krnl-tab-btn ${activeTab === 'nonkrnlapp' ? 'active' : ''}`} onClick={() => setActiveTab('nonkrnlapp')} title="nonkrnlapp"><span>📦</span><span className="krnl-tab-label">nonkrnlapp</span></button>
         </div>
 
         <main className="krnl-main-body">
           
           {activeTab === 'authservice' && (
             <iframe
-              src="/frontend/subapps/authservice/"
+              src={'/' + 'authservice' + '/frontend/'}
               title="authservice"
+              style={{ width: '100%', height: 'calc(100vh - 160px)', border: 'none', borderRadius: '8px' }}
+            />
+          )}
+          {activeTab === 'nonkrnlapp' && (
+            <iframe
+              src={'/' + 'nonkrnlapp' + '/frontend/'}
+              title="nonkrnlapp"
               style={{ width: '100%', height: 'calc(100vh - 160px)', border: 'none', borderRadius: '8px' }}
             />
           )}

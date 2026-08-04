@@ -159,6 +159,26 @@ export class KrnlSourceAnalyzer {
       );
     }
 
+    // RULE 4: Validate requires.functionalitiesExecuted targets exist in local addLocal calls
+    const allKnownIds = new Set(addLocals.map(al => al.id));
+    const requiresMatches = source.matchAll(/functionalitiesExecuted\s*:\s*\[([^\]]+)\]/g);
+    for (const match of requiresMatches) {
+      const rawArray = match[1];
+      const targetIds = rawArray.split(',').map(s => s.trim().replace(/['"]/g, ''));
+      for (const tid of targetIds) {
+        if (tid && !allKnownIds.has(tid)) {
+          // If not in addLocal, check if present elsewhere in source string as an atom ID
+          const atomPattern = new RegExp(`id\\s*:\\s*["']${tid}["']`);
+          if (!atomPattern.test(source)) {
+            errors.push(
+              `[ERR_REQUIRES_UNKNOWN_FID] In '${path.basename(filePath)}': ` +
+              `Functionality requires dependency '${tid}' which is not defined in this application or project.`
+            );
+          }
+        }
+      }
+    }
+
     return {
       valid: errors.length === 0,
       errors,

@@ -884,6 +884,8 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
       hostEntity;
       intention;
       ai;
+      requires;
+      _hasBeenExecuted = false;
       constructor(config = {}) {
         const {
           id,
@@ -900,7 +902,8 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
           sourcePath = null,
           accessPolicy = null,
           accessKey = null,
-          tests = []
+          tests = [],
+          requires = null
         } = config;
         if (!id) throw new Error("LocalFunctionality requires an ID.");
         this.id = id;
@@ -908,6 +911,7 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
         this.initialState = initialState;
         this.api = api;
         this.sourcePath = sourcePath;
+        if (requires) this.requires = requires;
         this.helpers = new Map(Object.entries(helpers));
         this.emitters = /* @__PURE__ */ new Map();
         this.schema = schema;
@@ -1093,6 +1097,13 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
             return { status: "error", message: `[AccessDenied] ${access.reason}`, payload: null };
           }
         }
+        if (this.requires) {
+          const gateError = await this._checkRequires();
+          if (gateError) {
+            if (trace) activeTelemetry.endTrace(this.id, trace, false);
+            return { status: "error", message: `[DependencyGate] ${gateError}`, payload: null };
+          }
+        }
         if (this.schema && this.schema.input) {
           try {
             if (typeof this.schema.input.verify === "function") {
@@ -1164,6 +1175,7 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
               frontend.interactionsHistory.shift();
             }
           }
+          this._hasBeenExecuted = true;
           return {
             status: "success",
             payload: result
@@ -1199,6 +1211,26 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
             payload: null
           };
         }
+      }
+      async _checkRequires() {
+        const r = this.requires;
+        const entity = this.hostEntity;
+        for (const fid of r.functionalitiesExecuted ?? []) {
+          const sibling = entity?.localFunctionalities?.get(fid);
+          if (!sibling?._hasBeenExecuted) {
+            return `Requires functionality '${fid}' to have been executed first.`;
+          }
+        }
+        for (const flag of r.flags ?? []) {
+          if (!entity?._krnlFlags?.has(flag)) {
+            return `Requires flag '${flag}' to be set. Check boot sequence or entity initialization.`;
+          }
+        }
+        if (typeof r.check === "function") {
+          const result = await r.check(entity);
+          if (result) return result;
+        }
+        return null;
       }
     };
     krnlRemoteFunctionality = class {
@@ -4970,7 +5002,15 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
           const compSource = this.generateComponentSource(ep.id, ep.uiSpec, ep.schema);
           import_fs9.default.writeFileSync(import_path8.default.join(epDir, "index.tsx"), compSource, "utf-8");
         }
-        const subAppPrefixes = Array.from(entity._subAppRegistry?.keys() || []);
+        const subAppPrefixesSet = new Set(entity._subAppRegistry?.keys() || []);
+        if (entity.hierarchyManager?.ownedComponents) {
+          for (const [childId, childEntity] of entity.hierarchyManager.ownedComponents.entries()) {
+            if (childEntity && childEntity._frontend) {
+              subAppPrefixesSet.add(childId.toLowerCase());
+            }
+          }
+        }
+        const subAppPrefixes = Array.from(subAppPrefixesSet);
         const indexSource = this.generateIndexSource(entity.entityName, uiEndpoints, subAppPrefixes);
         import_fs9.default.writeFileSync(import_path8.default.join(frontendDir, "src", "index.tsx"), indexSource, "utf-8");
       }
@@ -5559,6 +5599,28 @@ body {
           if (spec.sharedComponentId && typeof spec.sharedComponentId !== "string") {
             errors.push(`[ERR_UISPEC_INVALID_SLOT] Endpoint '${fid}' input '${spec.field}' sharedComponentId must be a string.`);
           }
+          if (spec.sourceEndpointId && typeof spec.sourceEndpointId !== "string") {
+            errors.push(`[ERR_UISPEC_INVALID_SOURCE_ENDPOINT] Endpoint '${fid}' input '${spec.field}' sourceEndpointId must be a string.`);
+          }
+          if (spec.sourceEndpointId && spec.component !== "KrnlDropdown") {
+            errors.push(`[ERR_UISPEC_SOURCE_ENDPOINT_REQUIRES_DROPDOWN] Endpoint '${fid}' input '${spec.field}' sets sourceEndpointId='${spec.sourceEndpointId}' but uses component '${spec.component}'. Selection-source fields MUST use component 'KrnlDropdown'.`);
+          }
+          if (spec.component === "KrnlDropdown" && !spec.sharedComponentId && !spec.sourceEndpointId && (!spec.options || spec.options.length === 0)) {
+            errors.push(`[ERR_UISPEC_DROPDOWN_MISSING_SOURCE] Endpoint '${fid}' input '${spec.field}' uses component 'KrnlDropdown' but provides no selection source. Must set 'sharedComponentId', 'sourceEndpointId', or static 'options'.`);
+          }
+          const SELECTION_FIELD_PATTERNS = ["provider", "model", "modelName", "model_name", "profile", "key_id", "keyId"];
+          if (spec.component === "KrnlTextInput" && SELECTION_FIELD_PATTERNS.includes(spec.field)) {
+            console.warn(`
+\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510`);
+            console.warn(`\u2502 [KrnlUiSpecValidator] SELECTION-SOURCE PATTERN WARNING:                \u2502`);
+            console.warn(`\u2502 Endpoint '${fid}' input '${spec.field}' uses KrnlTextInput.                \u2502`);
+            console.warn(`\u2502 Field '${spec.field}' is a finite-choice selection candidate.            \u2502`);
+            console.warn(`\u2502 KRNL ARCHITECTURE RULE: Users MUST NOT type finite selections manually.  \u2502`);
+            console.warn(`\u2502 FIX: Change component to 'KrnlDropdown' and specify 'sharedComponentId' \u2502`);
+            console.warn(`\u2502      or 'sourceEndpointId' pointing to the options-providing endpoint.  \u2502`);
+            console.warn(`\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518
+`);
+          }
           if (spec.bindMode && spec.bindMode !== "selected" && spec.bindMode !== "all") {
             errors.push(`[ERR_UISPEC_INVALID_BINDMODE] Endpoint '${fid}' input '${spec.field}' bindMode '${spec.bindMode}' is invalid. Allowed: 'selected' | 'all'`);
           }
@@ -5609,6 +5671,7 @@ ${validation.errors.map((e) => `\u2502  - ${e}`).join("\n")}
           atomImports.add("useSharedSlot");
         }
         const importStatement = `import { ${Array.from(atomImports).join(", ")} } from '../../atoms/index.js';`;
+        const sourceEndpointInputs = inputs.filter((i) => i.sourceEndpointId);
         const autoFetchOutput = outputs.find((o) => o.autoFetch && o.sharedComponentId);
         return `import React, { useState, useEffect } from 'react';
 ${importStatement}
@@ -5644,19 +5707,48 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
     return () => sse.close();
   }, []);
 
-  ${autoFetchOutput ? `// Auto-fetch output on mount
+  // Auto-fetch endpoint or option sources on mount
   useEffect(() => {
-    executeRequest({});
-  }, []);` : ""}
+    ${autoFetchOutput ? `executeRequest({});` : ""}
+    ${sourceEndpointInputs.map(
+          (i) => `
+    fetch('/call/${i.sourceEndpointId}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .then((r) => r.json())
+      .then((d) => {
+        const payload = d.payload !== undefined ? d.payload : d;
+        let list = payload.${i.dataPath || i.field} || payload.data || payload.items || payload.providers || payload.models || payload.agents || payload;
+        if (list && typeof list === 'object' && !Array.isArray(list)) list = Object.keys(list).map(k => ({ id: k, name: k, value: k }));
+        if (Array.isArray(list) && ${i.sharedComponentId ? `slot_${i.sharedComponentId.replace(/[^a-zA-Z0-9]/g, "_")}` : "null"}) {
+          slot_${i.sharedComponentId.replace(/[^a-zA-Z0-9]/g, "_")}.setOptions(list);
+        }
+      })
+      .catch(() => {});`
+        ).join("\n    ")}
+  }, []);
 
   // Populate output shared components when response arrives
   useEffect(() => {
     if (response === null) return;
     ${outputs.filter((o) => o.sharedComponentId).map((o) => {
           const varName = `slot_${o.sharedComponentId.replace(/[^a-zA-Z0-9]/g, "_")}`;
-          const pathExpr = o.dataPath ? `(response && typeof response === 'object' ? response['${o.dataPath}'] : response)` : `(response && response['${o.field}'] !== undefined ? response['${o.field}'] : response)`;
-          return `if (${pathExpr} !== undefined && Array.isArray(${pathExpr})) {
-      ${varName}.setOptions(${pathExpr});
+          const fieldKey = o.field;
+          const dataPath = o.dataPath;
+          return `
+    let extracted: any = null;
+    if (response && typeof response === 'object') {
+      ${dataPath ? `extracted = response['${dataPath}'];` : `extracted = response['${fieldKey}'] !== undefined ? response['${fieldKey}'] : response;`}
+    }
+    if (extracted && typeof extracted === 'object' && !Array.isArray(extracted)) {
+      if (extracted.status === 'success' && extracted.data) extracted = extracted.data;
+      else if (extracted.providers && Array.isArray(extracted.providers)) extracted = extracted.providers;
+      else if (extracted.models && Array.isArray(extracted.models)) extracted = extracted.models;
+      else if (extracted.agents && Array.isArray(extracted.agents)) extracted = extracted.agents;
+      else if (extracted.keys && typeof extracted.keys === 'object') {
+        extracted = Object.keys(extracted).map(k => ({ id: k, name: k, value: k }));
+      }
+    }
+    if (Array.isArray(extracted)) {
+      ${varName}.setOptions(extracted);
     }`;
         }).join("\n    ")}
   }, [response]);
@@ -5670,7 +5762,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
     setError(null);
     try {
       const payloadData = overrideData || formData;
-      const res = await fetch('api/${fid}', {
+      const res = await fetch('/call/${fid}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadData),
@@ -5834,12 +5926,12 @@ function AppShell() {
 
         <main className="krnl-main-body">
           ${uiEndpoints.map(
-          (ep) => `{activeTab === '${ep.id}' && <Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, "_")} />}`
+          (ep) => `<div style={{ display: activeTab === '${ep.id}' ? 'block' : 'none' }}><Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, "_")} /></div>`
         ).join("\n          ")}
           ${subAppPrefixes.map(
           (sub) => `{activeTab === '${sub}' && (
             <iframe
-              src="/frontend/subapps/${sub}/"
+              src={'/' + '${sub}' + '/frontend/'}
               title="${sub}"
               style={{ width: '100%', height: 'calc(100vh - 160px)', border: 'none', borderRadius: '8px' }}
             />
@@ -6309,7 +6401,7 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         }
         const subappsDir = import_path10.default.join(baseDir, "subapps");
         const isSubApp = subappLocalStorage.getStore() || entity._isSubApp || entity._isIngressNetworkMember;
-        if (import_fs11.default.existsSync(subappsDir) && !isSubApp) {
+        if (import_fs11.default.existsSync(subappsDir)) {
           const apps = await import_fs11.default.promises.readdir(subappsDir, { withFileTypes: true });
           const subappConfigs = [];
           for (const dirent of apps) {
@@ -6352,33 +6444,41 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             console.warn(`[MagneticLoader] Failed to rename 'frontends/' -> 'frontend/': ${err.message}`);
           }
         }
-        if (import_fs11.default.existsSync(frontendDir) && !isSubApp) {
-          entity.enableFrontend({ frontendDir });
-          if (entity._subAppRegistry && entity._frontend) {
+        if (import_fs11.default.existsSync(frontendDir)) {
+          if (!isSubApp) {
+            entity.enableFrontend({ frontendDir });
+          }
+          const hasLocalFuncs = entity.localFunctionalities && entity.localFunctionalities.size > 0;
+          const indexExists = import_fs11.default.existsSync(import_path10.default.join(frontendDir, "src", "index.tsx"));
+          if (entity._subAppRegistry) {
             for (const [prefix, entry] of entity._subAppRegistry.entries()) {
-              const subAppDir = entry.entity?._entityDataDir;
+              const subAppDir = entry.entity?._entityDataDir || entry.entity?._sourceDir;
               if (subAppDir) {
                 const subFrontend = import_path10.default.join(subAppDir, "frontend");
-                if (import_fs11.default.existsSync(subFrontend)) {
+                if (import_fs11.default.existsSync(subFrontend) && entity._frontend) {
                   entity._frontend.registerSubAppFrontend(prefix, subFrontend);
                 }
               }
             }
           }
-          try {
-            const { KrnlFrontendGenerator: KrnlFrontendGenerator2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Frontend_Generator(), K_LIB_Krnl_Frontend_Generator_exports));
-            await KrnlFrontendGenerator2.generate(entity, frontendDir);
-          } catch (err) {
-            console.error(`[MagneticLoader] Frontend generator error on '${entity.entityName}':`, err.message || err);
-          }
-          try {
-            const { KrnlFrontendBuilder: KrnlFrontendBuilder2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Frontend_Builder(), K_LIB_Krnl_Frontend_Builder_exports));
-            await KrnlFrontendBuilder2.build(frontendDir);
-            if (process.env.NODE_ENV !== "production") {
-              await KrnlFrontendBuilder2.watch(frontendDir);
+          if (!isSubApp || hasLocalFuncs || !indexExists) {
+            try {
+              const { KrnlFrontendGenerator: KrnlFrontendGenerator2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Frontend_Generator(), K_LIB_Krnl_Frontend_Generator_exports));
+              await KrnlFrontendGenerator2.generate(entity, frontendDir);
+            } catch (err) {
+              console.error(`[MagneticLoader] Frontend generator error on '${entity.entityName}':`, err.message || err);
             }
-          } catch (err) {
-            console.error(`[MagneticLoader] Frontend builder error on '${entity.entityName}':`, err.message || err);
+            try {
+              const { KrnlFrontendBuilder: KrnlFrontendBuilder2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Frontend_Builder(), K_LIB_Krnl_Frontend_Builder_exports));
+              await KrnlFrontendBuilder2.build(frontendDir);
+              if (process.env.NODE_ENV !== "production" && !isSubApp) {
+                KrnlFrontendBuilder2.watch(frontendDir).catch((err) => {
+                  console.warn(`[MagneticLoader] esbuild watcher error on '${entity.entityName}':`, err.message || err);
+                });
+              }
+            } catch (err) {
+              console.error(`[MagneticLoader] Frontend builder error on '${entity.entityName}':`, err.message || err);
+            }
           }
         }
         const hasAiConfig = [...entity.localFunctionalities.values()].some((f) => f.ai?.enabled);
@@ -6396,7 +6496,9 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         if (hasAiConfig || hasAiStore) {
           console.log(`[MagneticLoader] Automatically initializing AI Layer on '${entity.entityName}'...`);
           await entity.initializeAiLayer(baseDir);
+          entity.setFlag?.("krnl:ai_layer_ready");
         }
+        entity.setFlag?.("krnl:magnetic_load_complete");
       }
       static async loadFunctionality(entity, funcDir, funcName) {
         const descriptorPath = import_path10.default.join(funcDir, `${funcName}.js`);
@@ -7614,6 +7716,34 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
             }
           });
         });
+      }
+    };
+  }
+});
+
+// src/krnl/core/K_LIB_Krnl_Boot_Barrier.ts
+var KrnlBootBarrier;
+var init_K_LIB_Krnl_Boot_Barrier = __esm({
+  "src/krnl/core/K_LIB_Krnl_Boot_Barrier.ts"() {
+    "use strict";
+    KrnlBootBarrier = class {
+      _phase1Complete = false;
+      _resolve;
+      promise = new Promise((r) => this._resolve = r);
+      /**
+       * Signals that Phase 1 (developer boot / addLocal registration) has completed.
+       */
+      signalPhase1Complete() {
+        if (!this._phase1Complete) {
+          this._phase1Complete = true;
+          this._resolve();
+        }
+      }
+      /**
+       * Awaited by the magnetic loader before scanning and generating components.
+       */
+      waitForPhase1() {
+        return this.promise;
       }
     };
   }
@@ -8984,13 +9114,19 @@ var init_K_LIB_Krnl_SubApp_Registry = __esm({
             if (config.entryPath) options.sourcePath = (0, import_url4.pathToFileURL)(config.entryPath).href;
             entity = await subappLocalStorage.run({ appPath: appDir }, async () => {
               const inst = new config.ServiceClass(-1, options, ...config.constructorArgs ?? []);
+              if (typeof inst.boot === "function") {
+                try {
+                  await inst.boot();
+                } catch (bootErr) {
+                  console.warn(`[SubAppRegistry] Auto-boot warning on sub-app '${prefix}':`, bootErr.message || bootErr);
+                }
+              }
               if (inst._magneticLoadPromise) {
                 await inst._magneticLoadPromise;
               }
               return inst;
             });
           }
-          entity._isSubApp = true;
           if (typeof entity._resolveReady === "function") {
             entity._resolveReady();
           }
@@ -9148,6 +9284,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
     init_KrnlShell();
     init_K_LIB_Krnl_System_Ingress_Network();
     init_K_LIB_Krnl_System_Frontend();
+    init_K_LIB_Krnl_Boot_Barrier();
     init_K_LIB_Krnl_Aiko_Client();
     init_K_LIB_Krnl_Watch_Variables_Tracker();
     init_K_LIB_Krnl_Endpoint_Scheduler();
@@ -9261,6 +9398,17 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
       _registryHeartbeatInterval = null;
       _registryEvictionInterval = null;
       _registryApps = /* @__PURE__ */ new Map();
+      _bootBarrier;
+      _krnlFlags = /* @__PURE__ */ new Set();
+      /** Sets a named readiness flag on the entity. */
+      setFlag(flag) {
+        this._krnlFlags.add(flag);
+        console.log(`[${this.entityName}] Flag set: '${flag}'`);
+      }
+      /** Checks if a named readiness flag is set on the entity. */
+      hasFlag(flag) {
+        return this._krnlFlags.has(flag);
+      }
       /**
        * @param name
        * @param owner
@@ -9312,6 +9460,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         console.log(`[KRNL_DATA_DIR] Entity: ${this.entityName}, DataDir: ${this._entityDataDir}, subappStore: ${JSON.stringify(subappStore)}`);
         this._documentationProvider = null;
         this._emitStartupDiagnostics();
+        this._bootBarrier = new KrnlBootBarrier();
         this._isSubApp = !!subappStore;
         if (this._isSubApp) {
           this._resolveReady();
@@ -9326,6 +9475,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         if (options._skipMagneticLoading) {
           return;
         }
+        await this._bootBarrier.waitForPhase1();
         try {
           const { KrnlMagneticLoader: KrnlMagneticLoader2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_System_Magnetic_Loader(), K_LIB_Krnl_System_Magnetic_Loader_exports));
           await KrnlMagneticLoader2.loadAll(this, this._entityDataDir);
@@ -9338,6 +9488,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
        * Boot validation & startup entrypoint
        */
       async boot() {
+        this._bootBarrier.signalPhase1Complete();
         await this.whenReady();
       }
       /**
@@ -9423,11 +9574,30 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         for (const config of configs) {
           try {
             await KrnlSubAppLoader2.load(this, config);
+            const prefix = config.prefix.toLowerCase();
+            const entry = this._subAppRegistry.get(prefix);
+            if (entry && entry.entity) {
+              const subAppDir = entry.entity?._entityDataDir || entry.entity?._sourceDir;
+              if (subAppDir && import_fs15.default.existsSync(import_path17.default.join(subAppDir, "frontend")) && this._frontend) {
+                this._frontend.registerSubAppFrontend(prefix, import_path17.default.join(subAppDir, "frontend"));
+              }
+            }
           } catch (err) {
             const errMsg = err.message || String(err);
             console.error(`[SubAppRegistry] Failed to load sub-app '${config.prefix}':`, errMsg);
             this._subappErrors = this._subappErrors || [];
             this._subappErrors.push({ subapp: config.prefix, error: errMsg });
+          }
+        }
+        if (this._frontend && this._frontend.frontendDir) {
+          try {
+            const { KrnlFrontendGenerator: KrnlFrontendGenerator2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Frontend_Generator(), K_LIB_Krnl_Frontend_Generator_exports));
+            const { KrnlFrontendBuilder: KrnlFrontendBuilder2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Frontend_Builder(), K_LIB_Krnl_Frontend_Builder_exports));
+            const frontendDir = this._frontend.frontendDir;
+            await KrnlFrontendGenerator2.generate(this, frontendDir);
+            await KrnlFrontendBuilder2.build(frontendDir);
+          } catch (err) {
+            console.warn(`[SubAppRegistry] Frontend aggregation rebuild warning on '${this.entityName}':`, err.message);
           }
         }
       }
@@ -9875,6 +10045,11 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
           new Promise((res) => setTimeout(res, timeoutMs))
         ]);
         this._deletePortsFile();
+        try {
+          const { KrnlFrontendBuilder: KrnlFrontendBuilder2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_Frontend_Builder(), K_LIB_Krnl_Frontend_Builder_exports));
+          KrnlFrontendBuilder2.stop(this._entityDataDir);
+        } catch (_) {
+        }
         this.dispose();
         console.log(`[${this.entityName}] \u2500\u2500 Shutdown complete \u2500\u2500`);
         if (typeof process !== "undefined" && process.exit) {
@@ -10583,6 +10758,7 @@ __export(index_exports, {
   KrnlAcpProtocol: () => KrnlAcpProtocol,
   KrnlAikoClient: () => KrnlAikoClient,
   KrnlApplicationOrchestrator: () => KrnlApplicationOrchestrator,
+  KrnlBootBarrier: () => KrnlBootBarrier,
   KrnlEndpointAgent: () => KrnlEndpointAgent,
   KrnlEndpointScheduler: () => KrnlEndpointScheduler,
   KrnlEnv: () => KrnlEnv,
@@ -10743,6 +10919,7 @@ init_K_LIB_Krnl_Protocol_ACP();
 init_K_LIB_Krnl_System_Ingress_Network();
 init_K_LIB_Krnl_SubApp_Registry();
 init_K_LIB_Krnl_SubApp_Worker_Host();
+init_K_LIB_Krnl_Boot_Barrier();
 init_K_LIB_Krnl_System_Magnetic_Loader();
 init_K_LIB_Krnl_System_App_Adapter();
 init_K_LIB_Krnl_System_Frontend();
@@ -11014,6 +11191,7 @@ var PocerBlock = class extends krnlSystemEntityBase {
   KrnlAcpProtocol,
   KrnlAikoClient,
   KrnlApplicationOrchestrator,
+  KrnlBootBarrier,
   KrnlEndpointAgent,
   KrnlEndpointScheduler,
   KrnlEnv,

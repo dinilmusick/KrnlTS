@@ -155,6 +155,15 @@ export type KrnlSubAppExecutionMode = 'local' | 'worker';
  * sub-app inside a parent. The executionMode is read from the parent's krnl.json
  * and injected here by the MagneticLoader; sub-apps do not declare it themselves.
  */
+export interface KrnlRequiresSpec {
+  /** IDs of functionalities that must have been executed at least once. */
+  functionalitiesExecuted?: string[];
+  /** Arbitrary named flags that must be set to true on the host entity. */
+  flags?: string[];
+  /** Custom async check function — returns null if OK, error string if blocked. */
+  check?: (entity: any) => Promise<string | null> | string | null;
+}
+
 export interface KrnlSubAppConfig {
   /** Directory name of the sub-app under subapps/ */
   prefix: string;
