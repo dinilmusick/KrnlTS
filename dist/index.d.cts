@@ -1686,6 +1686,7 @@ declare class KrnlJobScheduler {
     markRunning(id: string): void;
     markDone(id: string, result?: any): void;
     markError(id: string, error: string): void;
+    resolveTicket(id: string, status: 'done' | 'failed' | 'error', result?: any, error?: string): void;
     waitForTicket(id: string, timeoutMs?: number): Promise<KrnlJobTicket>;
     private cleanupExpiredTickets;
 }

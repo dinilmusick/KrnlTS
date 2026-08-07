@@ -9377,6 +9377,13 @@ var init_K_LIB_Krnl_Job_Scheduler = __esm({
           ticket.resolve(ticket);
         }
       }
+      resolveTicket(id, status, result, error) {
+        if (status === "done") {
+          this.markDone(id, result);
+        } else {
+          this.markError(id, error || "Job failed");
+        }
+      }
       async waitForTicket(id, timeoutMs = 1e4) {
         const ticket = this.tickets.get(id);
         if (!ticket) {

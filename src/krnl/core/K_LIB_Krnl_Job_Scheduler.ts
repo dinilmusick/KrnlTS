@@ -86,6 +86,14 @@ export class KrnlJobScheduler {
     }
   }
 
+  public resolveTicket(id: string, status: 'done' | 'failed' | 'error', result?: any, error?: string): void {
+    if (status === 'done') {
+      this.markDone(id, result);
+    } else {
+      this.markError(id, error || 'Job failed');
+    }
+  }
+
   public async waitForTicket(id: string, timeoutMs: number = 10000): Promise<KrnlJobTicket> {
     const ticket = this.tickets.get(id);
     if (!ticket) {
