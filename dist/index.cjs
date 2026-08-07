@@ -6030,6 +6030,9 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
         error: null,
         lastUpdated: Date.now()
       });
+      if (ticketId) {
+        KrnlAgentBridge.sendJobComplete(ticketId, '${fid}', payload, undefined);
+      }
       return payload;
     } catch (err: any) {
       const errMsg = err.message || 'Request failed';
@@ -6042,6 +6045,9 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
         error: errMsg,
         lastUpdated: Date.now()
       });
+      if (ticketId) {
+        KrnlAgentBridge.sendJobComplete(ticketId, '${fid}', null, errMsg);
+      }
       throw err;
     } finally {
       setLoading(false);
