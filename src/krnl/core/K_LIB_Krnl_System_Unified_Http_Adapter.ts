@@ -429,15 +429,17 @@ export class krnlUnifiedHttpAdapter {
 
                 if (reqPath === '/agent/job_complete' && req.method === 'POST') {
                     const { ticketId, fid, result, error } = await this._readJsonBody(req);
+                    console.log(`[UnifiedHttpAdapter] Received HTTP /agent/job_complete ACK for ticket '${ticketId}', fid '${fid}', error: '${error}'`);
                     if (!ticketId) {
                         this._sendJson(res, 400, { status: 'error', message: 'Missing required field: ticketId' });
                         return;
                     }
-                    if (error) {
-                        this.system._jobScheduler.markError(ticketId, error);
-                    } else {
-                        this.system._jobScheduler.markDone(ticketId, result);
-                    }
+                    this.system._jobScheduler.resolveTicket(
+                        ticketId,
+                        error ? 'failed' : 'done',
+                        result,
+                        error
+                    );
                     this._sendJson(res, 200, { status: 'success', ticketId });
                     return;
                 }
