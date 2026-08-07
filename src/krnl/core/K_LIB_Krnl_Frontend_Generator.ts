@@ -758,6 +758,7 @@ ${validation.errors.map((e) => `│  - ${e}`).join('\n')}
 
     const atomImports = new Set<string>();
     atomImports.add('KrnlButton');
+    atomImports.add('KrnlJsonViewer');
 
     inputs.forEach((i) => atomImports.add(i.component));
     outputs.forEach((o) => atomImports.add(o.component));

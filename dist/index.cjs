@@ -5682,6 +5682,7 @@ ${validation.errors.map((e) => `\u2502  - ${e}`).join("\n")}
         }
         const atomImports = /* @__PURE__ */ new Set();
         atomImports.add("KrnlButton");
+        atomImports.add("KrnlJsonViewer");
         inputs.forEach((i) => atomImports.add(i.component));
         outputs.forEach((o) => atomImports.add(o.component));
         const sharedInputIds = inputs.filter((i) => i.sharedComponentId).map((i) => i.sharedComponentId);
