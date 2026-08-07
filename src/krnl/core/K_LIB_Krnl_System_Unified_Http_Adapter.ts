@@ -364,7 +364,7 @@ export class krnlUnifiedHttpAdapter {
                         return;
                     }
 
-                    const startTime = Date.now();
+                    const initialLastUpdated = (this._latestUiSnapshot[fid]?.lastUpdated) || 0;
                     this.sendWsTrigger(fid, input);
 
                     let updatedState = this._latestUiSnapshot[fid] || null;
@@ -376,14 +376,14 @@ export class krnlUnifiedHttpAdapter {
                         await new Promise((r) => setTimeout(r, pollIntervalMs));
                         elapsed += pollIntervalMs;
                         const current = this._latestUiSnapshot[fid];
-                        if (current && current.lastUpdated >= startTime && current.loading === false) {
+                        if (current && (current.lastUpdated !== initialLastUpdated || current.response !== null || current.error !== null) && current.loading === false) {
                             updatedState = current;
                             break;
                         }
                     }
 
                     this._sendJson(res, 200, {
-                        status: updatedState ? 'success' : 'timeout',
+                        status: updatedState && updatedState.loading === false ? 'success' : 'timeout',
                         fid,
                         uiActive: this._uiWsClients.size > 0,
                         state: updatedState
