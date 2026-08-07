@@ -110,12 +110,12 @@ export class krnlUnifiedHttpAdapter {
                 } else if (msg.type === 'component_ready_all' && Array.isArray(msg.fids)) {
                     msg.fids.forEach((f: string) => this._uiReadyComponents.add(f));
                 } else if (msg.type === 'job_complete' && msg.ticketId) {
-                    console.log(`[UnifiedHttpAdapter] Mark ticket done/error: ${msg.ticketId}, error: ${msg.error}`);
-                    if (msg.error) {
-                        this.system._jobScheduler?.markError(msg.ticketId, msg.error);
-                    } else {
-                        this.system._jobScheduler?.markDone(msg.ticketId, msg.result);
-                    }
+                    this.system._jobScheduler.resolveTicket(
+                        msg.ticketId,
+                        msg.error ? 'failed' : 'done',
+                        msg.result,
+                        msg.error
+                    );
                 }
             } catch (e) {}
         });
@@ -243,6 +243,7 @@ export class krnlUnifiedHttpAdapter {
                            reqPath.startsWith('/ui') || 
                            reqPath.startsWith('/mcp') || 
                            reqPath.startsWith('/acp') || 
+                           reqPath === '/agent/job_complete' ||
                            reqPath === '/manifest' ||
                            reqPath === '/health';
 
@@ -423,6 +424,21 @@ export class krnlUnifiedHttpAdapter {
                             state: this._latestUiSnapshot[fid] || null
                         });
                     }
+                    return;
+                }
+
+                if (reqPath === '/agent/job_complete' && req.method === 'POST') {
+                    const { ticketId, fid, result, error } = await this._readJsonBody(req);
+                    if (!ticketId) {
+                        this._sendJson(res, 400, { status: 'error', message: 'Missing required field: ticketId' });
+                        return;
+                    }
+                    if (error) {
+                        this.system._jobScheduler.markError(ticketId, error);
+                    } else {
+                        this.system._jobScheduler.markDone(ticketId, result);
+                    }
+                    this._sendJson(res, 200, { status: 'success', ticketId });
                     return;
                 }
 

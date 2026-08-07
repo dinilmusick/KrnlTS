@@ -107,14 +107,19 @@ export class KrnlAgentBridgeManager {
   }
 
   public sendJobComplete(ticketId: string, fid: string, result?: any, error?: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        type: 'job_complete',
-        ticketId,
-        fid,
-        result: result !== undefined ? result : null,
-        error: error || null
-      }));
+    if (typeof window !== 'undefined') {
+      fetch('/agent/job_complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId,
+          fid,
+          result: result !== undefined ? result : null,
+          error: error || null
+        })
+      }).catch((err) => {
+        console.error('[KrnlAgentBridge] Failed to post job_complete ACK:', err);
+      });
     }
   }
 
