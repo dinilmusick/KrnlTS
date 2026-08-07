@@ -898,23 +898,47 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
   const executeRequest = async (overrideData?: Record<string, any>) => {
     setLoading(true);
     setError(null);
+    const activeInput = overrideData || formData;
+    if (overrideData) {
+      setFormData((prev) => ({ ...prev, ...overrideData }));
+    }
+    KrnlAgentBridge.setState('${fid}', {
+      fid: '${fid}',
+      formData: activeInput,
+      response: null,
+      loading: true,
+      error: null,
+      lastUpdated: Date.now()
+    });
     try {
-      const payloadData = overrideData || formData;
-      if (overrideData) {
-        setFormData((prev) => ({ ...prev, ...overrideData }));
-      }
       const res = await fetch('/call/${fid}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadData),
+        body: JSON.stringify(activeInput),
       });
       const data = await res.json();
       const payload = data.payload !== undefined ? data.payload : data;
       setResponse(payload);
+      KrnlAgentBridge.setState('${fid}', {
+        fid: '${fid}',
+        formData: activeInput,
+        response: payload,
+        loading: false,
+        error: null,
+        lastUpdated: Date.now()
+      });
       return payload;
     } catch (err: any) {
       const errMsg = err.message || 'Request failed';
       setError(errMsg);
+      KrnlAgentBridge.setState('${fid}', {
+        fid: '${fid}',
+        formData: activeInput,
+        response: null,
+        loading: false,
+        error: errMsg,
+        lastUpdated: Date.now()
+      });
       throw err;
     } finally {
       setLoading(false);
@@ -1496,7 +1520,7 @@ export class KrnlAgentBridgeManager {
   public setState(fid: string, state: KrnlComponentState) {
     this.states.set(fid, state);
     this.notifyListeners();
-    this.scheduleWsSend();
+    this.sendFullSnapshot();
   }
 
   public getState(fid?: string): Record<string, KrnlComponentState> | KrnlComponentState | null {

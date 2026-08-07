@@ -82,7 +82,7 @@ export class KrnlAgentBridgeManager {
   public setState(fid: string, state: KrnlComponentState) {
     this.states.set(fid, state);
     this.notifyListeners();
-    this.scheduleWsSend();
+    this.sendFullSnapshot();
   }
 
   public getState(fid?: string): Record<string, KrnlComponentState> | KrnlComponentState | null {
