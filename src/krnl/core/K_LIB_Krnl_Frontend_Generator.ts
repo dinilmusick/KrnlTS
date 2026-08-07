@@ -917,6 +917,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
       });
       const data = await res.json();
       const payload = data.payload !== undefined ? data.payload : data;
+      responseRef.current = payload;
       setResponse(payload);
       KrnlAgentBridge.setState('${fid}', {
         fid: '${fid}',
