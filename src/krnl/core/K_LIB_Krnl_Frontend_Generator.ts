@@ -1416,6 +1416,139 @@ export function useSharedSlot(id?: string) {
     );
 
     fs.writeFileSync(
+      path.join(atomsDir, 'KrnlAgentBridge.ts'),
+      `export interface KrnlComponentState {
+  fid: string;
+  formData: Record<string, any>;
+  response: any;
+  loading: boolean;
+  error: string | null;
+  lastUpdated: number;
+}
+
+export interface KrnlComponentRegistration {
+  trigger: (overrideInput?: Record<string, any>) => Promise<any>;
+}
+
+export class KrnlAgentBridgeManager {
+  private states = new Map<string, KrnlComponentState>();
+  private registrations = new Map<string, KrnlComponentRegistration>();
+  private listeners = new Set<(snapshot: Record<string, KrnlComponentState>) => void>();
+  private ws: WebSocket | null = null;
+  private wsDebounceTimer: any = null;
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      (window as any).__krnlBridge = this;
+      this.initWebSocket();
+    }
+  }
+
+  private initWebSocket() {
+    if (typeof window === 'undefined' || typeof WebSocket === 'undefined') return;
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
+
+    try {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = \`\${protocol}//\${window.location.host}/agent/ws\`;
+      this.ws = new WebSocket(wsUrl);
+
+      this.ws.onopen = () => {
+        this.sendFullSnapshot();
+      };
+
+      this.ws.onmessage = async (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.action === 'trigger' && msg.fid) {
+            await this.trigger(msg.fid, msg.input);
+          } else if (msg.action === 'query') {
+            this.sendFullSnapshot();
+          }
+        } catch (e) {
+          console.error('[KrnlAgentBridge] Error handling WS message:', e);
+        }
+      };
+
+      this.ws.onclose = () => {
+        this.ws = null;
+        setTimeout(() => this.initWebSocket(), 2000);
+      };
+
+      this.ws.onerror = () => {
+        if (this.ws) {
+          this.ws.close();
+        }
+      };
+    } catch (e) {
+      console.warn('[KrnlAgentBridge] WebSocket connection error:', e);
+    }
+  }
+
+  public register(fid: string, reg: KrnlComponentRegistration) {
+    this.registrations.set(fid, reg);
+  }
+
+  public unregister(fid: string) {
+    this.registrations.delete(fid);
+  }
+
+  public setState(fid: string, state: KrnlComponentState) {
+    this.states.set(fid, state);
+    this.notifyListeners();
+    this.scheduleWsSend();
+  }
+
+  public getState(fid?: string): Record<string, KrnlComponentState> | KrnlComponentState | null {
+    if (fid) {
+      return this.states.get(fid) || null;
+    }
+    return Object.fromEntries(this.states.entries());
+  }
+
+  public async trigger(fid: string, overrideInput?: Record<string, any>): Promise<any> {
+    const reg = this.registrations.get(fid);
+    if (!reg) {
+      throw new Error(\`[KrnlAgentBridge] Endpoint component '\${fid}' is not mounted in the UI.\`);
+    }
+    return await reg.trigger(overrideInput);
+  }
+
+  public subscribe(listener: (snapshot: Record<string, KrnlComponentState>) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private notifyListeners() {
+    const snapshot = Object.fromEntries(this.states.entries());
+    this.listeners.forEach((fn) => {
+      try {
+        fn(snapshot);
+      } catch (e) {}
+    });
+  }
+
+  private scheduleWsSend() {
+    if (this.wsDebounceTimer) clearTimeout(this.wsDebounceTimer);
+    this.wsDebounceTimer = setTimeout(() => {
+      this.sendFullSnapshot();
+    }, 50);
+  }
+
+  private sendFullSnapshot() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      const snapshot = Object.fromEntries(this.states.entries());
+      this.ws.send(JSON.stringify({ type: 'state', snapshot }));
+    }
+  }
+}
+
+export const KrnlAgentBridge = new KrnlAgentBridgeManager();
+`,
+      'utf-8'
+    );
+
+    fs.writeFileSync(
       path.join(atomsDir, 'index.ts'),
       `export * from './KrnlButton.js';
 export * from './KrnlTextInput.js';
@@ -1429,6 +1562,7 @@ export * from './KrnlCarousel.js';
 export * from './KrnlTile.js';
 export * from './KrnlSSELog.js';
 export * from './KrnlSharedState.js';
+export * from './KrnlAgentBridge.js';
 export * from './KrnlButton';
 export * from './KrnlTextInput';
 export * from './KrnlNumberInput';
@@ -1441,6 +1575,7 @@ export * from './KrnlCarousel';
 export * from './KrnlTile';
 export * from './KrnlSSELog';
 export * from './KrnlSharedState';
+export * from './KrnlAgentBridge';
 `,
       'utf-8'
     );
