@@ -796,26 +796,25 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
     )
     .join('\n  ')}
 
-  // Register component with KrnlAgentBridge
+  // Register component with KrnlAgentBridge on mount
   useEffect(() => {
     KrnlAgentBridge.register('${fid}', {
       trigger: async (overrideInput?: Record<string, any>) => {
         return await executeRequest(overrideInput);
       }
     });
-    // Publish initial state
     KrnlAgentBridge.setState('${fid}', {
       fid: '${fid}',
-      formData,
-      response: responseRef.current,
-      loading,
-      error,
+      formData: {},
+      response: null,
+      loading: false,
+      error: null,
       lastUpdated: Date.now()
     });
     return () => {
       KrnlAgentBridge.unregister('${fid}');
     };
-  }, [formData]);
+  }, []);
 
   // Subscribe to live SSE events for phantom mirroring & trigger signals
   useEffect(() => {
@@ -891,7 +890,18 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
   }, [response]);
 
   const handleInputChange = (field: string, val: any) => {
-    setFormData((prev) => ({ ...prev, [field]: val }));
+    setFormData((prev) => {
+      const next = { ...prev, [field]: val };
+      KrnlAgentBridge.setState('${fid}', {
+        fid: '${fid}',
+        formData: next,
+        response: responseRef.current,
+        loading: false,
+        error: null,
+        lastUpdated: Date.now()
+      });
+      return next;
+    });
   };
 
   const executeRequest = async (overrideData?: Record<string, any>) => {

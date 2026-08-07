@@ -6,15 +6,15 @@ import {
 } from "./chunk-UBJAGRZU.js";
 import {
   KrnlSubAppLoader
-} from "./chunk-QH7ZAFWH.js";
+} from "./chunk-CNRU2MSO.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-JJJ3OJXB.js";
+} from "./chunk-6KVF4MFK.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-XM63YQFO.js";
+} from "./chunk-2TMVWZ26.js";
 import {
   CUSTOM_ERROR_CODE,
   KrnlApplicationOrchestrator,
@@ -49,11 +49,11 @@ import {
   krnlSystemCommComponent,
   krnlSystemEntityBase,
   krnlTransportAdapter
-} from "./chunk-NUK2FRED.js";
+} from "./chunk-GU4K2X7X.js";
 import {
   KrnlFrontendGenerator,
   init_K_LIB_Krnl_Frontend_Generator
-} from "./chunk-7FFEBRJX.js";
+} from "./chunk-NF5ADXNC.js";
 import {
   KrnlFrontendBuilder,
   init_K_LIB_Krnl_Frontend_Builder
