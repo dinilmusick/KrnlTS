@@ -5418,7 +5418,8 @@ body {
 }
 
 .krnl-btn:hover .krnl-btn-label,
-.krnl-btn:focus .krnl-btn-label {
+.krnl-btn:focus .krnl-btn-label,
+.krnl-btn:disabled .krnl-btn-label {
   max-width: 200px;
   opacity: 1;
   margin-left: 0.25rem;
