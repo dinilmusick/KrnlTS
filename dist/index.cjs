@@ -4547,6 +4547,8 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
         const handleUpgrade = (req, socket, head) => {
           const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
           if (url.pathname === "/agent/ws") {
+            if (socket._krnlUpgraded) return;
+            socket._krnlUpgraded = true;
             this.wss.handleUpgrade(req, socket, head, (ws) => {
               this._handleAgentWsClient(ws);
             });
@@ -4611,6 +4613,13 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
         }
       }
       stop() {
+        if (this.wss) {
+          try {
+            this.wss.close();
+          } catch (e) {
+          }
+          this.wss = null;
+        }
         if (this.server && !this._isExternalServer) {
           this.server.close();
           console.log(`[${this.system.entityName}] Unified HTTP Adapter stopped.`);

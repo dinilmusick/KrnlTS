@@ -57,6 +57,8 @@ export class krnlUnifiedHttpAdapter {
         const handleUpgrade = (req: http.IncomingMessage, socket: any, head: Buffer) => {
             const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
             if (url.pathname === '/agent/ws') {
+                if (socket._krnlUpgraded) return;
+                socket._krnlUpgraded = true;
                 this.wss!.handleUpgrade(req, socket, head, (ws: WebSocket) => {
                     this._handleAgentWsClient(ws);
                 });
@@ -127,6 +129,10 @@ export class krnlUnifiedHttpAdapter {
     }
 
     stop(): void {
+        if (this.wss) {
+            try { this.wss.close(); } catch (e) {}
+            this.wss = null;
+        }
         if (this.server && !this._isExternalServer) {
             this.server.close();
             console.log(`[${this.system.entityName}] Unified HTTP Adapter stopped.`);
