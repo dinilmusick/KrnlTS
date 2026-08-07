@@ -778,7 +778,7 @@ ${validation.errors.map((e) => `│  - ${e}`).join('\n')}
     const sourceEndpointInputs = inputs.filter((i) => i.sourceEndpointId);
     const autoFetchOutput = outputs.find((o) => o.autoFetch && o.sharedComponentId);
 
-    return `import React, { useState, useEffect } from 'react';
+    return `import React, { useState, useEffect, useRef } from 'react';
 ${importStatement}
 
 export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
@@ -787,6 +787,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phantomActive, setPhantomActive] = useState(false);
+  const responseRef = useRef<any>(null);
 
   ${allSharedIds
     .map(
@@ -795,28 +796,26 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
     )
     .join('\n  ')}
 
-  // Register component with KrnlAgentBridge & publish state updates
+  // Register component with KrnlAgentBridge
   useEffect(() => {
     KrnlAgentBridge.register('${fid}', {
       trigger: async (overrideInput?: Record<string, any>) => {
         return await executeRequest(overrideInput);
       }
     });
-    return () => {
-      KrnlAgentBridge.unregister('${fid}');
-    };
-  }, [formData]);
-
-  useEffect(() => {
+    // Publish initial state
     KrnlAgentBridge.setState('${fid}', {
       fid: '${fid}',
       formData,
-      response,
+      response: responseRef.current,
       loading,
       error,
       lastUpdated: Date.now()
     });
-  }, [formData, response, loading, error]);
+    return () => {
+      KrnlAgentBridge.unregister('${fid}');
+    };
+  }, [formData]);
 
   // Subscribe to live SSE events for phantom mirroring & trigger signals
   useEffect(() => {
