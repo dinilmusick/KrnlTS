@@ -57,11 +57,15 @@ export class krnlUnifiedHttpAdapter {
         const handleUpgrade = (req: http.IncomingMessage, socket: any, head: Buffer) => {
             const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
             if (url.pathname === '/agent/ws') {
-                if (socket._krnlUpgraded) return;
+                if (socket.upgraded || socket._krnlUpgraded || !socket.readable) return;
                 socket._krnlUpgraded = true;
-                this.wss!.handleUpgrade(req, socket, head, (ws: WebSocket) => {
-                    this._handleAgentWsClient(ws);
-                });
+                try {
+                    this.wss!.handleUpgrade(req, socket, head, (ws: WebSocket) => {
+                        this._handleAgentWsClient(ws);
+                    });
+                } catch (err: any) {
+                    console.warn('[HttpAdapter] WebSocket handleUpgrade ignored:', err?.message || err);
+                }
             }
         };
 

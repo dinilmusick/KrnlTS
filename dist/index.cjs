@@ -4547,11 +4547,15 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
         const handleUpgrade = (req, socket, head) => {
           const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
           if (url.pathname === "/agent/ws") {
-            if (socket._krnlUpgraded) return;
+            if (socket.upgraded || socket._krnlUpgraded || !socket.readable) return;
             socket._krnlUpgraded = true;
-            this.wss.handleUpgrade(req, socket, head, (ws) => {
-              this._handleAgentWsClient(ws);
-            });
+            try {
+              this.wss.handleUpgrade(req, socket, head, (ws) => {
+                this._handleAgentWsClient(ws);
+              });
+            } catch (err) {
+              console.warn("[HttpAdapter] WebSocket handleUpgrade ignored:", err?.message || err);
+            }
           }
         };
         if (externalServer) {
