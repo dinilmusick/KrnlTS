@@ -42,6 +42,7 @@ export { KrnlApplicationOrchestrator } from "./K_LIB_Krnl_Application_Orchestrat
 export { KrnlRuntimeStore } from "./K_LIB_Krnl_Runtime_Store.js";
 export { KrnlTaskList, KrnlTaskRunner } from "./K_LIB_Krnl_Task_Runner.js";
 export { KrnlPlannerAgent } from "./K_LIB_Krnl_Planner_Agent.js";
+export { KrnlJobScheduler, KrnlJobTicket } from "./K_LIB_Krnl_Job_Scheduler.js";
 export { krnl as krnlProto } from "./krnl_pb.js";
 
 

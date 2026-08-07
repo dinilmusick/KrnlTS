@@ -24,6 +24,7 @@ export class krnlUnifiedHttpAdapter {
     _latestUiSnapshot: Record<string, any>;
     _uiWsClients: Set<WebSocket>;
     _uiSseClients: Set<http.ServerResponse>;
+    _uiReadyComponents: Set<string> = new Set();
 
     /**
      * @param system
@@ -101,6 +102,18 @@ export class krnlUnifiedHttpAdapter {
                 if (msg.type === 'state' && msg.snapshot) {
                     this._latestUiSnapshot = { ...this._latestUiSnapshot, ...msg.snapshot };
                     this._broadcastUiSse(this._latestUiSnapshot);
+                } else if (msg.type === 'component_ready' && msg.fid) {
+                    this._uiReadyComponents.add(msg.fid);
+                } else if (msg.type === 'component_unready' && msg.fid) {
+                    this._uiReadyComponents.delete(msg.fid);
+                } else if (msg.type === 'component_ready_all' && Array.isArray(msg.fids)) {
+                    msg.fids.forEach((f: string) => this._uiReadyComponents.add(f));
+                } else if (msg.type === 'job_complete' && msg.ticketId) {
+                    if (msg.error) {
+                        this.system._jobScheduler?.markError(msg.ticketId, msg.error);
+                    } else {
+                        this.system._jobScheduler?.markDone(msg.ticketId, msg.result);
+                    }
                 }
             } catch (e) {}
         });
@@ -123,8 +136,8 @@ export class krnlUnifiedHttpAdapter {
         }
     }
 
-    sendWsTrigger(fid: string, input?: any): void {
-        const msg = JSON.stringify({ action: 'trigger', fid, input });
+    sendWsTrigger(fid: string, input?: any, ticketId?: string): void {
+        const msg = JSON.stringify({ action: 'trigger', fid, input, ticketId });
         for (const ws of this._uiWsClients) {
             if (ws.readyState === WebSocket.OPEN) {
                 ws.send(msg);
@@ -358,36 +371,56 @@ export class krnlUnifiedHttpAdapter {
                 }
 
                 if (reqPath === '/ui/trigger' && req.method === 'POST') {
-                    const { fid, input } = await this._readJsonBody(req);
+                    const { fid, input, timeoutMs } = await this._readJsonBody(req);
                     if (!fid) {
                         this._sendJson(res, 400, { status: 'error', message: 'Missing required field: fid' });
                         return;
                     }
 
-                    const initialLastUpdated = (this._latestUiSnapshot[fid]?.lastUpdated) || 0;
-                    this.sendWsTrigger(fid, input);
+                    const maxWaitMs = timeoutMs || 5000;
 
-                    let updatedState = this._latestUiSnapshot[fid] || null;
-                    const maxWaitMs = 5000;
-                    const pollIntervalMs = 50;
-                    let elapsed = 0;
-
-                    while (elapsed < maxWaitMs) {
-                        await new Promise((r) => setTimeout(r, pollIntervalMs));
-                        elapsed += pollIntervalMs;
-                        const current = this._latestUiSnapshot[fid];
-                        if (current && (current.lastUpdated !== initialLastUpdated || current.response !== null || current.error !== null) && current.loading === false) {
-                            updatedState = current;
-                            break;
-                        }
+                    // 1. UI Readiness Barrier (wait until component is confirmed mounted)
+                    let readyWait = 0;
+                    while (!this._uiReadyComponents.has(fid) && readyWait < maxWaitMs) {
+                        await new Promise((r) => setTimeout(r, 50));
+                        readyWait += 50;
                     }
 
-                    this._sendJson(res, 200, {
-                        status: updatedState && updatedState.loading === false ? 'success' : 'timeout',
-                        fid,
-                        uiActive: this._uiWsClients.size > 0,
-                        state: updatedState
-                    });
+                    if (!this._uiReadyComponents.has(fid) && this._uiWsClients.size === 0) {
+                        this._sendJson(res, 400, {
+                            status: 'error',
+                            message: `Endpoint component '${fid}' is not mounted in the UI or no active UI client connected.`
+                        });
+                        return;
+                    }
+
+                    // 2. Create job ticket & dispatch via WS
+                    const ticket = this.system._jobScheduler.createTicket(fid, 'ui_trigger');
+                    this.system._jobScheduler.markRunning(ticket.id);
+                    this.sendWsTrigger(fid, input, ticket.id);
+
+                    // 3. Await ticket completion via job_complete WS event
+                    try {
+                        const finishedTicket = await this.system._jobScheduler.waitForTicket(ticket.id, Math.max(1000, maxWaitMs - readyWait));
+                        this._sendJson(res, 200, {
+                            status: finishedTicket.status === 'done' ? 'success' : 'error',
+                            fid,
+                            ticketId: ticket.id,
+                            uiActive: this._uiWsClients.size > 0,
+                            result: finishedTicket.result,
+                            error: finishedTicket.error,
+                            state: this._latestUiSnapshot[fid] || null
+                        });
+                    } catch (err: any) {
+                        this._sendJson(res, 200, {
+                            status: 'timeout',
+                            fid,
+                            ticketId: ticket.id,
+                            uiActive: this._uiWsClients.size > 0,
+                            error: err.message || 'Timeout waiting for ticket',
+                            state: this._latestUiSnapshot[fid] || null
+                        });
+                    }
                     return;
                 }
 

@@ -6,15 +6,15 @@ import {
 } from "./chunk-UBJAGRZU.js";
 import {
   KrnlSubAppLoader
-} from "./chunk-CNRU2MSO.js";
+} from "./chunk-U2USLLES.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-6KVF4MFK.js";
+} from "./chunk-PU27VX4D.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-2TMVWZ26.js";
+} from "./chunk-BLLMTUSN.js";
 import {
   CUSTOM_ERROR_CODE,
   KrnlApplicationOrchestrator,
@@ -24,6 +24,7 @@ import {
   KrnlFrontend,
   KrnlFrontendInspector,
   KrnlIngressNetwork,
+  KrnlJobScheduler,
   KrnlPlannerAgent,
   KrnlRuntimeStore,
   KrnlSiblingNetwork,
@@ -49,11 +50,11 @@ import {
   krnlSystemCommComponent,
   krnlSystemEntityBase,
   krnlTransportAdapter
-} from "./chunk-GU4K2X7X.js";
+} from "./chunk-I7IR3QAD.js";
 import {
   KrnlFrontendGenerator,
   init_K_LIB_Krnl_Frontend_Generator
-} from "./chunk-NF5ADXNC.js";
+} from "./chunk-64OFR4ZW.js";
 import {
   KrnlFrontendBuilder,
   init_K_LIB_Krnl_Frontend_Builder
@@ -82,7 +83,7 @@ import {
   KrnlAcpProtocol,
   KrnlMcpProtocol,
   krnlUnifiedHttpAdapter
-} from "./chunk-VCM7LFNN.js";
+} from "./chunk-BJAKKK5I.js";
 import {
   KrnlPolicy,
   Logger,
@@ -428,6 +429,7 @@ export {
   KrnlFrontendInspector,
   KrnlHTTP,
   KrnlIngressNetwork,
+  KrnlJobScheduler,
   KrnlMagneticLoader,
   KrnlMcpProtocol,
   KrnlNonKrnlAppAdapter,

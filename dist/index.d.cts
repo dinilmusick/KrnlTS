@@ -1069,6 +1069,7 @@ declare class krnlUnifiedHttpAdapter {
     _latestUiSnapshot: Record<string, any>;
     _uiWsClients: Set<WebSocket>;
     _uiSseClients: Set<http.ServerResponse>;
+    _uiReadyComponents: Set<string>;
     /**
      * @param system
      * @param port
@@ -1081,7 +1082,7 @@ declare class krnlUnifiedHttpAdapter {
     start(externalServer?: http.Server | null): Promise<void>;
     _handleAgentWsClient(ws: WebSocket): void;
     _broadcastUiSse(data: any): void;
-    sendWsTrigger(fid: string, input?: any): void;
+    sendWsTrigger(fid: string, input?: any, ticketId?: string): void;
     stop(): void;
     _handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
     _handleSse(req: http.IncomingMessage, res: http.ServerResponse, fid: string): void;
@@ -1657,6 +1658,39 @@ declare class KrnlApplicationOrchestrator {
 }
 
 /**
+ * @file K_LIB_Krnl_Job_Scheduler.ts
+ * @description Centralized Job Scheduler and Named Ticket Registry for KrnlTS applications.
+ */
+interface KrnlJobTicket {
+    id: string;
+    fid: string;
+    type: 'boot' | 'endpoint' | 'ui_trigger';
+    status: 'pending' | 'running' | 'done' | 'error';
+    startedAt: number;
+    completedAt?: number;
+    result?: any;
+    error?: string;
+    promise: Promise<KrnlJobTicket>;
+    resolve: (ticket: KrnlJobTicket) => void;
+    reject: (err: any) => void;
+}
+declare class KrnlJobScheduler {
+    private tickets;
+    private ttlMs;
+    constructor();
+    /**
+     * Create a new execution ticket
+     */
+    createTicket(fid: string, type: 'boot' | 'endpoint' | 'ui_trigger'): KrnlJobTicket;
+    getTicket(id: string): KrnlJobTicket | null;
+    markRunning(id: string): void;
+    markDone(id: string, result?: any): void;
+    markError(id: string, error: string): void;
+    waitForTicket(id: string, timeoutMs?: number): Promise<KrnlJobTicket>;
+    private cleanupExpiredTickets;
+}
+
+/**
  * @file K_ENT_System_Entity_Base.ts
  * @description Base class for all system orchestrator entities in the Krnl ecosystem.
  */
@@ -1698,6 +1732,7 @@ declare class krnlSystemEntityBase extends krnlEntityBase {
     _aiOrchestrator: KrnlApplicationOrchestrator | null;
     _aiTracker: KrnlWatchVariablesTracker | null;
     _aiScheduler: KrnlEndpointScheduler | null;
+    _jobScheduler: KrnlJobScheduler;
     _aikoClient: KrnlAikoClient | null;
     _aiProfilesStore: KrnlRuntimeStore | null;
     _aikoCatalog: Record<string, any>;
@@ -3026,4 +3061,4 @@ declare class PocerBlock extends krnlSystemEntityBase {
     private _waitForPort;
 }
 
-export { AsyncKit, CUSTOM_ERROR_CODE, CacheKit, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLoader, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, LRUCache, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SiblingMemberEntry, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };
+export { AsyncKit, CUSTOM_ERROR_CODE, CacheKit, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlJobScheduler, type KrnlJobTicket, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLoader, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, LRUCache, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SiblingMemberEntry, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };

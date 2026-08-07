@@ -4521,6 +4521,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
       _latestUiSnapshot;
       _uiWsClients;
       _uiSseClients;
+      _uiReadyComponents = /* @__PURE__ */ new Set();
       /**
        * @param system
        * @param port
@@ -4589,6 +4590,18 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             if (msg.type === "state" && msg.snapshot) {
               this._latestUiSnapshot = { ...this._latestUiSnapshot, ...msg.snapshot };
               this._broadcastUiSse(this._latestUiSnapshot);
+            } else if (msg.type === "component_ready" && msg.fid) {
+              this._uiReadyComponents.add(msg.fid);
+            } else if (msg.type === "component_unready" && msg.fid) {
+              this._uiReadyComponents.delete(msg.fid);
+            } else if (msg.type === "component_ready_all" && Array.isArray(msg.fids)) {
+              msg.fids.forEach((f) => this._uiReadyComponents.add(f));
+            } else if (msg.type === "job_complete" && msg.ticketId) {
+              if (msg.error) {
+                this.system._jobScheduler?.markError(msg.ticketId, msg.error);
+              } else {
+                this.system._jobScheduler?.markDone(msg.ticketId, msg.result);
+              }
             }
           } catch (e) {
           }
@@ -4610,8 +4623,8 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
           }
         }
       }
-      sendWsTrigger(fid, input) {
-        const msg = JSON.stringify({ action: "trigger", fid, input });
+      sendWsTrigger(fid, input, ticketId) {
+        const msg = JSON.stringify({ action: "trigger", fid, input, ticketId });
         for (const ws of this._uiWsClients) {
           if (ws.readyState === import_ws.WebSocket.OPEN) {
             ws.send(msg);
@@ -4803,32 +4816,48 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
               return;
             }
             if (reqPath === "/ui/trigger" && req.method === "POST") {
-              const { fid, input } = await this._readJsonBody(req);
+              const { fid, input, timeoutMs } = await this._readJsonBody(req);
               if (!fid) {
                 this._sendJson(res, 400, { status: "error", message: "Missing required field: fid" });
                 return;
               }
-              const initialLastUpdated = this._latestUiSnapshot[fid]?.lastUpdated || 0;
-              this.sendWsTrigger(fid, input);
-              let updatedState = this._latestUiSnapshot[fid] || null;
-              const maxWaitMs = 5e3;
-              const pollIntervalMs = 50;
-              let elapsed = 0;
-              while (elapsed < maxWaitMs) {
-                await new Promise((r) => setTimeout(r, pollIntervalMs));
-                elapsed += pollIntervalMs;
-                const current = this._latestUiSnapshot[fid];
-                if (current && (current.lastUpdated !== initialLastUpdated || current.response !== null || current.error !== null) && current.loading === false) {
-                  updatedState = current;
-                  break;
-                }
+              const maxWaitMs = timeoutMs || 5e3;
+              let readyWait = 0;
+              while (!this._uiReadyComponents.has(fid) && readyWait < maxWaitMs) {
+                await new Promise((r) => setTimeout(r, 50));
+                readyWait += 50;
               }
-              this._sendJson(res, 200, {
-                status: updatedState && updatedState.loading === false ? "success" : "timeout",
-                fid,
-                uiActive: this._uiWsClients.size > 0,
-                state: updatedState
-              });
+              if (!this._uiReadyComponents.has(fid) && this._uiWsClients.size === 0) {
+                this._sendJson(res, 400, {
+                  status: "error",
+                  message: `Endpoint component '${fid}' is not mounted in the UI or no active UI client connected.`
+                });
+                return;
+              }
+              const ticket = this.system._jobScheduler.createTicket(fid, "ui_trigger");
+              this.system._jobScheduler.markRunning(ticket.id);
+              this.sendWsTrigger(fid, input, ticket.id);
+              try {
+                const finishedTicket = await this.system._jobScheduler.waitForTicket(ticket.id, Math.max(1e3, maxWaitMs - readyWait));
+                this._sendJson(res, 200, {
+                  status: finishedTicket.status === "done" ? "success" : "error",
+                  fid,
+                  ticketId: ticket.id,
+                  uiActive: this._uiWsClients.size > 0,
+                  result: finishedTicket.result,
+                  error: finishedTicket.error,
+                  state: this._latestUiSnapshot[fid] || null
+                });
+              } catch (err) {
+                this._sendJson(res, 200, {
+                  status: "timeout",
+                  fid,
+                  ticketId: ticket.id,
+                  uiActive: this._uiWsClients.size > 0,
+                  error: err.message || "Timeout waiting for ticket",
+                  state: this._latestUiSnapshot[fid] || null
+                });
+              }
               return;
             }
             if (reqPath === "/ui/subscribe") {
@@ -5870,8 +5899,8 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
   // Register component with KrnlAgentBridge on mount
   useEffect(() => {
     KrnlAgentBridge.register('${fid}', {
-      trigger: async (overrideInput?: Record<string, any>) => {
-        return await executeRequest(overrideInput);
+      trigger: async (overrideInput?: Record<string, any>, ticketId?: string) => {
+        return await executeRequest(overrideInput, ticketId);
       }
     });
     KrnlAgentBridge.setState('${fid}', {
@@ -5893,9 +5922,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
     sse.onmessage = async (evt) => {
       try {
         const msg = JSON.parse(evt.data);
-        if (msg.action === 'trigger') {
-          await executeRequest(msg.input);
-        } else if (msg.type === 'frontend:interaction' || msg.input !== undefined) {
+        if (msg.type === 'frontend:interaction' || msg.input !== undefined) {
           if (msg.input) setFormData((prev) => ({ ...prev, ...msg.input }));
           if (msg.output !== undefined) {
             const payload = msg.output?.payload !== undefined ? msg.output.payload : msg.output;
@@ -5911,7 +5938,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
 
   // Auto-fetch endpoint or option sources on mount
   useEffect(() => {
-    ${autoFetchOutput ? `executeRequest({});` : ""}
+    ${autoFetchOutput ? `executeRequest();` : ""}
     ${sourceEndpointInputs.map(
           (i) => `
     fetch('/call/${i.sourceEndpointId}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
@@ -5970,7 +5997,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
     });
   };
 
-  const executeRequest = async (overrideData?: Record<string, any>) => {
+  const executeRequest = async (overrideData?: Record<string, any>, ticketId?: string) => {
     setLoading(true);
     setError(null);
     const activeInput = overrideData || formData;
@@ -6479,7 +6506,7 @@ export function useSharedSlot(id?: string) {
 }
 
 export interface KrnlComponentRegistration {
-  trigger: (overrideInput?: Record<string, any>) => Promise<any>;
+  trigger: (overrideInput?: Record<string, any>, ticketId?: string) => Promise<any>;
 }
 
 export class KrnlAgentBridgeManager {
@@ -6487,7 +6514,6 @@ export class KrnlAgentBridgeManager {
   private registrations = new Map<string, KrnlComponentRegistration>();
   private listeners = new Set<(snapshot: Record<string, KrnlComponentState>) => void>();
   private ws: WebSocket | null = null;
-  private wsDebounceTimer: any = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -6502,20 +6528,22 @@ export class KrnlAgentBridgeManager {
 
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = \`\${protocol}//\${window.location.host}/agent/ws\`;
+      const wsUrl = protocol + '//' + window.location.host + '/agent/ws';
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         this.sendFullSnapshot();
+        this.sendReadySignal();
       };
 
       this.ws.onmessage = async (event) => {
         try {
           const msg = JSON.parse(event.data);
           if (msg.action === 'trigger' && msg.fid) {
-            await this.trigger(msg.fid, msg.input);
+            await this.trigger(msg.fid, msg.input, msg.ticketId);
           } else if (msg.action === 'query') {
             this.sendFullSnapshot();
+            this.sendReadySignal();
           }
         } catch (e) {
           console.error('[KrnlAgentBridge] Error handling WS message:', e);
@@ -6539,10 +6567,12 @@ export class KrnlAgentBridgeManager {
 
   public register(fid: string, reg: KrnlComponentRegistration) {
     this.registrations.set(fid, reg);
+    this.sendComponentReady(fid);
   }
 
   public unregister(fid: string) {
     this.registrations.delete(fid);
+    this.sendComponentUnready(fid);
   }
 
   public setState(fid: string, state: KrnlComponentState) {
@@ -6558,12 +6588,27 @@ export class KrnlAgentBridgeManager {
     return Object.fromEntries(this.states.entries());
   }
 
-  public async trigger(fid: string, overrideInput?: Record<string, any>): Promise<any> {
+  public async trigger(fid: string, overrideInput?: Record<string, any>, ticketId?: string): Promise<any> {
     const reg = this.registrations.get(fid);
     if (!reg) {
-      throw new Error(\`[KrnlAgentBridge] Endpoint component '\${fid}' is not mounted in the UI.\`);
+      if (ticketId) {
+        this.sendJobComplete(ticketId, fid, null, '[KrnlAgentBridge] Component ' + fid + ' is not mounted.');
+      }
+      throw new Error('[KrnlAgentBridge] Endpoint component ' + fid + ' is not mounted in the UI.');
     }
-    return await reg.trigger(overrideInput);
+    return await reg.trigger(overrideInput, ticketId);
+  }
+
+  public sendJobComplete(ticketId: string, fid: string, result?: any, error?: string) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'job_complete',
+        ticketId,
+        fid,
+        result: result !== undefined ? result : null,
+        error: error || null
+      }));
+    }
   }
 
   public subscribe(listener: (snapshot: Record<string, KrnlComponentState>) => void): () => void {
@@ -6580,11 +6625,23 @@ export class KrnlAgentBridgeManager {
     });
   }
 
-  private scheduleWsSend() {
-    if (this.wsDebounceTimer) clearTimeout(this.wsDebounceTimer);
-    this.wsDebounceTimer = setTimeout(() => {
-      this.sendFullSnapshot();
-    }, 50);
+  private sendComponentReady(fid: string) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'component_ready', fid }));
+    }
+  }
+
+  private sendComponentUnready(fid: string) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'component_unready', fid }));
+    }
+  }
+
+  private sendReadySignal() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      const fids = Array.from(this.registrations.keys());
+      this.ws.send(JSON.stringify({ type: 'component_ready_all', fids }));
+    }
   }
 
   private sendFullSnapshot() {
@@ -9220,6 +9277,105 @@ Please output clean, valid JSON matching the schema.`;
   }
 });
 
+// src/krnl/core/K_LIB_Krnl_Job_Scheduler.ts
+var KrnlJobScheduler;
+var init_K_LIB_Krnl_Job_Scheduler = __esm({
+  "src/krnl/core/K_LIB_Krnl_Job_Scheduler.ts"() {
+    "use strict";
+    KrnlJobScheduler = class {
+      tickets = /* @__PURE__ */ new Map();
+      ttlMs = 6e4;
+      // 60 seconds TTL for ticket cleanup
+      constructor() {
+        setInterval(() => this.cleanupExpiredTickets(), 3e4);
+      }
+      /**
+       * Create a new execution ticket
+       */
+      createTicket(fid, type) {
+        const id = `job_${type}_${fid}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        let resolveFn;
+        let rejectFn;
+        const promise = new Promise((resolve, reject) => {
+          resolveFn = resolve;
+          rejectFn = reject;
+        });
+        const ticket = {
+          id,
+          fid,
+          type,
+          status: "pending",
+          startedAt: Date.now(),
+          promise,
+          resolve: resolveFn,
+          reject: rejectFn
+        };
+        this.tickets.set(id, ticket);
+        return ticket;
+      }
+      getTicket(id) {
+        return this.tickets.get(id) || null;
+      }
+      markRunning(id) {
+        const ticket = this.tickets.get(id);
+        if (ticket && ticket.status === "pending") {
+          ticket.status = "running";
+        }
+      }
+      markDone(id, result) {
+        const ticket = this.tickets.get(id);
+        if (ticket && (ticket.status === "pending" || ticket.status === "running")) {
+          ticket.status = "done";
+          ticket.completedAt = Date.now();
+          ticket.result = result;
+          ticket.resolve(ticket);
+        }
+      }
+      markError(id, error) {
+        const ticket = this.tickets.get(id);
+        if (ticket && (ticket.status === "pending" || ticket.status === "running")) {
+          ticket.status = "error";
+          ticket.completedAt = Date.now();
+          ticket.error = error;
+          ticket.resolve(ticket);
+        }
+      }
+      async waitForTicket(id, timeoutMs = 1e4) {
+        const ticket = this.tickets.get(id);
+        if (!ticket) {
+          throw new Error(`[KrnlJobScheduler] Ticket '${id}' not found.`);
+        }
+        if (ticket.status === "done" || ticket.status === "error") {
+          return ticket;
+        }
+        let timeoutHandle;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutHandle = setTimeout(() => {
+            this.markError(id, `Timeout waiting for job ticket '${id}' after ${timeoutMs}ms`);
+            reject(new Error(`[KrnlJobScheduler] Timeout waiting for job ticket '${id}' after ${timeoutMs}ms`));
+          }, timeoutMs);
+        });
+        try {
+          const res = await Promise.race([ticket.promise, timeoutPromise]);
+          clearTimeout(timeoutHandle);
+          return res;
+        } catch (err) {
+          clearTimeout(timeoutHandle);
+          throw err;
+        }
+      }
+      cleanupExpiredTickets() {
+        const now = Date.now();
+        for (const [id, ticket] of this.tickets.entries()) {
+          if (now - ticket.startedAt > this.ttlMs) {
+            this.tickets.delete(id);
+          }
+        }
+      }
+    };
+  }
+});
+
 // src/krnl/core/K_LIB_Krnl_Registry_Client.ts
 var K_LIB_Krnl_Registry_Client_exports = {};
 __export(K_LIB_Krnl_Registry_Client_exports, {
@@ -9675,6 +9831,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
     init_K_LIB_Krnl_Application_Orchestrator();
     init_K_LIB_Krnl_Runtime_Store();
     init_K_LIB_Krnl_Endpoint_Agent();
+    init_K_LIB_Krnl_Job_Scheduler();
     import_http3 = __toESM(require("http"), 1);
     import_net2 = __toESM(require("net"), 1);
     import_fs15 = __toESM(require("fs"), 1);
@@ -9722,6 +9879,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
       _aiOrchestrator = null;
       _aiTracker = null;
       _aiScheduler = null;
+      _jobScheduler = new KrnlJobScheduler();
       _aikoClient = null;
       _aiProfilesStore = null;
       _aikoCatalog = {};
@@ -11156,6 +11314,7 @@ __export(index_exports, {
   KrnlFrontendInspector: () => KrnlFrontendInspector,
   KrnlHTTP: () => KrnlHTTP,
   KrnlIngressNetwork: () => KrnlIngressNetwork,
+  KrnlJobScheduler: () => KrnlJobScheduler,
   KrnlMagneticLoader: () => KrnlMagneticLoader,
   KrnlMcpProtocol: () => KrnlMcpProtocol,
   KrnlNonKrnlAppAdapter: () => KrnlNonKrnlAppAdapter,
@@ -11348,6 +11507,7 @@ init_K_LIB_Krnl_Application_Orchestrator();
 init_K_LIB_Krnl_Runtime_Store();
 init_K_LIB_Krnl_Task_Runner();
 init_K_LIB_Krnl_Planner_Agent();
+init_K_LIB_Krnl_Job_Scheduler();
 init_krnl_pb();
 
 // src/index.ts
@@ -11589,6 +11749,7 @@ var PocerBlock = class extends krnlSystemEntityBase {
   KrnlFrontendInspector,
   KrnlHTTP,
   KrnlIngressNetwork,
+  KrnlJobScheduler,
   KrnlMagneticLoader,
   KrnlMcpProtocol,
   KrnlNonKrnlAppAdapter,

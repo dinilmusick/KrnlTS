@@ -799,8 +799,8 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
   // Register component with KrnlAgentBridge on mount
   useEffect(() => {
     KrnlAgentBridge.register('${fid}', {
-      trigger: async (overrideInput?: Record<string, any>) => {
-        return await executeRequest(overrideInput);
+      trigger: async (overrideInput?: Record<string, any>, ticketId?: string) => {
+        return await executeRequest(overrideInput, ticketId);
       }
     });
     KrnlAgentBridge.setState('${fid}', {
@@ -822,9 +822,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
     sse.onmessage = async (evt) => {
       try {
         const msg = JSON.parse(evt.data);
-        if (msg.action === 'trigger') {
-          await executeRequest(msg.input);
-        } else if (msg.type === 'frontend:interaction' || msg.input !== undefined) {
+        if (msg.type === 'frontend:interaction' || msg.input !== undefined) {
           if (msg.input) setFormData((prev) => ({ ...prev, ...msg.input }));
           if (msg.output !== undefined) {
             const payload = msg.output?.payload !== undefined ? msg.output.payload : msg.output;
@@ -840,7 +838,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
 
   // Auto-fetch endpoint or option sources on mount
   useEffect(() => {
-    ${autoFetchOutput ? `executeRequest({});` : ''}
+    ${autoFetchOutput ? `executeRequest();` : ''}
     ${sourceEndpointInputs
       .map(
         (i) => `
@@ -904,7 +902,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
     });
   };
 
-  const executeRequest = async (overrideData?: Record<string, any>) => {
+  const executeRequest = async (overrideData?: Record<string, any>, ticketId?: string) => {
     setLoading(true);
     setError(null);
     const activeInput = overrideData || formData;
@@ -1461,7 +1459,7 @@ export function useSharedSlot(id?: string) {
 }
 
 export interface KrnlComponentRegistration {
-  trigger: (overrideInput?: Record<string, any>) => Promise<any>;
+  trigger: (overrideInput?: Record<string, any>, ticketId?: string) => Promise<any>;
 }
 
 export class KrnlAgentBridgeManager {
@@ -1469,7 +1467,6 @@ export class KrnlAgentBridgeManager {
   private registrations = new Map<string, KrnlComponentRegistration>();
   private listeners = new Set<(snapshot: Record<string, KrnlComponentState>) => void>();
   private ws: WebSocket | null = null;
-  private wsDebounceTimer: any = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -1484,20 +1481,22 @@ export class KrnlAgentBridgeManager {
 
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = \`\${protocol}//\${window.location.host}/agent/ws\`;
+      const wsUrl = protocol + '//' + window.location.host + '/agent/ws';
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         this.sendFullSnapshot();
+        this.sendReadySignal();
       };
 
       this.ws.onmessage = async (event) => {
         try {
           const msg = JSON.parse(event.data);
           if (msg.action === 'trigger' && msg.fid) {
-            await this.trigger(msg.fid, msg.input);
+            await this.trigger(msg.fid, msg.input, msg.ticketId);
           } else if (msg.action === 'query') {
             this.sendFullSnapshot();
+            this.sendReadySignal();
           }
         } catch (e) {
           console.error('[KrnlAgentBridge] Error handling WS message:', e);
@@ -1521,10 +1520,12 @@ export class KrnlAgentBridgeManager {
 
   public register(fid: string, reg: KrnlComponentRegistration) {
     this.registrations.set(fid, reg);
+    this.sendComponentReady(fid);
   }
 
   public unregister(fid: string) {
     this.registrations.delete(fid);
+    this.sendComponentUnready(fid);
   }
 
   public setState(fid: string, state: KrnlComponentState) {
@@ -1540,12 +1541,27 @@ export class KrnlAgentBridgeManager {
     return Object.fromEntries(this.states.entries());
   }
 
-  public async trigger(fid: string, overrideInput?: Record<string, any>): Promise<any> {
+  public async trigger(fid: string, overrideInput?: Record<string, any>, ticketId?: string): Promise<any> {
     const reg = this.registrations.get(fid);
     if (!reg) {
-      throw new Error(\`[KrnlAgentBridge] Endpoint component '\${fid}' is not mounted in the UI.\`);
+      if (ticketId) {
+        this.sendJobComplete(ticketId, fid, null, '[KrnlAgentBridge] Component ' + fid + ' is not mounted.');
+      }
+      throw new Error('[KrnlAgentBridge] Endpoint component ' + fid + ' is not mounted in the UI.');
     }
-    return await reg.trigger(overrideInput);
+    return await reg.trigger(overrideInput, ticketId);
+  }
+
+  public sendJobComplete(ticketId: string, fid: string, result?: any, error?: string) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'job_complete',
+        ticketId,
+        fid,
+        result: result !== undefined ? result : null,
+        error: error || null
+      }));
+    }
   }
 
   public subscribe(listener: (snapshot: Record<string, KrnlComponentState>) => void): () => void {
@@ -1562,11 +1578,23 @@ export class KrnlAgentBridgeManager {
     });
   }
 
-  private scheduleWsSend() {
-    if (this.wsDebounceTimer) clearTimeout(this.wsDebounceTimer);
-    this.wsDebounceTimer = setTimeout(() => {
-      this.sendFullSnapshot();
-    }, 50);
+  private sendComponentReady(fid: string) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'component_ready', fid }));
+    }
+  }
+
+  private sendComponentUnready(fid: string) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'component_unready', fid }));
+    }
+  }
+
+  private sendReadySignal() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      const fids = Array.from(this.registrations.keys());
+      this.ws.send(JSON.stringify({ type: 'component_ready_all', fids }));
+    }
   }
 
   private sendFullSnapshot() {

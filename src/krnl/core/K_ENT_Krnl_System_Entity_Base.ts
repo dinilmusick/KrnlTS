@@ -50,6 +50,8 @@ import { KrnlApplicationOrchestrator } from "./K_LIB_Krnl_Application_Orchestrat
 import { KrnlRuntimeStore } from "./K_LIB_Krnl_Runtime_Store.js";
 import { KrnlEndpointAgent } from "./K_LIB_Krnl_Endpoint_Agent.js";
 
+import { KrnlJobScheduler } from "./K_LIB_Krnl_Job_Scheduler.js";
+
 import http from 'http';
 import net  from 'net';
 import fs   from 'fs';
@@ -104,6 +106,7 @@ export class krnlSystemEntityBase extends krnlEntityBase {
   _aiOrchestrator: KrnlApplicationOrchestrator | null = null;
   _aiTracker: KrnlWatchVariablesTracker | null = null;
   _aiScheduler: KrnlEndpointScheduler | null = null;
+  _jobScheduler: KrnlJobScheduler = new KrnlJobScheduler();
   _aikoClient: KrnlAikoClient | null = null;
   _aiProfilesStore: KrnlRuntimeStore | null = null;
   _aikoCatalog: Record<string, any> = {};
