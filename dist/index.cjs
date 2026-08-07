@@ -2524,19 +2524,21 @@ var init_K_LIB_Krnl_System_Comm_Component = __esm({
         const { WebSocketServer: WebSocketServer2 } = await _loadWs();
         return new Promise((resolve, reject) => {
           if (externalServer) {
-            if (this.ownerEntity.options?.wsPath) {
-              this._wsServer = new WebSocketServer2({ noServer: true });
-              externalServer.on("upgrade", (req, socket, head) => {
-                const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
-                if (url.pathname === this.ownerEntity.options.wsPath) {
+            const targetWsPath = this.ownerEntity.options?.wsPath || "/ws";
+            this._wsServer = new WebSocketServer2({ noServer: true });
+            externalServer.on("upgrade", (req, socket, head) => {
+              const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
+              if (url.pathname === targetWsPath) {
+                if (socket.upgraded || socket._krnlCommUpgraded || !socket.readable) return;
+                socket._krnlCommUpgraded = true;
+                try {
                   this._wsServer.handleUpgrade(req, socket, head, (ws) => {
                     this._wsServer.emit("connection", ws);
                   });
+                } catch (e) {
                 }
-              });
-            } else {
-              this._wsServer = new WebSocketServer2({ server: externalServer });
-            }
+              }
+            });
             resolve();
           } else {
             this._wsServer = new WebSocketServer2({ port: this.listenPort, host: this.host });

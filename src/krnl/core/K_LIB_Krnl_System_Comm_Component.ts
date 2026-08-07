@@ -143,19 +143,20 @@ export class krnlSystemCommComponent {
         
         return new Promise((resolve, reject) => {
             if (externalServer) {
-                if (this.ownerEntity.options?.wsPath) {
-                    this._wsServer = new WebSocketServer({ noServer: true });
-                    externalServer.on('upgrade', (req: any, socket: any, head: any) => {
-                        const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
-                        if (url.pathname === this.ownerEntity.options.wsPath) {
+                const targetWsPath = this.ownerEntity.options?.wsPath || '/ws';
+                this._wsServer = new WebSocketServer({ noServer: true });
+                externalServer.on('upgrade', (req: any, socket: any, head: any) => {
+                    const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+                    if (url.pathname === targetWsPath) {
+                        if (socket.upgraded || socket._krnlCommUpgraded || !socket.readable) return;
+                        socket._krnlCommUpgraded = true;
+                        try {
                             this._wsServer.handleUpgrade(req, socket, head, (ws: any) => {
                                 this._wsServer.emit('connection', ws);
                             });
-                        }
-                    });
-                } else {
-                    this._wsServer = new WebSocketServer({ server: externalServer });
-                }
+                        } catch (e) {}
+                    }
+                });
                 resolve();
             } else {
                 this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
