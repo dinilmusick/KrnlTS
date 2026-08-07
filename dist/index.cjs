@@ -2521,11 +2521,11 @@ var init_K_LIB_Krnl_System_Comm_Component = __esm({
        */
       async startWsServer(externalServer = null) {
         if (this._wsServer) return;
-        const { WebSocketServer } = await _loadWs();
+        const { WebSocketServer: WebSocketServer2 } = await _loadWs();
         return new Promise((resolve, reject) => {
           if (externalServer) {
             if (this.ownerEntity.options?.wsPath) {
-              this._wsServer = new WebSocketServer({ noServer: true });
+              this._wsServer = new WebSocketServer2({ noServer: true });
               externalServer.on("upgrade", (req, socket, head) => {
                 const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
                 if (url.pathname === this.ownerEntity.options.wsPath) {
@@ -2535,11 +2535,11 @@ var init_K_LIB_Krnl_System_Comm_Component = __esm({
                 }
               });
             } else {
-              this._wsServer = new WebSocketServer({ server: externalServer });
+              this._wsServer = new WebSocketServer2({ server: externalServer });
             }
             resolve();
           } else {
-            this._wsServer = new WebSocketServer({ port: this.listenPort, host: this.host });
+            this._wsServer = new WebSocketServer2({ port: this.listenPort, host: this.host });
             this._wsServer.on("listening", () => {
               Logger.log(`[CommComponent:${this.ownerEntity.entityName}] WS server listening on :${this.listenPort}`);
               resolve();
@@ -2607,9 +2607,9 @@ var init_K_LIB_Krnl_System_Comm_Component = __esm({
        * Connects to a remote system's CommComponent WS server.
        */
       async wireViaWs(localEmitterName, remoteAddress, remoteCollectorName, remoteSystemName, options = {}) {
-        const { WebSocket } = await _loadWs();
+        const { WebSocket: WebSocket2 } = await _loadWs();
         const emitter = this.ownerEntity.interface.getEmitter(localEmitterName);
-        const ws = new WebSocket(`ws://${remoteAddress}`);
+        const ws = new WebSocket2(`ws://${remoteAddress}`);
         const {
           managedBy = this.ownerEntity.entityName,
           externallyMutable = true,
@@ -2679,12 +2679,12 @@ var init_K_LIB_Krnl_System_Comm_Component = __esm({
         this._introspectionProvider = providerFn;
       }
       async _getWsRpcClient(remoteAddress) {
-        const { WebSocket } = await _loadWs();
+        const { WebSocket: WebSocket2 } = await _loadWs();
         let ws = this._wsClients.get(remoteAddress);
         if (ws && (ws.readyState === 1 || ws.readyState === 0)) {
           return ws;
         }
-        ws = new WebSocket(`ws://${remoteAddress}`);
+        ws = new WebSocket2(`ws://${remoteAddress}`);
         this._wsClients.set(remoteAddress, ws);
         ws.on("error", (err) => {
           Logger.error(`[CommComponent:${this.ownerEntity.entityName}] WS error to ${remoteAddress}:`, err.message);
@@ -4495,13 +4495,14 @@ var K_LIB_Krnl_System_Unified_Http_Adapter_exports = {};
 __export(K_LIB_Krnl_System_Unified_Http_Adapter_exports, {
   krnlUnifiedHttpAdapter: () => krnlUnifiedHttpAdapter
 });
-var import_http, import_fs7, import_path6, krnlUnifiedHttpAdapter;
+var import_http, import_fs7, import_path6, import_ws, krnlUnifiedHttpAdapter;
 var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Unified_Http_Adapter.ts"() {
     "use strict";
     import_http = __toESM(require("http"), 1);
     import_fs7 = __toESM(require("fs"), 1);
     import_path6 = __toESM(require("path"), 1);
+    import_ws = require("ws");
     init_K_LIB_Krnl_Protocol_MCP();
     init_K_LIB_Krnl_Protocol_ACP();
     init_K_LIB_Krnl_Base_Concepts();
@@ -4514,6 +4515,10 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
       mcp;
       acp;
       enableFriendlyRouting;
+      wss;
+      _latestUiSnapshot;
+      _uiWsClients;
+      _uiSseClients;
       /**
        * @param system
        * @param port
@@ -4528,22 +4533,37 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
         this.mcp = new KrnlMcpProtocol(system);
         this.acp = new KrnlAcpProtocol(system);
         this.enableFriendlyRouting = false;
+        this.wss = null;
+        this._latestUiSnapshot = {};
+        this._uiWsClients = /* @__PURE__ */ new Set();
+        this._uiSseClients = /* @__PURE__ */ new Set();
       }
       /**
        * Starts the adapter.
        */
       async start(externalServer = null) {
         if (this.server) return;
+        this.wss = new import_ws.WebSocketServer({ noServer: true });
+        const handleUpgrade = (req, socket, head) => {
+          const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
+          if (url.pathname === "/agent/ws") {
+            this.wss.handleUpgrade(req, socket, head, (ws) => {
+              this._handleAgentWsClient(ws);
+            });
+          }
+        };
         if (externalServer) {
           this.server = externalServer;
           this._isExternalServer = true;
           this.server.on("request", (req, res) => {
             this._handleRequest(req, res);
           });
+          this.server.on("upgrade", handleUpgrade);
         } else {
           this.server = import_http.default.createServer((req, res) => {
             this._handleRequest(req, res);
           });
+          this.server.on("upgrade", handleUpgrade);
           return new Promise((resolve, reject) => {
             this.server.listen(this.port, this.host, () => {
               Logger.log(`[${this.system.entityName}] Unified HTTP Adapter active on http://${this.host}:${this.port}`);
@@ -4551,6 +4571,43 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             });
             this.server.on("error", reject);
           });
+        }
+      }
+      _handleAgentWsClient(ws) {
+        this._uiWsClients.add(ws);
+        ws.on("message", (data) => {
+          try {
+            const msg = JSON.parse(data.toString());
+            if (msg.type === "state" && msg.snapshot) {
+              this._latestUiSnapshot = { ...this._latestUiSnapshot, ...msg.snapshot };
+              this._broadcastUiSse(this._latestUiSnapshot);
+            }
+          } catch (e) {
+          }
+        });
+        ws.on("close", () => {
+          this._uiWsClients.delete(ws);
+        });
+        ws.on("error", () => {
+          this._uiWsClients.delete(ws);
+        });
+      }
+      _broadcastUiSse(data) {
+        const payload = `data: ${JSON.stringify(data)}
+
+`;
+        for (const res of this._uiSseClients) {
+          if (res.writable) {
+            res.write(payload);
+          }
+        }
+      }
+      sendWsTrigger(fid, input) {
+        const msg = JSON.stringify({ action: "trigger", fid, input });
+        for (const ws of this._uiWsClients) {
+          if (ws.readyState === import_ws.WebSocket.OPEN) {
+            ws.send(msg);
+          }
         }
       }
       stop() {
@@ -4621,7 +4678,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             }
           }
         }
-        const isKrnlRoute = reqPath.startsWith("/call/") || reqPath.startsWith("/sse/") || reqPath.startsWith("/mcp") || reqPath.startsWith("/acp") || reqPath === "/manifest" || reqPath === "/health";
+        const isKrnlRoute = reqPath.startsWith("/call/") || reqPath.startsWith("/sse/") || reqPath.startsWith("/ui") || reqPath.startsWith("/mcp") || reqPath.startsWith("/acp") || reqPath === "/manifest" || reqPath === "/health";
         if (!isKrnlRoute) {
           if (reqPath === "/inspect" || reqPath.startsWith("/inspect/") || reqPath === "/frontend" || reqPath.startsWith("/frontend/")) {
             if (!this.system._frontend && this.system._entityDataDir) {
@@ -4691,6 +4748,91 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
           return;
         }
         try {
+          if (reqPath.startsWith("/ui")) {
+            if (reqPath === "/ui/manifest") {
+              const activeFids = Array.from(/* @__PURE__ */ new Set([
+                ...Object.keys(this._latestUiSnapshot),
+                ...this.system.localFunctionalities ? Array.from(this.system.localFunctionalities.keys()) : []
+              ]));
+              this._sendJson(res, 200, {
+                status: "success",
+                entity: this.system.entityName,
+                uiActive: this._uiWsClients.size > 0,
+                endpoints: activeFids
+              });
+              return;
+            }
+            if (reqPath === "/ui/state" || reqPath === "/ui/state/") {
+              if (this._uiWsClients.size > 0) {
+                for (const ws of this._uiWsClients) {
+                  if (ws.readyState === import_ws.WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ action: "query" }));
+                  }
+                }
+                await new Promise((r) => setTimeout(r, 100));
+              }
+              this._sendJson(res, 200, {
+                status: "success",
+                uiActive: this._uiWsClients.size > 0,
+                states: this._latestUiSnapshot
+              });
+              return;
+            }
+            if (reqPath.startsWith("/ui/state/")) {
+              const fid = reqPath.slice("/ui/state/".length);
+              this._sendJson(res, 200, {
+                status: "success",
+                fid,
+                state: this._latestUiSnapshot[fid] || null
+              });
+              return;
+            }
+            if (reqPath === "/ui/trigger" && req.method === "POST") {
+              const { fid, input } = await this._readJsonBody(req);
+              if (!fid) {
+                this._sendJson(res, 400, { status: "error", message: "Missing required field: fid" });
+                return;
+              }
+              const startTime = Date.now();
+              this.sendWsTrigger(fid, input);
+              let updatedState = this._latestUiSnapshot[fid] || null;
+              const maxWaitMs = 5e3;
+              const pollIntervalMs = 50;
+              let elapsed = 0;
+              while (elapsed < maxWaitMs) {
+                await new Promise((r) => setTimeout(r, pollIntervalMs));
+                elapsed += pollIntervalMs;
+                const current = this._latestUiSnapshot[fid];
+                if (current && current.lastUpdated >= startTime && current.loading === false) {
+                  updatedState = current;
+                  break;
+                }
+              }
+              this._sendJson(res, 200, {
+                status: updatedState ? "success" : "timeout",
+                fid,
+                uiActive: this._uiWsClients.size > 0,
+                state: updatedState
+              });
+              return;
+            }
+            if (reqPath === "/ui/subscribe") {
+              res.writeHead(200, {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive"
+              });
+              this._uiSseClients.add(res);
+              res.write(`data: ${JSON.stringify(this._latestUiSnapshot)}
+
+`);
+              req.on("close", () => {
+                this._uiSseClients.delete(res);
+                res.end();
+              });
+              return;
+            }
+          }
           if (reqPath.startsWith("/call/")) {
             const fid = reqPath.split("/")[2];
             const body = await this._readJsonBody(req);
@@ -5683,6 +5825,7 @@ ${validation.errors.map((e) => `\u2502  - ${e}`).join("\n")}
         const atomImports = /* @__PURE__ */ new Set();
         atomImports.add("KrnlButton");
         atomImports.add("KrnlJsonViewer");
+        atomImports.add("KrnlAgentBridge");
         inputs.forEach((i) => atomImports.add(i.component));
         outputs.forEach((o) => atomImports.add(o.component));
         const sharedInputIds = inputs.filter((i) => i.sharedComponentId).map((i) => i.sharedComponentId);
@@ -5708,13 +5851,38 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
           (id) => `const slot_${id.replace(/[^a-zA-Z0-9]/g, "_")} = useSharedSlot('${id}');`
         ).join("\n  ")}
 
-  // Subscribe to live SSE events for phantom mirroring
+  // Register component with KrnlAgentBridge & publish state updates
+  useEffect(() => {
+    KrnlAgentBridge.register('${fid}', {
+      trigger: async (overrideInput?: Record<string, any>) => {
+        return await executeRequest(overrideInput);
+      }
+    });
+    return () => {
+      KrnlAgentBridge.unregister('${fid}');
+    };
+  }, [formData]);
+
+  useEffect(() => {
+    KrnlAgentBridge.setState('${fid}', {
+      fid: '${fid}',
+      formData,
+      response,
+      loading,
+      error,
+      lastUpdated: Date.now()
+    });
+  }, [formData, response, loading, error]);
+
+  // Subscribe to live SSE events for phantom mirroring & trigger signals
   useEffect(() => {
     const sse = new EventSource('/sse/${fid}');
-    sse.onmessage = (evt) => {
+    sse.onmessage = async (evt) => {
       try {
         const msg = JSON.parse(evt.data);
-        if (msg.type === 'frontend:interaction' || msg.input !== undefined) {
+        if (msg.action === 'trigger') {
+          await executeRequest(msg.input);
+        } else if (msg.type === 'frontend:interaction' || msg.input !== undefined) {
           if (msg.input) setFormData((prev) => ({ ...prev, ...msg.input }));
           if (msg.output !== undefined) {
             const payload = msg.output?.payload !== undefined ? msg.output.payload : msg.output;
@@ -5783,6 +5951,9 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
     setError(null);
     try {
       const payloadData = overrideData || formData;
+      if (overrideData) {
+        setFormData((prev) => ({ ...prev, ...overrideData }));
+      }
       const res = await fetch('/call/${fid}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5791,8 +5962,11 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
       const data = await res.json();
       const payload = data.payload !== undefined ? data.payload : data;
       setResponse(payload);
+      return payload;
     } catch (err: any) {
-      setError(err.message || 'Request failed');
+      const errMsg = err.message || 'Request failed';
+      setError(errMsg);
+      throw err;
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import http from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
 import { Worker } from 'worker_threads';
 import { AsyncLocalStorage } from 'async_hooks';
 import * as $protobuf from 'protobufjs';
@@ -1064,6 +1065,10 @@ declare class krnlUnifiedHttpAdapter {
     mcp: KrnlMcpProtocol;
     acp: KrnlAcpProtocol;
     enableFriendlyRouting: boolean;
+    wss: WebSocketServer | null;
+    _latestUiSnapshot: Record<string, any>;
+    _uiWsClients: Set<WebSocket>;
+    _uiSseClients: Set<http.ServerResponse>;
     /**
      * @param system
      * @param port
@@ -1074,6 +1079,9 @@ declare class krnlUnifiedHttpAdapter {
      * Starts the adapter.
      */
     start(externalServer?: http.Server | null): Promise<void>;
+    _handleAgentWsClient(ws: WebSocket): void;
+    _broadcastUiSse(data: any): void;
+    sendWsTrigger(fid: string, input?: any): void;
     stop(): void;
     _handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
     _handleSse(req: http.IncomingMessage, res: http.ServerResponse, fid: string): void;

@@ -6,6 +6,7 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import { WebSocketServer, WebSocket } from 'ws';
 import { KrnlMcpProtocol } from './K_LIB_Krnl_Protocol_MCP.js';
 import { KrnlAcpProtocol } from './K_LIB_Krnl_Protocol_ACP.js';
 import { Logger } from './K_LIB_Krnl_Base_Concepts.js';
@@ -19,6 +20,10 @@ export class krnlUnifiedHttpAdapter {
     mcp: KrnlMcpProtocol;
     acp: KrnlAcpProtocol;
     enableFriendlyRouting: boolean;
+    wss: WebSocketServer | null;
+    _latestUiSnapshot: Record<string, any>;
+    _uiWsClients: Set<WebSocket>;
+    _uiSseClients: Set<http.ServerResponse>;
 
     /**
      * @param system
@@ -35,6 +40,10 @@ export class krnlUnifiedHttpAdapter {
         this.mcp = new KrnlMcpProtocol(system);
         this.acp = new KrnlAcpProtocol(system);
         this.enableFriendlyRouting = false;
+        this.wss = null;
+        this._latestUiSnapshot = {};
+        this._uiWsClients = new Set();
+        this._uiSseClients = new Set();
     }
 
     /**
@@ -43,16 +52,29 @@ export class krnlUnifiedHttpAdapter {
     async start(externalServer: http.Server | null = null): Promise<void> {
         if (this.server) return;
 
+        this.wss = new WebSocketServer({ noServer: true });
+
+        const handleUpgrade = (req: http.IncomingMessage, socket: any, head: Buffer) => {
+            const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+            if (url.pathname === '/agent/ws') {
+                this.wss!.handleUpgrade(req, socket, head, (ws: WebSocket) => {
+                    this._handleAgentWsClient(ws);
+                });
+            }
+        };
+
         if (externalServer) {
             this.server = externalServer;
             this._isExternalServer = true;
             this.server.on('request', (req: http.IncomingMessage, res: http.ServerResponse) => {
                 this._handleRequest(req, res);
             });
+            this.server.on('upgrade', handleUpgrade);
         } else {
             this.server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
                 this._handleRequest(req, res);
             });
+            this.server.on('upgrade', handleUpgrade);
 
             return new Promise((resolve, reject) => {
                 this.server!.listen(this.port, this.host, () => {
@@ -61,6 +83,46 @@ export class krnlUnifiedHttpAdapter {
                 });
                 this.server!.on('error', reject);
             });
+        }
+    }
+
+    _handleAgentWsClient(ws: WebSocket): void {
+        this._uiWsClients.add(ws);
+
+        ws.on('message', (data: any) => {
+            try {
+                const msg = JSON.parse(data.toString());
+                if (msg.type === 'state' && msg.snapshot) {
+                    this._latestUiSnapshot = { ...this._latestUiSnapshot, ...msg.snapshot };
+                    this._broadcastUiSse(this._latestUiSnapshot);
+                }
+            } catch (e) {}
+        });
+
+        ws.on('close', () => {
+            this._uiWsClients.delete(ws);
+        });
+
+        ws.on('error', () => {
+            this._uiWsClients.delete(ws);
+        });
+    }
+
+    _broadcastUiSse(data: any): void {
+        const payload = `data: ${JSON.stringify(data)}\n\n`;
+        for (const res of this._uiSseClients) {
+            if (res.writable) {
+                res.write(payload);
+            }
+        }
+    }
+
+    sendWsTrigger(fid: string, input?: any): void {
+        const msg = JSON.stringify({ action: 'trigger', fid, input });
+        for (const ws of this._uiWsClients) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(msg);
+            }
         }
     }
 
@@ -153,6 +215,7 @@ export class krnlUnifiedHttpAdapter {
 
         const isKrnlRoute = reqPath.startsWith('/call/') || 
                            reqPath.startsWith('/sse/') || 
+                           reqPath.startsWith('/ui') || 
                            reqPath.startsWith('/mcp') || 
                            reqPath.startsWith('/acp') || 
                            reqPath === '/manifest' ||
@@ -242,6 +305,99 @@ export class krnlUnifiedHttpAdapter {
         }
 
         try {
+            if (reqPath.startsWith('/ui')) {
+                if (reqPath === '/ui/manifest') {
+                    const activeFids = Array.from(new Set([
+                        ...Object.keys(this._latestUiSnapshot),
+                        ...(this.system.localFunctionalities ? Array.from(this.system.localFunctionalities.keys()) : [])
+                    ]));
+                    this._sendJson(res, 200, {
+                        status: 'success',
+                        entity: this.system.entityName,
+                        uiActive: this._uiWsClients.size > 0,
+                        endpoints: activeFids
+                    });
+                    return;
+                }
+
+                if (reqPath === '/ui/state' || reqPath === '/ui/state/') {
+                    if (this._uiWsClients.size > 0) {
+                        for (const ws of this._uiWsClients) {
+                            if (ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({ action: 'query' }));
+                            }
+                        }
+                        await new Promise((r) => setTimeout(r, 100));
+                    }
+                    this._sendJson(res, 200, {
+                        status: 'success',
+                        uiActive: this._uiWsClients.size > 0,
+                        states: this._latestUiSnapshot
+                    });
+                    return;
+                }
+
+                if (reqPath.startsWith('/ui/state/')) {
+                    const fid = reqPath.slice('/ui/state/'.length);
+                    this._sendJson(res, 200, {
+                        status: 'success',
+                        fid,
+                        state: this._latestUiSnapshot[fid] || null
+                    });
+                    return;
+                }
+
+                if (reqPath === '/ui/trigger' && req.method === 'POST') {
+                    const { fid, input } = await this._readJsonBody(req);
+                    if (!fid) {
+                        this._sendJson(res, 400, { status: 'error', message: 'Missing required field: fid' });
+                        return;
+                    }
+
+                    const startTime = Date.now();
+                    this.sendWsTrigger(fid, input);
+
+                    let updatedState = this._latestUiSnapshot[fid] || null;
+                    const maxWaitMs = 5000;
+                    const pollIntervalMs = 50;
+                    let elapsed = 0;
+
+                    while (elapsed < maxWaitMs) {
+                        await new Promise((r) => setTimeout(r, pollIntervalMs));
+                        elapsed += pollIntervalMs;
+                        const current = this._latestUiSnapshot[fid];
+                        if (current && current.lastUpdated >= startTime && current.loading === false) {
+                            updatedState = current;
+                            break;
+                        }
+                    }
+
+                    this._sendJson(res, 200, {
+                        status: updatedState ? 'success' : 'timeout',
+                        fid,
+                        uiActive: this._uiWsClients.size > 0,
+                        state: updatedState
+                    });
+                    return;
+                }
+
+                if (reqPath === '/ui/subscribe') {
+                    res.writeHead(200, {
+                        'Content-Type': 'text/event-stream',
+                        'Cache-Control': 'no-cache',
+                        'Connection': 'keep-alive'
+                    });
+                    this._uiSseClients.add(res);
+                    res.write(`data: ${JSON.stringify(this._latestUiSnapshot)}\n\n`);
+
+                    req.on('close', () => {
+                        this._uiSseClients.delete(res);
+                        res.end();
+                    });
+                    return;
+                }
+            }
+
             if (reqPath.startsWith('/call/')) {
                 const fid = reqPath.split('/')[2];
                 const body = await this._readJsonBody(req);

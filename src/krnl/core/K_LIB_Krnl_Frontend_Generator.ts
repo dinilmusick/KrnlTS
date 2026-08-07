@@ -759,6 +759,7 @@ ${validation.errors.map((e) => `│  - ${e}`).join('\n')}
     const atomImports = new Set<string>();
     atomImports.add('KrnlButton');
     atomImports.add('KrnlJsonViewer');
+    atomImports.add('KrnlAgentBridge');
 
     inputs.forEach((i) => atomImports.add(i.component));
     outputs.forEach((o) => atomImports.add(o.component));
@@ -794,13 +795,38 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
     )
     .join('\n  ')}
 
-  // Subscribe to live SSE events for phantom mirroring
+  // Register component with KrnlAgentBridge & publish state updates
+  useEffect(() => {
+    KrnlAgentBridge.register('${fid}', {
+      trigger: async (overrideInput?: Record<string, any>) => {
+        return await executeRequest(overrideInput);
+      }
+    });
+    return () => {
+      KrnlAgentBridge.unregister('${fid}');
+    };
+  }, [formData]);
+
+  useEffect(() => {
+    KrnlAgentBridge.setState('${fid}', {
+      fid: '${fid}',
+      formData,
+      response,
+      loading,
+      error,
+      lastUpdated: Date.now()
+    });
+  }, [formData, response, loading, error]);
+
+  // Subscribe to live SSE events for phantom mirroring & trigger signals
   useEffect(() => {
     const sse = new EventSource('/sse/${fid}');
-    sse.onmessage = (evt) => {
+    sse.onmessage = async (evt) => {
       try {
         const msg = JSON.parse(evt.data);
-        if (msg.type === 'frontend:interaction' || msg.input !== undefined) {
+        if (msg.action === 'trigger') {
+          await executeRequest(msg.input);
+        } else if (msg.type === 'frontend:interaction' || msg.input !== undefined) {
           if (msg.input) setFormData((prev) => ({ ...prev, ...msg.input }));
           if (msg.output !== undefined) {
             const payload = msg.output?.payload !== undefined ? msg.output.payload : msg.output;
@@ -874,6 +900,9 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
     setError(null);
     try {
       const payloadData = overrideData || formData;
+      if (overrideData) {
+        setFormData((prev) => ({ ...prev, ...overrideData }));
+      }
       const res = await fetch('/call/${fid}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -882,8 +911,11 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
       const data = await res.json();
       const payload = data.payload !== undefined ? data.payload : data;
       setResponse(payload);
+      return payload;
     } catch (err: any) {
-      setError(err.message || 'Request failed');
+      const errMsg = err.message || 'Request failed';
+      setError(errMsg);
+      throw err;
     } finally {
       setLoading(false);
     }
