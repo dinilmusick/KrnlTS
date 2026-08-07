@@ -99,6 +99,7 @@ export class krnlUnifiedHttpAdapter {
         ws.on('message', (data: any) => {
             try {
                 const msg = JSON.parse(data.toString());
+                console.log(`[UnifiedHttpAdapter] WS msg type: '${msg.type}', fid: '${msg.fid || ''}', ticketId: '${msg.ticketId || ''}'`);
                 if (msg.type === 'state' && msg.snapshot) {
                     this._latestUiSnapshot = { ...this._latestUiSnapshot, ...msg.snapshot };
                     this._broadcastUiSse(this._latestUiSnapshot);
@@ -109,6 +110,7 @@ export class krnlUnifiedHttpAdapter {
                 } else if (msg.type === 'component_ready_all' && Array.isArray(msg.fids)) {
                     msg.fids.forEach((f: string) => this._uiReadyComponents.add(f));
                 } else if (msg.type === 'job_complete' && msg.ticketId) {
+                    console.log(`[UnifiedHttpAdapter] Mark ticket done/error: ${msg.ticketId}, error: ${msg.error}`);
                     if (msg.error) {
                         this.system._jobScheduler?.markError(msg.ticketId, msg.error);
                     } else {
