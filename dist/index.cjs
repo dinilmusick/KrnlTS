@@ -6738,6 +6738,14 @@ var init_K_LIB_Krnl_Frontend_Builder = __esm({
         const distDir = import_path9.default.join(frontendDir, "dist");
         import_fs10.default.mkdirSync(distDir, { recursive: true });
         try {
+          const nodeModulesAtoms = import_path9.default.join(__dirname, "..", "frontend", "atoms");
+          const srcAtoms = import_path9.default.join(frontendDir, "src", "atoms");
+          if (import_fs10.default.existsSync(nodeModulesAtoms) && import_fs10.default.existsSync(srcAtoms)) {
+            import_fs10.default.cpSync(nodeModulesAtoms, srcAtoms, { recursive: true, force: true });
+          }
+        } catch (e) {
+        }
+        try {
           const esbuild = await import("esbuild");
           console.log(`[KrnlFrontendBuilder] Bundling ${entryFile} -> ${distDir}/bundle.js...`);
           await esbuild.build({
@@ -9511,7 +9519,7 @@ var K_LIB_Krnl_SubApp_Worker_Host_exports = {};
 __export(K_LIB_Krnl_SubApp_Worker_Host_exports, {
   KrnlSubAppWorkerHost: () => KrnlSubAppWorkerHost
 });
-var import_worker_threads, import_url3, import_path15, import_meta2, __filename, __dirname, _rpcSeq, KrnlSubAppWorkerHost;
+var import_worker_threads, import_url3, import_path15, import_meta2, __filename, __dirname2, _rpcSeq, KrnlSubAppWorkerHost;
 var init_K_LIB_Krnl_SubApp_Worker_Host = __esm({
   "src/krnl/core/K_LIB_Krnl_SubApp_Worker_Host.ts"() {
     "use strict";
@@ -9520,7 +9528,7 @@ var init_K_LIB_Krnl_SubApp_Worker_Host = __esm({
     import_path15 = __toESM(require("path"), 1);
     import_meta2 = {};
     __filename = (0, import_url3.fileURLToPath)(import_meta2.url);
-    __dirname = import_path15.default.dirname(__filename);
+    __dirname2 = import_path15.default.dirname(__filename);
     _rpcSeq = 0;
     KrnlSubAppWorkerHost = class _KrnlSubAppWorkerHost {
       prefix;
@@ -9573,7 +9581,7 @@ var init_K_LIB_Krnl_SubApp_Worker_Host = __esm({
        * Spawn a worker_thread for the given sub-app config and wait for the manifest.
        */
       static async create(config, timeoutMs = 3e4) {
-        const runtimePath = import_path15.default.resolve(__dirname, "K_LIB_Krnl_SubApp_Worker_Runtime.js");
+        const runtimePath = import_path15.default.resolve(__dirname2, "K_LIB_Krnl_SubApp_Worker_Runtime.js");
         const worker = new import_worker_threads.Worker(runtimePath, {
           workerData: {
             entryPath: config.entryPath ?? "",

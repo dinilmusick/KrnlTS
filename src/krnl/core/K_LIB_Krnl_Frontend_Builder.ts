@@ -16,6 +16,15 @@ export class KrnlFrontendBuilder {
     const distDir = path.join(frontendDir, 'dist');
     fs.mkdirSync(distDir, { recursive: true });
 
+    // Sync atoms from library to app's frontend/src/atoms if present in node_modules
+    try {
+      const nodeModulesAtoms = path.join(__dirname, '..', 'frontend', 'atoms');
+      const srcAtoms = path.join(frontendDir, 'src', 'atoms');
+      if (fs.existsSync(nodeModulesAtoms) && fs.existsSync(srcAtoms)) {
+        fs.cpSync(nodeModulesAtoms, srcAtoms, { recursive: true, force: true });
+      }
+    } catch (e) {}
+
     try {
       const esbuild = await import('esbuild');
       console.log(`[KrnlFrontendBuilder] Bundling ${entryFile} -> ${distDir}/bundle.js...`);
