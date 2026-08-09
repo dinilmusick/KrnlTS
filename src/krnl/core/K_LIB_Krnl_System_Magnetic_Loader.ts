@@ -97,6 +97,8 @@ export class KrnlMagneticLoader {
     }
 
     if (fs.existsSync(subappsDir)) {
+      await this.syncParentSubAppDependencies(baseDir, subappsDir);
+
       const apps = await fs.promises.readdir(subappsDir, { withFileTypes: true });
       const subappConfigs: KrnlSubAppConfig[] = [];
       for (const dirent of apps) {
@@ -505,6 +507,93 @@ export class KrnlMagneticLoader {
     return null;
   }
 
+  /**
+   * Automatically reconciles parent application package.json when sub-apps are added or removed.
+   * - Packages needed by new sub-apps are added to parent package.json.
+   * - Packages no longer needed by any sub-app are removed from parent package.json.
+   */
+  static async syncParentSubAppDependencies(baseDir: string, subappsDir: string): Promise<void> {
+    try {
+      const candidateParentPaths = [
+        path.join(baseDir, 'package.json'),
+        path.resolve(baseDir, '..', 'package.json'),
+        path.join(process.cwd(), 'package.json')
+      ];
+      const parentPkgPath = candidateParentPaths.find(p => fs.existsSync(p));
+      if (!parentPkgPath) return;
+
+      const parentDir = path.dirname(parentPkgPath);
+      const parentKrnlJsonPath = path.join(baseDir, 'krnl.json');
+      
+      let krnlJson: any = {};
+      if (fs.existsSync(parentKrnlJsonPath)) {
+        try { krnlJson = JSON.parse(fs.readFileSync(parentKrnlJsonPath, 'utf-8')); } catch (_) {}
+      }
+      
+      const previousManaged: Record<string, string> = krnlJson.managedSubAppDependencies || {};
+      const activeSubAppDeps: Record<string, string> = {};
+
+      const subEntries = await fs.promises.readdir(subappsDir, { withFileTypes: true });
+      for (const dirent of subEntries) {
+        if (dirent.isDirectory()) {
+          const subPkgPath = path.join(subappsDir, dirent.name, 'package.json');
+          if (fs.existsSync(subPkgPath)) {
+            try {
+              const subPkg = JSON.parse(fs.readFileSync(subPkgPath, 'utf-8'));
+              const combined = { ...subPkg.dependencies, ...subPkg.devDependencies };
+              for (const [pkgName, pkgVer] of Object.entries(combined)) {
+                if (pkgName !== 'krnlts' && pkgName !== 'tsup' && !pkgName.startsWith('@types/')) {
+                  activeSubAppDeps[pkgName] = pkgVer as string;
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
+      const parentPkg = JSON.parse(fs.readFileSync(parentPkgPath, 'utf-8'));
+      parentPkg.dependencies = parentPkg.dependencies || {};
+
+      let modified = false;
+
+      // 1. Add missing sub-app dependencies to parent
+      for (const [pkgName, pkgVer] of Object.entries(activeSubAppDeps)) {
+        if (!parentPkg.dependencies[pkgName]) {
+          console.log(`[MagneticLoader] Adding new sub-app dependency '${pkgName}@${pkgVer}' to parent package.json...`);
+          parentPkg.dependencies[pkgName] = pkgVer;
+          previousManaged[pkgName] = pkgVer;
+          modified = true;
+        }
+      }
+
+      // 2. Remove sub-app dependencies no longer required by any active sub-app
+      for (const [pkgName] of Object.entries(previousManaged)) {
+        if (!activeSubAppDeps[pkgName]) {
+          console.log(`[MagneticLoader] Removing stale sub-app dependency '${pkgName}' from parent package.json...`);
+          delete parentPkg.dependencies[pkgName];
+          delete previousManaged[pkgName];
+          modified = true;
+        }
+      }
+
+      if (modified) {
+        fs.writeFileSync(parentPkgPath, JSON.stringify(parentPkg, null, 2) + '\n', 'utf-8');
+        krnlJson.managedSubAppDependencies = previousManaged;
+        if (fs.existsSync(parentKrnlJsonPath)) {
+          fs.writeFileSync(parentKrnlJsonPath, JSON.stringify(krnlJson, null, 2) + '\n', 'utf-8');
+        }
+        console.log(`[MagneticLoader] Parent package.json dependencies updated. Running npm install...`);
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execPromise = promisify(exec);
+        await execPromise('npm install --no-audit --no-fund', { cwd: parentDir });
+        console.log(`[MagneticLoader] Parent dependencies synced successfully.`);
+      }
+    } catch (err: any) {
+      console.warn(`[MagneticLoader] Sub-app dependency reconciliation warning:`, err.message || err);
+    }
+  }
+
   private static registerGlobalWrapper(name: string): void {
     if (!(globalThis as any)[name]) {
       Object.defineProperty(globalThis, name, {
@@ -522,3 +611,4 @@ export class KrnlMagneticLoader {
     }
   }
 }
+

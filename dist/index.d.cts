@@ -2248,6 +2248,12 @@ declare class KrnlMagneticLoader {
     static loadEntity(parent: krnlSystemEntityBase, entDir: string, entName: string): Promise<void>;
     static ensureSubAppBuilt(appPath: string, appName: string, entity: any, parentBaseDir?: string): Promise<boolean>;
     static detectSubApp(appPath: string, appName: string): Promise<any | null>;
+    /**
+     * Automatically reconciles parent application package.json when sub-apps are added or removed.
+     * - Packages needed by new sub-apps are added to parent package.json.
+     * - Packages no longer needed by any sub-app are removed from parent package.json.
+     */
+    static syncParentSubAppDependencies(baseDir: string, subappsDir: string): Promise<void>;
     private static registerGlobalWrapper;
 }
 

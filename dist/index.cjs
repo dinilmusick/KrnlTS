@@ -6956,6 +6956,7 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
           }
         }
         if (import_fs11.default.existsSync(subappsDir)) {
+          await this.syncParentSubAppDependencies(baseDir, subappsDir);
           const apps = await import_fs11.default.promises.readdir(subappsDir, { withFileTypes: true });
           const subappConfigs = [];
           for (const dirent of apps) {
@@ -7292,6 +7293,85 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
           };
         }
         return null;
+      }
+      /**
+       * Automatically reconciles parent application package.json when sub-apps are added or removed.
+       * - Packages needed by new sub-apps are added to parent package.json.
+       * - Packages no longer needed by any sub-app are removed from parent package.json.
+       */
+      static async syncParentSubAppDependencies(baseDir, subappsDir) {
+        try {
+          const candidateParentPaths = [
+            import_path10.default.join(baseDir, "package.json"),
+            import_path10.default.resolve(baseDir, "..", "package.json"),
+            import_path10.default.join(process.cwd(), "package.json")
+          ];
+          const parentPkgPath = candidateParentPaths.find((p) => import_fs11.default.existsSync(p));
+          if (!parentPkgPath) return;
+          const parentDir = import_path10.default.dirname(parentPkgPath);
+          const parentKrnlJsonPath = import_path10.default.join(baseDir, "krnl.json");
+          let krnlJson = {};
+          if (import_fs11.default.existsSync(parentKrnlJsonPath)) {
+            try {
+              krnlJson = JSON.parse(import_fs11.default.readFileSync(parentKrnlJsonPath, "utf-8"));
+            } catch (_) {
+            }
+          }
+          const previousManaged = krnlJson.managedSubAppDependencies || {};
+          const activeSubAppDeps = {};
+          const subEntries = await import_fs11.default.promises.readdir(subappsDir, { withFileTypes: true });
+          for (const dirent of subEntries) {
+            if (dirent.isDirectory()) {
+              const subPkgPath = import_path10.default.join(subappsDir, dirent.name, "package.json");
+              if (import_fs11.default.existsSync(subPkgPath)) {
+                try {
+                  const subPkg = JSON.parse(import_fs11.default.readFileSync(subPkgPath, "utf-8"));
+                  const combined = { ...subPkg.dependencies, ...subPkg.devDependencies };
+                  for (const [pkgName, pkgVer] of Object.entries(combined)) {
+                    if (pkgName !== "krnlts" && pkgName !== "tsup" && !pkgName.startsWith("@types/")) {
+                      activeSubAppDeps[pkgName] = pkgVer;
+                    }
+                  }
+                } catch (_) {
+                }
+              }
+            }
+          }
+          const parentPkg = JSON.parse(import_fs11.default.readFileSync(parentPkgPath, "utf-8"));
+          parentPkg.dependencies = parentPkg.dependencies || {};
+          let modified = false;
+          for (const [pkgName, pkgVer] of Object.entries(activeSubAppDeps)) {
+            if (!parentPkg.dependencies[pkgName]) {
+              console.log(`[MagneticLoader] Adding new sub-app dependency '${pkgName}@${pkgVer}' to parent package.json...`);
+              parentPkg.dependencies[pkgName] = pkgVer;
+              previousManaged[pkgName] = pkgVer;
+              modified = true;
+            }
+          }
+          for (const [pkgName] of Object.entries(previousManaged)) {
+            if (!activeSubAppDeps[pkgName]) {
+              console.log(`[MagneticLoader] Removing stale sub-app dependency '${pkgName}' from parent package.json...`);
+              delete parentPkg.dependencies[pkgName];
+              delete previousManaged[pkgName];
+              modified = true;
+            }
+          }
+          if (modified) {
+            import_fs11.default.writeFileSync(parentPkgPath, JSON.stringify(parentPkg, null, 2) + "\n", "utf-8");
+            krnlJson.managedSubAppDependencies = previousManaged;
+            if (import_fs11.default.existsSync(parentKrnlJsonPath)) {
+              import_fs11.default.writeFileSync(parentKrnlJsonPath, JSON.stringify(krnlJson, null, 2) + "\n", "utf-8");
+            }
+            console.log(`[MagneticLoader] Parent package.json dependencies updated. Running npm install...`);
+            const { exec: exec3 } = await import("child_process");
+            const { promisify: promisify2 } = await import("util");
+            const execPromise = promisify2(exec3);
+            await execPromise("npm install --no-audit --no-fund", { cwd: parentDir });
+            console.log(`[MagneticLoader] Parent dependencies synced successfully.`);
+          }
+        } catch (err) {
+          console.warn(`[MagneticLoader] Sub-app dependency reconciliation warning:`, err.message || err);
+        }
       }
       static registerGlobalWrapper(name) {
         if (!globalThis[name]) {
