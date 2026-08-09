@@ -14,6 +14,9 @@ export class KrnlFrontendGenerator {
   static async generate(entity: any, frontendDir: string): Promise<void> {
     this.ensureFrontendSkeleton(entity, frontendDir);
 
+    // Resolve the optional UI endpoint allowlist from frontend options
+    const uiAllowlist: string[] | undefined = entity._frontend?.options?.uiEndpoints;
+
     const uiEndpointsMap = new Map<string, { id: string; uiSpec: KrnlUiSpec; schema: any }>();
     const collectEndpoints = (ent: any) => {
       const funcs = [
@@ -21,7 +24,19 @@ export class KrnlFrontendGenerator {
         ...(ent.remoteFunctionalities?.values() || [])
       ];
       for (const fn of funcs) {
-        const uiSpec: KrnlUiSpec = fn.uiSpec || (fn as any).ui_spec || { ui_component_enabled: true };
+        // When an allowlist is specified, skip endpoints not in it immediately
+        if (uiAllowlist && !uiAllowlist.includes(fn.id)) {
+          continue;
+        }
+
+        const uiSpec: KrnlUiSpec = fn.uiSpec || (fn as any).ui_spec;
+        // If no explicit uiSpec is set on this functionality, default to disabled.
+        // This prevents built-in system endpoints (heartbeat, getTelemetry, etc.)
+        // from accidentally appearing in the UI.
+        if (!uiSpec) {
+          continue;
+        }
+
         if (uiSpec && uiSpec.ui_component_enabled) {
           if (!uiEndpointsMap.has(fn.id)) {
             uiEndpointsMap.set(fn.id, { id: fn.id, uiSpec, schema: fn.schema });

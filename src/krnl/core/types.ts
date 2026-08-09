@@ -246,6 +246,20 @@ export interface KrnlFrontendOptions {
   enableMonitoringApi?: boolean;
   customCss?: string;
   frontendDir?: string;
+  /**
+   * UI Endpoint Allowlist — EXCLUSIVE filter.
+   *
+   * When provided, ONLY the endpoint IDs listed here will have UI components
+   * generated and rendered. All other endpoints (including built-in system
+   * endpoints like heartbeat, getTelemetry, etc.) are suppressed from the UI.
+   *
+   * When omitted, all endpoints with `ui_component_enabled: true` in their
+   * uiSpec are included (legacy behaviour).
+   *
+   * Example:
+   *   uiEndpoints: ['ListKeys', 'StoreKey', 'RetrieveKey', 'DeleteKey']
+   */
+  uiEndpoints?: string[];
 }
 
 export type {

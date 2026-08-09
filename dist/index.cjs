@@ -5172,6 +5172,7 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
        */
       static async generate(entity, frontendDir) {
         this.ensureFrontendSkeleton(entity, frontendDir);
+        const uiAllowlist = entity._frontend?.options?.uiEndpoints;
         const uiEndpointsMap = /* @__PURE__ */ new Map();
         const collectEndpoints = (ent) => {
           const funcs = [
@@ -5179,7 +5180,13 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
             ...ent.remoteFunctionalities?.values() || []
           ];
           for (const fn of funcs) {
-            const uiSpec = fn.uiSpec || fn.ui_spec || { ui_component_enabled: true };
+            if (uiAllowlist && !uiAllowlist.includes(fn.id)) {
+              continue;
+            }
+            const uiSpec = fn.uiSpec || fn.ui_spec;
+            if (!uiSpec) {
+              continue;
+            }
             if (uiSpec && uiSpec.ui_component_enabled) {
               if (!uiEndpointsMap.has(fn.id)) {
                 uiEndpointsMap.set(fn.id, { id: fn.id, uiSpec, schema: fn.schema });
