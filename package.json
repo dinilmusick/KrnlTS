@@ -26,6 +26,7 @@
   },
   "files": [
     "dist",
+    "dist/frontend",
     "src/krnl/frontend/atoms"
   ],
   "keywords": [
