@@ -18,9 +18,15 @@ export class KrnlFrontendBuilder {
 
     // Sync atoms from library to app's frontend/src/atoms if present in node_modules
     try {
-      const nodeModulesAtoms = path.join(__dirname, '..', 'frontend', 'atoms');
+      const candidates = [
+        path.resolve(__dirname, '..', '..', 'frontend', 'atoms'),
+        path.resolve(__dirname, '..', 'frontend', 'atoms'),
+        path.resolve(process.cwd(), 'node_modules', 'krnlts', 'dist', 'frontend', 'atoms'),
+        path.resolve(process.cwd(), 'node_modules', 'krnlts', 'src', 'krnl', 'frontend', 'atoms')
+      ];
+      const nodeModulesAtoms = candidates.find(c => fs.existsSync(c));
       const srcAtoms = path.join(frontendDir, 'src', 'atoms');
-      if (fs.existsSync(nodeModulesAtoms) && fs.existsSync(srcAtoms)) {
+      if (nodeModulesAtoms && fs.existsSync(srcAtoms)) {
         fs.cpSync(nodeModulesAtoms, srcAtoms, { recursive: true, force: true });
       }
     } catch (e) {}

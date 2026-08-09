@@ -6772,9 +6772,15 @@ var init_K_LIB_Krnl_Frontend_Builder = __esm({
         const distDir = import_path9.default.join(frontendDir, "dist");
         import_fs10.default.mkdirSync(distDir, { recursive: true });
         try {
-          const nodeModulesAtoms = import_path9.default.join(__dirname, "..", "frontend", "atoms");
+          const candidates = [
+            import_path9.default.resolve(__dirname, "..", "..", "frontend", "atoms"),
+            import_path9.default.resolve(__dirname, "..", "frontend", "atoms"),
+            import_path9.default.resolve(process.cwd(), "node_modules", "krnlts", "dist", "frontend", "atoms"),
+            import_path9.default.resolve(process.cwd(), "node_modules", "krnlts", "src", "krnl", "frontend", "atoms")
+          ];
+          const nodeModulesAtoms = candidates.find((c) => import_fs10.default.existsSync(c));
           const srcAtoms = import_path9.default.join(frontendDir, "src", "atoms");
-          if (import_fs10.default.existsSync(nodeModulesAtoms) && import_fs10.default.existsSync(srcAtoms)) {
+          if (nodeModulesAtoms && import_fs10.default.existsSync(srcAtoms)) {
             import_fs10.default.cpSync(nodeModulesAtoms, srcAtoms, { recursive: true, force: true });
           }
         } catch (e) {
