@@ -5990,7 +5990,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
 
   // Auto-fetch endpoint or option sources on mount
   useEffect(() => {
-    ${autoFetchOutput ? `executeRequest();` : ""}
+    ${autoFetchOutput ? `executeRequest({});` : ""}
     ${sourceEndpointInputs.map(
           (i) => `
     fetch('/call/${i.sourceEndpointId}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
@@ -6065,11 +6065,18 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
       lastUpdated: Date.now()
     });
     try {
-      const res = await fetch('/call/${fid}', {
+      let res = await fetch('/${fid}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(activeInput),
       });
+      if (res.status === 404) {
+        res = await fetch('/call/${fid}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(activeInput),
+        });
+      }
       const data = await res.json();
       const payload = data.payload !== undefined ? data.payload : data;
       responseRef.current = payload;
