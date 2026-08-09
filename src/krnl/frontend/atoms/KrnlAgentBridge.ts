@@ -47,7 +47,8 @@ export class KrnlAgentBridgeManager {
         try {
           const msg = JSON.parse(event.data);
           if (msg.action === 'trigger' && msg.fid) {
-            await this.trigger(msg.fid, msg.input, msg.ticketId);
+            const ticketId = msg.ticketId || msg.id;
+            await this.trigger(msg.fid, msg.input, ticketId);
           } else if (msg.action === 'query') {
             this.sendFullSnapshot();
             this.sendReadySignal();
