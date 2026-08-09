@@ -2246,7 +2246,7 @@ declare class KrnlMagneticLoader {
     static loadAll(entity: krnlSystemEntityBase, baseDir: string): Promise<void>;
     static loadFunctionality(entity: krnlSystemEntityBase, funcDir: string, funcName: string): Promise<void>;
     static loadEntity(parent: krnlSystemEntityBase, entDir: string, entName: string): Promise<void>;
-    static ensureSubAppBuilt(appPath: string, appName: string, entity: any): Promise<boolean>;
+    static ensureSubAppBuilt(appPath: string, appName: string, entity: any, parentBaseDir?: string): Promise<boolean>;
     static detectSubApp(appPath: string, appName: string): Promise<any | null>;
     private static registerGlobalWrapper;
 }

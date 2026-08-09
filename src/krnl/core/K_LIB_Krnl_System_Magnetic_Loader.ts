@@ -49,13 +49,60 @@ export class KrnlMagneticLoader {
     //    The execution mode (local | worker) is read from the parent's krnl.json.
     const subappsDir = path.join(baseDir, 'subapps');
     const isSubApp = subappLocalStorage.getStore() || (entity as any)._isSubApp || (entity as any)._isIngressNetworkMember;
+    
+    // Read subapp definitions from parent's krnl.json
+    const krnlJsonPath = path.join(baseDir, 'krnl.json');
+    let subappMetaMap: Record<string, { executionMode?: string; git?: string; repo?: string; repository?: string }> = {};
+    if (fs.existsSync(krnlJsonPath)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(krnlJsonPath, 'utf-8'));
+        subappMetaMap = parsed.subapps || {};
+      } catch (_) {}
+    }
+
+    // Auto-clone sub-apps configured with git repos if missing in subappsDir
+    if (Object.keys(subappMetaMap).length > 0) {
+      if (!fs.existsSync(subappsDir)) {
+        fs.mkdirSync(subappsDir, { recursive: true });
+      }
+
+      for (const [subappName, subMeta] of Object.entries(subappMetaMap)) {
+        const gitUrl = subMeta.git || subMeta.repo || subMeta.repository;
+        if (gitUrl) {
+          const targetAppPath = path.join(subappsDir, subappName);
+          if (!fs.existsSync(targetAppPath)) {
+            console.log(`[MagneticLoader] Cloning sub-app '${subappName}' from git repository '${gitUrl}'...`);
+            try {
+              let cloneUrl = gitUrl;
+              if (cloneUrl.startsWith('github:')) {
+                const parts = cloneUrl.replace('github:', '').split('#');
+                const repoPath = parts[0];
+                const branch = parts[1];
+                cloneUrl = `https://github.com/${repoPath}.git`;
+                if (branch) {
+                  cloneUrl += ` -b ${branch}`;
+                }
+              }
+              const { exec } = await import('child_process');
+              const { promisify } = await import('util');
+              const execPromise = promisify(exec);
+              await execPromise(`git clone ${cloneUrl} "${targetAppPath}"`);
+              console.log(`[MagneticLoader] Sub-app '${subappName}' cloned successfully from '${gitUrl}'.`);
+            } catch (cloneErr: any) {
+              console.error(`[MagneticLoader] Failed to clone sub-app '${subappName}' from '${gitUrl}':`, cloneErr.message || cloneErr);
+            }
+          }
+        }
+      }
+    }
+
     if (fs.existsSync(subappsDir)) {
       const apps = await fs.promises.readdir(subappsDir, { withFileTypes: true });
       const subappConfigs: KrnlSubAppConfig[] = [];
       for (const dirent of apps) {
         if (dirent.isDirectory()) {
           const appPath = path.join(subappsDir, dirent.name);
-          const buildOk = await this.ensureSubAppBuilt(appPath, dirent.name, entity);
+          const buildOk = await this.ensureSubAppBuilt(appPath, dirent.name, entity, baseDir);
           if (!buildOk) {
             continue;
           }
@@ -66,19 +113,10 @@ export class KrnlMagneticLoader {
         }
       }
       if (subappConfigs.length > 0) {
-        // Read execution modes from the parent's krnl.json (single source of truth)
-        const krnlJsonPath = path.join(baseDir, 'krnl.json');
-        let subappModes: Record<string, { executionMode?: string }> = {};
-        if (fs.existsSync(krnlJsonPath)) {
-          try {
-            const parsed = JSON.parse(fs.readFileSync(krnlJsonPath, 'utf-8'));
-            subappModes = parsed.subapps || {};
-          } catch (_) {}
-        }
-
         // Inject execution mode into each config
         for (const cfg of subappConfigs) {
-          cfg.executionMode = (subappModes[cfg.prefix]?.executionMode as any) ?? 'local';
+          const subMeta = subappMetaMap[cfg.prefix] || subappMetaMap[Object.keys(subappMetaMap).find(k => k.toLowerCase() === cfg.prefix) || ''];
+          cfg.executionMode = (subMeta?.executionMode as any) ?? 'local';
         }
 
         console.log(`[MagneticLoader] Loading ${subappConfigs.length} sub-app(s) on '${entity.entityName}' (no networking).`);
@@ -291,10 +329,29 @@ export class KrnlMagneticLoader {
     }
   }
 
-  static async ensureSubAppBuilt(appPath: string, appName: string, entity: any): Promise<boolean> {
+  static async ensureSubAppBuilt(appPath: string, appName: string, entity: any, parentBaseDir?: string): Promise<boolean> {
     const packageJsonPath = path.join(appPath, 'package.json');
     if (!fs.existsSync(packageJsonPath)) {
       return true;
+    }
+
+    // Shared node_modules setup: link sub-app node_modules to parent's node_modules if missing
+    const subNodeModules = path.join(appPath, 'node_modules');
+    const candidateParentDirs = [
+      parentBaseDir ? path.join(parentBaseDir, 'node_modules') : null,
+      parentBaseDir ? path.resolve(parentBaseDir, '..', 'node_modules') : null,
+      path.join(process.cwd(), 'node_modules')
+    ].filter(Boolean) as string[];
+
+    const parentNodeModules = candidateParentDirs.find(d => fs.existsSync(d));
+
+    if (!fs.existsSync(subNodeModules) && parentNodeModules) {
+      try {
+        fs.symlinkSync(parentNodeModules, subNodeModules, 'junction');
+        console.log(`[MagneticLoader] Symlinked sub-app node_modules for '${appName}' -> '${parentNodeModules}'`);
+      } catch (symErr: any) {
+        console.warn(`[MagneticLoader] Symlinking node_modules for '${appName}' failed, falling back:`, symErr.message);
+      }
     }
 
     const assemblerPath = path.join(appPath, 'assembler.js');
