@@ -847,6 +847,9 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
   const executeRequest = async (overrideData?: Record<string, any>, ticketId?: string) => {
     loading.val = true;
     error.val = null;
+    if (ticketId || overrideData) {
+      phantomActive.val = true;
+    }
     const activeInput = overrideData || formData.val;
     if (overrideData) formData.val = { ...formData.val, ...overrideData };
 
@@ -898,6 +901,9 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
       if (ticketId) KrnlAgentBridge.sendJobComplete(ticketId, '${fid}', null, errMsg);
     } finally {
       loading.val = false;
+      if (ticketId || overrideData) {
+        setTimeout(() => { phantomActive.val = false; }, 2000);
+      }
     }
   };
 
