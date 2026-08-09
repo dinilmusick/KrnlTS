@@ -7108,7 +7108,7 @@ ${endpoints.map((e) => `  - group '${e.fid}':
           ];
           return {
             id: ep.fid,
-            file: `frontend/src/components/${ep.fid}/index.tsx`,
+            file: `frontend/src/components/${ep.fid}/index.ts`,
             inputs,
             outputs,
             sharedSlots,
@@ -7120,10 +7120,11 @@ ${endpoints.map((e) => `  - group '${e.fid}':
         return {
           status: "ok",
           data: {
+            framework: "vanjs",
             atoms: ["KrnlButton", "KrnlTextInput", "KrnlNumberInput", "KrnlDropdown", "KrnlToggle", "KrnlTextArea", "KrnlJsonInput", "KrnlJsonViewer", "KrnlCarousel", "KrnlTile", "KrnlSSELog"],
             components
           },
-          summary: `${components.length} generated React components.`
+          summary: `${components.length} generated VanJS components.`
         };
       }
       static endpoints(system) {

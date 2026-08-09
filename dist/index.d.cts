@@ -1291,6 +1291,7 @@ declare class KrnlFrontendInspector {
     static components(system: any, frontendDir: string): {
         status: string;
         data: {
+            framework: string;
             atoms: string[];
             components: {
                 id: any;

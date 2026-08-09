@@ -193,7 +193,7 @@ export class KrnlFrontendInspector {
 
       return {
         id: ep.fid,
-        file: `frontend/src/components/${ep.fid}/index.tsx`,
+        file: `frontend/src/components/${ep.fid}/index.ts`,
         inputs,
         outputs,
         sharedSlots,
@@ -206,10 +206,11 @@ export class KrnlFrontendInspector {
     return {
       status: 'ok',
       data: {
+        framework: 'vanjs',
         atoms: ['KrnlButton', 'KrnlTextInput', 'KrnlNumberInput', 'KrnlDropdown', 'KrnlToggle', 'KrnlTextArea', 'KrnlJsonInput', 'KrnlJsonViewer', 'KrnlCarousel', 'KrnlTile', 'KrnlSSELog'],
         components
       },
-      summary: `${components.length} generated React components.`
+      summary: `${components.length} generated VanJS components.`
     };
   }
 
