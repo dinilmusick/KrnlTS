@@ -851,18 +851,11 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
     if (overrideData) formData.val = { ...formData.val, ...overrideData };
 
     try {
-      let res = await fetch('/${fid}', {
+      const res = await fetch('/frontend/api/${fid}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(activeInput),
       });
-      if (res.status === 404) {
-        res = await fetch('/call/${fid}', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(activeInput),
-        });
-      }
       const data = await res.json();
       const payload = data.payload !== undefined ? data.payload : data;
       response.val = payload;
@@ -912,7 +905,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
   ${sourceEndpointInputs
     .map(
       (i) => `
-  fetch('/${i.sourceEndpointId}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+  fetch('/frontend/api/${i.sourceEndpointId}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
     .then((r) => r.json())
     .then((d) => {
       const payload = d.payload !== undefined ? d.payload : d;
