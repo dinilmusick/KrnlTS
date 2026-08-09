@@ -22,15 +22,24 @@ export class KrnlFrontendBuilder {
     // Sync atoms from library to app's frontend/src/atoms if present in node_modules
     try {
       const candidates = [
+        // When running from inside KrnlTS dist (relative to __dirname)
         path.resolve(__dirname, '..', '..', 'frontend', 'atoms'),
         path.resolve(__dirname, '..', 'frontend', 'atoms'),
+        // Scoped package (@dinilmusick/krnlts) installed in consuming app
+        path.resolve(process.cwd(), 'node_modules', '@dinilmusick', 'krnlts', 'dist', 'frontend', 'atoms'),
+        path.resolve(process.cwd(), 'node_modules', '@dinilmusick', 'krnlts', 'src', 'krnl', 'frontend', 'atoms'),
+        // Unscoped fallback (krnlts)
         path.resolve(process.cwd(), 'node_modules', 'krnlts', 'dist', 'frontend', 'atoms'),
         path.resolve(process.cwd(), 'node_modules', 'krnlts', 'src', 'krnl', 'frontend', 'atoms')
       ];
       const nodeModulesAtoms = candidates.find((c) => fs.existsSync(c));
       const srcAtoms = path.join(frontendDir, 'src', 'atoms');
-      if (nodeModulesAtoms && fs.existsSync(srcAtoms)) {
+      if (nodeModulesAtoms) {
+        fs.mkdirSync(srcAtoms, { recursive: true });
         fs.cpSync(nodeModulesAtoms, srcAtoms, { recursive: true, force: true });
+        console.log(`[KrnlFrontendBuilder] Atoms synced from ${nodeModulesAtoms}`);
+      } else {
+        console.warn(`[KrnlFrontendBuilder] No atoms source found in any candidate path.`);
       }
     } catch (e) {}
 

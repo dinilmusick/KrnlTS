@@ -6199,15 +6199,24 @@ var init_K_LIB_Krnl_Frontend_Builder = __esm({
         import_fs10.default.mkdirSync(distDir, { recursive: true });
         try {
           const candidates = [
+            // When running from inside KrnlTS dist (relative to __dirname)
             import_path9.default.resolve(__dirname, "..", "..", "frontend", "atoms"),
             import_path9.default.resolve(__dirname, "..", "frontend", "atoms"),
+            // Scoped package (@dinilmusick/krnlts) installed in consuming app
+            import_path9.default.resolve(process.cwd(), "node_modules", "@dinilmusick", "krnlts", "dist", "frontend", "atoms"),
+            import_path9.default.resolve(process.cwd(), "node_modules", "@dinilmusick", "krnlts", "src", "krnl", "frontend", "atoms"),
+            // Unscoped fallback (krnlts)
             import_path9.default.resolve(process.cwd(), "node_modules", "krnlts", "dist", "frontend", "atoms"),
             import_path9.default.resolve(process.cwd(), "node_modules", "krnlts", "src", "krnl", "frontend", "atoms")
           ];
           const nodeModulesAtoms = candidates.find((c) => import_fs10.default.existsSync(c));
           const srcAtoms = import_path9.default.join(frontendDir, "src", "atoms");
-          if (nodeModulesAtoms && import_fs10.default.existsSync(srcAtoms)) {
+          if (nodeModulesAtoms) {
+            import_fs10.default.mkdirSync(srcAtoms, { recursive: true });
             import_fs10.default.cpSync(nodeModulesAtoms, srcAtoms, { recursive: true, force: true });
+            console.log(`[KrnlFrontendBuilder] Atoms synced from ${nodeModulesAtoms}`);
+          } else {
+            console.warn(`[KrnlFrontendBuilder] No atoms source found in any candidate path.`);
           }
         } catch (e) {
         }
