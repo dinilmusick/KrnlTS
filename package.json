@@ -41,6 +41,7 @@
   "dependencies": {
     "esbuild": "^0.25.0",
     "protobufjs": "^8.7.1",
+    "vanjs-core": "^1.5.3",
     "ws": "^8.18.0",
     "zod": "3.24.1",
     "zod-to-json-schema": "3.24.1"

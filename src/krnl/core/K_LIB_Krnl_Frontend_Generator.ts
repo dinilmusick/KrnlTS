@@ -75,10 +75,10 @@ export class KrnlFrontendGenerator {
       const epDir = path.join(componentsDir, ep.id);
       fs.mkdirSync(epDir, { recursive: true });
       const compSource = this.generateComponentSource(ep.id, ep.uiSpec, ep.schema);
-      fs.writeFileSync(path.join(epDir, 'index.tsx'), compSource, 'utf-8');
+      fs.writeFileSync(path.join(epDir, 'index.ts'), compSource, 'utf-8');
     }
 
-    // Generate root index.tsx aggregator
+    // Generate root index.ts aggregator
     const subAppPrefixesSet = new Set<string>(entity._subAppRegistry?.keys() || []);
     if (entity.hierarchyManager?.ownedComponents) {
       for (const [childId, childEntity] of entity.hierarchyManager.ownedComponents.entries()) {
@@ -89,7 +89,7 @@ export class KrnlFrontendGenerator {
     }
     const subAppPrefixes = Array.from(subAppPrefixesSet);
     const indexSource = this.generateIndexSource(entity.entityName, uiEndpoints, subAppPrefixes);
-    fs.writeFileSync(path.join(frontendDir, 'src', 'index.tsx'), indexSource, 'utf-8');
+    fs.writeFileSync(path.join(frontendDir, 'src', 'index.ts'), indexSource, 'utf-8');
   }
 
   /**
@@ -764,7 +764,7 @@ body {
   }
 
   /**
-   * Generates TSX source code for a single endpoint UI component
+   * Generates TS source code for a single endpoint UI component using VanJS
    */
   static generateComponentSource(fid: string, uiSpec: KrnlUiSpec, schema: any): string {
     const validation = this.validateUiSpec(fid, uiSpec);
@@ -800,167 +800,56 @@ ${validation.errors.map((e) => `│  - ${e}`).join('\n')}
       }
     }
 
-    const atomImports = new Set<string>();
-    atomImports.add('KrnlButton');
-    atomImports.add('KrnlJsonViewer');
-    atomImports.add('KrnlAgentBridge');
-
-    inputs.forEach((i) => atomImports.add(i.component));
-    outputs.forEach((o) => atomImports.add(o.component));
-
-    // Check for shared components
     const sharedInputIds = inputs.filter((i) => i.sharedComponentId).map((i) => i.sharedComponentId!);
     const sharedOutputIds = outputs.filter((o) => o.sharedComponentId).map((o) => o.sharedComponentId!);
     const allSharedIds = Array.from(new Set([...sharedInputIds, ...sharedOutputIds]));
 
-    if (allSharedIds.length > 0) {
-      atomImports.add('useSharedSlot');
-    }
-
-    const importStatement = `import { ${Array.from(atomImports).join(', ')} } from '../../atoms/index.js';`;
-
     const sourceEndpointInputs = inputs.filter((i) => i.sourceEndpointId);
     const autoFetchOutput = outputs.find((o) => o.autoFetch && o.sharedComponentId);
 
-    return `import React, { useState, useEffect, useRef } from 'react';
-${importStatement}
+    return `import van from 'vanjs-core';
+import { KrnlButton, KrnlTextInput, KrnlDropdown, KrnlTextArea, KrnlJsonViewer, KrnlTile, getSharedSlot, KrnlAgentBridge } from '../../atoms/index.js';
+
+const { div, h3, h4, form } = van.tags;
 
 export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
-  const [formData, setFormData] = useState<Record<string, any>>({});
-  const [response, setResponse] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [phantomActive, setPhantomActive] = useState(false);
-  const responseRef = useRef<any>(null);
+  const formData = van.state<Record<string, any>>({});
+  const response = van.state<any>(null);
+  const loading = van.state(false);
+  const error = van.state<string | null>(null);
+  const phantomActive = van.state(false);
 
   ${allSharedIds
     .map(
       (id) =>
-        `const slot_${id.replace(/[^a-zA-Z0-9]/g, '_')} = useSharedSlot('${id}');`
+        `const slot_${id.replace(/[^a-zA-Z0-9]/g, '_')} = getSharedSlot('${id}');`
     )
     .join('\n  ')}
 
-  // Register component with KrnlAgentBridge on mount
-  useEffect(() => {
-    KrnlAgentBridge.register('${fid}', {
-      trigger: async (overrideInput?: Record<string, any>, ticketId?: string) => {
-        return await executeRequest(overrideInput, ticketId);
-      }
-    });
+  KrnlAgentBridge.register('${fid}', {
+    trigger: async (overrideInput?: Record<string, any>, ticketId?: string) => {
+      return await executeRequest(overrideInput, ticketId);
+    }
+  });
+
+  const handleInputChange = (field: string, val: any) => {
+    formData.val = { ...formData.val, [field]: val };
     KrnlAgentBridge.setState('${fid}', {
       fid: '${fid}',
-      formData: {},
-      response: null,
+      formData: formData.val,
+      response: response.val,
       loading: false,
       error: null,
       lastUpdated: Date.now()
     });
-    return () => {
-      KrnlAgentBridge.unregister('${fid}');
-    };
-  }, []);
-
-  // Subscribe to live SSE events for phantom mirroring & trigger signals
-  useEffect(() => {
-    const sse = new EventSource('/sse/${fid}');
-    sse.onmessage = async (evt) => {
-      try {
-        const msg = JSON.parse(evt.data);
-        if (msg.type === 'frontend:interaction' || msg.input !== undefined) {
-          if (msg.input) setFormData((prev) => ({ ...prev, ...msg.input }));
-          if (msg.output !== undefined) {
-            const payload = msg.output?.payload !== undefined ? msg.output.payload : msg.output;
-            setResponse(payload);
-          }
-          setPhantomActive(true);
-          setTimeout(() => setPhantomActive(false), 2000);
-        }
-      } catch (e) {}
-    };
-    return () => sse.close();
-  }, []);
-
-  // Auto-fetch endpoint or option sources on mount
-  useEffect(() => {
-    ${autoFetchOutput ? `executeRequest({});` : ''}
-    ${sourceEndpointInputs
-      .map(
-        (i) => `
-    fetch('/call/${i.sourceEndpointId}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-      .then((r) => r.json())
-      .then((d) => {
-        const payload = d.payload !== undefined ? d.payload : d;
-        let list = payload.${i.dataPath || i.field} || payload.data || payload.items || payload.providers || payload.models || payload.agents || payload;
-        if (list && typeof list === 'object' && !Array.isArray(list)) list = Object.keys(list).map(k => ({ id: k, name: k, value: k }));
-        if (Array.isArray(list) && ${i.sharedComponentId ? `slot_${i.sharedComponentId.replace(/[^a-zA-Z0-9]/g, '_')}` : 'null'}) {
-          slot_${i.sharedComponentId!.replace(/[^a-zA-Z0-9]/g, '_')}.setOptions(list);
-        }
-      })
-      .catch(() => {});`
-      )
-      .join('\n    ')}
-  }, []);
-
-  // Populate output shared components when response arrives
-  useEffect(() => {
-    if (response === null) return;
-    ${outputs
-      .filter((o) => o.sharedComponentId)
-      .map((o) => {
-        const varName = `slot_${o.sharedComponentId!.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        const fieldKey = o.field;
-        const dataPath = o.dataPath;
-        return `
-    let extracted: any = null;
-    if (response && typeof response === 'object') {
-      ${dataPath ? `extracted = response['${dataPath}'];` : `extracted = response['${fieldKey}'] !== undefined ? response['${fieldKey}'] : response;`}
-    }
-    if (extracted && typeof extracted === 'object' && !Array.isArray(extracted)) {
-      if (extracted.status === 'success' && extracted.data) extracted = extracted.data;
-      else if (extracted.providers && Array.isArray(extracted.providers)) extracted = extracted.providers;
-      else if (extracted.models && Array.isArray(extracted.models)) extracted = extracted.models;
-      else if (extracted.agents && Array.isArray(extracted.agents)) extracted = extracted.agents;
-      else if (extracted.keys && typeof extracted.keys === 'object') {
-        extracted = Object.keys(extracted).map(k => ({ id: k, name: k, value: k }));
-      }
-    }
-    if (Array.isArray(extracted)) {
-      ${varName}.setOptions(extracted);
-    }`;
-      })
-      .join('\n    ')}
-  }, [response]);
-
-  const handleInputChange = (field: string, val: any) => {
-    setFormData((prev) => {
-      const next = { ...prev, [field]: val };
-      KrnlAgentBridge.setState('${fid}', {
-        fid: '${fid}',
-        formData: next,
-        response: responseRef.current,
-        loading: false,
-        error: null,
-        lastUpdated: Date.now()
-      });
-      return next;
-    });
   };
 
   const executeRequest = async (overrideData?: Record<string, any>, ticketId?: string) => {
-    setLoading(true);
-    setError(null);
-    const activeInput = overrideData || formData;
-    if (overrideData) {
-      setFormData((prev) => ({ ...prev, ...overrideData }));
-    }
-    KrnlAgentBridge.setState('${fid}', {
-      fid: '${fid}',
-      formData: activeInput,
-      response: null,
-      loading: true,
-      error: null,
-      lastUpdated: Date.now()
-    });
+    loading.val = true;
+    error.val = null;
+    const activeInput = overrideData || formData.val;
+    if (overrideData) formData.val = { ...formData.val, ...overrideData };
+
     try {
       let res = await fetch('/${fid}', {
         method: 'POST',
@@ -976,161 +865,154 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
       }
       const data = await res.json();
       const payload = data.payload !== undefined ? data.payload : data;
-      responseRef.current = payload;
-      setResponse(payload);
-      KrnlAgentBridge.setState('${fid}', {
-        fid: '${fid}',
-        formData: activeInput,
-        response: payload,
-        loading: false,
-        error: null,
-        lastUpdated: Date.now()
-      });
-      if (ticketId) {
-        KrnlAgentBridge.sendJobComplete(ticketId, '${fid}', payload, undefined);
+      response.val = payload;
+
+      if (payload && (payload.status === 'error' || payload.message)) {
+        if (payload.status === 'error') error.val = payload.message || 'Request failed';
       }
+
+      ${outputs
+        .filter((o) => o.sharedComponentId)
+        .map((o) => {
+          const varName = `slot_${o.sharedComponentId!.replace(/[^a-zA-Z0-9]/g, '_')}`;
+          const fieldKey = o.field;
+          const dataPath = o.dataPath;
+          return `
+      let extracted: any = null;
+      if (payload && typeof payload === 'object') {
+        ${dataPath ? `extracted = payload['${dataPath}'];` : `extracted = payload['${fieldKey}'] !== undefined ? payload['${fieldKey}'] : payload;`}
+      }
+      if (extracted && typeof extracted === 'object' && !Array.isArray(extracted)) {
+        if (extracted.status === 'success' && extracted.data) extracted = extracted.data;
+        else if (extracted.providers && Array.isArray(extracted.providers)) extracted = extracted.providers;
+        else if (extracted.models && Array.isArray(extracted.models)) extracted = extracted.models;
+        else if (extracted.agents && Array.isArray(extracted.agents)) extracted = extracted.agents;
+        else if (extracted.keys && typeof extracted.keys === 'object') {
+          extracted = Object.keys(extracted).map(k => ({ id: k, name: k, value: k }));
+        }
+      }
+      if (Array.isArray(extracted)) {
+        ${varName}.options.val = extracted;
+      }`;
+        })
+        .join('\n      ')}
+
+      if (ticketId) KrnlAgentBridge.sendJobComplete(ticketId, '${fid}', payload, undefined);
       return payload;
     } catch (err: any) {
       const errMsg = err.message || 'Request failed';
-      setError(errMsg);
-      KrnlAgentBridge.setState('${fid}', {
-        fid: '${fid}',
-        formData: activeInput,
-        response: null,
-        loading: false,
-        error: errMsg,
-        lastUpdated: Date.now()
-      });
-      if (ticketId) {
-        KrnlAgentBridge.sendJobComplete(ticketId, '${fid}', null, errMsg);
-      }
-      throw err;
+      error.val = errMsg;
+      if (ticketId) KrnlAgentBridge.sendJobComplete(ticketId, '${fid}', null, errMsg);
     } finally {
-      setLoading(false);
+      loading.val = false;
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  ${autoFetchOutput ? `executeRequest({});` : ''}
+  ${sourceEndpointInputs
+    .map(
+      (i) => `
+  fetch('/${i.sourceEndpointId}', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then((r) => r.json())
+    .then((d) => {
+      const payload = d.payload !== undefined ? d.payload : d;
+      let list = payload.${i.dataPath || i.field} || payload.data || payload.items || payload.providers || payload.models || payload.agents || payload;
+      if (list && typeof list === 'object' && !Array.isArray(list)) list = Object.keys(list).map(k => ({ id: k, name: k, value: k }));
+      if (Array.isArray(list) && ${i.sharedComponentId ? `slot_${i.sharedComponentId.replace(/[^a-zA-Z0-9]/g, '_')}` : 'null'}) {
+        slot_${i.sharedComponentId!.replace(/[^a-zA-Z0-9]/g, '_')}.options.val = list;
+      }
+    })
+    .catch(() => {});`
+    )
+    .join('\n  ')}
+
+  const handleSubmit = async (e: Event) => {
     e.preventDefault();
     await executeRequest();
   };
 
-  return (
-    <div
-      className={\`krnl-endpoint-card \${phantomActive ? 'krnl-phantom-active' : ''}\`}
-      style={{
-        background: 'var(--krnl-bg-surface)',
-        padding: '1.5rem',
-        borderRadius: '12px',
-        border: phantomActive ? '2px solid var(--krnl-accent)' : '1px solid var(--krnl-border-color)',
-        transition: 'all 0.3s ease',
-        boxShadow: phantomActive ? '0 0 20px rgba(16, 185, 129, 0.4)' : 'none',
-        position: 'relative'
-      }}
-    >
-      {phantomActive && (
-        <div className="krnl-phantom-badge" style={{ position: 'absolute', top: '12px', right: '12px', background: 'var(--krnl-accent)', color: '#000', padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-          🤖 Phantom Execution Active
-        </div>
-      )}
-      <h3 style={{ marginBottom: '1rem', color: 'var(--krnl-primary)' }}>Endpoint: ${fid}</h3>
-      <form onSubmit={handleSubmit}>
-        ${inputs.map((inSpec) => this.renderInputAtom(inSpec)).join('\n        ')}
-        <KrnlButton type="submit" disabled={loading} loading={loading} label={'Execute ${fid}'} icon="⚡" />
-      </form>
-
-      {error && <div style={{ color: 'var(--krnl-danger)', marginTop: '1rem' }}>Error: {error}</div>}
-
-      {response !== null && (
-        <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--krnl-border-color)', paddingTop: '1rem' }}>
-          <h4 style={{ marginBottom: '0.5rem', color: 'var(--krnl-accent)' }}>Output Response</h4>
-          ${outputs.length > 0
-            ? outputs.map((outSpec) => this.renderOutputAtom(outSpec)).join('\n          ')
-            : `<KrnlJsonViewer data={response} />`
-          }
-        </div>
-      )}
-    </div>
+  return div(
+    {
+      className: () => \`krnl-endpoint-card \${phantomActive.val ? 'krnl-phantom-active' : ''}\`,
+      style: () => \`
+        background: var(--krnl-bg-surface);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: \${phantomActive.val ? '2px solid var(--krnl-accent)' : '1px solid var(--krnl-border-color)'};
+        transition: all 0.3s ease;
+        position: relative;
+      \`
+    },
+    () => (phantomActive.val ? div({ className: 'krnl-phantom-badge' }, '🤖 Phantom Execution Active') : null),
+    h3({ style: 'margin-bottom: 1rem; color: var(--krnl-primary);' }, 'Endpoint: ${fid}'),
+    form(
+      { onsubmit: handleSubmit },
+      ${inputs.map((inSpec) => this.renderVanInputAtom(inSpec)).join(',\n      ')}${inputs.length > 0 ? ',' : ''}
+      KrnlButton({ type: 'submit', loading, disabled: loading, label: 'Execute ${fid}', icon: '⚡' })
+    ),
+    () => (error.val ? div({ style: 'color: var(--krnl-danger); margin-top: 1rem;' }, 'Error: ', error.val) : null),
+    () =>
+      response.val !== null
+        ? div(
+            { style: 'margin-top: 1.5rem; border-top: 1px solid var(--krnl-border-color); padding-top: 1rem;' },
+            h4({ style: 'margin-bottom: 0.5rem; color: var(--krnl-accent);' }, 'Output Response'),
+            ${outputs.length > 0
+              ? outputs.map((outSpec) => this.renderVanOutputAtom(outSpec)).join(',\n            ')
+              : `KrnlJsonViewer({ data: response })`
+            }
+          )
+        : null
   );
 }
 `;
   }
 
-  private static renderInputAtom(spec: KrnlUiFieldSpec): string {
+  private static renderVanInputAtom(spec: KrnlUiFieldSpec): string {
     const label = spec.label || spec.field;
     if (spec.sharedComponentId) {
       const varName = `slot_${spec.sharedComponentId.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const bindMode = spec.bindMode || 'selected';
-
-      switch (spec.component) {
-        case 'KrnlDropdown':
-          return `<KrnlDropdown label="${label}" value={formData['${spec.field}'] !== undefined ? formData['${spec.field}'] : (${varName}.value || '')} options={${varName}.options} onChange={(v) => { ${varName}.setValue(v); handleInputChange('${spec.field}', ${bindMode === 'all' ? `${varName}.options` : 'v'}); }} />`;
-        case 'KrnlCarousel':
-          return `<KrnlCarousel label="${label}" items={${varName}.options} renderItem={(item: any) => (
-            <div style={{ padding: '0.5rem', cursor: 'pointer', border: ${varName}.value === item ? '2px solid var(--krnl-primary)' : '1px solid var(--krnl-border-color)', borderRadius: '6px' }} onClick={() => { ${varName}.setValue(item); handleInputChange('${spec.field}', ${bindMode === 'all' ? `${varName}.options` : 'item'}); }}>
-              {typeof item === 'object' ? JSON.stringify(item) : String(item)}
-            </div>
-          )} />`;
-        default:
-          return `<KrnlDropdown label="${label}" value={formData['${spec.field}'] !== undefined ? formData['${spec.field}'] : (${varName}.value || '')} options={${varName}.options} onChange={(v) => { ${varName}.setValue(v); handleInputChange('${spec.field}', ${bindMode === 'all' ? `${varName}.options` : 'v'}); }} />`;
-      }
+      return `KrnlDropdown({
+        label: "${label}",
+        value: van.derive(() => formData.val['${spec.field}'] !== undefined ? formData.val['${spec.field}'] : (${varName}.value.val || '')),
+        options: ${varName}.options,
+        onChange: (v) => {
+          ${varName}.value.val = v;
+          handleInputChange('${spec.field}', ${bindMode === 'all' ? `${varName}.options.val` : 'v'});
+        }
+      })`;
     }
 
     switch (spec.component) {
       case 'KrnlTextInput':
-        return `<KrnlTextInput label="${label}" value={formData['${spec.field}'] || ''} onChange={(v) => handleInputChange('${spec.field}', v)} placeholder="${spec.placeholder || ''}" />`;
-      case 'KrnlNumberInput':
-        return `<KrnlNumberInput label="${label}" value={formData['${spec.field}'] || ''} onChange={(v) => handleInputChange('${spec.field}', v)} placeholder="${spec.placeholder || ''}" />`;
-      case 'KrnlToggle':
-        return `<KrnlToggle label="${label}" value={!!formData['${spec.field}']} onChange={(v) => handleInputChange('${spec.field}', v)} />`;
+        return `KrnlTextInput({ label: "${label}", value: van.derive(() => formData.val['${spec.field}'] || ''), onChange: (v) => handleInputChange('${spec.field}', v), placeholder: "${spec.placeholder || ''}" })`;
+      case 'KrnlTextArea':
+        return `KrnlTextArea({ label: "${label}", value: van.derive(() => formData.val['${spec.field}'] || ''), onChange: (v) => handleInputChange('${spec.field}', v), placeholder: "${spec.placeholder || ''}" })`;
       case 'KrnlDropdown':
         const opts = JSON.stringify(spec.options || []);
-        return `<KrnlDropdown label="${label}" value={formData['${spec.field}'] || ''} options={${opts}} onChange={(v) => handleInputChange('${spec.field}', v)} />`;
-      case 'KrnlTextArea':
-        return `<KrnlTextArea label="${label}" value={formData['${spec.field}'] || ''} onChange={(v) => handleInputChange('${spec.field}', v)} placeholder="${spec.placeholder || ''}" />`;
-      case 'KrnlJsonInput':
-        return `<KrnlJsonInput label="${label}" onChange={(v) => handleInputChange('${spec.field}', v)} />`;
-      case 'KrnlSSELog':
-        return `<KrnlSSELog label="${label}" endpointId="${spec.field}" />`;
+        return `KrnlDropdown({ label: "${label}", value: van.derive(() => formData.val['${spec.field}'] || ''), options: ${opts}, onChange: (v) => handleInputChange('${spec.field}', v) })`;
       default:
-        return `<KrnlTextInput label="${label}" value={formData['${spec.field}'] || ''} onChange={(v) => handleInputChange('${spec.field}', v)} />`;
+        return `KrnlTextInput({ label: "${label}", value: van.derive(() => formData.val['${spec.field}'] || ''), onChange: (v) => handleInputChange('${spec.field}', v) })`;
     }
   }
 
-  private static renderOutputAtom(spec: KrnlUiFieldSpec): string {
+  private static renderVanOutputAtom(spec: KrnlUiFieldSpec): string {
     const label = spec.label || spec.field;
     if (spec.sharedComponentId) {
       const varName = `slot_${spec.sharedComponentId.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      switch (spec.component) {
-        case 'KrnlDropdown':
-          return `<KrnlDropdown label="${label}" value={${varName}.value || ''} options={${varName}.options} onChange={(v) => ${varName}.setValue(v)} />`;
-        case 'KrnlCarousel':
-          return `<KrnlCarousel label="${label}" items={${varName}.options} renderItem={(item: any) => (
-            <div style={{ padding: '0.5rem', cursor: 'pointer', border: ${varName}.value === item ? '2px solid var(--krnl-primary)' : '1px solid var(--krnl-border-color)', borderRadius: '6px' }} onClick={() => ${varName}.setValue(item)}>
-              {typeof item === 'object' ? JSON.stringify(item) : String(item)}
-            </div>
-          )} />`;
-        default:
-          return `<KrnlJsonViewer label="${label}" data={${varName}.options} />`;
-      }
+      return `KrnlJsonViewer({ label: "${label}", data: ${varName}.options })`;
     }
 
     switch (spec.component) {
-      case 'KrnlJsonViewer':
-        return `<KrnlJsonViewer label="${label}" data={response['${spec.field}'] !== undefined ? response['${spec.field}'] : response} />`;
-      case 'KrnlCarousel':
-        return `<KrnlCarousel label="${label}" items={Array.isArray(response['${spec.field}']) ? response['${spec.field}'] : (Array.isArray(response) ? response : [response])} />`;
       case 'KrnlTile':
-        return `<KrnlTile title="${label}" value={String(response['${spec.field}'] !== undefined ? response['${spec.field}'] : response)} />`;
-      case 'KrnlSSELog':
-        return `<KrnlSSELog label="${label}" endpointId="${spec.field}" />`;
+        return `KrnlTile({ label: "${label}", value: van.derive(() => response.val ? (response.val['${spec.field}'] !== undefined ? response.val['${spec.field}'] : response.val) : '') })`;
       default:
-        return `<KrnlJsonViewer label="${label}" data={response['${spec.field}'] !== undefined ? response['${spec.field}'] : response} />`;
+        return `KrnlJsonViewer({ label: "${label}", data: van.derive(() => response.val ? (response.val['${spec.field}'] !== undefined ? response.val['${spec.field}'] : response.val) : response.val) })`;
     }
   }
 
   /**
-   * Generates the root index.tsx aggregator with tabs for App components + Sub-Apps
+   * Generates root index.ts aggregator using VanJS
    */
   static generateIndexSource(
     appName: string,
@@ -1140,84 +1022,66 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, '_')}() {
     const imports = uiEndpoints
       .map(
         (ep) =>
-          `import Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, '_')} from './components/${ep.id}/index';`
+          `import Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, '_')} from './components/${ep.id}/index.js';`
       )
       .join('\n');
 
-    return `import React, { useState } from 'react';
-import { createRoot } from 'react-dom/client';
-import { SharedComponentProvider } from './atoms/index.js';
+    const initialTab = uiEndpoints.length > 0 ? uiEndpoints[0].id : (subAppPrefixes.length > 0 ? subAppPrefixes[0] : 'welcome');
+
+    return `import van from 'vanjs-core';
 ${imports}
 
+const { div, header, span, h1, button, main, iframe, h2, p } = van.tags;
+
 function AppShell() {
-  const [activeTab, setActiveTab] = useState<string>('${
-    uiEndpoints.length > 0 ? uiEndpoints[0].id : subAppPrefixes.length > 0 ? subAppPrefixes[0] : 'welcome'
-  }');
+  const activeTab = van.state<string>('${initialTab}');
 
-  return (
-    <SharedComponentProvider>
-      <div className="krnl-app-shell">
-        <header className="krnl-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>⬡</span>
-            <h1>${appName}</h1>
-          </div>
-        </header>
-
-        <div className="krnl-nav-tabs">
-          ${uiEndpoints
-            .map(
-              (ep) => {
-                const icon = '⬡';
-                return `<button className={\`krnl-tab-btn \${activeTab === '${ep.id}' ? 'active' : ''}\`} onClick={() => setActiveTab('${ep.id}')} title="${ep.id}"><span>${icon}</span><span className="krnl-tab-label">${ep.id}</span></button>`;
-              }
-            )
-            .join('\n          ')}
-          ${subAppPrefixes
-            .map(
-              (sub) =>
-                `<button className={\`krnl-tab-btn \${activeTab === '${sub}' ? 'active' : ''}\`} onClick={() => setActiveTab('${sub}')} title="${sub}"><span>📦</span><span className="krnl-tab-label">${sub}</span></button>`
-            )
-            .join('\n          ')}
-        </div>
-
-        <main className="krnl-main-body">
-          ${uiEndpoints
-            .map(
-              (ep) =>
-                `<div style={{ display: activeTab === '${ep.id}' ? 'block' : 'none' }}><Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, '_')} /></div>`
-            )
-            .join('\n          ')}
-          ${subAppPrefixes
-            .map(
-              (sub) =>
-                `{activeTab === '${sub}' && (
-            <iframe
-              src={'/' + '${sub}' + '/frontend/'}
-              title="${sub}"
-              style={{ width: '100%', height: 'calc(100vh - 160px)', border: 'none', borderRadius: '8px' }}
-            />
-          )}`
-            )
-            .join('\n          ')}
-          ${
-            uiEndpoints.length === 0 && subAppPrefixes.length === 0
-              ? `<div style={{ textAlign: 'center', color: 'var(--krnl-text-muted)', paddingTop: '4rem' }}>
-            <h2>Welcome to ${appName}</h2>
-            <p style={{ marginTop: '0.5rem' }}>No UI-enabled endpoints or sub-apps registered yet.</p>
-          </div>`
-              : ''
-          }
-        </main>
-      </div>
-    </SharedComponentProvider>
+  return div(
+    { className: 'krnl-app-shell' },
+    header(
+      { className: 'krnl-header' },
+      div(
+        { style: 'display: flex; align-items: center; gap: 0.65rem;' },
+        span({ style: 'font-size: 1.2rem; line-height: 1;' }, '⬡'),
+        h1('${appName}')
+      )
+    ),
+    div(
+      { className: 'krnl-nav-tabs' },
+      ${uiEndpoints
+        .map(
+          (ep) =>
+            `button({ className: () => \`krnl-tab-btn \${activeTab.val === '${ep.id}' ? 'active' : ''}\`, onclick: () => activeTab.val = '${ep.id}', title: '${ep.id}' }, span('⬡'), span({ className: 'krnl-tab-label' }, '${ep.id}'))`
+        )
+        .join(',\n      ')}${uiEndpoints.length > 0 && subAppPrefixes.length > 0 ? ',' : ''}
+      ${subAppPrefixes
+        .map(
+          (sub) =>
+            `button({ className: () => \`krnl-tab-btn \${activeTab.val === '${sub}' ? 'active' : ''}\`, onclick: () => activeTab.val = '${sub}', title: '${sub}' }, span('📦'), span({ className: 'krnl-tab-label' }, '${sub}'))`
+        )
+        .join(',\n      ')}
+    ),
+    main(
+      { className: 'krnl-main-body' },
+      ${uiEndpoints
+        .map(
+          (ep) =>
+            `div({ style: () => \`display: \${activeTab.val === '${ep.id}' ? 'block' : 'none'}\` }, Endpoint_${ep.id.replace(/[^a-zA-Z0-9]/g, '_')}())`
+        )
+        .join(',\n      ')}${uiEndpoints.length > 0 && subAppPrefixes.length > 0 ? ',' : ''}
+      ${subAppPrefixes
+        .map(
+          (sub) =>
+            `() => activeTab.val === '${sub}' ? iframe({ src: '/${sub}/frontend/', title: '${sub}', style: 'width: 100%; height: calc(100vh - 160px); border: none; border-radius: 8px;' }) : null`
+        )
+        .join(',\n      ')}
+    )
   );
 }
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
-  const root = createRoot(rootElement);
-  root.render(<AppShell />);
+  van.add(rootElement, AppShell());
 }
 `;
   }
@@ -1225,484 +1089,6 @@ if (rootElement) {
   static generateAtoms(frontendDir: string) {
     const atomsDir = path.join(frontendDir, 'src', 'atoms');
     fs.mkdirSync(atomsDir, { recursive: true });
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlButton.tsx'),
-      `import React from 'react';
-export function KrnlButton({ label, onClick, disabled, loading, variant = 'primary', icon = '⚡', type, children }: any) {
-  const textLabel = label || (typeof children === 'string' ? children : undefined) || 'Action';
-  return (
-    <button
-      type={type || 'button'}
-      className={\`krnl-btn krnl-btn-\${variant}\`}
-      onClick={onClick}
-      disabled={disabled || loading}
-      title={typeof textLabel === 'string' ? textLabel : undefined}
-    >
-      <span className="krnl-btn-icon">{icon}</span>
-      <span className="krnl-btn-label">{loading ? 'Processing...' : (children || textLabel)}</span>
-    </button>
-  );
-}`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlTextInput.tsx'),
-      `import React from 'react';
-export function KrnlTextInput({ label, value, onChange, placeholder, type = 'text' }: any) {
-  return (
-    <div className="krnl-form-group">
-      {label && <label className="krnl-label">{label}</label>}
-      <input
-        type={type}
-        className="krnl-input"
-        value={value || ''}
-        onChange={(e) => onChange && onChange(e.target.value)}
-        placeholder={placeholder}
-      />
-    </div>
-  );
-}`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlTextArea.tsx'),
-      `import React from 'react';
-export function KrnlTextArea({ label, value, onChange, placeholder, rows = 4 }: any) {
-  return (
-    <div className="krnl-form-group">
-      {label && <label className="krnl-label">{label}</label>}
-      <textarea
-        className="krnl-input krnl-textarea"
-        value={value || ''}
-        onChange={(e) => onChange && onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={rows}
-      />
-    </div>
-  );
-}`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlTile.tsx'),
-      `import React from 'react';
-export function KrnlTile({ title, value }: any) {
-  return (
-    <div className="krnl-tile">
-      {title && <div className="krnl-tile-title">{title}</div>}
-      <div className="krnl-tile-value">{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</div>
-    </div>
-  );
-}`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlJsonViewer.tsx'),
-      `import React from 'react';
-export function KrnlJsonViewer({ data, label }: any) {
-  return (
-    <div className="krnl-json-viewer">
-      {label && <div className="krnl-label">{label}</div>}
-      <pre className="krnl-json-code">{JSON.stringify(data, null, 2)}</pre>
-    </div>
-  );
-}`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlCarousel.tsx'),
-      `import React from 'react';
-export function KrnlCarousel({ items, renderItem }: any) {
-  if (!items || !items.length) return <div className="krnl-empty">No items available</div>;
-  return (
-    <div className="krnl-carousel">
-      {items.map((item: any, idx: number) => (
-        <div key={idx} className="krnl-carousel-item">
-          {renderItem ? renderItem(item) : JSON.stringify(item)}
-        </div>
-      ))}
-    </div>
-  );
-}`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlNumberInput.tsx'),
-      `import React from 'react';
-export function KrnlNumberInput({ label, value, onChange, placeholder }: any) {
-  return (
-    <div className="krnl-form-group">
-      {label && <label className="krnl-label">{label}</label>}
-      <input
-        type="number"
-        className="krnl-input"
-        value={value ?? ''}
-        onChange={(e) => onChange && onChange(Number(e.target.value))}
-        placeholder={placeholder}
-      />
-    </div>
-  );
-}`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlToggle.tsx'),
-      `import React from 'react';
-export function KrnlToggle({ label, value, onChange }: any) {
-  return (
-    <div className="krnl-form-group krnl-toggle-group">
-      {label && <label className="krnl-label">{label}</label>}
-      <input
-        type="checkbox"
-        checked={!!value}
-        onChange={(e) => onChange && onChange(e.target.checked)}
-      />
-    </div>
-  );
-}`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlDropdown.tsx'),
-      `import React, { useEffect } from 'react';
-export function KrnlDropdown({ label, value, options = [], onChange }: any) {
-  const normOptions = (Array.isArray(options) ? options : []).map((opt: any) => {
-    if (typeof opt === 'string') return { label: opt, value: opt };
-    if (typeof opt === 'number') return { label: String(opt), value: String(opt) };
-    if (opt && typeof opt === 'object') {
-      const val = opt.value !== undefined ? opt.value : (opt.name !== undefined ? opt.name : (opt.id !== undefined ? opt.id : (opt.key !== undefined ? opt.key : JSON.stringify(opt))));
-      const lbl = opt.label !== undefined ? opt.label : (opt.displayName !== undefined ? opt.displayName : (opt.name !== undefined ? opt.name : (opt.id !== undefined ? opt.id : val)));
-      return { label: String(lbl), value: String(val) };
-    }
-    return { label: String(opt), value: String(opt) };
-  });
-
-  useEffect(() => {
-    if (!value && normOptions.length > 0 && normOptions[0].value && onChange) {
-      onChange(normOptions[0].value);
-    }
-  }, [normOptions, value]);
-
-  return (
-    <div className="krnl-form-group">
-      {label && <label className="krnl-label">{label}</label>}
-      <select
-        className="krnl-input krnl-select"
-        value={value || (normOptions.length > 0 ? normOptions[0].value : '')}
-        onChange={(e) => onChange && onChange(e.target.value)}
-      >
-        {normOptions.length === 0 && <option value="" disabled>Select option...</option>}
-        {normOptions.map((opt: any, idx: number) => (
-          <option key={\`\${opt.value}-\${idx}\`} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlJsonInput.tsx'),
-      `import React from 'react';
-export function KrnlJsonInput({ label, onChange }: any) {
-  return (
-    <div className="krnl-form-group">
-      {label && <label className="krnl-label">{label}</label>}
-      <textarea
-        className="krnl-input krnl-textarea"
-        placeholder="{}"
-        onChange={(e) => {
-          try { onChange && onChange(JSON.parse(e.target.value)); } catch (err) {}
-        }}
-      />
-    </div>
-  );
-}`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlSSELog.tsx'),
-      `import React from 'react';
-export function KrnlSSELog({ label }: any) {
-  return (
-    <div className="krnl-sse-log">
-      {label && <div className="krnl-label">{label}</div>}
-    </div>
-  );
-}`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlSharedState.tsx'),
-      `import React, { createContext, useContext, useState } from 'react';
-
-export interface SharedSlot {
-  options: any[];
-  value: any;
-}
-
-export const SharedComponentContext = createContext<Map<string, SharedSlot>>(new Map());
-export const SharedComponentSetContext = createContext<(id: string, patch: Partial<SharedSlot>) => void>(() => {});
-
-export function SharedComponentProvider({ children }: { children: React.ReactNode }) {
-  const [store, setStore] = useState<Map<string, SharedSlot>>(new Map());
-
-  const update = (id: string, patch: Partial<SharedSlot>) => {
-    setStore((prev) => {
-      const m = new Map(prev);
-      const existing = m.get(id) || { options: [], value: null };
-      m.set(id, { ...existing, ...patch });
-      return m;
-    });
-  };
-
-  return (
-    <SharedComponentContext.Provider value={store}>
-      <SharedComponentSetContext.Provider value={update}>
-        {children}
-      </SharedComponentSetContext.Provider>
-    </SharedComponentContext.Provider>
-  );
-}
-
-export function useSharedSlot(id?: string) {
-  const store = useContext(SharedComponentContext);
-  const update = useContext(SharedComponentSetContext);
-
-  if (!id) {
-    return {
-      options: [],
-      value: null,
-      setOptions: () => {},
-      setValue: () => {},
-    };
-  }
-
-  const slot = store.get(id) || { options: [], value: null };
-
-  return {
-    options: slot.options,
-    value: slot.value,
-    setOptions: (opts: any[]) => update(id, { options: opts }),
-    setValue: (v: any) => update(id, { value: v }),
-  };
-}`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'KrnlAgentBridge.ts'),
-      `export interface KrnlComponentState {
-  fid: string;
-  formData: Record<string, any>;
-  response: any;
-  loading: boolean;
-  error: string | null;
-  lastUpdated: number;
-}
-
-export interface KrnlComponentRegistration {
-  trigger: (overrideInput?: Record<string, any>, ticketId?: string) => Promise<any>;
-}
-
-export class KrnlAgentBridgeManager {
-  private states = new Map<string, KrnlComponentState>();
-  private registrations = new Map<string, KrnlComponentRegistration>();
-  private listeners = new Set<(snapshot: Record<string, KrnlComponentState>) => void>();
-  private ws: WebSocket | null = null;
-
-  constructor() {
-    if (typeof window !== 'undefined') {
-      (window as any).__krnlBridge = this;
-      this.initWebSocket();
-    }
-  }
-
-  private initWebSocket() {
-    if (typeof window === 'undefined' || typeof WebSocket === 'undefined') return;
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
-
-    try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = protocol + '//' + window.location.host + '/agent/ws';
-      this.ws = new WebSocket(wsUrl);
-
-      this.ws.onopen = () => {
-        this.sendFullSnapshot();
-        this.sendReadySignal();
-      };
-
-      this.ws.onmessage = async (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.action === 'trigger' && msg.fid) {
-            await this.trigger(msg.fid, msg.input, msg.ticketId);
-          } else if (msg.action === 'query') {
-            this.sendFullSnapshot();
-            this.sendReadySignal();
-          }
-        } catch (e) {
-          console.error('[KrnlAgentBridge] Error handling WS message:', e);
-        }
-      };
-
-      this.ws.onclose = () => {
-        this.ws = null;
-        setTimeout(() => this.initWebSocket(), 2000);
-      };
-
-      this.ws.onerror = () => {
-        if (this.ws) {
-          this.ws.close();
-        }
-      };
-    } catch (e) {
-      console.warn('[KrnlAgentBridge] WebSocket connection error:', e);
-    }
-  }
-
-  public register(fid: string, reg: KrnlComponentRegistration) {
-    this.registrations.set(fid, reg);
-    this.sendComponentReady(fid);
-  }
-
-  public unregister(fid: string) {
-    this.registrations.delete(fid);
-    this.sendComponentUnready(fid);
-  }
-
-  public setState(fid: string, state: KrnlComponentState) {
-    this.states.set(fid, state);
-    this.notifyListeners();
-    this.sendFullSnapshot();
-  }
-
-  public getState(fid?: string): Record<string, KrnlComponentState> | KrnlComponentState | null {
-    if (fid) {
-      return this.states.get(fid) || null;
-    }
-    return Object.fromEntries(this.states.entries());
-  }
-
-  public async trigger(fid: string, overrideInput?: Record<string, any>, ticketId?: string): Promise<any> {
-    const reg = this.registrations.get(fid);
-    if (!reg) {
-      if (ticketId) {
-        this.sendJobComplete(ticketId, fid, null, '[KrnlAgentBridge] Component ' + fid + ' is not mounted.');
-      }
-      throw new Error('[KrnlAgentBridge] Endpoint component ' + fid + ' is not mounted in the UI.');
-    }
-    return await reg.trigger(overrideInput, ticketId);
-  }
-
-  public sendJobComplete(ticketId: string, fid: string, result?: any, error?: string) {
-    if (typeof window !== 'undefined') {
-      fetch('/agent/job_complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticketId,
-          fid,
-          result: result !== undefined ? result : null,
-          error: error || null
-        })
-      }).catch((err) => {
-        console.error('[KrnlAgentBridge] Failed to post job_complete ACK:', err);
-      });
-    }
-  }
-
-  public subscribe(listener: (snapshot: Record<string, KrnlComponentState>) => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  private notifyListeners() {
-    const snapshot = Object.fromEntries(this.states.entries());
-    this.listeners.forEach((fn) => {
-      try {
-        fn(snapshot);
-      } catch (e) {}
-    });
-  }
-
-  private sendComponentReady(fid: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'component_ready', fid }));
-    }
-  }
-
-  private sendComponentUnready(fid: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'component_unready', fid }));
-    }
-  }
-
-  private sendReadySignal() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const fids = Array.from(this.registrations.keys());
-      this.ws.send(JSON.stringify({ type: 'component_ready_all', fids }));
-    }
-  }
-
-  private sendFullSnapshot() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const snapshot = Object.fromEntries(this.states.entries());
-      this.ws.send(JSON.stringify({ type: 'state', snapshot }));
-    }
-  }
-}
-
-export const KrnlAgentBridge = new KrnlAgentBridgeManager();
-`,
-      'utf-8'
-    );
-
-    fs.writeFileSync(
-      path.join(atomsDir, 'index.ts'),
-      `export * from './KrnlButton.js';
-export * from './KrnlTextInput.js';
-export * from './KrnlNumberInput.js';
-export * from './KrnlToggle.js';
-export * from './KrnlDropdown.js';
-export * from './KrnlTextArea.js';
-export * from './KrnlJsonInput.js';
-export * from './KrnlJsonViewer.js';
-export * from './KrnlCarousel.js';
-export * from './KrnlTile.js';
-export * from './KrnlSSELog.js';
-export * from './KrnlSharedState.js';
-export * from './KrnlAgentBridge.js';
-export * from './KrnlButton';
-export * from './KrnlTextInput';
-export * from './KrnlNumberInput';
-export * from './KrnlToggle';
-export * from './KrnlDropdown';
-export * from './KrnlTextArea';
-export * from './KrnlJsonInput';
-export * from './KrnlJsonViewer';
-export * from './KrnlCarousel';
-export * from './KrnlTile';
-export * from './KrnlSSELog';
-export * from './KrnlSharedState';
-export * from './KrnlAgentBridge';
-`,
-      'utf-8'
-    );
   }
 }
 

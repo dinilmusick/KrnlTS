@@ -2298,13 +2298,13 @@ declare class KrnlFrontendGenerator {
         errors: string[];
     };
     /**
-     * Generates TSX source code for a single endpoint UI component
+     * Generates TS source code for a single endpoint UI component using VanJS
      */
     static generateComponentSource(fid: string, uiSpec: KrnlUiSpec, schema: any): string;
-    private static renderInputAtom;
-    private static renderOutputAtom;
+    private static renderVanInputAtom;
+    private static renderVanOutputAtom;
     /**
-     * Generates the root index.tsx aggregator with tabs for App components + Sub-Apps
+     * Generates root index.ts aggregator using VanJS
      */
     static generateIndexSource(appName: string, uiEndpoints: {
         id: string;
@@ -2315,7 +2315,7 @@ declare class KrnlFrontendGenerator {
 declare class KrnlFrontendBuilder {
     private static activeContexts;
     /**
-     * Bundles frontend/src/index.tsx -> frontend/dist/bundle.js
+     * Bundles frontend/src/index.ts -> frontend/dist/bundle.js
      */
     static build(frontendDir: string): Promise<boolean>;
     /**

@@ -5,10 +5,13 @@ export class KrnlFrontendBuilder {
   private static activeContexts = new Map<string, any>();
 
   /**
-   * Bundles frontend/src/index.tsx -> frontend/dist/bundle.js
+   * Bundles frontend/src/index.ts -> frontend/dist/bundle.js
    */
   static async build(frontendDir: string): Promise<boolean> {
-    const entryFile = path.join(frontendDir, 'src', 'index.tsx');
+    const entryFileTs = path.join(frontendDir, 'src', 'index.ts');
+    const entryFileTsx = path.join(frontendDir, 'src', 'index.tsx');
+    const entryFile = fs.existsSync(entryFileTs) ? entryFileTs : entryFileTsx;
+
     if (!fs.existsSync(entryFile)) {
       return false;
     }
@@ -24,7 +27,7 @@ export class KrnlFrontendBuilder {
         path.resolve(process.cwd(), 'node_modules', 'krnlts', 'dist', 'frontend', 'atoms'),
         path.resolve(process.cwd(), 'node_modules', 'krnlts', 'src', 'krnl', 'frontend', 'atoms')
       ];
-      const nodeModulesAtoms = candidates.find(c => fs.existsSync(c));
+      const nodeModulesAtoms = candidates.find((c) => fs.existsSync(c));
       const srcAtoms = path.join(frontendDir, 'src', 'atoms');
       if (nodeModulesAtoms && fs.existsSync(srcAtoms)) {
         fs.cpSync(nodeModulesAtoms, srcAtoms, { recursive: true, force: true });
@@ -40,12 +43,9 @@ export class KrnlFrontendBuilder {
         outfile: path.join(distDir, 'bundle.js'),
         loader: {
           '.css': 'css',
-          '.tsx': 'tsx',
           '.ts': 'ts',
-          '.js': 'jsx',
-          '.jsx': 'jsx'
+          '.js': 'js'
         },
-        jsx: 'automatic',
         sourcemap: process.env.NODE_ENV !== 'production',
         minify: process.env.NODE_ENV === 'production',
         logLevel: 'warning'
@@ -70,7 +70,10 @@ export class KrnlFrontendBuilder {
       return;
     }
 
-    const entryFile = path.join(frontendDir, 'src', 'index.tsx');
+    const entryFileTs = path.join(frontendDir, 'src', 'index.ts');
+    const entryFileTsx = path.join(frontendDir, 'src', 'index.tsx');
+    const entryFile = fs.existsSync(entryFileTs) ? entryFileTs : entryFileTsx;
+
     if (!fs.existsSync(entryFile)) {
       return;
     }
@@ -83,12 +86,9 @@ export class KrnlFrontendBuilder {
         outfile: path.join(frontendDir, 'dist', 'bundle.js'),
         loader: {
           '.css': 'css',
-          '.tsx': 'tsx',
           '.ts': 'ts',
-          '.js': 'jsx',
-          '.jsx': 'jsx'
+          '.js': 'js'
         },
-        jsx: 'automatic',
         logLevel: 'warning'
       });
       await ctx.watch();
