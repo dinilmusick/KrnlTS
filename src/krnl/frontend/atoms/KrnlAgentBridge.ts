@@ -107,19 +107,38 @@ export class KrnlAgentBridgeManager {
   }
 
   public sendJobComplete(ticketId: string, fid: string, result?: any, error?: string) {
+    const payload = {
+      type: 'job_complete',
+      ticketId,
+      fid,
+      result: result !== undefined ? result : null,
+      error: error || null
+    };
+
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(payload));
+      return;
+    }
+
     if (typeof window !== 'undefined') {
-      fetch('/agent/job_complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticketId,
-          fid,
-          result: result !== undefined ? result : null,
-          error: error || null
-        })
-      }).catch((err) => {
-        console.error('[KrnlAgentBridge] Failed to post job_complete ACK:', err);
-      });
+      const sendHttpAck = (attempt = 0) => {
+        fetch('/agent/job_complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ticketId,
+            fid,
+            result: result !== undefined ? result : null,
+            error: error || null
+          })
+        }).catch((err) => {
+          console.error('[KrnlAgentBridge] Failed to post job_complete ACK (attempt ' + (attempt + 1) + '):', err);
+          if (attempt < 2) {
+            setTimeout(() => sendHttpAck(attempt + 1), 500);
+          }
+        });
+      };
+      sendHttpAck();
     }
   }
 

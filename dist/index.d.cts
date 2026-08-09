@@ -2268,6 +2268,16 @@ declare class KrnlFrontendGenerator {
         errors: string[];
     };
     /**
+     * Validates that all UI components reference real registered endpoints on the entity.
+     */
+    static validateExecutionContract(entity: any, uiEndpoints: {
+        id: string;
+        uiSpec: KrnlUiSpec;
+    }[]): {
+        valid: boolean;
+        errors: string[];
+    };
+    /**
      * Generates TSX source code for a single endpoint UI component
      */
     static generateComponentSource(fid: string, uiSpec: KrnlUiSpec, schema: any): string;

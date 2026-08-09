@@ -5197,6 +5197,12 @@ var init_K_LIB_Krnl_Frontend_Generator = __esm({
         const uiEndpoints = Array.from(uiEndpointsMap.values());
         if (uiEndpoints.length > 0) {
           this.checkReactDependencies(frontendDir);
+          const contractVal = this.validateExecutionContract(entity, uiEndpoints);
+          if (!contractVal.valid) {
+            console.error(`[KrnlFrontendGenerator] Execution Contract Validation Failed:
+${contractVal.errors.map((e) => ` - ${e}`).join("\n")}`);
+            throw new Error(`[KrnlExecutionContractError] ${contractVal.errors.join("; ")}`);
+          }
         }
         this.generateAtoms(frontendDir);
         const componentsDir = import_path8.default.join(frontendDir, "src", "components");
@@ -5851,6 +5857,27 @@ body {
         };
       }
       /**
+       * Validates that all UI components reference real registered endpoints on the entity.
+       */
+      static validateExecutionContract(entity, uiEndpoints) {
+        const errors = [];
+        const registeredFids = /* @__PURE__ */ new Set([
+          ...entity.localFunctionalities?.keys() || [],
+          ...entity.remoteFunctionalities?.keys() || []
+        ]);
+        for (const ep of uiEndpoints) {
+          if (!registeredFids.has(ep.id)) {
+            errors.push(`[ERR_UI_DEAD_FETCH] UI component generated for endpoint '${ep.id}', but no handler is registered on entity '${entity.entityName}'.`);
+          }
+          for (const input of ep.uiSpec.inputs || []) {
+            if (input.sourceEndpointId && !registeredFids.has(input.sourceEndpointId)) {
+              errors.push(`[ERR_UI_STALE_ENDPOINT] Endpoint '${ep.id}' input '${input.field}' references sourceEndpointId '${input.sourceEndpointId}', which is not a registered endpoint.`);
+            }
+          }
+        }
+        return { valid: errors.length === 0, errors };
+      }
+      /**
        * Generates TSX source code for a single endpoint UI component
        */
       static generateComponentSource(fid, uiSpec, schema) {
@@ -6098,7 +6125,7 @@ export default function Endpoint_${fid.replace(/[^a-zA-Z0-9]/g, "_")}() {
       <h3 style={{ marginBottom: '1rem', color: 'var(--krnl-primary)' }}>Endpoint: ${fid}</h3>
       <form onSubmit={handleSubmit}>
         ${inputs.map((inSpec) => this.renderInputAtom(inSpec)).join("\n        ")}
-        <KrnlButton type="submit" disabled={loading} label={loading ? 'Executing...' : 'Execute ${fid}'} icon="\u26A1" />
+        <KrnlButton type="submit" disabled={loading} loading={loading} label={'Execute ${fid}'} icon="\u26A1" />
       </form>
 
       {error && <div style={{ color: 'var(--krnl-danger)', marginTop: '1rem' }}>Error: {error}</div>}
