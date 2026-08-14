@@ -76,6 +76,18 @@ export class krnlEntityCompositionalHierarchyManager {
     group.push(instance);
     this.componentBaseNames.set(base, group);
 
+    // Lifecycle hook: notify entity it has been adopted as a child (relinquish root hosting)
+    if (typeof instance._onAdoptedByParent === 'function') {
+      try {
+        const p = instance._onAdoptedByParent();
+        if (p && typeof p.catch === 'function') {
+          p.catch((err: any) => console.warn(`[Hierarchy] Error in _onAdoptedByParent on '${instance.id}':`, err.message || err));
+        }
+      } catch (err: any) {
+        console.warn(`[Hierarchy] Error in _onAdoptedByParent on '${instance.id}':`, err.message || err);
+      }
+    }
+
     if (instance._promoteAllExistingFunctionalities) {
       instance._promoteAllExistingFunctionalities();
     }

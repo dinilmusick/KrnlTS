@@ -46,6 +46,31 @@ export class MemoryTransportAdapter extends krnlTransportAdapter {
   }
 }
 
+export interface KrnlFunctionalityManifest {
+  version?: string;
+  author?: string;
+  tags?: string[];
+  category?: string;
+  /** Runtime npm dependencies this functionality requires: { "axios": "^1.0.0" } */
+  dependencies?: Record<string, string>;
+  /** Dev/build-only npm dependencies */
+  devDependencies?: Record<string, string>;
+  /** Build tool requirements, e.g. ['esbuild', 'typescript'] */
+  buildRequirements?: string[];
+  /** Declared AI capabilities */
+  capabilities?: string[];
+  /** External resources needed: env vars, files */
+  resources?: { type: 'env' | 'file'; name: string; required?: boolean }[];
+}
+
+export interface KrnlWorkspaceRequirements {
+  dependencies: Record<string, string>;
+  devDependencies: Record<string, string>;
+  buildRequirements: string[];
+  resources: { type: 'env' | 'file'; name: string; required?: boolean }[];
+  conflicts?: { package: string; versionA: string; versionB: string; sources: string[] }[];
+}
+
 /**
  * KRNL LOCAL FUNCTIONALITY
  * The fundamental unit of logic.
@@ -70,6 +95,8 @@ export class krnlLocalFunctionality {
   accessPolicy?: KrnlEndpointAccessPolicy;
   /** Shared secret for allow_with_key / ask_key_unlisted gates. */
   accessKey?: string;
+  /** Optional Functionality Manifest declaring dependencies, capabilities, and resources */
+  manifest?: KrnlFunctionalityManifest | null;
   lifecycle: {
     beginning?: Function;
     during?: Function;
@@ -102,6 +129,7 @@ export class krnlLocalFunctionality {
       accessKey = null,
       tests = [],
       requires = null,
+      manifest = null,
     } = config;
 
     if (!id) throw new Error("LocalFunctionality requires an ID.");
@@ -112,6 +140,7 @@ export class krnlLocalFunctionality {
     this.api = api;
     this.sourcePath = sourcePath;
     if (requires) this.requires = requires;
+    this.manifest = manifest || config.manifest || null;
     this.helpers = new Map(Object.entries(helpers));
     this.emitters = new Map();
     this.schema = schema;

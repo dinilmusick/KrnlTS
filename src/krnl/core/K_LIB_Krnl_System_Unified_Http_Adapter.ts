@@ -10,8 +10,10 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { KrnlMcpProtocol } from './K_LIB_Krnl_Protocol_MCP.js';
 import { KrnlAcpProtocol } from './K_LIB_Krnl_Protocol_ACP.js';
 import { Logger } from './K_LIB_Krnl_Base_Concepts.js';
+import type { KrnlProtocolAdapter } from './K_LIB_Krnl_Protocol_Adapter.js';
 
-export class krnlUnifiedHttpAdapter {
+export class krnlUnifiedHttpAdapter implements KrnlProtocolAdapter {
+    readonly name: string = 'https';
     system: any;
     port: number;
     host: string;
@@ -50,7 +52,14 @@ export class krnlUnifiedHttpAdapter {
     /**
      * Starts the adapter.
      */
-    async start(externalServer: http.Server | null = null): Promise<void> {
+    async start(externalServerOrEntity: any = null, options: any = {}): Promise<void> {
+        if (externalServerOrEntity && typeof externalServerOrEntity.call === 'function') {
+            this.system = externalServerOrEntity;
+            if (options.port) this.port = options.port;
+            if (options.host) this.host = options.host;
+            return this.start(null);
+        }
+        const externalServer = externalServerOrEntity as http.Server | null;
         if (this.server) return;
 
         this.wss = new WebSocketServer({ noServer: true });
@@ -145,18 +154,6 @@ export class krnlUnifiedHttpAdapter {
                 ws.send(msg);
             }
         }
-    }
-
-    stop(): void {
-        if (this.wss) {
-            try { this.wss.close(); } catch (e) {}
-            this.wss = null;
-        }
-        if (this.server && !this._isExternalServer) {
-            this.server.close();
-            console.log(`[${this.system.entityName}] Unified HTTP Adapter stopped.`);
-        }
-        this.server = null;
     }
 
     async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -464,13 +461,31 @@ export class krnlUnifiedHttpAdapter {
             }
 
             if (reqPath.startsWith('/call/')) {
-                const fid = reqPath.split('/')[2];
+                const fid = reqPath.slice('/call/'.length);
                 const body = await this._readJsonBody(req);
-                const result = await this.system.call(fid, body, {
-                    unwrap: false,
-                    callerPort: req.socket?.remotePort,
-                    accessKey: req.headers['x-krnl-access-key'] as string | undefined,
-                });
+                let result: any;
+                if (this.system.resolveCapability) {
+                    const resolved = this.system.resolveCapability(fid);
+                    if (resolved) {
+                        result = await resolved.owner.call(resolved.fid, body, {
+                            unwrap: false,
+                            callerPort: req.socket?.remotePort,
+                            accessKey: req.headers['x-krnl-access-key'] as string | undefined,
+                        });
+                    } else {
+                        result = await this.system.call(fid, body, {
+                            unwrap: false,
+                            callerPort: req.socket?.remotePort,
+                            accessKey: req.headers['x-krnl-access-key'] as string | undefined,
+                        });
+                    }
+                } else {
+                    result = await this.system.call(fid, body, {
+                        unwrap: false,
+                        callerPort: req.socket?.remotePort,
+                        accessKey: req.headers['x-krnl-access-key'] as string | undefined,
+                    });
+                }
                 this._sendJson(res, 200, result);
                 return;
             }
@@ -613,5 +628,30 @@ export class krnlUnifiedHttpAdapter {
                 }
             });
         });
+    }
+
+    onCapabilitySurfaceChanged(entity: any): void {
+        this.system = entity;
+    }
+
+    async stop(): Promise<void> {
+        if (this.wss) {
+            for (const ws of this._uiWsClients) {
+                try { ws.close(); } catch (_) {}
+            }
+            this._uiWsClients.clear();
+            try { this.wss.close(); } catch (_) {}
+            this.wss = null;
+        }
+        if (this.server && !this._isExternalServer) {
+            await new Promise<void>((resolve) => {
+                this.server!.close(() => resolve());
+            });
+            this.server = null;
+        }
+    }
+
+    dispose(): void {
+        this.stop().catch(() => {});
     }
 }

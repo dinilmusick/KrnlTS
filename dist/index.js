@@ -1,4 +1,8 @@
 import {
+  Entity,
+  KrnlFlowBuilder
+} from "./chunk-QC65NYNG.js";
+import {
   KrnlRegistryClient
 } from "./chunk-4MELRUJ6.js";
 import {
@@ -6,17 +10,16 @@ import {
 } from "./chunk-UBJAGRZU.js";
 import {
   KrnlSubAppLoader
-} from "./chunk-TTPLME6M.js";
+} from "./chunk-VYEY5XER.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-2QKY3VMN.js";
+} from "./chunk-Q2YEC2BU.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-JXRVRV75.js";
+} from "./chunk-HJUL5XW7.js";
 import {
-  CUSTOM_ERROR_CODE,
   KrnlApplicationOrchestrator,
   KrnlBootBarrier,
   KrnlEndpointAgent,
@@ -31,9 +34,22 @@ import {
   KrnlTaskList,
   KrnlTaskRunner,
   KrnlWatchVariablesTracker,
-  MemoryTransportAdapter,
   WebSocketTransportAdapter,
   krnl,
+  krnlSystemCommComponent,
+  krnlSystemEntityBase
+} from "./chunk-5P26HB4P.js";
+import {
+  KrnlFrontendGenerator,
+  init_K_LIB_Krnl_Frontend_Generator
+} from "./chunk-CKLBXX4A.js";
+import {
+  KrnlFrontendBuilder,
+  init_K_LIB_Krnl_Frontend_Builder
+} from "./chunk-GUJKDC62.js";
+import {
+  CUSTOM_ERROR_CODE,
+  MemoryTransportAdapter,
   krnlCollector,
   krnlEmitter,
   krnlEntityBase,
@@ -47,18 +63,8 @@ import {
   krnlLocalFunctionality,
   krnlMessage,
   krnlRemoteFunctionality,
-  krnlSystemCommComponent,
-  krnlSystemEntityBase,
   krnlTransportAdapter
-} from "./chunk-LB6HZCCU.js";
-import {
-  KrnlFrontendGenerator,
-  init_K_LIB_Krnl_Frontend_Generator
-} from "./chunk-CKLBXX4A.js";
-import {
-  KrnlFrontendBuilder,
-  init_K_LIB_Krnl_Frontend_Builder
-} from "./chunk-GUJKDC62.js";
+} from "./chunk-GQT5UY2I.js";
 import {
   AsyncKit,
   CacheKit,
@@ -71,11 +77,13 @@ import {
   KrnlHTTP,
   KrnlShell,
   LRUCache,
-  ObjectKit,
   StringKit,
   TTLCache
-} from "./chunk-7Q2FYUWU.js";
-import "./chunk-QKFRPHJH.js";
+} from "./chunk-AXDWB3AV.js";
+import {
+  ObjectKit
+} from "./chunk-64MILH7G.js";
+import "./chunk-LXOSOI27.js";
 import {
   telemetry
 } from "./chunk-AHWZBXWV.js";
@@ -83,7 +91,7 @@ import {
   KrnlAcpProtocol,
   KrnlMcpProtocol,
   krnlUnifiedHttpAdapter
-} from "./chunk-FV345ELG.js";
+} from "./chunk-MDF75IND.js";
 import {
   KrnlPolicy,
   Logger,
@@ -412,6 +420,7 @@ export {
   AsyncKit,
   CUSTOM_ERROR_CODE,
   CacheKit,
+  Entity,
   FileCache,
   FileLock,
   GitManager,
@@ -423,6 +432,7 @@ export {
   KrnlEndpointScheduler,
   KrnlEnv,
   KrnlFS,
+  KrnlFlowBuilder,
   KrnlFrontend,
   KrnlFrontendBuilder,
   KrnlFrontendGenerator,

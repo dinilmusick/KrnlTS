@@ -434,6 +434,16 @@ var init_K_LIB_Krnl_Entity_Compositional_Hierarchy = __esm({
         const group = this.componentBaseNames.get(base) || [];
         group.push(instance);
         this.componentBaseNames.set(base, group);
+        if (typeof instance._onAdoptedByParent === "function") {
+          try {
+            const p = instance._onAdoptedByParent();
+            if (p && typeof p.catch === "function") {
+              p.catch((err) => console.warn(`[Hierarchy] Error in _onAdoptedByParent on '${instance.id}':`, err.message || err));
+            }
+          } catch (err) {
+            console.warn(`[Hierarchy] Error in _onAdoptedByParent on '${instance.id}':`, err.message || err);
+          }
+        }
         if (instance._promoteAllExistingFunctionalities) {
           instance._promoteAllExistingFunctionalities();
         }
@@ -879,6 +889,8 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
       accessPolicy;
       /** Shared secret for allow_with_key / ask_key_unlisted gates. */
       accessKey;
+      /** Optional Functionality Manifest declaring dependencies, capabilities, and resources */
+      manifest;
       lifecycle;
       state;
       hostEntity;
@@ -903,7 +915,8 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
           accessPolicy = null,
           accessKey = null,
           tests = [],
-          requires = null
+          requires = null,
+          manifest = null
         } = config;
         if (!id) throw new Error("LocalFunctionality requires an ID.");
         this.id = id;
@@ -912,6 +925,7 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
         this.api = api;
         this.sourcePath = sourcePath;
         if (requires) this.requires = requires;
+        this.manifest = manifest || config.manifest || null;
         this.helpers = new Map(Object.entries(helpers));
         this.emitters = /* @__PURE__ */ new Map();
         this.schema = schema;
@@ -2458,6 +2472,7 @@ var init_K_LIB_Krnl_System_Comm_Component = __esm({
       }
     };
     krnlSystemCommComponent = class {
+      name = "wss";
       ownerEntity;
       listenPort;
       host;
@@ -2884,6 +2899,20 @@ var init_K_LIB_Krnl_System_Comm_Component = __esm({
         if (route.disconnect) route.disconnect();
         this.routes.delete(routeId);
       }
+      async start(entity = null, options = {}) {
+        if (entity && typeof entity.call === "function") {
+          this.ownerEntity = entity;
+        }
+        if (options.port) this.listenPort = options.port;
+        if (options.host) this.host = options.host;
+        await this.startWsServer();
+      }
+      onCapabilitySurfaceChanged(entity) {
+        this.ownerEntity = entity;
+      }
+      async stop() {
+        this.dispose();
+      }
       dispose() {
         for (const [id] of this.routes) {
           try {
@@ -2904,7 +2933,8 @@ var init_K_LIB_Krnl_System_Comm_Component = __esm({
         }
         this._wsPendingRpc.clear();
         this._wsRpcHandlers.clear();
-        Logger.log(`[CommComponent:${this.ownerEntity.entityName}] Disposed.`);
+        const label = this.ownerEntity ? this.ownerEntity.entityName || this.ownerEntity.id : "Unknown";
+        Logger.log(`[CommComponent:${label}] Disposed.`);
       }
     };
   }
@@ -4509,6 +4539,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
     init_K_LIB_Krnl_Protocol_ACP();
     init_K_LIB_Krnl_Base_Concepts();
     krnlUnifiedHttpAdapter = class {
+      name = "https";
       system;
       port;
       host;
@@ -4544,7 +4575,14 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
       /**
        * Starts the adapter.
        */
-      async start(externalServer = null) {
+      async start(externalServerOrEntity = null, options = {}) {
+        if (externalServerOrEntity && typeof externalServerOrEntity.call === "function") {
+          this.system = externalServerOrEntity;
+          if (options.port) this.port = options.port;
+          if (options.host) this.host = options.host;
+          return this.start(null);
+        }
+        const externalServer = externalServerOrEntity;
         if (this.server) return;
         this.wss = new import_ws.WebSocketServer({ noServer: true });
         const handleUpgrade = (req, socket, head) => {
@@ -4632,20 +4670,6 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             ws.send(msg);
           }
         }
-      }
-      stop() {
-        if (this.wss) {
-          try {
-            this.wss.close();
-          } catch (e) {
-          }
-          this.wss = null;
-        }
-        if (this.server && !this._isExternalServer) {
-          this.server.close();
-          console.log(`[${this.system.entityName}] Unified HTTP Adapter stopped.`);
-        }
-        this.server = null;
       }
       async _handleRequest(req, res) {
         const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
@@ -4896,13 +4920,31 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             return;
           }
           if (reqPath.startsWith("/call/")) {
-            const fid = reqPath.split("/")[2];
+            const fid = reqPath.slice("/call/".length);
             const body = await this._readJsonBody(req);
-            const result = await this.system.call(fid, body, {
-              unwrap: false,
-              callerPort: req.socket?.remotePort,
-              accessKey: req.headers["x-krnl-access-key"]
-            });
+            let result;
+            if (this.system.resolveCapability) {
+              const resolved = this.system.resolveCapability(fid);
+              if (resolved) {
+                result = await resolved.owner.call(resolved.fid, body, {
+                  unwrap: false,
+                  callerPort: req.socket?.remotePort,
+                  accessKey: req.headers["x-krnl-access-key"]
+                });
+              } else {
+                result = await this.system.call(fid, body, {
+                  unwrap: false,
+                  callerPort: req.socket?.remotePort,
+                  accessKey: req.headers["x-krnl-access-key"]
+                });
+              }
+            } else {
+              result = await this.system.call(fid, body, {
+                unwrap: false,
+                callerPort: req.socket?.remotePort,
+                accessKey: req.headers["x-krnl-access-key"]
+              });
+            }
             this._sendJson(res, 200, result);
             return;
           }
@@ -5035,6 +5077,35 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
               reject(new Error("Invalid JSON body"));
             }
           });
+        });
+      }
+      onCapabilitySurfaceChanged(entity) {
+        this.system = entity;
+      }
+      async stop() {
+        if (this.wss) {
+          for (const ws of this._uiWsClients) {
+            try {
+              ws.close();
+            } catch (_) {
+            }
+          }
+          this._uiWsClients.clear();
+          try {
+            this.wss.close();
+          } catch (_) {
+          }
+          this.wss = null;
+        }
+        if (this.server && !this._isExternalServer) {
+          await new Promise((resolve) => {
+            this.server.close(() => resolve());
+          });
+          this.server = null;
+        }
+      }
+      dispose() {
+        this.stop().catch(() => {
         });
       }
     };
@@ -6289,6 +6360,352 @@ var init_K_LIB_Krnl_Frontend_Builder = __esm({
   }
 });
 
+// src/krnl/core/K_LIB_Krnl_Flow.ts
+var KrnlFlowBuilder;
+var init_K_LIB_Krnl_Flow = __esm({
+  "src/krnl/core/K_LIB_Krnl_Flow.ts"() {
+    "use strict";
+    KrnlFlowBuilder = class _KrnlFlowBuilder {
+      entity;
+      id;
+      steps = [];
+      constructor(entity, id) {
+        this.entity = entity;
+        this.id = id;
+      }
+      /** Sequential: output of previous step is passed as input to fid */
+      then(fid) {
+        this.steps.push({ type: "seq", fid });
+        return this;
+      }
+      /** Branch: predicate on current output routes to trueFid or falseFid */
+      branch(pred, trueFid, falseFid) {
+        this.steps.push({ type: "branch", pred, trueFid, falseFid });
+        return this;
+      }
+      /** Parallel: run all fids concurrently with current input, collect results as array */
+      parallel(...fids) {
+        this.steps.push({ type: "parallel", fids });
+        return this;
+      }
+      /**
+       * Register this flow as a krnlLocalFunctionality on the host entity.
+       * The Flow becomes a first-class capability on the entity.
+       */
+      register(opts) {
+        const steps = [...this.steps];
+        const entity = this.entity;
+        const flowId = this.id;
+        return entity.addLocal({
+          id: flowId,
+          visibility: opts?.visibility ?? "public",
+          description: opts?.description || `Flow [${flowId}] composing [${steps.map((s) => s.fid || (s.fids ? s.fids.join(",") : "branch")).join(" \u2192 ")}]`,
+          uiSpec: opts?.uiSpec,
+          intelligenceSpec: opts?.intelligenceSpec,
+          manifest: opts?.manifest,
+          api: async (input) => _KrnlFlowBuilder._execute(entity, steps, input)
+        });
+      }
+      /** Execute the flow directly without registering as a functionality */
+      async run(input) {
+        return _KrnlFlowBuilder._execute(this.entity, this.steps, input);
+      }
+      /**
+       * Internal step executor walking the entity's functionalities via `entity.call(fid, input)`.
+       */
+      static async _execute(entity, steps, input) {
+        let current = input;
+        for (const step of steps) {
+          if (step.type === "seq") {
+            current = await entity.call(step.fid, current);
+          } else if (step.type === "branch") {
+            const matches = step.pred ? step.pred(current) : Boolean(current);
+            const targetFid = matches ? step.trueFid : step.falseFid;
+            if (targetFid) {
+              current = await entity.call(targetFid, current);
+            }
+          } else if (step.type === "parallel") {
+            const fids = step.fids || [];
+            current = await Promise.all(fids.map((fid) => entity.call(fid, current)));
+          }
+        }
+        return current;
+      }
+    };
+  }
+});
+
+// src/krnl/core/K_ENT_Entity.ts
+var K_ENT_Entity_exports = {};
+__export(K_ENT_Entity_exports, {
+  Entity: () => Entity
+});
+var Entity;
+var init_K_ENT_Entity = __esm({
+  "src/krnl/core/K_ENT_Entity.ts"() {
+    "use strict";
+    init_K_ENT_Krnl_Entity_Base();
+    init_K_LIB_Krnl_Flow();
+    Entity = class _Entity extends krnlEntityBase {
+      /** True while this entity occupies root position and actively self-hosts protocol adapters */
+      _selfHosting = false;
+      /** Protocol adapters attached to this entity. Operational only in root position. */
+      _protocolAdapters = /* @__PURE__ */ new Map();
+      constructor(name, owner = null, options = {}) {
+        super(name, owner, options);
+        this.systemType = "Entity";
+      }
+      // ── Protocol Adapter Management ──────────────────────────────────────────
+      /**
+       * Attach a protocol adapter to this entity (declarative step during discovery/construction).
+       * Does NOT start the server. Servers are started only during `finalize()` if this entity is root.
+       */
+      attachAdapter(adapter) {
+        if (!adapter || !adapter.name) {
+          throw new Error(`[Entity:${this.id}] Invalid protocol adapter provided.`);
+        }
+        this._protocolAdapters.set(adapter.name, adapter);
+      }
+      /**
+       * Return all attached protocol adapters.
+       */
+      getAdapters() {
+        return Array.from(this._protocolAdapters.values());
+      }
+      // ── Activation / Finalize Lifecycle ──────────────────────────────────────
+      /**
+       * Finalizes construction and activates the entity if it occupies root position.
+       * Called after tree construction and Shell materialization.
+       */
+      async finalize(options = {}) {
+        const hasParent = Boolean(this.hierarchyManager.getOwnerEntity());
+        if (!hasParent && this._protocolAdapters.size > 0 && !this._selfHosting) {
+          await this._startHosting(options);
+        }
+      }
+      /**
+       * Starts all attached protocol adapters.
+       */
+      async _startHosting(options = {}) {
+        if (this._selfHosting) return;
+        for (const adapter of this._protocolAdapters.values()) {
+          try {
+            await adapter.start(this, options);
+          } catch (err) {
+            console.error(`[Entity:${this.id}] Error starting adapter '${adapter.name}':`, err.message || err);
+            throw err;
+          }
+        }
+        this._selfHosting = true;
+      }
+      /**
+       * Stops all self-hosted protocol adapters gracefully.
+       */
+      async stopHosting() {
+        if (!this._selfHosting) return;
+        for (const adapter of this._protocolAdapters.values()) {
+          try {
+            await adapter.stop();
+          } catch (err) {
+            console.warn(`[Entity:${this.id}] Warning stopping adapter '${adapter.name}':`, err.message || err);
+          }
+        }
+        this._selfHosting = false;
+      }
+      // ── Root / Child Bidirectional State Machine ─────────────────────────────
+      /**
+       * Lifecycle hook: called when this entity is adopted as a child component by a parent entity.
+       * Action: Relinquish root position duties by stopping any self-hosted servers.
+       * Note: Capability bubbling is handled automatically by the hierarchy manager.
+       */
+      async _onAdoptedByParent() {
+        if (this._selfHosting) {
+          this._selfHosting = false;
+          await this.stopHosting();
+        }
+      }
+      /**
+       * Lifecycle hook: called when this entity is detached or promoted to root position.
+       * Action: If no parent and adapters exist, activate self-hosting.
+       */
+      async _onPromotedToRoot(options = {}) {
+        const hasParent = Boolean(this.hierarchyManager.getOwnerEntity());
+        if (!hasParent && this._protocolAdapters.size > 0 && !this._selfHosting) {
+          await this._startHosting(options);
+        }
+      }
+      // ── Capability Surface & Bubbling Integration ────────────────────────────
+      /**
+       * Overrides component functionality addition to notify active protocol adapters.
+       */
+      _onComponentFunctionalityAdded(component, functionality) {
+        super._onComponentFunctionalityAdded(component, functionality);
+        if (this._selfHosting) {
+          this._notifyAdaptersOfSurfaceChange();
+        }
+      }
+      /**
+       * Notifies all attached protocol adapters that the exposed capability surface has changed.
+       * Idempotent: adapters diff and reconcile their route mappings.
+       */
+      _notifyAdaptersOfSurfaceChange() {
+        for (const adapter of this._protocolAdapters.values()) {
+          try {
+            adapter.onCapabilitySurfaceChanged(this);
+          } catch (err) {
+            console.warn(`[Entity:${this.id}] Adapter '${adapter.name}' surface change notification error:`, err.message || err);
+          }
+        }
+      }
+      // ── Qualified Capability Projections & Resolution ────────────────────────
+      /**
+       * Computes the hierarchical qualified ID for a local functionality ID.
+       * e.g. "Root.OrderService.settings"
+       */
+      getQualifiedId(fid) {
+        const parent = this.hierarchyManager.getOwnerEntity();
+        if (parent && typeof parent.getQualifiedId === "function") {
+          return `${parent.getQualifiedId(this.id)}.${fid}`;
+        }
+        return `${this.id}.${fid}`;
+      }
+      /**
+       * Resolves an external qualified capability ID to the owning Entity instance and local fid.
+       * The caller/adapter invokes:
+       *   const res = root.resolveCapability("Root.OrderService.settings");
+       *   return await res.owner.call(res.fid, input);
+       */
+      resolveCapability(qualifiedId) {
+        return this._resolveCapabilityRecursive(qualifiedId);
+      }
+      _resolveCapabilityRecursive(qualifiedId) {
+        for (const [fid, func] of this.localFunctionalities) {
+          if (func.visibility === "public" || func.visibility === "protected" || !func.visibility) {
+            if (this.getQualifiedId(fid) === qualifiedId || fid === qualifiedId) {
+              return { owner: this, fid };
+            }
+          }
+        }
+        for (const child of this.hierarchyManager.getAllOwnedComponentEntities()) {
+          if (typeof child._resolveCapabilityRecursive === "function") {
+            const res = child._resolveCapabilityRecursive(qualifiedId);
+            if (res) return res;
+          }
+        }
+        return void 0;
+      }
+      // ── Manifest Aggregation (Kernel Declares → Shell Materializes) ──────────
+      /**
+       * Aggregates dependency manifests from all local functionalities and descendant entities.
+       * Returns a consolidated workspace requirements document.
+       */
+      getWorkspaceRequirements() {
+        const reqs = {
+          dependencies: {},
+          devDependencies: {},
+          buildRequirements: [],
+          resources: [],
+          conflicts: []
+        };
+        this._aggregateManifestInto(reqs);
+        return reqs;
+      }
+      _aggregateManifestInto(reqs) {
+        this.localFunctionalities.forEach((func) => {
+          if (func.manifest) {
+            _Entity._mergeManifestRequirements(reqs, func.manifest, `${this.id}:${func.id}`);
+          }
+        });
+        this.hierarchyManager.getAllOwnedComponentEntities().forEach((child) => {
+          if (typeof child._aggregateManifestInto === "function") {
+            child._aggregateManifestInto(reqs);
+          }
+        });
+      }
+      static _mergeManifestRequirements(target, manifest, sourceId) {
+        if (manifest.dependencies) {
+          for (const [pkg, ver] of Object.entries(manifest.dependencies)) {
+            if (target.dependencies[pkg] && target.dependencies[pkg] !== ver) {
+              target.conflicts = target.conflicts || [];
+              target.conflicts.push({
+                package: pkg,
+                versionA: target.dependencies[pkg],
+                versionB: ver,
+                sources: [sourceId]
+              });
+            } else {
+              target.dependencies[pkg] = ver;
+            }
+          }
+        }
+        if (manifest.devDependencies) {
+          for (const [pkg, ver] of Object.entries(manifest.devDependencies)) {
+            target.devDependencies[pkg] = ver;
+          }
+        }
+        if (manifest.buildRequirements) {
+          for (const req of manifest.buildRequirements) {
+            if (!target.buildRequirements.includes(req)) {
+              target.buildRequirements.push(req);
+            }
+          }
+        }
+        if (manifest.resources) {
+          for (const res of manifest.resources) {
+            target.resources.push(res);
+          }
+        }
+      }
+      // ── UI Spec Recursive Aggregation ────────────────────────────────────────
+      /**
+       * Aggregates UI specifications from all functionalities across the entity tree.
+       * Qualified IDs ensure namespace stability and avoid collisions.
+       */
+      aggregateUI() {
+        const list = [];
+        this.localFunctionalities.forEach((func, fid) => {
+          if (func.uiSpec) {
+            list.push({
+              qualifiedId: this.getQualifiedId(fid),
+              uiSpec: func.uiSpec,
+              source: this
+            });
+          }
+        });
+        this.hierarchyManager.getAllOwnedComponentEntities().forEach((child) => {
+          if (typeof child.aggregateUI === "function") {
+            list.push(...child.aggregateUI());
+          }
+        });
+        return list;
+      }
+      // ── Flow Factory ─────────────────────────────────────────────────────────
+      /**
+       * Create a FlowBuilder instance bound to this entity.
+       */
+      flow(id) {
+        return new KrnlFlowBuilder(this, id);
+      }
+      /**
+       * Clean disposal of all entity resources, child components, and adapters.
+       */
+      dispose() {
+        if (this._selfHosting) {
+          this.stopHosting().catch(() => {
+          });
+        }
+        for (const adapter of this._protocolAdapters.values()) {
+          if (typeof adapter.dispose === "function") {
+            adapter.dispose();
+          }
+        }
+        this._protocolAdapters.clear();
+        super.dispose();
+      }
+    };
+  }
+});
+
 // src/krnl/core/K_LIB_Krnl_System_Magnetic_Loader.ts
 var K_LIB_Krnl_System_Magnetic_Loader_exports = {};
 __export(K_LIB_Krnl_System_Magnetic_Loader_exports, {
@@ -6310,12 +6727,13 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
       globalThis.__krnlSubAppLocalStorage = new import_async_hooks.AsyncLocalStorage();
     }
     subappLocalStorage = globalThis.__krnlSubAppLocalStorage;
-    KrnlMagneticLoader = class {
+    KrnlMagneticLoader = class _KrnlMagneticLoader {
       /**
-       * Scans and dynamically loads entities, functionalities, and subapps for the given system entity.
+       * Scans and dynamically loads entities, functionalities, and subapps for the given entity or system.
        */
       static async loadAll(entity, baseDir) {
-        console.log(`[MagneticLoader] loadAll called for entity '${entity.entityName}' with baseDir '${baseDir}'`);
+        const entityLabel = entity.entityName || entity.id || "Entity";
+        console.log(`[MagneticLoader] loadAll called for entity '${entityLabel}' with baseDir '${baseDir}'`);
         const functionalitiesDir = import_path10.default.join(baseDir, "functionalities");
         if (import_fs11.default.existsSync(functionalitiesDir)) {
           const funcDirs = await import_fs11.default.promises.readdir(functionalitiesDir, { withFileTypes: true });
@@ -6457,22 +6875,43 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             }
           }
         }
-        const hasAiConfig = [...entity.localFunctionalities.values()].some((f) => f.ai?.enabled);
-        let hasAiStore = false;
-        const storePath = import_path10.default.join(baseDir, "krnl_runtime_state.db");
-        if (import_fs11.default.existsSync(storePath)) {
+        const adaptersDir = import_path10.default.join(baseDir, "protocol_adapters");
+        if (import_fs11.default.existsSync(adaptersDir) && typeof entity.attachAdapter === "function") {
           try {
-            const storeContent = JSON.parse(import_fs11.default.readFileSync(storePath, "utf-8"));
-            if (storeContent?.endpointAgentProfiles && Object.keys(storeContent.endpointAgentProfiles).length > 0) {
-              hasAiStore = true;
+            const adapterFiles = await import_fs11.default.promises.readdir(adaptersDir);
+            for (const file of adapterFiles) {
+              if (file.endsWith(".js") || file.endsWith(".ts")) {
+                const mod = await import((0, import_url2.pathToFileURL)(import_path10.default.join(adaptersDir, file)).href);
+                const AdapterClass = mod.default || mod[import_path10.default.basename(file, import_path10.default.extname(file))];
+                if (AdapterClass && typeof AdapterClass === "function") {
+                  const adapterInstance = new AdapterClass();
+                  entity.attachAdapter(adapterInstance);
+                  console.log(`[MagneticLoader] Attached protocol adapter '${adapterInstance.name || file}' to entity '${entityLabel}'.`);
+                }
+              }
             }
-          } catch (e) {
+          } catch (err) {
+            console.warn(`[MagneticLoader] Error scanning protocol_adapters in '${baseDir}':`, err.message || err);
           }
         }
-        if (hasAiConfig || hasAiStore) {
-          console.log(`[MagneticLoader] Automatically initializing AI Layer on '${entity.entityName}'...`);
-          await entity.initializeAiLayer(baseDir);
-          entity.setFlag?.("krnl:ai_layer_ready");
+        if (entity.localFunctionalities && typeof entity.initializeAiLayer === "function") {
+          const hasAiConfig = [...entity.localFunctionalities.values()].some((f) => f.ai?.enabled);
+          let hasAiStore = false;
+          const storePath = import_path10.default.join(baseDir, "krnl_runtime_state.db");
+          if (import_fs11.default.existsSync(storePath)) {
+            try {
+              const storeContent = JSON.parse(import_fs11.default.readFileSync(storePath, "utf-8"));
+              if (storeContent?.endpointAgentProfiles && Object.keys(storeContent.endpointAgentProfiles).length > 0) {
+                hasAiStore = true;
+              }
+            } catch (e) {
+            }
+          }
+          if (hasAiConfig || hasAiStore) {
+            console.log(`[MagneticLoader] Automatically initializing AI Layer on '${entityLabel}'...`);
+            await entity.initializeAiLayer(baseDir);
+            entity.setFlag?.("krnl:ai_layer_ready");
+          }
         }
         entity.setFlag?.("krnl:magnetic_load_complete");
       }
@@ -6505,6 +6944,15 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             atom.onMount = mod.onMount;
             atom.onTeardown = mod.onTeardown;
           }
+          const manifestPath = import_path10.default.join(funcDir, "manifest.json");
+          if (import_fs11.default.existsSync(manifestPath)) {
+            try {
+              const parsedManifest = JSON.parse(import_fs11.default.readFileSync(manifestPath, "utf-8"));
+              atom.manifest = parsedManifest;
+            } catch (e) {
+              console.warn(`[MagneticLoader] Error parsing manifest.json in '${funcDir}':`, e.message);
+            }
+          }
           const eventsDir2 = import_path10.default.join(funcDir, "events");
           if (import_fs11.default.existsSync(eventsDir2)) {
             const eventFiles = await import_fs11.default.promises.readdir(eventsDir2);
@@ -6513,6 +6961,15 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
                 const name = import_path10.default.basename(file, ".js");
                 atom.emitters[name] = {};
               }
+            }
+          }
+        }
+        if (atom && !atom.manifest) {
+          const manifestPath = import_path10.default.join(funcDir, "manifest.json");
+          if (import_fs11.default.existsSync(manifestPath)) {
+            try {
+              atom.manifest = JSON.parse(import_fs11.default.readFileSync(manifestPath, "utf-8"));
+            } catch (_) {
             }
           }
         }
@@ -6553,14 +7010,31 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         entity.addLocal(atom);
       }
       static async loadEntity(parent, entDir, entName) {
-        const fileToImport = import_path10.default.join(entDir, `${entName}.js`);
-        if (import_fs11.default.existsSync(fileToImport)) {
-          const mod = await import((0, import_url2.pathToFileURL)(fileToImport).href);
-          const ClassToUse = mod[entName] || mod.default;
-          if (ClassToUse) {
-            parent.hierarchyManager.createComponentEntity(entName, ClassToUse);
-            console.log(`[MagneticLoader] Magnetically instantiated child entity: ${entName} under ${parent.entityName}`);
+        let fileToImport = null;
+        const candidates = [`${entName}.js`, "assembler.js", "index.js"];
+        for (const cand of candidates) {
+          const p = import_path10.default.join(entDir, cand);
+          if (import_fs11.default.existsSync(p)) {
+            fileToImport = p;
+            break;
           }
+        }
+        let childInstance = null;
+        if (fileToImport) {
+          const mod = await import((0, import_url2.pathToFileURL)(fileToImport).href);
+          const ClassToUse = mod[entName] || mod.default || mod.Entity;
+          if (ClassToUse && parent.hierarchyManager) {
+            childInstance = parent.hierarchyManager.createComponentEntity(entName, ClassToUse);
+            console.log(`[MagneticLoader] Magnetically instantiated child entity: ${entName} under ${parent.entityName || parent.id}`);
+          }
+        }
+        if (!childInstance && parent.hierarchyManager) {
+          const { Entity: Entity2 } = await Promise.resolve().then(() => (init_K_ENT_Entity(), K_ENT_Entity_exports));
+          childInstance = parent.hierarchyManager.createComponentEntity(entName, Entity2);
+          console.log(`[MagneticLoader] Auto-created child entity container: ${entName} under ${parent.entityName || parent.id}`);
+        }
+        if (childInstance) {
+          await _KrnlMagneticLoader.loadAll(childInstance, entDir);
         }
       }
       static async ensureSubAppBuilt(appPath, appName, entity, parentBaseDir) {
@@ -10934,6 +11408,7 @@ __export(index_exports, {
   AsyncKit: () => AsyncKit,
   CUSTOM_ERROR_CODE: () => CUSTOM_ERROR_CODE,
   CacheKit: () => CacheKit,
+  Entity: () => Entity,
   FileCache: () => FileCache,
   FileLock: () => FileLock,
   GitManager: () => GitManager,
@@ -10945,6 +11420,7 @@ __export(index_exports, {
   KrnlEndpointScheduler: () => KrnlEndpointScheduler,
   KrnlEnv: () => KrnlEnv,
   KrnlFS: () => KrnlFS,
+  KrnlFlowBuilder: () => KrnlFlowBuilder,
   KrnlFrontend: () => KrnlFrontend,
   KrnlFrontendBuilder: () => KrnlFrontendBuilder,
   KrnlFrontendGenerator: () => KrnlFrontendGenerator,
@@ -11146,9 +11622,13 @@ init_K_LIB_Krnl_Task_Runner();
 init_K_LIB_Krnl_Planner_Agent();
 init_K_LIB_Krnl_Job_Scheduler();
 init_krnl_pb();
+init_K_ENT_Entity();
+init_K_LIB_Krnl_Flow();
 
 // src/index.ts
 init_tools();
+init_K_ENT_Entity();
+init_K_LIB_Krnl_Flow();
 init_K_ENT_Krnl_Entity_Base();
 init_K_ENT_Krnl_System_Entity_Base();
 
@@ -11369,6 +11849,7 @@ var PocerBlock = class extends krnlSystemEntityBase {
   AsyncKit,
   CUSTOM_ERROR_CODE,
   CacheKit,
+  Entity,
   FileCache,
   FileLock,
   GitManager,
@@ -11380,6 +11861,7 @@ var PocerBlock = class extends krnlSystemEntityBase {
   KrnlEndpointScheduler,
   KrnlEnv,
   KrnlFS,
+  KrnlFlowBuilder,
   KrnlFrontend,
   KrnlFrontendBuilder,
   KrnlFrontendGenerator,

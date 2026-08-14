@@ -692,6 +692,42 @@ declare class MemoryTransportAdapter extends krnlTransportAdapter {
     constructor(targetEntity: any);
     call(targetFunction: string, input: any, opts: any): Promise<any>;
 }
+interface KrnlFunctionalityManifest {
+    version?: string;
+    author?: string;
+    tags?: string[];
+    category?: string;
+    /** Runtime npm dependencies this functionality requires: { "axios": "^1.0.0" } */
+    dependencies?: Record<string, string>;
+    /** Dev/build-only npm dependencies */
+    devDependencies?: Record<string, string>;
+    /** Build tool requirements, e.g. ['esbuild', 'typescript'] */
+    buildRequirements?: string[];
+    /** Declared AI capabilities */
+    capabilities?: string[];
+    /** External resources needed: env vars, files */
+    resources?: {
+        type: 'env' | 'file';
+        name: string;
+        required?: boolean;
+    }[];
+}
+interface KrnlWorkspaceRequirements {
+    dependencies: Record<string, string>;
+    devDependencies: Record<string, string>;
+    buildRequirements: string[];
+    resources: {
+        type: 'env' | 'file';
+        name: string;
+        required?: boolean;
+    }[];
+    conflicts?: {
+        package: string;
+        versionA: string;
+        versionB: string;
+        sources: string[];
+    }[];
+}
 /**
  * KRNL LOCAL FUNCTIONALITY
  * The fundamental unit of logic.
@@ -716,6 +752,8 @@ declare class krnlLocalFunctionality {
     accessPolicy?: KrnlEndpointAccessPolicy;
     /** Shared secret for allow_with_key / ask_key_unlisted gates. */
     accessKey?: string;
+    /** Optional Functionality Manifest declaring dependencies, capabilities, and resources */
+    manifest?: KrnlFunctionalityManifest | null;
     lifecycle: {
         beginning?: Function;
         during?: Function;
@@ -945,6 +983,44 @@ declare class krnlSubSystemOrchestratorBase extends krnlEntityBase {
 }
 
 /**
+ * @file K_LIB_Krnl_Protocol_Adapter.ts
+ * @description Contract for protocol adapters attached to Entities.
+ *
+ * In the Gross Architecture model:
+ * - Adapters are declarative capabilities attached to an Entity.
+ * - They become operational ONLY while that entity occupies root position.
+ * - When an entity is adopted by a parent, it relinquishes root position and stops its adapters.
+ * - The entity tree and its bubbling system remain the canonical capability authority.
+ */
+interface KrnlCapabilityResolution {
+    owner: any;
+    fid: string;
+}
+interface KrnlProtocolAdapter {
+    /** Unique name: 'https' | 'wss' | 'udp' | custom */
+    readonly name: string;
+    /**
+     * Start serving on behalf of the entity.
+     * Entity reference provided — adapter resolves capabilities through the entity.
+     */
+    start(entity: any, options?: any): Promise<void>;
+    /**
+     * Called whenever the entity's exposed capability surface changes
+     * (e.g. child added, new functionality bubbled, visibility change).
+     * MUST be idempotent.
+     */
+    onCapabilitySurfaceChanged(entity: any): void;
+    /**
+     * Gracefully stops the server. Called when entity is adopted by a parent.
+     */
+    stop(): Promise<void>;
+    /**
+     * Disposes of any resources held by the adapter.
+     */
+    dispose?(): void;
+}
+
+/**
  * @file K_LIB_Krnl_System_Comm_Component.ts
  *
  * @description External P2P communication bridge for STANDALONE KrnlTS applications.
@@ -975,7 +1051,8 @@ declare class WebSocketTransportAdapter extends krnlTransportAdapter {
     constructor(commComponent: krnlSystemCommComponent, remoteAddress: string);
     call(targetFunction: string, input: any, opts?: any): Promise<any>;
 }
-declare class krnlSystemCommComponent {
+declare class krnlSystemCommComponent implements KrnlProtocolAdapter {
+    readonly name: string;
     ownerEntity: any;
     listenPort: number;
     host: string;
@@ -1018,6 +1095,9 @@ declare class krnlSystemCommComponent {
     _handleRpcResponse(msg: any): void;
     listRoutes(): any[];
     disconnectRoute(routeId: string, options?: any): void;
+    start(entity?: any, options?: any): Promise<void>;
+    onCapabilitySurfaceChanged(entity: any): void;
+    stop(): Promise<void>;
     dispose(): void;
 }
 
@@ -1070,7 +1150,8 @@ declare class KrnlAcpProtocol {
  * @description Unified HTTP adapter that exposes REST, SSE, MCP, and ACP protocols.
  */
 
-declare class krnlUnifiedHttpAdapter {
+declare class krnlUnifiedHttpAdapter implements KrnlProtocolAdapter {
+    readonly name: string;
     system: any;
     port: number;
     host: string;
@@ -1093,15 +1174,17 @@ declare class krnlUnifiedHttpAdapter {
     /**
      * Starts the adapter.
      */
-    start(externalServer?: http.Server | null): Promise<void>;
+    start(externalServerOrEntity?: any, options?: any): Promise<void>;
     _handleAgentWsClient(ws: WebSocket): void;
     _broadcastUiSse(data: any): void;
     sendWsTrigger(fid: string, input?: any, ticketId?: string): void;
-    stop(): void;
     _handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
     _handleSse(req: http.IncomingMessage, res: http.ServerResponse, fid: string): void;
     _sendJson(res: http.ServerResponse, status: number, data: any): void;
     _readJsonBody(req: http.IncomingMessage): Promise<any>;
+    onCapabilitySurfaceChanged(entity: any): void;
+    stop(): Promise<void>;
+    dispose(): void;
 }
 
 /**
@@ -2242,11 +2325,11 @@ declare const magneticStorage: AsyncLocalStorage<{
 declare const subappLocalStorage: any;
 declare class KrnlMagneticLoader {
     /**
-     * Scans and dynamically loads entities, functionalities, and subapps for the given system entity.
+     * Scans and dynamically loads entities, functionalities, and subapps for the given entity or system.
      */
-    static loadAll(entity: krnlSystemEntityBase, baseDir: string): Promise<void>;
+    static loadAll(entity: any, baseDir: string): Promise<void>;
     static loadFunctionality(entity: krnlSystemEntityBase, funcDir: string, funcName: string): Promise<void>;
-    static loadEntity(parent: krnlSystemEntityBase, entDir: string, entName: string): Promise<void>;
+    static loadEntity(parent: any, entDir: string, entName: string): Promise<void>;
     static ensureSubAppBuilt(appPath: string, appName: string, entity: any, parentBaseDir?: string): Promise<boolean>;
     static detectSubApp(appPath: string, appName: string): Promise<any | null>;
     /**
@@ -2685,6 +2768,156 @@ declare namespace krnl {
 }
 
 /**
+ * @file K_LIB_Krnl_Flow.ts
+ * @description In-Entity Flow Orchestration.
+ *
+ * A Flow IS a Functionality at the interface level:
+ * - It has the same signature: input → execution → output + events + UI + state
+ * - It is registered on an Entity via `entity.addLocal(...)`
+ * - It bubbles, is exposed via protocol adapters, and participates in telemetry
+ * - It composes existing functionalities within an entity boundary
+ */
+
+interface KrnlFlowStep {
+    type: 'seq' | 'branch' | 'parallel';
+    fid?: string;
+    fids?: string[];
+    pred?: (out: any) => boolean;
+    trueFid?: string;
+    falseFid?: string;
+}
+declare class KrnlFlowBuilder {
+    private entity;
+    private id;
+    private steps;
+    constructor(entity: krnlEntityBase, id: string);
+    /** Sequential: output of previous step is passed as input to fid */
+    then(fid: string): this;
+    /** Branch: predicate on current output routes to trueFid or falseFid */
+    branch(pred: (out: any) => boolean, trueFid: string, falseFid?: string): this;
+    /** Parallel: run all fids concurrently with current input, collect results as array */
+    parallel(...fids: string[]): this;
+    /**
+     * Register this flow as a krnlLocalFunctionality on the host entity.
+     * The Flow becomes a first-class capability on the entity.
+     */
+    register(opts?: {
+        visibility?: 'public' | 'private' | string;
+        description?: string;
+        uiSpec?: KrnlUiSpec;
+        intelligenceSpec?: any;
+        manifest?: KrnlFunctionalityManifest;
+    }): krnlLocalFunctionality;
+    /** Execute the flow directly without registering as a functionality */
+    run(input: any): Promise<any>;
+    /**
+     * Internal step executor walking the entity's functionalities via `entity.call(fid, input)`.
+     */
+    private static _execute;
+}
+
+/**
+ * @file K_ENT_Entity.ts
+ * @description The unified Entity class representing the core composition & orchestration primitive.
+ *
+ * Governing Principles:
+ * 1. The entity tree IS the kernel. UI aggregation, capability exposure, manifests, protocols, and flows are projections or behaviors of that tree.
+ * 2. Filesystem is composition: functionalities/, entities/, protocol_adapters/.
+ * 3. Functionality is the atomic unit owning logic, state, helpers, events, UI spec, AI spec, and manifest.
+ * 4. Entity is composition + orchestration.
+ * 5. Root is a runtime position, not a class distinction:
+ *    - No parent + attached protocol adapters → ROOT position (adapters active, self-hosts).
+ *    - Has parent → CHILD position (adapters dormant, capabilities bubble up).
+ */
+
+declare class Entity extends krnlEntityBase {
+    /** True while this entity occupies root position and actively self-hosts protocol adapters */
+    _selfHosting: boolean;
+    /** Protocol adapters attached to this entity. Operational only in root position. */
+    _protocolAdapters: Map<string, KrnlProtocolAdapter>;
+    constructor(name: string, owner?: krnlEntityBase | null, options?: any);
+    /**
+     * Attach a protocol adapter to this entity (declarative step during discovery/construction).
+     * Does NOT start the server. Servers are started only during `finalize()` if this entity is root.
+     */
+    attachAdapter(adapter: KrnlProtocolAdapter): void;
+    /**
+     * Return all attached protocol adapters.
+     */
+    getAdapters(): KrnlProtocolAdapter[];
+    /**
+     * Finalizes construction and activates the entity if it occupies root position.
+     * Called after tree construction and Shell materialization.
+     */
+    finalize(options?: any): Promise<void>;
+    /**
+     * Starts all attached protocol adapters.
+     */
+    _startHosting(options?: any): Promise<void>;
+    /**
+     * Stops all self-hosted protocol adapters gracefully.
+     */
+    stopHosting(): Promise<void>;
+    /**
+     * Lifecycle hook: called when this entity is adopted as a child component by a parent entity.
+     * Action: Relinquish root position duties by stopping any self-hosted servers.
+     * Note: Capability bubbling is handled automatically by the hierarchy manager.
+     */
+    _onAdoptedByParent(): Promise<void>;
+    /**
+     * Lifecycle hook: called when this entity is detached or promoted to root position.
+     * Action: If no parent and adapters exist, activate self-hosting.
+     */
+    _onPromotedToRoot(options?: any): Promise<void>;
+    /**
+     * Overrides component functionality addition to notify active protocol adapters.
+     */
+    _onComponentFunctionalityAdded(component: any, functionality: any): void;
+    /**
+     * Notifies all attached protocol adapters that the exposed capability surface has changed.
+     * Idempotent: adapters diff and reconcile their route mappings.
+     */
+    _notifyAdaptersOfSurfaceChange(): void;
+    /**
+     * Computes the hierarchical qualified ID for a local functionality ID.
+     * e.g. "Root.OrderService.settings"
+     */
+    getQualifiedId(fid: string): string;
+    /**
+     * Resolves an external qualified capability ID to the owning Entity instance and local fid.
+     * The caller/adapter invokes:
+     *   const res = root.resolveCapability("Root.OrderService.settings");
+     *   return await res.owner.call(res.fid, input);
+     */
+    resolveCapability(qualifiedId: string): KrnlCapabilityResolution | undefined;
+    private _resolveCapabilityRecursive;
+    /**
+     * Aggregates dependency manifests from all local functionalities and descendant entities.
+     * Returns a consolidated workspace requirements document.
+     */
+    getWorkspaceRequirements(): KrnlWorkspaceRequirements;
+    private _aggregateManifestInto;
+    private static _mergeManifestRequirements;
+    /**
+     * Aggregates UI specifications from all functionalities across the entity tree.
+     * Qualified IDs ensure namespace stability and avoid collisions.
+     */
+    aggregateUI(): Array<{
+        qualifiedId: string;
+        uiSpec: any;
+        source: Entity;
+    }>;
+    /**
+     * Create a FlowBuilder instance bound to this entity.
+     */
+    flow(id: string): KrnlFlowBuilder;
+    /**
+     * Clean disposal of all entity resources, child components, and adapters.
+     */
+    dispose(): void;
+}
+
+/**
  * @file ObjectKit.ts
  * @description Deep clone, deep merge, deep equal, object diffing, and dot-notation in-memory path accessor tools.
  */
@@ -3093,4 +3326,4 @@ declare class PocerBlock extends krnlSystemEntityBase {
     private _waitForPort;
 }
 
-export { AsyncKit, CUSTOM_ERROR_CODE, CacheKit, type DefaultConnectionBehaviour, type EndpointCategory, FileCache, FileLock, GitManager, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlJobScheduler, type KrnlJobTicket, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLoader, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, LRUCache, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SiblingMemberEntry, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };
+export { AsyncKit, CUSTOM_ERROR_CODE, CacheKit, type DefaultConnectionBehaviour, type EndpointCategory, Entity, FileCache, FileLock, GitManager, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlCapabilityResolution, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFlowBuilder, type KrnlFlowStep, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, type KrnlFunctionalityManifest, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlJobScheduler, type KrnlJobTicket, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlProtocolAdapter, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLoader, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, type KrnlWorkspaceRequirements, LRUCache, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SiblingMemberEntry, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };

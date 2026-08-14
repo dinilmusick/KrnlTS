@@ -17,10 +17,11 @@ export const subappLocalStorage = (globalThis as any).__krnlSubAppLocalStorage;
 
 export class KrnlMagneticLoader {
   /**
-   * Scans and dynamically loads entities, functionalities, and subapps for the given system entity.
+   * Scans and dynamically loads entities, functionalities, and subapps for the given entity or system.
    */
-  static async loadAll(entity: krnlSystemEntityBase, baseDir: string): Promise<void> {
-    console.log(`[MagneticLoader] loadAll called for entity '${entity.entityName}' with baseDir '${baseDir}'`);
+  static async loadAll(entity: any, baseDir: string): Promise<void> {
+    const entityLabel = entity.entityName || entity.id || 'Entity';
+    console.log(`[MagneticLoader] loadAll called for entity '${entityLabel}' with baseDir '${baseDir}'`);
     // 1. Scan and load functionalities
     const functionalitiesDir = path.join(baseDir, 'functionalities');
     if (fs.existsSync(functionalitiesDir)) {
@@ -193,25 +194,47 @@ export class KrnlMagneticLoader {
       }
     }
 
-    // AI dynamic setup bootstrap hook
-    const hasAiConfig = [...entity.localFunctionalities.values()].some(f => (f as any).ai?.enabled);
-    
-    // Check local store config even if no functionalities have programmatic ai configs yet
-    let hasAiStore = false;
-    const storePath = path.join(baseDir, "krnl_runtime_state.db");
-    if (fs.existsSync(storePath)) {
+    // 5. Scan and load protocol adapters (declarative attachment — does NOT start servers)
+    const adaptersDir = path.join(baseDir, 'protocol_adapters');
+    if (fs.existsSync(adaptersDir) && typeof (entity as any).attachAdapter === 'function') {
       try {
-        const storeContent = JSON.parse(fs.readFileSync(storePath, 'utf-8'));
-        if (storeContent?.endpointAgentProfiles && Object.keys(storeContent.endpointAgentProfiles).length > 0) {
-          hasAiStore = true;
+        const adapterFiles = await fs.promises.readdir(adaptersDir);
+        for (const file of adapterFiles) {
+          if (file.endsWith('.js') || file.endsWith('.ts')) {
+            const mod = await import(pathToFileURL(path.join(adaptersDir, file)).href);
+            const AdapterClass = mod.default || mod[path.basename(file, path.extname(file))];
+            if (AdapterClass && typeof AdapterClass === 'function') {
+              const adapterInstance = new AdapterClass();
+              (entity as any).attachAdapter(adapterInstance);
+              console.log(`[MagneticLoader] Attached protocol adapter '${adapterInstance.name || file}' to entity '${entityLabel}'.`);
+            }
+          }
         }
-      } catch (e) {}
+      } catch (err: any) {
+        console.warn(`[MagneticLoader] Error scanning protocol_adapters in '${baseDir}':`, err.message || err);
+      }
     }
 
-    if (hasAiConfig || hasAiStore) {
-      console.log(`[MagneticLoader] Automatically initializing AI Layer on '${entity.entityName}'...`);
-      await entity.initializeAiLayer(baseDir);
-      (entity as any).setFlag?.('krnl:ai_layer_ready');
+    // AI dynamic setup bootstrap hook (if available on system entity)
+    if (entity.localFunctionalities && typeof entity.initializeAiLayer === 'function') {
+      const hasAiConfig = [...entity.localFunctionalities.values()].some((f: any) => f.ai?.enabled);
+      
+      let hasAiStore = false;
+      const storePath = path.join(baseDir, "krnl_runtime_state.db");
+      if (fs.existsSync(storePath)) {
+        try {
+          const storeContent = JSON.parse(fs.readFileSync(storePath, 'utf-8'));
+          if (storeContent?.endpointAgentProfiles && Object.keys(storeContent.endpointAgentProfiles).length > 0) {
+            hasAiStore = true;
+          }
+        } catch (e) {}
+      }
+
+      if (hasAiConfig || hasAiStore) {
+        console.log(`[MagneticLoader] Automatically initializing AI Layer on '${entityLabel}'...`);
+        await entity.initializeAiLayer(baseDir);
+        (entity as any).setFlag?.('krnl:ai_layer_ready');
+      }
     }
 
     (entity as any).setFlag?.('krnl:magnetic_load_complete');
@@ -257,6 +280,17 @@ export class KrnlMagneticLoader {
         atom.onTeardown = mod.onTeardown;
       }
 
+      // Load manifest.json if present
+      const manifestPath = path.join(funcDir, 'manifest.json');
+      if (fs.existsSync(manifestPath)) {
+        try {
+          const parsedManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+          atom.manifest = parsedManifest;
+        } catch (e: any) {
+          console.warn(`[MagneticLoader] Error parsing manifest.json in '${funcDir}':`, e.message);
+        }
+      }
+
       // Automatically register any event emitters based on event file names
       const eventsDir = path.join(funcDir, 'events');
       if (fs.existsSync(eventsDir)) {
@@ -267,6 +301,16 @@ export class KrnlMagneticLoader {
             atom.emitters[name] = {};
           }
         }
+      }
+    }
+
+    // Also check for manifest.json if explicit descriptor was used
+    if (atom && !atom.manifest) {
+      const manifestPath = path.join(funcDir, 'manifest.json');
+      if (fs.existsSync(manifestPath)) {
+        try {
+          atom.manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        } catch (_) {}
       }
     }
 
@@ -317,17 +361,39 @@ export class KrnlMagneticLoader {
     entity.addLocal(atom);
   }
 
-  static async loadEntity(parent: krnlSystemEntityBase, entDir: string, entName: string): Promise<void> {
-    // Look for composition assembler file (e.g. MyEntity.js)
-    const fileToImport = path.join(entDir, `${entName}.js`);
-    if (fs.existsSync(fileToImport)) {
-      const mod = await import(pathToFileURL(fileToImport).href);
-      const ClassToUse = mod[entName] || mod.default;
-      if (ClassToUse) {
-        // Instantiate and add to parent hierarchy
-        parent.hierarchyManager.createComponentEntity(entName, ClassToUse);
-        console.log(`[MagneticLoader] Magnetically instantiated child entity: ${entName} under ${parent.entityName}`);
+  static async loadEntity(parent: any, entDir: string, entName: string): Promise<void> {
+    // Look for composition assembler file (e.g. MyEntity.js, assembler.js, index.js)
+    let fileToImport: string | null = null;
+    const candidates = [`${entName}.js`, 'assembler.js', 'index.js'];
+    for (const cand of candidates) {
+      const p = path.join(entDir, cand);
+      if (fs.existsSync(p)) {
+        fileToImport = p;
+        break;
       }
+    }
+
+    let childInstance: any = null;
+    if (fileToImport) {
+      const mod = await import(pathToFileURL(fileToImport).href);
+      const ClassToUse = mod[entName] || mod.default || mod.Entity;
+      if (ClassToUse && parent.hierarchyManager) {
+        // Instantiate and add to parent hierarchy
+        childInstance = parent.hierarchyManager.createComponentEntity(entName, ClassToUse);
+        console.log(`[MagneticLoader] Magnetically instantiated child entity: ${entName} under ${parent.entityName || parent.id}`);
+      }
+    }
+
+    // If no assembler class was found, auto-create a default Entity child container
+    if (!childInstance && parent.hierarchyManager) {
+      const { Entity } = await import('./K_ENT_Entity.js');
+      childInstance = parent.hierarchyManager.createComponentEntity(entName, Entity);
+      console.log(`[MagneticLoader] Auto-created child entity container: ${entName} under ${parent.entityName || parent.id}`);
+    }
+
+    // RECURSIVELY load assets for this child entity (functionalities, child entities, adapters)
+    if (childInstance) {
+      await KrnlMagneticLoader.loadAll(childInstance, entDir);
     }
   }
 

@@ -21,6 +21,7 @@ import { krnlTransportAdapter } from "./K_LIB_Krnl_Functionality_Types.js";
 import { Logger, KrnlPolicy } from "./K_LIB_Krnl_Base_Concepts.js";
 import { krnlErrorCodes } from "./K_LIB_Krnl_Error_Concepts.js";
 import { krnl as krnlProto } from "./krnl_pb.js";
+import type { KrnlProtocolAdapter } from "./K_LIB_Krnl_Protocol_Adapter.js";
 
 /**
  * WEBSOCKET TRANSPORT ADAPTER
@@ -68,7 +69,8 @@ async function _loadWs() {
 //////////////////////////////////////// KRNL SYSTEM COMM COMPONENT ////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export class krnlSystemCommComponent {
+export class krnlSystemCommComponent implements KrnlProtocolAdapter {
+    readonly name: string = 'wss';
     ownerEntity: any;
     listenPort: number;
     host: string;
@@ -557,6 +559,23 @@ export class krnlSystemCommComponent {
         this.routes.delete(routeId);
     }
 
+    async start(entity: any = null, options: any = {}): Promise<void> {
+        if (entity && typeof entity.call === 'function') {
+            this.ownerEntity = entity;
+        }
+        if (options.port) this.listenPort = options.port;
+        if (options.host) this.host = options.host;
+        await this.startWsServer();
+    }
+
+    onCapabilitySurfaceChanged(entity: any): void {
+        this.ownerEntity = entity;
+    }
+
+    async stop(): Promise<void> {
+        this.dispose();
+    }
+
     dispose(): void {
         for (const [id] of this.routes) {
             try { this.disconnectRoute(id, { force: true }); } catch (_) { }
@@ -574,6 +593,7 @@ export class krnlSystemCommComponent {
         }
         this._wsPendingRpc.clear();
         this._wsRpcHandlers.clear();
-        Logger.log(`[CommComponent:${this.ownerEntity.entityName}] Disposed.`);
+        const label = this.ownerEntity ? (this.ownerEntity.entityName || this.ownerEntity.id) : 'Unknown';
+        Logger.log(`[CommComponent:${label}] Disposed.`);
     }
 }
