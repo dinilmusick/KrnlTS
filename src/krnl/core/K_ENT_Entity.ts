@@ -14,8 +14,21 @@
 
 import { krnlEntityBase } from "./K_ENT_Krnl_Entity_Base.js";
 import type { KrnlProtocolAdapter, KrnlCapabilityResolution } from "./K_LIB_Krnl_Protocol_Adapter.js";
-import type { KrnlFunctionalityManifest, KrnlWorkspaceRequirements } from "./K_LIB_Krnl_Functionality_Types.js";
+import { krnlLocalFunctionality, type KrnlFunctionalityManifest, type KrnlWorkspaceRequirements } from "./K_LIB_Krnl_Functionality_Types.js";
 import { KrnlFlowBuilder } from "./K_LIB_Krnl_Flow.js";
+import type {
+  SubAppDescriptor,
+  SubAppInstance,
+  SubAppRegistration,
+  SubAppRegistrationContext,
+  OperationDefinition,
+  SubAppManifest
+} from "./K_LIB_Krnl_SubApp_Types.js";
+import {
+  KrnlSubAppDiscovery,
+  KrnlSubAppLifecycle,
+  KrnlSubAppValidator
+} from "./K_LIB_Krnl_SubApp_Engine.js";
 
 export class Entity extends krnlEntityBase {
   /** True while this entity occupies root position and actively self-hosts protocol adapters */
@@ -23,6 +36,9 @@ export class Entity extends krnlEntityBase {
 
   /** Protocol adapters attached to this entity. Operational only in root position. */
   _protocolAdapters: Map<string, KrnlProtocolAdapter> = new Map();
+
+  /** Sub-Apps registered directly under this entity */
+  _subApps: Map<string, SubAppInstance> = new Map();
 
   /** Reservation state for access control and mutual exclusion */
   reservation: {
@@ -356,10 +372,243 @@ export class Entity extends krnlEntityBase {
     return undefined;
   }
 
+  // ── Sub-App Integration & Lifecycle ───────────────────────────────────────
+
+  /**
+   * Discovers sub-apps in the specified directory (or default 'subapps/').
+   */
+  async discoverSubApps(searchPath?: string): Promise<SubAppDescriptor[]> {
+    const targetDir = searchPath || 'subapps';
+    return await KrnlSubAppDiscovery.discoverSubApps(targetDir);
+  }
+
+  /**
+   * Loads, validates, registers, and initializes a sub-app onto this entity.
+   */
+  async loadSubApp(
+    descriptorOrPath: string | SubAppDescriptor,
+    config: Record<string, unknown> = {}
+  ): Promise<SubAppInstance> {
+    let descriptor: SubAppDescriptor | null = null;
+    if (typeof descriptorOrPath === 'string') {
+      descriptor = await KrnlSubAppDiscovery.locateDescriptor(descriptorOrPath);
+      if (!descriptor) {
+        throw new Error(`[Entity:${this.id}] Could not locate a valid sub-app descriptor at '${descriptorOrPath}'.`);
+      }
+    } else {
+      descriptor = descriptorOrPath;
+    }
+
+    const instance = await KrnlSubAppLifecycle.loadAndRegister(this, descriptor, config);
+    if (instance.state === 'READY') {
+      this._registerSubAppInstance(instance);
+    } else if (instance.state === 'ERROR') {
+      console.warn(`[Entity:${this.id}] Sub-app '${instance.id}' failed registration:`, instance.error?.message);
+    }
+    this._subApps.set(instance.id, instance);
+    return instance;
+  }
+
+  /**
+   * Programmatically registers a sub-app registration object.
+   */
+  async registerSubApp(
+    registration: SubAppRegistration,
+    descriptor?: SubAppDescriptor
+  ): Promise<SubAppInstance> {
+    const subAppId = registration.name || descriptor?.id || `subapp_${Date.now()}`;
+    const desc: SubAppDescriptor = descriptor || {
+      id: subAppId,
+      path: '',
+      registrationPath: '',
+      manifest: { name: subAppId, version: '1.0.0' }
+    };
+
+    const instance: SubAppInstance = {
+      id: subAppId,
+      state: 'VALIDATING',
+      manifest: desc.manifest || { name: subAppId, version: '1.0.0' },
+      descriptor: desc,
+      operations: new Map(),
+      error: null,
+      errorDetails: [],
+      loadedAt: Date.now()
+    };
+
+    // Validate operations & collisions
+    const existingCaps = new Set<string>();
+    for (const k of this.localFunctionalities.keys()) existingCaps.add(k);
+    for (const k of this.remoteFunctionalities.keys()) existingCaps.add(k);
+
+    const check = KrnlSubAppValidator.validateRegistration(registration, existingCaps, subAppId);
+    if (!check.valid) {
+      instance.state = 'ERROR';
+      instance.errorDetails = check.errors;
+      instance.error = new Error(`[SubApp:${subAppId}] Registration validation failed: ${check.errors.map(e => e.message).join(', ')}`);
+      this._subApps.set(subAppId, instance);
+      return instance;
+    }
+
+    instance.state = 'REGISTERED';
+    instance.registration = registration;
+    for (const op of registration.operations) {
+      instance.operations.set(op.name, op);
+    }
+
+    this._registerSubAppInstance(instance);
+
+    // Initializer
+    if (typeof registration.onInitialize === 'function') {
+      instance.state = 'INITIALIZING';
+      const regContext: SubAppRegistrationContext = {
+        entity: this,
+        services: (this as any)._serviceContainer || { get: () => undefined, has: () => false, register: () => {}, list: () => [] },
+        operations: {
+          register: (op: OperationDefinition) => this.registerSubAppOperations(subAppId, [op]),
+          registerBatch: (ops: OperationDefinition[]) => this.registerSubAppOperations(subAppId, ops),
+          get: (name: string) => instance.operations.get(name),
+          list: () => Array.from(instance.operations.values())
+        },
+        events: {
+          emit: (event: string, data: any) => (this as any).interface?.getEmitter(event)?.pushDataStreamToEmitter(data),
+          on: (event: string, listener: (data: any) => void) => (this as any).interface?.getEmitter(event)?.subscribe((m: any) => listener(m.data || m)) || (() => {})
+        },
+        config: {},
+        logger: (this as any).logger || console
+      };
+      await registration.onInitialize(regContext);
+    }
+
+    instance.state = 'READY';
+    instance.readyAt = Date.now();
+    this._subApps.set(subAppId, instance);
+    return instance;
+  }
+
+  /**
+   * Internal helper: wraps sub-app operations into first-class Entity functionalities.
+   */
+  private _registerSubAppInstance(instance: SubAppInstance): void {
+    if (!instance.operations) return;
+
+    for (const op of instance.operations.values()) {
+      this._wrapAndAddSubAppOperation(instance.id, op);
+    }
+
+    if (this._selfHosting) {
+      this._notifyAdaptersOfSurfaceChange();
+    }
+  }
+
+  /**
+   * Wraps a single operation definition into a krnlLocalFunctionality and binds to this Entity.
+   */
+  private _wrapAndAddSubAppOperation(subAppId: string, op: OperationDefinition): void {
+    const qualifiedFid = `${subAppId}.${op.name}`;
+
+    const atomConfig = {
+      id: qualifiedFid,
+      visibility: op.visibility || 'public',
+      description: op.description || '',
+      method: op.method || 'POST',
+      schema: {
+        input: op.input || null,
+        output: op.output || null
+      },
+      metadata: op.metadata || {},
+      api: async (input: any, ctx: any) => {
+        return await op.handler(input, {
+          caller: ctx?.caller,
+          callerPort: ctx?.callerPort,
+          accessKey: ctx?.accessKey,
+          entity: this,
+          metadata: op.metadata
+        });
+      }
+    };
+
+    const localAtom = new krnlLocalFunctionality(atomConfig);
+    this.addLocal(localAtom);
+
+    // Also register unqualified alias if not already taken
+    if (!this.localFunctionalities.has(op.name) && !this.remoteFunctionalities.has(op.name)) {
+      const aliasAtom = new krnlLocalFunctionality({
+        ...atomConfig,
+        id: op.name
+      });
+      this.addLocal(aliasAtom);
+    }
+  }
+
+  /**
+   * Registers additional operations under an existing sub-app.
+   */
+  registerSubAppOperations(subAppId: string, operations: OperationDefinition[]): void {
+    const instance = this._subApps.get(subAppId);
+    for (const op of operations) {
+      if (instance) {
+        instance.operations.set(op.name, op);
+      }
+      this._wrapAndAddSubAppOperation(subAppId, op);
+    }
+    if (this._selfHosting) {
+      this._notifyAdaptersOfSurfaceChange();
+    }
+  }
+
+  /**
+   * Unregisters and disposes a sub-app from this entity.
+   */
+  async unregisterSubApp(subAppId: string): Promise<void> {
+    const instance = this._subApps.get(subAppId);
+    if (!instance) return;
+
+    // 1. Remove all wrapped functionalities
+    for (const opName of instance.operations.keys()) {
+      const qualifiedFid = `${subAppId}.${opName}`;
+      if (this.localFunctionalities.has(qualifiedFid)) {
+        const func = this.localFunctionalities.get(qualifiedFid);
+        if (func && typeof (func as any)._unregisterFromInterface === 'function') {
+          (func as any)._unregisterFromInterface();
+        }
+        this.localFunctionalities.delete(qualifiedFid);
+      }
+      if (this.localFunctionalities.has(opName)) {
+        const func = this.localFunctionalities.get(opName);
+        if (func && typeof (func as any)._unregisterFromInterface === 'function') {
+          (func as any)._unregisterFromInterface();
+        }
+        this.localFunctionalities.delete(opName);
+      }
+    }
+
+    // 2. Run disposal lifecycle
+    await KrnlSubAppLifecycle.dispose(instance);
+    this._subApps.delete(subAppId);
+
+    if (this._selfHosting) {
+      this._notifyAdaptersOfSurfaceChange();
+    }
+  }
+
+  /**
+   * Retrieve a registered sub-app instance by ID.
+   */
+  getSubApp(subAppId: string): SubAppInstance | undefined {
+    return this._subApps.get(subAppId);
+  }
+
+  /**
+   * Returns all sub-app instances registered under this entity.
+   */
+  getSubApps(): SubAppInstance[] {
+    return Array.from(this._subApps.values());
+  }
+
   // ── Manifest Aggregation (Kernel Declares → Shell Materializes) ──────────
 
   /**
-   * Aggregates dependency manifests from all local functionalities and descendant entities.
+   * Aggregates dependency manifests from all local functionalities, sub-apps, and descendant entities.
    * Returns a consolidated workspace requirements document.
    */
   getWorkspaceRequirements(): KrnlWorkspaceRequirements {
@@ -382,7 +631,14 @@ export class Entity extends krnlEntityBase {
       }
     });
 
-    // 2. Child entities (recursive)
+    // 2. Sub-Apps manifests
+    this._subApps.forEach((subApp: SubAppInstance) => {
+      if (subApp.manifest) {
+        Entity._mergeManifestRequirements(reqs, subApp.manifest, `${this.id}:${subApp.id}`);
+      }
+    });
+
+    // 3. Child entities (recursive)
     this.hierarchyManager.getAllOwnedComponentEntities().forEach((child: any) => {
       if (typeof child._aggregateManifestInto === 'function') {
         child._aggregateManifestInto(reqs);
@@ -392,7 +648,7 @@ export class Entity extends krnlEntityBase {
 
   private static _mergeManifestRequirements(
     target: KrnlWorkspaceRequirements,
-    manifest: KrnlFunctionalityManifest,
+    manifest: KrnlFunctionalityManifest | SubAppManifest,
     sourceId: string
   ): void {
     if (manifest.dependencies) {
@@ -425,8 +681,8 @@ export class Entity extends krnlEntityBase {
       }
     }
 
-    if (manifest.resources) {
-      for (const res of manifest.resources) {
+    if ((manifest as any).resources) {
+      for (const res of (manifest as any).resources) {
         target.resources.push(res);
       }
     }
@@ -435,7 +691,7 @@ export class Entity extends krnlEntityBase {
   // ── UI Spec Recursive Aggregation ────────────────────────────────────────
 
   /**
-   * Aggregates UI specifications from all functionalities across the entity tree.
+   * Aggregates UI specifications from all functionalities and sub-apps across the entity tree.
    * Qualified IDs ensure namespace stability and avoid collisions.
    */
   aggregateUI(): Array<{ qualifiedId: string; uiSpec: any; source: Entity }> {
@@ -446,6 +702,18 @@ export class Entity extends krnlEntityBase {
         list.push({
           qualifiedId: this.getQualifiedId(fid),
           uiSpec: func.uiSpec,
+          source: this
+        });
+      }
+    });
+
+    // Sub-App UIs
+    this._subApps.forEach((subApp: SubAppInstance) => {
+      const uiConfig = subApp.registration?.ui || subApp.manifest?.ui;
+      if (uiConfig) {
+        list.push({
+          qualifiedId: this.getQualifiedId(subApp.id),
+          uiSpec: typeof uiConfig === 'string' ? { entry: uiConfig } : uiConfig,
           source: this
         });
       }
@@ -470,12 +738,16 @@ export class Entity extends krnlEntityBase {
   }
 
   /**
-   * Clean disposal of all entity resources, child components, and adapters.
+   * Clean disposal of all entity resources, sub-apps, child components, and adapters.
    */
   dispose(): void {
     if (this._selfHosting) {
       this.stopHosting().catch(() => {});
     }
+    for (const subApp of this._subApps.values()) {
+      KrnlSubAppLifecycle.dispose(subApp).catch(() => {});
+    }
+    this._subApps.clear();
     for (const adapter of this._protocolAdapters.values()) {
       if (typeof adapter.dispose === 'function') {
         adapter.dispose();

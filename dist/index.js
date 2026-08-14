@@ -1,7 +1,16 @@
 import {
   Entity,
   KrnlFlowBuilder
-} from "./chunk-Y7UIOIBR.js";
+} from "./chunk-5ADDSZ6T.js";
+import {
+  DefaultEventRegistrar,
+  DefaultOperationRegistrar,
+  DefaultServiceContainer,
+  KrnlSubAppDiscovery,
+  KrnlSubAppLifecycle,
+  KrnlSubAppValidator,
+  createHttpsAppAdapter
+} from "./chunk-EUWW3ZLC.js";
 import {
   KrnlRegistryClient
 } from "./chunk-4MELRUJ6.js";
@@ -10,15 +19,15 @@ import {
 } from "./chunk-UBJAGRZU.js";
 import {
   KrnlSubAppLoader
-} from "./chunk-MMQBGXBD.js";
+} from "./chunk-WWKZMB2H.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-CGERGLGD.js";
+} from "./chunk-6N7IX3XC.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-OWMF4M3T.js";
+} from "./chunk-4W6BPB3T.js";
 import {
   KrnlApplicationOrchestrator,
   KrnlBootBarrier,
@@ -38,7 +47,7 @@ import {
   krnl,
   krnlSystemCommComponent,
   krnlSystemEntityBase
-} from "./chunk-UERXCIWZ.js";
+} from "./chunk-UTWAZ42Q.js";
 import {
   KrnlFrontendGenerator,
   init_K_LIB_Krnl_Frontend_Generator
@@ -420,6 +429,9 @@ export {
   AsyncKit,
   CUSTOM_ERROR_CODE,
   CacheKit,
+  DefaultEventRegistrar,
+  DefaultOperationRegistrar,
+  DefaultServiceContainer,
   Entity,
   FileCache,
   FileLock,
@@ -449,7 +461,10 @@ export {
   KrnlRuntimeStore,
   KrnlShell,
   KrnlSiblingNetwork,
+  KrnlSubAppDiscovery,
+  KrnlSubAppLifecycle,
   KrnlSubAppLoader,
+  KrnlSubAppValidator,
   KrnlSubAppWorkerHost,
   KrnlTaskList,
   KrnlTaskRunner,
@@ -464,6 +479,7 @@ export {
   WebSocketTransportAdapter,
   buildEntityIntention,
   createEnum,
+  createHttpsAppAdapter,
   defaultConnectionBehaviour,
   krnlCollector,
   krnlData,

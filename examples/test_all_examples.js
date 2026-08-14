@@ -7,6 +7,8 @@ const __dirname = path.dirname(__filename);
 
 const testFiles = [
   'test_gross_architecture.js',
+  'test_subapp_refactoring.js',
+  'example16/run_test.js',
   'frontend_demo/run.js',
   'magnetic_demo/run.js',
   'example1/run_example.js',

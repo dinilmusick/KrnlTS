@@ -109,13 +109,32 @@ export class KrnlMagneticLoader {
           if (!buildOk) {
             continue;
           }
+
+          // Check if this sub-app implements the new SubApp registration contract
+          if (typeof entity.loadSubApp === 'function') {
+            const { KrnlSubAppDiscovery } = await import('./K_LIB_Krnl_SubApp_Engine.js');
+            const desc = await KrnlSubAppDiscovery.locateDescriptor(appPath, dirent.name);
+            if (desc && (fs.existsSync(path.join(appPath, 'subapp.json')) || fs.existsSync(desc.registrationPath))) {
+              try {
+                const subMeta = subappMetaMap[dirent.name] || subappMetaMap[dirent.name.toLowerCase()];
+                const inst = await entity.loadSubApp(desc, subMeta || {});
+                if (inst.state === 'READY') {
+                  console.log(`[MagneticLoader] Loaded sub-app '${dirent.name}' using registration contract on '${entity.entityName || entity.id}'.`);
+                  continue;
+                }
+              } catch (loadErr: any) {
+                console.warn(`[MagneticLoader] SubApp registration contract load warning for '${dirent.name}':`, loadErr.message);
+              }
+            }
+          }
+
           const config = await this.detectSubApp(appPath, dirent.name);
           if (config) {
             subappConfigs.push(config);
           }
         }
       }
-      if (subappConfigs.length > 0) {
+      if (subappConfigs.length > 0 && typeof entity.loadSubApps === 'function') {
         // Inject execution mode into each config
         for (const cfg of subappConfigs) {
           const subMeta = subappMetaMap[cfg.prefix] || subappMetaMap[Object.keys(subappMetaMap).find(k => k.toLowerCase() === cfg.prefix) || ''];

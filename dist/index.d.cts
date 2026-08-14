@@ -2817,6 +2817,170 @@ declare class KrnlFlowBuilder {
 }
 
 /**
+ * @file K_LIB_Krnl_SubApp_Types.ts
+ * @description Core types and contracts for Krnl Sub-App integration.
+ *
+ * Governing Principles:
+ * - Sub-App owns: UI, business logic, internal backend, endpoint/operation implementations, app dependencies.
+ * - Krnl owns: discovery, registration, lifecycle, ecosystem integration, transport exposure, shared services, and flow orchestration.
+ * - Zero-Server Rule: Sub-apps NEVER start their own HTTP/WebSocket servers or bind listening ports.
+ * - Functionality Wrapping: Sub-app operations wrap as first-class functionalities on the host Entity.
+ */
+
+/**
+ * Sub-App Manifest declaring dependencies, required services, registration entry, and runtime metadata.
+ */
+interface SubAppManifest {
+    name: string;
+    version: string;
+    description?: string;
+    author?: string;
+    registrationEntry?: string;
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+    buildRequirements?: string[];
+    requiredServices?: string[];
+    runtimeMetadata?: Record<string, unknown>;
+    ui?: SubAppUIConfig | string;
+}
+/**
+ * Sub-app filesystem descriptor.
+ */
+interface SubAppDescriptor {
+    id: string;
+    path: string;
+    manifestPath?: string;
+    registrationPath: string;
+    manifest?: SubAppManifest;
+}
+/**
+ * Execution context supplied to an operation handler when invoked.
+ */
+interface SubAppExecutionContext {
+    caller?: string;
+    callerPort?: number;
+    accessKey?: string;
+    entity?: any;
+    services?: ServiceContainer;
+    metadata?: Record<string, unknown>;
+}
+/**
+ * Operation handler function signature.
+ */
+type OperationHandler<TInput = any, TOutput = any> = (input: TInput, context: SubAppExecutionContext) => Promise<TOutput> | TOutput;
+/**
+ * Declarative Operation definition exposing transport-independent capability.
+ */
+interface OperationDefinition {
+    name: string;
+    description?: string;
+    input?: any;
+    output?: any;
+    handler: OperationHandler;
+    metadata?: Record<string, unknown>;
+    method?: string;
+    visibility?: 'public' | 'protected' | 'private';
+}
+/**
+ * UI configuration descriptor for sub-apps.
+ */
+interface SubAppUIConfig {
+    entryPath?: string;
+    title?: string;
+    icon?: string;
+    routePrefix?: string;
+    metadata?: Record<string, unknown>;
+}
+/**
+ * Shared services container injected into sub-apps.
+ */
+interface ServiceContainer {
+    get<T = any>(serviceName: string): T | undefined;
+    has(serviceName: string): boolean;
+    register<T = any>(serviceName: string, serviceInstance: T): void;
+    list(): string[];
+}
+/**
+ * Operation registrar interface injected into sub-apps during registration.
+ */
+interface OperationRegistrar {
+    register(op: OperationDefinition): void;
+    registerBatch(ops: OperationDefinition[]): void;
+    get(opName: string): OperationDefinition | undefined;
+    list(): OperationDefinition[];
+}
+/**
+ * Event registrar interface injected into sub-apps during registration.
+ */
+interface EventRegistrar {
+    emit(eventName: string, data: any): void;
+    on(eventName: string, listener: (data: any) => void): () => void;
+}
+/**
+ * Dependency-injected registration context passed to SubApp.register(context).
+ */
+interface SubAppRegistrationContext {
+    entity: any;
+    services: ServiceContainer;
+    operations: OperationRegistrar;
+    events: EventRegistrar;
+    config: Record<string, unknown>;
+    logger: Logger;
+}
+/**
+ * Return contract from SubApp.register(context).
+ */
+interface SubAppRegistration {
+    name?: string;
+    operations: OperationDefinition[];
+    ui?: SubAppUIConfig | string;
+    metadata?: Record<string, unknown>;
+    onInitialize?: (context: SubAppRegistrationContext) => Promise<void> | void;
+    onDispose?: () => Promise<void> | void;
+}
+/**
+ * Sub-App module contract.
+ */
+interface SubAppModule {
+    manifest?: SubAppManifest;
+    register: (context: SubAppRegistrationContext) => SubAppRegistration | Promise<SubAppRegistration>;
+    default?: ((context: SubAppRegistrationContext) => SubAppRegistration | Promise<SubAppRegistration>) | {
+        manifest?: SubAppManifest;
+        register?: (context: SubAppRegistrationContext) => SubAppRegistration | Promise<SubAppRegistration>;
+    };
+}
+/**
+ * Lifecycle states of a sub-app instance.
+ */
+type SubAppLifecycleState = 'DISCOVERED' | 'VALIDATING' | 'VALIDATED' | 'LOADING' | 'REGISTERED' | 'INITIALIZING' | 'READY' | 'UNREGISTERING' | 'DISPOSED' | 'ERROR';
+/**
+ * Structured error details for sub-app validation and execution failures.
+ */
+interface SubAppErrorDetail {
+    code: string;
+    message: string;
+    field?: string;
+    subAppId?: string;
+    operationName?: string;
+}
+/**
+ * Runtime sub-app instance managed by an Entity.
+ */
+interface SubAppInstance {
+    id: string;
+    state: SubAppLifecycleState;
+    manifest: SubAppManifest;
+    descriptor: SubAppDescriptor;
+    registration?: SubAppRegistration;
+    operations: Map<string, OperationDefinition>;
+    error?: Error | null;
+    errorDetails?: SubAppErrorDetail[];
+    loadedAt?: number;
+    readyAt?: number;
+    dispose?: () => Promise<void>;
+}
+
+/**
  * @file K_ENT_Entity.ts
  * @description The unified Entity class representing the core composition & orchestration primitive.
  *
@@ -2835,6 +2999,8 @@ declare class Entity extends krnlEntityBase {
     _selfHosting: boolean;
     /** Protocol adapters attached to this entity. Operational only in root position. */
     _protocolAdapters: Map<string, KrnlProtocolAdapter>;
+    /** Sub-Apps registered directly under this entity */
+    _subApps: Map<string, SubAppInstance>;
     /** Reservation state for access control and mutual exclusion */
     reservation: {
         busy: boolean;
@@ -2969,14 +3135,50 @@ declare class Entity extends krnlEntityBase {
     resolveCapability(qualifiedId: string): KrnlCapabilityResolution | undefined;
     private _resolveCapabilityRecursive;
     /**
-     * Aggregates dependency manifests from all local functionalities and descendant entities.
+     * Discovers sub-apps in the specified directory (or default 'subapps/').
+     */
+    discoverSubApps(searchPath?: string): Promise<SubAppDescriptor[]>;
+    /**
+     * Loads, validates, registers, and initializes a sub-app onto this entity.
+     */
+    loadSubApp(descriptorOrPath: string | SubAppDescriptor, config?: Record<string, unknown>): Promise<SubAppInstance>;
+    /**
+     * Programmatically registers a sub-app registration object.
+     */
+    registerSubApp(registration: SubAppRegistration, descriptor?: SubAppDescriptor): Promise<SubAppInstance>;
+    /**
+     * Internal helper: wraps sub-app operations into first-class Entity functionalities.
+     */
+    private _registerSubAppInstance;
+    /**
+     * Wraps a single operation definition into a krnlLocalFunctionality and binds to this Entity.
+     */
+    private _wrapAndAddSubAppOperation;
+    /**
+     * Registers additional operations under an existing sub-app.
+     */
+    registerSubAppOperations(subAppId: string, operations: OperationDefinition[]): void;
+    /**
+     * Unregisters and disposes a sub-app from this entity.
+     */
+    unregisterSubApp(subAppId: string): Promise<void>;
+    /**
+     * Retrieve a registered sub-app instance by ID.
+     */
+    getSubApp(subAppId: string): SubAppInstance | undefined;
+    /**
+     * Returns all sub-app instances registered under this entity.
+     */
+    getSubApps(): SubAppInstance[];
+    /**
+     * Aggregates dependency manifests from all local functionalities, sub-apps, and descendant entities.
      * Returns a consolidated workspace requirements document.
      */
     getWorkspaceRequirements(): KrnlWorkspaceRequirements;
     private _aggregateManifestInto;
     private static _mergeManifestRequirements;
     /**
-     * Aggregates UI specifications from all functionalities across the entity tree.
+     * Aggregates UI specifications from all functionalities and sub-apps across the entity tree.
      * Qualified IDs ensure namespace stability and avoid collisions.
      */
     aggregateUI(): Array<{
@@ -2989,10 +3191,105 @@ declare class Entity extends krnlEntityBase {
      */
     flow(id: string): KrnlFlowBuilder;
     /**
-     * Clean disposal of all entity resources, child components, and adapters.
+     * Clean disposal of all entity resources, sub-apps, child components, and adapters.
      */
     dispose(): void;
 }
+
+/**
+ * @file K_LIB_Krnl_SubApp_Engine.ts
+ * @description Sub-App Discovery, Validation, Lifecycle Execution, and HTTPS Adapter Engine for Krnl.
+ */
+
+/**
+ * Default in-memory service container for dependency injection.
+ */
+declare class DefaultServiceContainer implements ServiceContainer {
+    private services;
+    constructor(initialServices?: Record<string, any>);
+    get<T = any>(serviceName: string): T | undefined;
+    has(serviceName: string): boolean;
+    register<T = any>(serviceName: string, serviceInstance: T): void;
+    list(): string[];
+}
+/**
+ * Default Operation registrar collector used during sub-app registration.
+ */
+declare class DefaultOperationRegistrar implements OperationRegistrar {
+    private ops;
+    register(op: OperationDefinition): void;
+    registerBatch(ops: OperationDefinition[]): void;
+    get(opName: string): OperationDefinition | undefined;
+    list(): OperationDefinition[];
+}
+/**
+ * Default Event registrar for sub-apps.
+ */
+declare class DefaultEventRegistrar implements EventRegistrar {
+    private hostEntity;
+    constructor(hostEntity: any);
+    emit(eventName: string, data: any): void;
+    on(eventName: string, listener: (data: any) => void): () => void;
+}
+/**
+ * Sub-App Discovery Engine
+ */
+declare class KrnlSubAppDiscovery {
+    /**
+     * Deterministically scans searchDir for sub-apps and builds typed SubAppDescriptor instances.
+     */
+    static discoverSubApps(searchDir: string): Promise<SubAppDescriptor[]>;
+    /**
+     * Inspects a specific directory to see if it represents a valid sub-app.
+     */
+    static locateDescriptor(subAppDir: string, fallbackId?: string): Promise<SubAppDescriptor | null>;
+}
+/**
+ * Sub-App Validator Engine
+ */
+declare class KrnlSubAppValidator {
+    /**
+     * Validates a sub-app manifest.
+     */
+    static validateManifest(manifest: any): {
+        valid: boolean;
+        errors: SubAppErrorDetail[];
+    };
+    /**
+     * Validates operation definitions and checks for collisions.
+     */
+    static validateRegistration(registration: SubAppRegistration, existingOperations: Set<string>, subAppId: string): {
+        valid: boolean;
+        errors: SubAppErrorDetail[];
+    };
+}
+/**
+ * Sub-App Lifecycle Engine
+ */
+declare class KrnlSubAppLifecycle {
+    /**
+     * Loads, validates, registers, and initializes a sub-app onto an Entity.
+     */
+    static loadAndRegister(entity: any, descriptor: SubAppDescriptor, config?: Record<string, unknown>): Promise<SubAppInstance>;
+    /**
+     * Gracefully unregisters and disposes of a sub-app instance.
+     */
+    static dispose(instance: SubAppInstance): Promise<void>;
+}
+/**
+ * HTTPS Compatibility Adapter: Helper for mapping existing full-stack React app endpoints into OperationDefinitions.
+ */
+declare function createHttpsAppAdapter(options: {
+    name: string;
+    endpoints: Array<{
+        path: string;
+        method?: string;
+        description?: string;
+        inputSchema?: any;
+        outputSchema?: any;
+        handler: (reqBodyOrParams: any, context?: any) => Promise<any> | any;
+    }>;
+}): SubAppRegistration;
 
 /**
  * @file ObjectKit.ts
@@ -3403,4 +3700,4 @@ declare class PocerBlock extends krnlSystemEntityBase {
     private _waitForPort;
 }
 
-export { AsyncKit, CUSTOM_ERROR_CODE, CacheKit, type DefaultConnectionBehaviour, type EndpointCategory, Entity, FileCache, FileLock, GitManager, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlCapabilityResolution, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFlowBuilder, type KrnlFlowStep, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, type KrnlFunctionalityManifest, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlJobScheduler, type KrnlJobTicket, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlProtocolAdapter, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLoader, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, type KrnlWorkspaceRequirements, LRUCache, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, PocerBlock, type ReleaseFn, type SiblingMemberEntry, type SpawnHandle, StringKit, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, defaultConnectionBehaviour, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };
+export { AsyncKit, CUSTOM_ERROR_CODE, CacheKit, type DefaultConnectionBehaviour, DefaultEventRegistrar, DefaultOperationRegistrar, DefaultServiceContainer, type EndpointCategory, Entity, type EventRegistrar, FileCache, FileLock, GitManager, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlCapabilityResolution, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFlowBuilder, type KrnlFlowStep, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, type KrnlFunctionalityManifest, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlJobScheduler, type KrnlJobTicket, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlProtocolAdapter, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, KrnlSubAppDiscovery, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLifecycle, KrnlSubAppLoader, KrnlSubAppValidator, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, type KrnlWorkspaceRequirements, LRUCache, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, type OperationDefinition, type OperationHandler, type OperationRegistrar, PocerBlock, type ReleaseFn, type ServiceContainer, type SiblingMemberEntry, type SpawnHandle, StringKit, type SubAppDescriptor, type SubAppErrorDetail, type SubAppExecutionContext, type SubAppInstance, type SubAppLifecycleState, type SubAppManifest, type SubAppModule, type SubAppRegistration, type SubAppRegistrationContext, type SubAppUIConfig, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, createHttpsAppAdapter, defaultConnectionBehaviour, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };

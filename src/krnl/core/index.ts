@@ -49,3 +49,16 @@ export { krnl as krnlProto } from "./krnl_pb.js";
 export { Entity } from "./K_ENT_Entity.js";
 export { KrnlFlowBuilder, type KrnlFlowStep } from "./K_LIB_Krnl_Flow.js";
 export type { KrnlProtocolAdapter, KrnlCapabilityResolution } from "./K_LIB_Krnl_Protocol_Adapter.js";
+
+// Sub-App Integration Exports
+export * from "./K_LIB_Krnl_SubApp_Types.js";
+export {
+  DefaultServiceContainer,
+  DefaultOperationRegistrar,
+  DefaultEventRegistrar,
+  KrnlSubAppDiscovery,
+  KrnlSubAppValidator,
+  KrnlSubAppLifecycle,
+  createHttpsAppAdapter
+} from "./K_LIB_Krnl_SubApp_Engine.js";
+
