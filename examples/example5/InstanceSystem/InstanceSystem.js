@@ -1,15 +1,18 @@
-import { krnlSystemEntityBase } from "../../../dist/index.js";
+import { Entity, krnlUnifiedHttpAdapter } from "../../../dist/index.js";
 import { RunInstanceDemoAtom } from "./functionalities/RunInstanceDemo/RunInstanceDemo.js";
 
-export class InstanceSystem extends krnlSystemEntityBase {
+export class InstanceSystem extends Entity {
     static Singleton = true;
 
-    constructor(port = 10095) {
-        super("InstanceSystem", null, port);
-        this.addLocal(RunInstanceDemoAtom);
+    constructor(port = 10096, options = {}) {
+        super("InstanceSystem", null, options);
+        this.addLocal({
+            ...RunInstanceDemoAtom,
+            manifest: {
+                version: "1.0.0",
+                capabilities: ["demo:instances"]
+            }
+        });
+        this.attachAdapter(new krnlUnifiedHttpAdapter(this, port, options.host || "0.0.0.0"));
     }
 }
-
-// const system = new InstanceSystem();
-// const result = await system.call("RunInstanceDemo");
-// console.log("[InstanceSystem] Demo result:", result);

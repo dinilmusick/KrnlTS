@@ -1,29 +1,25 @@
 // WebInterfaceSystem/WebInterfaceSystem.js
-import { krnlSystemEntityBase } from "../../../dist/index.js";
+import { Entity, krnlUnifiedHttpAdapter } from "../../../dist/index.js";
 import { UIPanelAtom } from "./functionalities/UIPanel/UIPanel.js";
 import { SetupCommsAtom } from "./functionalities/SetupComms/SetupComms.js";
 import { MonitorAtom } from "./functionalities/Monitor/Monitor.js";
 
-export class WebInterfaceSystem extends krnlSystemEntityBase {
+export class WebInterfaceSystem extends Entity {
     static Singleton = true;
     constructor(port = 10092, options = {}) {
-        super("WebInterfaceSystem", null, port, options.host || "0.0.0.0", options);
+        super("WebInterfaceSystem", null, options);
 
-        this.addLocal(UIPanelAtom);
+        this.addLocal({
+            ...UIPanelAtom,
+            manifest: {
+                version: "1.0.0",
+                capabilities: ["ui:panel"]
+            }
+        });
         this.addLocal(SetupCommsAtom);
         this.addLocal(MonitorAtom);
-        
-        // this.startDiscovery().then(async () => {
-        //     console.log(`[WebInterfaceSystem] Frontend ready on port ${port}.`);
-        //     const status = await this.call("SetupComms");
-        //     console.log(`[WebInterfaceSystem] Setup status: ${status}`);
-        //     if (status === "Wiring complete.") {
-        //         console.log("[WebInterfaceSystem] Triggering demo calculation...");
-        //         const res = await this.call("UIPanel", { a: 10, b: 5, op: "add" });
-        //         console.log("[WebInterfaceSystem] Result from UIPanel:", res);
-        //     }
-        // });
+
+        // Attach Protocol Adapter
+        this.attachAdapter(new krnlUnifiedHttpAdapter(this, port, options.host || "0.0.0.0"));
     }
 }
-
-// new WebInterfaceSystem();

@@ -1,4 +1,4 @@
-import { krnlSystemEntityBase } from "../../../dist/index.js";
+import { Entity, krnlUnifiedHttpAdapter } from "../../../dist/index.js";
 import net from 'net';
 
 function isPortTaken(port) {
@@ -21,15 +21,16 @@ async function findFreePort(startPort) {
     return port;
 }
 
-export class App2 extends krnlSystemEntityBase {
+export class App2 extends Entity {
     constructor(basePort = 11050) {
-        super("App2", null, basePort);
+        super("App2", null);
+        this.attachAdapter(new krnlUnifiedHttpAdapter(this, basePort));
     }
     async start() {
-        // App 2 checks for occupied ports then assigns its own
+        await this.finalize();
         const port = await findFreePort(13000);
         console.log(`[App2] Server started on ${port}`);
-        this.addLocal({ id: "server1", port: port });
+        this.addLocal({ id: "server1", api: async () => ({ port }) });
         return { port };
     }
 }

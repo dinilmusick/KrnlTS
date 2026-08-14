@@ -1,8 +1,7 @@
-import { krnlEntityBase } from "../../../../../dist/index.js";
+import { Entity } from "../../../../../dist/index.js";
 import { LeafEntity } from "./entities/LeafEntity/LeafEntity.js";
 
-// Entity descriptor: assembly and visibility boundary only.
-export class MidEntity extends krnlEntityBase {
+export class MidEntity extends Entity {
     static Singleton = true;
     constructor(name, owner) {
         super(name, owner);

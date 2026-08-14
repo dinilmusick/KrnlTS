@@ -323,7 +323,10 @@ export class krnlUnifiedHttpAdapter implements KrnlProtocolAdapter {
                 }
             }
 
-            this._sendJson(res, 404, this.system.getNotFoundResponse(reqPath));
+            const notFoundData = typeof this.system.getNotFoundResponse === 'function'
+                ? this.system.getNotFoundResponse(reqPath)
+                : { error: 'Route not found', path: reqPath };
+            this._sendJson(res, 404, notFoundData);
             return;
         }
 

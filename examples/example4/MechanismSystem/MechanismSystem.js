@@ -1,17 +1,19 @@
-import { krnlSystemEntityBase } from "../../../dist/index.js";
+import { Entity, krnlUnifiedHttpAdapter } from "../../../dist/index.js";
 import { MidEntity } from "./entities/MidEntity/MidEntity.js";
 import { RunMechanismDemoAtom } from "./functionalities/RunMechanismDemo/RunMechanismDemo.js";
 
-// System descriptor: assembly + orchestration trigger only.
-export class MechanismSystem extends krnlSystemEntityBase {
+export class MechanismSystem extends Entity {
     static Singleton = true;
-    constructor(port = 10094) {
-        super("MechanismSystem", null, port);
+    constructor(port = 10095, options = {}) {
+        super("MechanismSystem", null, options);
         this.hierarchyManager.createComponentEntity("Mid", MidEntity);
-        this.addLocal(RunMechanismDemoAtom);
+        this.addLocal({
+            ...RunMechanismDemoAtom,
+            manifest: {
+                version: "1.0.0",
+                capabilities: ["demo:mechanisms"]
+            }
+        });
+        this.attachAdapter(new krnlUnifiedHttpAdapter(this, port, options.host || "0.0.0.0"));
     }
 }
-
-// const system = new MechanismSystem();
-// const result = await system.call("RunMechanismDemo");
-// console.log("[MechanismSystem] Demo result:", result);

@@ -24,9 +24,144 @@ export class Entity extends krnlEntityBase {
   /** Protocol adapters attached to this entity. Operational only in root position. */
   _protocolAdapters: Map<string, KrnlProtocolAdapter> = new Map();
 
+  /** Reservation state for access control and mutual exclusion */
+  reservation: {
+    busy: boolean;
+    reservedBy: string | null;
+    reservedAt: number | null;
+  } = {
+    busy: false,
+    reservedBy: null,
+    reservedAt: null,
+  };
+
+  /** Discoverability state for network beacons / registries */
+  discoverable: boolean = true;
+
   constructor(name: string, owner: krnlEntityBase | null = null, options: any = {}) {
     super(name, owner, options);
     this.systemType = "Entity";
+  }
+
+  /**
+   * System flags representing discoverability and reservation status.
+   */
+  getSystemFlags() {
+    return {
+      discoverable: this.discoverable,
+      busy: this.reservation.busy,
+      reservedBy: this.reservation.reservedBy,
+      reservedAt: this.reservation.reservedAt,
+    };
+  }
+
+  /**
+   * Set discoverability status.
+   */
+  setDiscoverable(value: boolean) {
+    this.discoverable = Boolean(value);
+    return this.getSystemFlags();
+  }
+
+  /**
+   * Reserve this entity for exclusive access by serviceName.
+   */
+  reserveFor(serviceName: string = 'unknown') {
+    this.reservation = {
+      busy: true,
+      reservedBy: serviceName,
+      reservedAt: Date.now(),
+    };
+    return this.getSystemFlags();
+  }
+
+  /**
+   * Release reservation held by serviceName.
+   */
+  releaseReservation(serviceName: string | null = null) {
+    if (serviceName && this.reservation.reservedBy && this.reservation.reservedBy !== serviceName) {
+      throw new Error(
+        `[${this.entityName}] Reservation owned by ${this.reservation.reservedBy}; cannot release as ${serviceName}.`
+      );
+    }
+    this.reservation = {
+      busy: false,
+      reservedBy: null,
+      reservedAt: null,
+    };
+    return this.getSystemFlags();
+  }
+
+  /**
+   * Guard checking if entity is available for remote caller.
+   */
+  _assertAvailableForRemoteAccess(requester: string | null = null) {
+    if (!this.reservation.busy) return;
+    if (requester && requester === this.reservation.reservedBy) return;
+    const by = this.reservation.reservedBy || 'another service';
+    throw new Error(`[${this.entityName}] Entity is busy/reserved by ${by}.`);
+  }
+
+  /**
+   * Get dynamic manifest of all capabilities, flags, and endpoints.
+   */
+  getManifest(): any {
+    const apiNames: string[] = [];
+    const eventsNames: string[] = [];
+    const api: any = {};
+
+    for (const [id, f] of this.localFunctionalities) {
+      apiNames.push(id);
+      api[id] = {
+        id,
+        type: 'local',
+        visibility: f.visibility || 'public',
+        manifest: f.manifest || null,
+        schema: (f as any).schema || null,
+      };
+    }
+
+    for (const [id, f] of this.remoteFunctionalities) {
+      apiNames.push(id);
+      api[id] = {
+        id,
+        type: 'remote',
+        visibility: f.visibility || 'public',
+        schema: (f as any).schema || null,
+      };
+    }
+
+    return {
+      entity: this.entityName,
+      entityName: this.entityName,
+      type: this.systemType,
+      flags: this.getSystemFlags(),
+      apiNames,
+      eventsNames,
+      api,
+      inputs: {
+        api,
+      },
+    };
+  }
+
+  /**
+   * Generates a structured 404 response payload for unmatched routes.
+   */
+  getNotFoundResponse(reqPath: string) {
+    return {
+      status: "error",
+      message: `Route not found: ${reqPath}`,
+      entity: this.entityName,
+      availableRoutes: [
+        "/call/:fid",
+        "/mcp",
+        "/acp",
+        "/manifest",
+        "/health",
+        "/events/:fid"
+      ]
+    };
   }
 
   // ── Protocol Adapter Management ──────────────────────────────────────────
@@ -47,6 +182,38 @@ export class Entity extends krnlEntityBase {
    */
   getAdapters(): KrnlProtocolAdapter[] {
     return Array.from(this._protocolAdapters.values());
+  }
+
+  /**
+   * Get a specific protocol adapter by name (e.g. 'https', 'wss').
+   */
+  getAdapter<T = KrnlProtocolAdapter>(name: string): T | undefined {
+    return this._protocolAdapters.get(name) as T | undefined;
+  }
+
+  /**
+   * Access the WebSocket commComponent adapter if attached.
+   */
+  get commComponent(): any | undefined {
+    return this._protocolAdapters.get('wss');
+  }
+
+  /**
+   * Access the Unified HTTP adapter if attached.
+   */
+  get unifiedHttpAdapter(): any | undefined {
+    return this._protocolAdapters.get('https');
+  }
+
+  /**
+   * Port of active listening adapter.
+   */
+  get commPort(): number {
+    const http = this._protocolAdapters.get('https') as any;
+    if (http && typeof http.port === 'number') return http.port;
+    const wss = this._protocolAdapters.get('wss') as any;
+    if (wss && typeof wss.listenPort === 'number') return wss.listenPort;
+    return 10099;
   }
 
   // ── Activation / Finalize Lifecycle ──────────────────────────────────────

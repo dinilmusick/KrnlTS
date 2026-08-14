@@ -1,14 +1,19 @@
 import {
-  krnlNetworkOrchestratorEntityBase,
-  krnlSystemEntityBase,
+  Entity,
+  krnlSystemCommComponent,
+  krnlNetworkOrchestratorEntityBase
 } from "../../../dist/index.js";
 
-export class SourceSystem extends krnlSystemEntityBase {
+export class SourceSystem extends Entity {
   static Singleton = true;
-  constructor(port = 10121) {
-    super("SourceSystem", null, port, "127.0.0.1");
+  constructor(port = 10121, host = "127.0.0.1") {
+    super("SourceSystem", null);
     this.addLocal({
       id: "Pulse",
+      manifest: {
+        version: "1.0.0",
+        capabilities: ["stream:pulse"]
+      },
       emitters: { pulse: {} },
       api: async (input, { functionality }) => {
         functionality.emitters.get("pulse").pushDataStreamToEmitter({
@@ -18,23 +23,22 @@ export class SourceSystem extends krnlSystemEntityBase {
         return { pushed: true, input };
       },
     });
+    this.attachAdapter(new krnlSystemCommComponent(this, port, host));
   }
 }
 
-export class TargetSystem extends krnlSystemEntityBase {
+export class TargetSystem extends Entity {
   static Singleton = true;
-  constructor(port = 10122) {
-    super("TargetSystem", null, port, "127.0.0.1");
+  constructor(port = 10122, host = "127.0.0.1") {
+    super("TargetSystem", null);
+    this.interface.createCollector("system-commands");
+    this.attachAdapter(new krnlSystemCommComponent(this, port, host));
   }
 }
 
 export class DemoOrchestrator extends krnlNetworkOrchestratorEntityBase {
   static Singleton = true;
-  constructor(port = 10123) {
-    super("DemoOrchestrator", null, port, "127.0.0.1");
+  constructor(port = 10123, host = "127.0.0.1") {
+    super("DemoOrchestrator", null, port, host);
   }
 }
-
-// const source = new SourceSystem();
-// ... removed embedded runner ...
-

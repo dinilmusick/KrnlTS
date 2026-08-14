@@ -1,31 +1,42 @@
 import { AIServerSystem } from "./AIServerSystem/AIServerSystem.js";
 import { telemetry } from "../../dist/index.js";
 
-/**
- * Bootstrapper for the AI Server Example.
- */
 async function main() {
     telemetry.enabled = true;
     const port = 10111;
     const system = new AIServerSystem(port);
 
-    // This triggers the shared server starting on the unified port.
-    // In a real app, this is usually called to enable P2P discovery.
-    await system.startDiscovery();
+    // Finalize Root Entity
+    await system.finalize();
 
-    console.log("\n--- Example Console ---");
-    console.log("Try running the following command in your terminal:");
-    console.log(`curl -X POST http://localhost:${port}/call/calculator -H "Content-Type: application/json" -d '{"a": 20, "b": 3, "op": "mul"}'`);
-    console.log("------------------------\n");
+    console.log("--- Starting Example 8 (Gross Architecture AI Server) ---");
+    console.log(`[AIServerSystem] Active and listening on port ${port}`);
 
-    // Keep the process alive
-    process.on('SIGINT', () => {
-        console.log("\nShutting down AI Server...");
+    // Verify Direct Call
+    const calcRes = await system.call("calculator", { a: 20, b: 3, op: "mul" });
+    console.log("[AIServerSystem] Calculator result:", calcRes);
+
+    // Verify Text Processor
+    const textRes = await system.call("textProcessor", { text: "krnlts", action: "uppercase" });
+    console.log("[AIServerSystem] Text processor result:", textRes);
+
+    // Verify Flow Call
+    const flowRes = await system.call("calculateAndFormat", { a: 10, b: 5, op: "add" });
+    console.log("[AIServerSystem] Flow result:", flowRes);
+
+    // Verify Manifest Aggregation
+    const reqs = system.getWorkspaceRequirements();
+    console.log("[AIServerSystem] Manifest requirements:", reqs);
+
+    setTimeout(() => {
+        console.log("\n--- Telemetry Report ---");
+        console.log("[AIServerSystem]", JSON.stringify(system.getTelemetry(), null, 2));
+
         system.dispose();
         process.exit(0);
-    });
+    }, 500);
 }
 
 main().catch(err => {
-    console.error("Failed to start AI Server example:", err);
+    console.error("Failed to run AI Server example:", err);
 });

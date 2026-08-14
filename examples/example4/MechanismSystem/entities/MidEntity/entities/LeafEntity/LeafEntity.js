@@ -1,11 +1,16 @@
-import { krnlEntityBase } from "../../../../../../../dist/index.js";
+import { Entity } from "../../../../../../../dist/index.js";
 import { LeafActionAtom } from "./functionalities/LeafAction/LeafAction.js";
 
-// Entity descriptor: assembly only.
-export class LeafEntity extends krnlEntityBase {
+export class LeafEntity extends Entity {
     static Singleton = true;
     constructor(name, owner) {
         super(name, owner);
-        this.addLocal(LeafActionAtom);
+        this.addLocal({
+            ...LeafActionAtom,
+            manifest: {
+                version: "1.0.0",
+                capabilities: ["action:leaf"]
+            }
+        });
     }
 }

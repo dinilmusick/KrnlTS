@@ -3,21 +3,23 @@ import { telemetry } from "../../dist/index.js";
 
 async function main() {
     telemetry.enabled = true;
-    console.log("--- Starting Example 4 ---");
-    const system = new MechanismSystem(10095);
-    await system.startDiscovery();
+    console.log("--- Starting Example 4 (Gross Architecture MechanismSystem) ---");
+    const system = new MechanismSystem(10095, { telemetryEnabled: true });
     
-    // Explicitly call the demo
+    // Finalize Root Entity
+    await system.finalize();
+    system.telemetryEnabled = true;
+
+    // Run Demo
     const result = await system.call("RunMechanismDemo");
     console.log("[MechanismSystem] Demo result:", result);
 
-    setTimeout(() => {
-        console.log("\n--- Telemetry Report ---");
-        console.log("[MechanismSystem]", JSON.stringify(system.getTelemetry(), null, 2));
+    console.log("\n--- Telemetry Report ---");
+    console.log("[MechanismSystem]", JSON.stringify(system.getTelemetry(), null, 2));
 
-        system.dispose();
-        process.exit(0);
-    }, 5000);
+    console.log("\nCleanup: Disposing system...");
+    system.dispose();
+    process.exit(0);
 }
 
 main().catch(console.error);

@@ -1,18 +1,18 @@
 // CalculatorSystem/entities/Logger/Logger.js
-import { krnlEntityBase } from "../../../../../dist/index.js";
+import { Entity } from "../../../../../dist/index.js";
 import { AuditAtom } from "./functionalities/Audit/Audit.js";
 
-export class LoggerEntity extends krnlEntityBase {
+export class LoggerEntity extends Entity {
     static Singleton = true;
     constructor(name, owner) {
         super(name, owner);
         
-        /**
-         * INTERFACE DESCRIPTION
-         * ---------------------------------------------------------
-         * Inputs:
-         * - 'Audit': Logs calculation data.
-         */
-        this.addLocal(AuditAtom);
+        this.addLocal({
+            ...AuditAtom,
+            manifest: {
+                version: "1.0.0",
+                capabilities: ["logging:audit"]
+            }
+        });
     }
 }

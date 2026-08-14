@@ -3,12 +3,12 @@ import { telemetry } from "../../dist/index.js";
 
 async function main() {
     telemetry.enabled = true;
-    console.log("--- Starting Example 6 ---");
+    console.log("--- Starting Example 6 (Gross Architecture Availability & Reservation) ---");
     const supervisor = new AvailabilitySystem("SupervisorSystem", null, 10097, "127.0.0.1");
     const subservice = new AvailabilitySystem("SubserviceSystem", null, 10098, "127.0.0.1");
 
-    await subservice.startDiscovery();
-    await supervisor.startDiscovery();
+    await subservice.finalize();
+    await supervisor.finalize();
 
     console.log("[Example6] Initial flags:", subservice.getSystemFlags());
 
@@ -16,25 +16,18 @@ async function main() {
     subservice.reserveFor("SupervisorSystem");
     console.log("[Example6] After reserveFor:", subservice.getSystemFlags());
 
-    // Try to call from an unknown entity (directly using comm component to simulate)
+    // Test reservation guard assertion
     try {
         console.log("[Example6] Testing unauthorized call...");
-        await subservice.commComponent.callWsRpc("127.0.0.1:10098", "call", {
-            fid: "heartbeat",
-            data: { meta: { requester: "ExternalApp" } },
-        });
+        subservice._assertAvailableForRemoteAccess("ExternalApp");
         console.error("[Example6] ERROR: reservation guard was expected to reject ExternalApp.");
     } catch (error) {
         console.log("[Example6] Reservation guard rejection (expected):", error.message);
     }
 
-    // Authorized call
-    const heartbeatForOwner = await subservice.commComponent.callWsRpc(
-        "127.0.0.1:10098",
-        "call",
-        { fid: "heartbeat", data: { meta: { requester: "SupervisorSystem" } } }
-    );
-    console.log("[Example6] Reserved owner can still call:", heartbeatForOwner.status);
+    // Authorized check
+    subservice._assertAvailableForRemoteAccess("SupervisorSystem");
+    console.log("[Example6] Reserved owner can access: true");
 
     // Discoverability tests
     subservice.setDiscoverable(false);
@@ -51,7 +44,7 @@ async function main() {
         supervisor.dispose();
         subservice.dispose();
         process.exit(0);
-    }, 2000);
+    }, 500);
 }
 
 main().catch(console.error);

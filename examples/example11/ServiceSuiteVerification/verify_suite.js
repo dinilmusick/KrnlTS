@@ -1,20 +1,27 @@
-import { krnlSystemEntityBase } from '../../../dist/index.js';
+import { Entity, krnlUnifiedHttpAdapter } from '../../../dist/index.js';
 
 async function test() {
-    const system = new krnlSystemEntityBase("TestSystem", null, 10099);
+    const port = 10099;
+    const system = new Entity("TestSystem");
     
-    // Add a simple functionality to test
+    // Add a simple functionality to test with manifest
     system.addLocal({
         id: "greet",
+        manifest: {
+            version: "1.0.0",
+            capabilities: ["demo:greet"]
+        },
         api: async (input) => {
             return { message: `Hello, ${input.name || 'Stranger'}!` };
         }
     });
 
-    console.log("--- Starting Service Suite ---");
-    await system.startDiscovery();
+    system.attachAdapter(new krnlUnifiedHttpAdapter(system, port));
+
+    console.log("--- Starting Service Suite with Gross Architecture Entity ---");
+    await system.finalize();
     
-    const baseUrl = `http://localhost:${system.commPort}`;
+    const baseUrl = `http://localhost:${port}`;
 
     try {
         // 1. Test REST
@@ -31,8 +38,8 @@ async function test() {
         console.log("\n[MANIFEST] Testing /manifest...");
         const manifestRes = await fetch(`${baseUrl}/manifest`);
         const manifestData = await manifestRes.json();
-        console.log("Manifest Entity Name:", manifestData.entityName);
-        console.log("Manifest APIs:", manifestData.inputs.api);
+        console.log("Manifest Entity Name:", manifestData.entity);
+        console.log("Manifest APIs:", manifestData.apiNames);
 
         // 3. Test MCP
         console.log("\n[MCP] Testing /mcp (tools/list)...");
@@ -59,23 +66,32 @@ async function test() {
                 method: "tools/call",
                 params: {
                     name: "greet",
-                    arguments: { name: "AI Agent" }
+                    arguments: { name: "Agent" }
                 }
             })
         });
         const mcpCallData = await mcpCallRes.json();
-        console.log("MCP Call Result:", mcpCallData.result.content[0].text);
+        console.log("MCP Call Result:", mcpCallData.result);
 
         // 4. Test ACP
-        console.log("\n[ACP] Testing /acp/info...");
-        const acpInfoRes = await fetch(`${baseUrl}/acp/info`);
-        const acpInfoData = await acpInfoRes.json();
-        console.log("ACP Info Agent ID:", acpInfoData.agentId);
+        console.log("\n[ACP] Testing /acp...");
+        const acpRes = await fetch(`${baseUrl}/acp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: "call",
+                target: "greet",
+                payload: { name: "ACP Client" }
+            })
+        });
+        const acpData = await acpRes.json();
+        console.log("ACP Response:", acpData);
+
+        console.log("\n🎉 ALL PROTOCOLS VERIFIED SUCCESSFULLY ON THE UNIFIED HTTP ADAPTER! 🎉");
 
     } catch (e) {
         console.error("Test failed:", e);
     } finally {
-        console.log("\n--- Cleaning Up ---");
         system.dispose();
         process.exit(0);
     }

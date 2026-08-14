@@ -2905,6 +2905,57 @@ var init_K_LIB_Krnl_System_Comm_Component = __esm({
         }
         if (options.port) this.listenPort = options.port;
         if (options.host) this.host = options.host;
+        if (!this._wsRpcHandlers.has("call")) {
+          this.defineRpc("call", async ({ fid, data }) => {
+            if (this.ownerEntity._assertAvailableForRemoteAccess) {
+              this.ownerEntity._assertAvailableForRemoteAccess(data?.meta?.requester || null);
+            }
+            const result = await this.ownerEntity.call(fid, data);
+            return { status: "success", result };
+          });
+        }
+        if (!this._wsRpcHandlers.has("heartbeat")) {
+          this.defineRpc("heartbeat", async ({ meta } = {}) => {
+            if (this.ownerEntity._assertAvailableForRemoteAccess) {
+              this.ownerEntity._assertAvailableForRemoteAccess(meta?.requester || null);
+            }
+            return { status: "alive", entity: this.ownerEntity.entityName, timestamp: Date.now() };
+          });
+        }
+        if (!this._wsRpcHandlers.has("connect-to-target")) {
+          this.defineRpc("connect-to-target", async ({ sourceEmitter, targetAddress, targetCollector, targetName, requester, connectionPolicy = {} }) => {
+            if (this.ownerEntity._assertAvailableForRemoteAccess) {
+              this.ownerEntity._assertAvailableForRemoteAccess(requester || null);
+            }
+            return await this.wireViaWs(sourceEmitter, targetAddress, targetCollector, targetName, {
+              managedBy: connectionPolicy.managedBy || requester || this.ownerEntity.entityName,
+              externallyMutable: connectionPolicy.externallyMutable !== false,
+              metadata: connectionPolicy.metadata || {}
+            });
+          });
+        }
+        if (!this._wsRpcHandlers.has("disconnect-from-target")) {
+          this.defineRpc("disconnect-from-target", async ({ routeId, requester, force = false }) => {
+            this.disconnectRoute(routeId, { requester, force });
+            return { ok: true, routeId };
+          });
+        }
+        if (!this._wsRpcHandlers.has("disconnect-route")) {
+          this.defineRpc("disconnect-route", async ({ routeId, requester, force = false }) => {
+            this.disconnectRoute(routeId, { requester, force });
+            return { ok: true, routeId };
+          });
+        }
+        if (!this._wsRpcHandlers.has("list-routes")) {
+          this.defineRpc("list-routes", async () => {
+            return this.listRoutes();
+          });
+        }
+        if (!this._wsRpcHandlers.has("list-connections")) {
+          this.defineRpc("list-connections", async () => {
+            return this.listRoutes();
+          });
+        }
         await this.startWsServer();
       }
       onCapabilitySurfaceChanged(entity) {
@@ -4357,7 +4408,7 @@ var init_K_LIB_Krnl_Protocol_MCP = __esm({
           return { tools: tools2 };
         }
         const manifest = this.system.getManifest();
-        const apiIds = Object.keys(manifest.inputs.api);
+        const apiIds = Object.keys(manifest.inputs?.api || manifest.api || {});
         const tools = apiIds.map((fid) => {
           const functionality = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : this.system.localFunctionalities.get(fid);
           const description = functionality?.description || `Execute ${fid} on ${this.system.entityName}`;
@@ -4798,7 +4849,8 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
               return;
             }
           }
-          this._sendJson(res, 404, this.system.getNotFoundResponse(reqPath));
+          const notFoundData = typeof this.system.getNotFoundResponse === "function" ? this.system.getNotFoundResponse(reqPath) : { error: "Route not found", path: reqPath };
+          this._sendJson(res, 404, notFoundData);
           return;
         }
         try {
@@ -6451,9 +6503,128 @@ var init_K_ENT_Entity = __esm({
       _selfHosting = false;
       /** Protocol adapters attached to this entity. Operational only in root position. */
       _protocolAdapters = /* @__PURE__ */ new Map();
+      /** Reservation state for access control and mutual exclusion */
+      reservation = {
+        busy: false,
+        reservedBy: null,
+        reservedAt: null
+      };
+      /** Discoverability state for network beacons / registries */
+      discoverable = true;
       constructor(name, owner = null, options = {}) {
         super(name, owner, options);
         this.systemType = "Entity";
+      }
+      /**
+       * System flags representing discoverability and reservation status.
+       */
+      getSystemFlags() {
+        return {
+          discoverable: this.discoverable,
+          busy: this.reservation.busy,
+          reservedBy: this.reservation.reservedBy,
+          reservedAt: this.reservation.reservedAt
+        };
+      }
+      /**
+       * Set discoverability status.
+       */
+      setDiscoverable(value) {
+        this.discoverable = Boolean(value);
+        return this.getSystemFlags();
+      }
+      /**
+       * Reserve this entity for exclusive access by serviceName.
+       */
+      reserveFor(serviceName = "unknown") {
+        this.reservation = {
+          busy: true,
+          reservedBy: serviceName,
+          reservedAt: Date.now()
+        };
+        return this.getSystemFlags();
+      }
+      /**
+       * Release reservation held by serviceName.
+       */
+      releaseReservation(serviceName = null) {
+        if (serviceName && this.reservation.reservedBy && this.reservation.reservedBy !== serviceName) {
+          throw new Error(
+            `[${this.entityName}] Reservation owned by ${this.reservation.reservedBy}; cannot release as ${serviceName}.`
+          );
+        }
+        this.reservation = {
+          busy: false,
+          reservedBy: null,
+          reservedAt: null
+        };
+        return this.getSystemFlags();
+      }
+      /**
+       * Guard checking if entity is available for remote caller.
+       */
+      _assertAvailableForRemoteAccess(requester = null) {
+        if (!this.reservation.busy) return;
+        if (requester && requester === this.reservation.reservedBy) return;
+        const by = this.reservation.reservedBy || "another service";
+        throw new Error(`[${this.entityName}] Entity is busy/reserved by ${by}.`);
+      }
+      /**
+       * Get dynamic manifest of all capabilities, flags, and endpoints.
+       */
+      getManifest() {
+        const apiNames = [];
+        const eventsNames = [];
+        const api = {};
+        for (const [id, f] of this.localFunctionalities) {
+          apiNames.push(id);
+          api[id] = {
+            id,
+            type: "local",
+            visibility: f.visibility || "public",
+            manifest: f.manifest || null,
+            schema: f.schema || null
+          };
+        }
+        for (const [id, f] of this.remoteFunctionalities) {
+          apiNames.push(id);
+          api[id] = {
+            id,
+            type: "remote",
+            visibility: f.visibility || "public",
+            schema: f.schema || null
+          };
+        }
+        return {
+          entity: this.entityName,
+          entityName: this.entityName,
+          type: this.systemType,
+          flags: this.getSystemFlags(),
+          apiNames,
+          eventsNames,
+          api,
+          inputs: {
+            api
+          }
+        };
+      }
+      /**
+       * Generates a structured 404 response payload for unmatched routes.
+       */
+      getNotFoundResponse(reqPath) {
+        return {
+          status: "error",
+          message: `Route not found: ${reqPath}`,
+          entity: this.entityName,
+          availableRoutes: [
+            "/call/:fid",
+            "/mcp",
+            "/acp",
+            "/manifest",
+            "/health",
+            "/events/:fid"
+          ]
+        };
       }
       // ── Protocol Adapter Management ──────────────────────────────────────────
       /**
@@ -6471,6 +6642,34 @@ var init_K_ENT_Entity = __esm({
        */
       getAdapters() {
         return Array.from(this._protocolAdapters.values());
+      }
+      /**
+       * Get a specific protocol adapter by name (e.g. 'https', 'wss').
+       */
+      getAdapter(name) {
+        return this._protocolAdapters.get(name);
+      }
+      /**
+       * Access the WebSocket commComponent adapter if attached.
+       */
+      get commComponent() {
+        return this._protocolAdapters.get("wss");
+      }
+      /**
+       * Access the Unified HTTP adapter if attached.
+       */
+      get unifiedHttpAdapter() {
+        return this._protocolAdapters.get("https");
+      }
+      /**
+       * Port of active listening adapter.
+       */
+      get commPort() {
+        const http5 = this._protocolAdapters.get("https");
+        if (http5 && typeof http5.port === "number") return http5.port;
+        const wss = this._protocolAdapters.get("wss");
+        if (wss && typeof wss.listenPort === "number") return wss.listenPort;
+        return 10099;
       }
       // ── Activation / Finalize Lifecycle ──────────────────────────────────────
       /**

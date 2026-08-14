@@ -1,19 +1,16 @@
 import { SourceSystem, TargetSystem, DemoOrchestrator } from "./OrchestratorSystem/OrchestratorSystem.js";
 import { telemetry } from "../../dist/index.js";
 
-// Note: I had to add exports to the classes in OrchestratorSystem.js for this to work.
-// I'll go back and add those exports.
-
 async function main() {
     telemetry.enabled = true;
-    console.log("--- Starting Example 7 ---");
+    console.log("--- Starting Example 7 (Gross Architecture Network Orchestration) ---");
     const source = new SourceSystem(10221);
     const target = new TargetSystem(10222);
     const orchestrator = new DemoOrchestrator(10223);
 
     await Promise.all([
-        source.startDiscovery(),
-        target.startDiscovery(),
+        source.finalize(),
+        target.finalize(),
         orchestrator.startDiscovery()
     ]);
 
@@ -60,10 +57,7 @@ async function main() {
         target.dispose();
         orchestrator.dispose();
         process.exit(0);
-    }, 2000);
+    }, 500);
 }
-
-// I need to fix OrchestratorSystem.js to export the classes.
-// I'll do that now.
 
 main().catch(console.error);

@@ -22,7 +22,7 @@ export class KrnlMcpProtocol {
             return { tools };
         }
         const manifest = (this.system as any).getManifest();
-        const apiIds = Object.keys(manifest.inputs.api);
+        const apiIds = Object.keys(manifest.inputs?.api || manifest.api || {});
         
         const tools = apiIds.map(fid => {
             const functionality = (this.system as any).resolveLocalFunctionality ? (this.system as any).resolveLocalFunctionality(fid) : (this.system as any).localFunctionalities.get(fid);

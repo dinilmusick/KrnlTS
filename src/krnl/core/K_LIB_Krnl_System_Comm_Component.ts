@@ -565,6 +565,66 @@ export class krnlSystemCommComponent implements KrnlProtocolAdapter {
         }
         if (options.port) this.listenPort = options.port;
         if (options.host) this.host = options.host;
+
+        // Register standard RPC handlers on the comm component
+        if (!this._wsRpcHandlers.has('call')) {
+            this.defineRpc('call', async ({ fid, data }: any) => {
+                if (this.ownerEntity._assertAvailableForRemoteAccess) {
+                    this.ownerEntity._assertAvailableForRemoteAccess(data?.meta?.requester || null);
+                }
+                const result = await this.ownerEntity.call(fid, data);
+                return { status: 'success', result };
+            });
+        }
+
+        if (!this._wsRpcHandlers.has('heartbeat')) {
+            this.defineRpc('heartbeat', async ({ meta }: any = {}) => {
+                if (this.ownerEntity._assertAvailableForRemoteAccess) {
+                    this.ownerEntity._assertAvailableForRemoteAccess(meta?.requester || null);
+                }
+                return { status: 'alive', entity: this.ownerEntity.entityName, timestamp: Date.now() };
+            });
+        }
+
+        if (!this._wsRpcHandlers.has('connect-to-target')) {
+            this.defineRpc('connect-to-target', async ({ sourceEmitter, targetAddress, targetCollector, targetName, requester, connectionPolicy = {} }: any) => {
+                if (this.ownerEntity._assertAvailableForRemoteAccess) {
+                    this.ownerEntity._assertAvailableForRemoteAccess(requester || null);
+                }
+                return await this.wireViaWs(sourceEmitter, targetAddress, targetCollector, targetName, {
+                    managedBy: connectionPolicy.managedBy || requester || this.ownerEntity.entityName,
+                    externallyMutable: connectionPolicy.externallyMutable !== false,
+                    metadata: connectionPolicy.metadata || {},
+                });
+            });
+        }
+
+        if (!this._wsRpcHandlers.has('disconnect-from-target')) {
+            this.defineRpc('disconnect-from-target', async ({ routeId, requester, force = false }: any) => {
+                this.disconnectRoute(routeId, { requester, force });
+                return { ok: true, routeId };
+            });
+        }
+
+        if (!this._wsRpcHandlers.has('disconnect-route')) {
+            this.defineRpc('disconnect-route', async ({ routeId, requester, force = false }: any) => {
+                this.disconnectRoute(routeId, { requester, force });
+                return { ok: true, routeId };
+            });
+        }
+
+        if (!this._wsRpcHandlers.has('list-routes')) {
+            this.defineRpc('list-routes', async () => {
+                return this.listRoutes();
+            });
+        }
+
+        if (!this._wsRpcHandlers.has('list-connections')) {
+            this.defineRpc('list-connections', async () => {
+                return this.listRoutes();
+            });
+        }
+
         await this.startWsServer();
     }
 

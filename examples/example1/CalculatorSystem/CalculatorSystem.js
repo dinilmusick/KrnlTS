@@ -1,51 +1,47 @@
 // CalculatorSystem/CalculatorSystem.js
-import { krnlSystemEntityBase } from "../../../dist/index.js";
+import { Entity, krnlUnifiedHttpAdapter } from "../../../dist/index.js";
 import { CalculatorAtom } from "./functionalities/Calculator/Calculator.js";
 import { DisplayEntity } from "./entities/Display/Display.js";
 import { LoggerEntity } from "./entities/Logger/Logger.js";
 
-export class CalculatorSystem extends krnlSystemEntityBase {
+export class CalculatorSystem extends Entity {
     static Singleton = true;
     constructor(port = 10091, options = {}) {
-        super("CalculatorSystem", null, port, options.host || "0.0.0.0", options);
+        super("CalculatorSystem", null, options);
 
-        // 1. Logic Assembly
+        // 1. Logic Assembly with Manifest declaration
         this.addLocal({ 
             ...CalculatorAtom, 
+            manifest: {
+                version: "1.0.0",
+                author: "KrnlTS",
+                capabilities: ["math:arithmetic"]
+            },
             sourcePath: "examples/example1/CalculatorSystem/functionalities/Calculator/Calculator.js" 
         });
 
-        // 2. Component Assembly
+        // 2. Component Assembly (Child Entities)
         const display = this.hierarchyManager.createComponentEntity("Display", DisplayEntity);
         const logger = this.hierarchyManager.createComponentEntity("Logger", LoggerEntity);
 
-        // 3. LOCAL WIRING (Same System)
-        // Here, multiple entities subscribe to the same output
+        // 3. Local Event Wiring (In-Process Emitters & Collectors)
         const calcEmitter = this.interface.getEmitter("Calculator:onCalculated");
         
-        // Wire Display component
         display.interface.getCollector("show").subscribeTo(calcEmitter, (msg) => {
             if (msg.data.status === "complete") {
                 display.call("show", msg.data.formatted);
             }
         });
 
-        // Wire Logger component
         logger.interface.getCollector("Audit").subscribeTo(calcEmitter);
 
-        // 4. DEMONSTRATE PROXIED STATE OBSERVABILITY
-        // Whenever 'state.lastResult' is changed in Calculator logic, 
-        // a 'state:changed' event is automatically emitted.
+        // 4. Observable State Changes
         const stateEmitter = this.interface.getEmitter("Calculator:state:changed");
         stateEmitter.subscribe((msg) => {
             console.log(`[STATE_OBSERVER] Property '${msg.data.prop}' changed to: ${msg.data.value}`);
         });
 
-        // this.startDiscovery().then(() => {
-        //     console.log(`[CalculatorSystem] Ready. Local components (Display, Logger) wired.`);
-        // });
+        // 5. Attach Protocol Adapter
+        this.attachAdapter(new krnlUnifiedHttpAdapter(this, port, options.host || "0.0.0.0"));
     }
 }
-
-// new CalculatorSystem();
-

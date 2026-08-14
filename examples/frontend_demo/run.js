@@ -33,7 +33,7 @@ function requestText(url, options = {}) {
 
 async function main() {
     console.log("=== Starting Refactored Frontend Demo System ===");
-    const port = 10099;
+    const port = 10899;
     const system = new MyFrontendSystem(port, { host: "127.0.0.1" });
     await system._startSharedServer();
     await system.startDiscovery();
@@ -72,8 +72,9 @@ async function main() {
     console.log("\nAll programmatic checks for frontend_demo passed successfully!");
     
     // Shut down cleanly for script
-    await system.shutdown();
+    system.dispose();
     console.log("System shut down cleanly.");
+    process.exit(0);
 }
 
 main().catch(console.error);

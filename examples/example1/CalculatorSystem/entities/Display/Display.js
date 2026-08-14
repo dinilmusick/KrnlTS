@@ -1,20 +1,18 @@
-// UltrstProject/entities/Display/Display.js
-// The Entity Descriptor: Pure assembly, no direct logic.
-
-import { krnlEntityBase } from "../../../../../dist/index.js";
+// CalculatorSystem/entities/Display/Display.js
+import { Entity } from "../../../../../dist/index.js";
 import { showAtom } from "./functionalities/show/show.js";
 
-export class DisplayEntity extends krnlEntityBase {
+export class DisplayEntity extends Entity {
     static Singleton = true;
     constructor(name, owner) {
         super(name, owner);
         
-        /**
-         * INTERFACE DESCRIPTION
-         * ---------------------------------------------------------
-         * Inputs:
-         * - 'show': Displays string data to the console.
-         */
-        this.addLocal(showAtom);
+        this.addLocal({
+            ...showAtom,
+            manifest: {
+                version: "1.0.0",
+                capabilities: ["ui:display"]
+            }
+        });
     }
 }

@@ -37,7 +37,7 @@ async function main() {
     generateDeclarations();
 
     console.log("\n=== Phase 2: Starting Magnetic Assembler & Gateway ===");
-    const port = 10099;
+    const port = 10799;
     const system = new MyMagneticSystem(port, { host: "127.0.0.1" });
 
     await system._startSharedServer();
@@ -76,8 +76,9 @@ async function main() {
 
     console.log("\nAll magnetic_demo tests passed successfully!");
 
-    await system.shutdown();
+    system.dispose();
     console.log("System shut down cleanly.");
+    process.exit(0);
 }
 
 main().catch(console.error);

@@ -2835,7 +2835,68 @@ declare class Entity extends krnlEntityBase {
     _selfHosting: boolean;
     /** Protocol adapters attached to this entity. Operational only in root position. */
     _protocolAdapters: Map<string, KrnlProtocolAdapter>;
+    /** Reservation state for access control and mutual exclusion */
+    reservation: {
+        busy: boolean;
+        reservedBy: string | null;
+        reservedAt: number | null;
+    };
+    /** Discoverability state for network beacons / registries */
+    discoverable: boolean;
     constructor(name: string, owner?: krnlEntityBase | null, options?: any);
+    /**
+     * System flags representing discoverability and reservation status.
+     */
+    getSystemFlags(): {
+        discoverable: boolean;
+        busy: boolean;
+        reservedBy: string | null;
+        reservedAt: number | null;
+    };
+    /**
+     * Set discoverability status.
+     */
+    setDiscoverable(value: boolean): {
+        discoverable: boolean;
+        busy: boolean;
+        reservedBy: string | null;
+        reservedAt: number | null;
+    };
+    /**
+     * Reserve this entity for exclusive access by serviceName.
+     */
+    reserveFor(serviceName?: string): {
+        discoverable: boolean;
+        busy: boolean;
+        reservedBy: string | null;
+        reservedAt: number | null;
+    };
+    /**
+     * Release reservation held by serviceName.
+     */
+    releaseReservation(serviceName?: string | null): {
+        discoverable: boolean;
+        busy: boolean;
+        reservedBy: string | null;
+        reservedAt: number | null;
+    };
+    /**
+     * Guard checking if entity is available for remote caller.
+     */
+    _assertAvailableForRemoteAccess(requester?: string | null): void;
+    /**
+     * Get dynamic manifest of all capabilities, flags, and endpoints.
+     */
+    getManifest(): any;
+    /**
+     * Generates a structured 404 response payload for unmatched routes.
+     */
+    getNotFoundResponse(reqPath: string): {
+        status: string;
+        message: string;
+        entity: string;
+        availableRoutes: string[];
+    };
     /**
      * Attach a protocol adapter to this entity (declarative step during discovery/construction).
      * Does NOT start the server. Servers are started only during `finalize()` if this entity is root.
@@ -2845,6 +2906,22 @@ declare class Entity extends krnlEntityBase {
      * Return all attached protocol adapters.
      */
     getAdapters(): KrnlProtocolAdapter[];
+    /**
+     * Get a specific protocol adapter by name (e.g. 'https', 'wss').
+     */
+    getAdapter<T = KrnlProtocolAdapter>(name: string): T | undefined;
+    /**
+     * Access the WebSocket commComponent adapter if attached.
+     */
+    get commComponent(): any | undefined;
+    /**
+     * Access the Unified HTTP adapter if attached.
+     */
+    get unifiedHttpAdapter(): any | undefined;
+    /**
+     * Port of active listening adapter.
+     */
+    get commPort(): number;
     /**
      * Finalizes construction and activates the entity if it occupies root position.
      * Called after tree construction and Shell materialization.

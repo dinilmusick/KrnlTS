@@ -1,25 +1,30 @@
-import { krnlSystemEntityBase } from '../../../dist/index.js';
+import { Entity, krnlUnifiedHttpAdapter } from '../../../dist/index.js';
 import { WebSocket } from 'ws';
 
 async function test() {
     const port = 10100;
-    const system = new krnlSystemEntityBase("SinglePortSystem", null, port);
+    const system = new Entity("SinglePortSystem");
     
-    // Add a functionality to test
+    // Add a functionality with manifest
     system.addLocal({
         id: "ping",
+        manifest: {
+            version: "1.0.0",
+            capabilities: ["test:ping"]
+        },
         api: async (input) => { return { pong: true, data: input }; }
     });
 
-    console.log("--- Starting Discovery (Triggering Server) ---");
-    // This will start the shared server on 'port'
-    await system.startDiscovery();
+    system.attachAdapter(new krnlUnifiedHttpAdapter(system, port));
+
+    console.log("--- Starting Discovery (Finalizing Server) ---");
+    await system.finalize();
     
-    const baseUrl = `http://localhost:${system.commPort}`;
+    const baseUrl = `http://localhost:${port}`;
 
     try {
         // 1. Verify HTTP REST
-        console.log("\n[REST] Testing /call/ping on port", system.commPort);
+        console.log("\n[REST] Testing /call/ping on port", port);
         const restRes = await fetch(`${baseUrl}/call/ping`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -29,8 +34,8 @@ async function test() {
         console.log("REST Response:", restData);
 
         // 2. Verify WebSocket
-        console.log("\n[WS] Testing WebSocket connection on port", system.commPort);
-        const ws = new WebSocket(`ws://localhost:${system.commPort}`);
+        console.log("\n[WS] Testing WebSocket connection on port", port);
+        const ws = new WebSocket(`ws://localhost:${port}`);
         
         await new Promise((resolve, reject) => {
             ws.on('open', () => {
