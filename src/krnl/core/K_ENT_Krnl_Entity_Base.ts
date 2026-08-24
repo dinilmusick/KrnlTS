@@ -10,6 +10,7 @@ import { krnlLocalFunctionality, krnlRemoteFunctionality } from "./K_LIB_Krnl_Fu
 import { krnlError, krnlErrorCodes } from "./K_LIB_Krnl_Error_Concepts.js";
 import { telemetry, KrnlTelemetry } from "./K_LIB_Krnl_Telemetry.js";
 import type { KrnlIntentionEntity } from "./K_LIB_Krnl_Intention_Types.js";
+import type { EntityBackendSettings, BackendServiceType, DatabaseProviderConfig } from "../backend/types.js";
 
 /**
  * KRNL ENTITY BASE
@@ -37,6 +38,38 @@ export class krnlEntityBase {
   collectors: Set<any>;
   hierarchyManager: krnlEntityCompositionalHierarchyManager;
   intention?: KrnlIntentionEntity;
+  backendSettings?: EntityBackendSettings;
+
+  /**
+   * Configures backend services and credentials for this entity and cascading child functionalities.
+   */
+  configureBackend(settings: EntityBackendSettings): this {
+    this.backendSettings = {
+      ...this.backendSettings,
+      ...settings
+    };
+    return this;
+  }
+
+  /**
+   * Resolves backend credentials for a specific service, cascading from parent entities if necessary.
+   */
+  getBackendCredentials(service?: BackendServiceType): DatabaseProviderConfig | undefined {
+    if (this.backendSettings) {
+      if (service && (this.backendSettings as any)[service]) {
+        return (this.backendSettings as any)[service];
+      }
+      const defaultSvc = this.backendSettings.defaultService;
+      if (defaultSvc && (this.backendSettings as any)[defaultSvc]) {
+        return (this.backendSettings as any)[defaultSvc];
+      }
+    }
+    const owner = this.hierarchyManager?.getOwnerEntity();
+    if (owner && typeof (owner as any).getBackendCredentials === "function") {
+      return (owner as any).getBackendCredentials(service);
+    }
+    return undefined;
+  }
 
   // Extension points for decorators/middleware
   async _decorateResult(result: any, fid: string, input: any): Promise<any> {
@@ -245,9 +278,9 @@ export class krnlEntityBase {
       if (current.isLocal) {
         return current;
       }
-      if (current.transport && current.transport.targetEntity) {
-        const target = current.transport.targetEntity;
-        const targetFid = current.targetFunction;
+      const target = current.targetEntity || (current.transport && (current.transport.targetEntity || current.transport.target || current.transport.instance));
+      if (target) {
+        const targetFid = current.targetFunction || fid;
         if (target.localFunctionalities && target.localFunctionalities.has(targetFid)) {
           return target.localFunctionalities.get(targetFid);
         }

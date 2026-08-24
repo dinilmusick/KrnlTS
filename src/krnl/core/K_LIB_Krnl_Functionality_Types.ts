@@ -9,8 +9,14 @@ import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
 import type { KrnlEndpointAccessPolicy, KrnlRequiresSpec } from "./types.js";
 import type { KrnlIntentionFunctionality } from "./K_LIB_Krnl_Intention_Types.js";
 import type { KrnlIntelligenceSpec } from "./K_LIB_Krnl_Ai_Concepts.js";
-
 import { ObjectKit } from "../tools/ObjectKit.js";
+import {
+  FunctionalityTable,
+  WorkspaceBackendFactory,
+  type IFunctionalityTable,
+  type FunctionalityBackendFlag,
+  type BackendServiceType
+} from "../backend/index.js";
 
 /**
  * Helper to ensure state isolation.
@@ -111,6 +117,8 @@ export class krnlLocalFunctionality {
 
   requires?: KrnlRequiresSpec;
   _hasBeenExecuted: boolean = false;
+  backend?: FunctionalityBackendFlag | null;
+  table?: IFunctionalityTable | null;
 
   constructor(config: any = {}) {
     const {
@@ -130,6 +138,7 @@ export class krnlLocalFunctionality {
       tests = [],
       requires = null,
       manifest = null,
+      backend = null,
     } = config;
 
     if (!id) throw new Error("LocalFunctionality requires an ID.");
@@ -141,6 +150,8 @@ export class krnlLocalFunctionality {
     this.sourcePath = sourcePath;
     if (requires) this.requires = requires;
     this.manifest = manifest || config.manifest || null;
+    this.backend = backend || config.backend || null;
+    this.table = null;
     this.helpers = new Map(Object.entries(helpers));
     this.emitters = new Map();
     this.schema = schema;
@@ -317,6 +328,12 @@ export class krnlLocalFunctionality {
 
   bindToEntity(entity: any): this {
     this.hostEntity = entity;
+
+    // Initialize backend & dedicated table if configured or flag enabled
+    if (this.backend) {
+      this._initializeBackendTable(entity);
+    }
+
     if (this.visibility === 'public') {
       this._registerInInterface();
     }
@@ -326,10 +343,49 @@ export class krnlLocalFunctionality {
         emitters: this.emitters,
         helpers: this.helpers,
         entity: this.hostEntity,
-        functionality: this
+        functionality: this,
+        table: this.table,
+        backend: this.table?.provider
       });
     }
     return this;
+  }
+
+  private _initializeBackendTable(entity: any): void {
+    try {
+      let service: BackendServiceType = "sqlite";
+      let tableName = this.id;
+      let credentials: any = undefined;
+
+      if (typeof this.backend === "string") {
+        service = this.backend as BackendServiceType;
+      } else if (typeof this.backend === "object" && this.backend !== null) {
+        if (this.backend.service) service = this.backend.service;
+        if (this.backend.table) tableName = this.backend.table;
+        if (this.backend.credentials) credentials = this.backend.credentials;
+      }
+
+      // Cascade credentials from host entity if not explicitly specified on functionality
+      if (!credentials && entity && typeof entity.getBackendCredentials === "function") {
+        credentials = entity.getBackendCredentials(service);
+      }
+
+      const provider = WorkspaceBackendFactory.resolveDataProvider({
+        id: `provider-${this.id}`,
+        provider: service,
+        mode: "local",
+        database: {
+          type: service as any,
+          filePath: credentials?.filePath || `./${tableName}.sqlite`,
+          enableWAL: credentials?.enableWAL ?? true,
+          ...credentials
+        }
+      });
+
+      this.table = new FunctionalityTable(tableName, provider);
+    } catch (err: any) {
+      console.warn(`[KrnlBackendWarning] Failed to initialize table for functionality "${this.id}":`, err.message);
+    }
   }
 
   teardown(): void {
@@ -339,7 +395,9 @@ export class krnlLocalFunctionality {
         emitters: this.emitters,
         helpers: this.helpers,
         entity: this.hostEntity,
-        functionality: this
+        functionality: this,
+        table: this.table,
+        backend: this.table?.provider
       });
     }
   }
@@ -406,7 +464,9 @@ export class krnlLocalFunctionality {
         helpers: this.helpers,
         entity: this.hostEntity,
         functionality: this,
-        caller: caller
+        caller: caller,
+        table: this.table,
+        backend: this.table?.provider
       });
 
       // --- OUTPUT VALIDATION ---

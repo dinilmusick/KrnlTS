@@ -29,8 +29,15 @@ import {
   KrnlSubAppLifecycle,
   KrnlSubAppValidator
 } from "./K_LIB_Krnl_SubApp_Engine.js";
+import { ObjectKit } from "../tools/ObjectKit.js";
 
-export class Entity extends krnlEntityBase {
+export class Entity<
+  TState extends Record<string, any> = any,
+  TEvents extends Record<string, any> = any
+> extends krnlEntityBase {
+  /** Strongly-typed reactive entity state */
+  protected state: TState;
+
   /** True while this entity occupies root position and actively self-hosts protocol adapters */
   _selfHosting: boolean = false;
 
@@ -57,6 +64,71 @@ export class Entity extends krnlEntityBase {
   constructor(name: string, owner: krnlEntityBase | null = null, options: any = {}) {
     super(name, owner, options);
     this.systemType = "Entity";
+    this.state = (options.initialState ?? {}) as TState;
+  }
+
+  /**
+   * Get an immutable, read-only snapshot of current entity state.
+   */
+  public getState(): Readonly<TState> {
+    return Object.freeze(ObjectKit.deepClone(this.state));
+  }
+
+  /**
+   * Mutates the entity state via deep-merge and emits a reactive state:changed event.
+   */
+  public setState(mutation: Partial<TState>): void {
+    this.state = ObjectKit.deepMerge(this.state, mutation) as TState;
+    this.emit("state:changed", {
+      entity: this.entityName,
+      delta: mutation,
+      state: this.getState()
+    });
+  }
+
+  /**
+   * Resets entity state to a new or initial baseline.
+   */
+  public resetState(newState?: TState): void {
+    this.state = (newState ?? {}) as TState;
+    this.emit("state:reset", {
+      entity: this.entityName,
+      state: this.getState()
+    });
+  }
+
+  /** Private cache mapping event names to krnlEmitters */
+  private _eventEmitterMap: Map<string, any> = new Map();
+
+  /**
+   * Subscribes a listener to a domain event on this entity.
+   */
+  public on(event: string, handler: (payload: any) => void): () => void {
+    let emitter = this._eventEmitterMap.get(event);
+    if (!emitter) {
+      emitter = this.interface.createEmitter(event);
+      this._eventEmitterMap.set(event, emitter);
+    }
+    return emitter.subscribe((msg: any) => handler(msg.data));
+  }
+
+  /**
+   * Emits an event with a data payload to all subscribers.
+   */
+  public emit(event: string, payload: any): void {
+    let emitter = this._eventEmitterMap.get(event);
+    if (!emitter) {
+      emitter = this.interface.createEmitter(event);
+      this._eventEmitterMap.set(event, emitter);
+    }
+    emitter.pushDataStreamToEmitter(payload);
+  }
+
+  /**
+   * Dispatches a strongly-typed domain event.
+   */
+  public emitEvent<K extends keyof TEvents>(event: K, payload: TEvents[K]): void {
+    this.emit(String(event), payload);
   }
 
   /**

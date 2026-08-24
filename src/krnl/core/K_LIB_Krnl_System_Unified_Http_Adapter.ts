@@ -281,7 +281,8 @@ export class krnlUnifiedHttpAdapter implements KrnlProtocolAdapter {
                 let fid = reqPath.slice(1);
                 if (fid.endsWith('/')) fid = fid.slice(0, -1); 
 
-                const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid);
+                const resolvedCap = this.system.resolveCapability ? this.system.resolveCapability(fid) : null;
+                const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid) || (resolvedCap ? resolvedCap.owner.localFunctionalities.get(resolvedCap.fid) : null);
                 const resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
 
                 if (functionality) {
@@ -305,11 +306,20 @@ export class krnlUnifiedHttpAdapter implements KrnlProtocolAdapter {
                                      ? { data: input } 
                                      : input;
                         
-                        const result = await this.system.call(fid, (data as any).data || data, {
-                            unwrap: false,
-                            callerPort: req.socket?.remotePort,
-                            accessKey: req.headers['x-krnl-access-key'] as string | undefined,
-                        });
+                        let result: any;
+                        if (resolvedCap) {
+                            result = await resolvedCap.owner.call(resolvedCap.fid, (data as any).data || data, {
+                                unwrap: false,
+                                callerPort: req.socket?.remotePort,
+                                accessKey: req.headers['x-krnl-access-key'] as string | undefined,
+                            });
+                        } else {
+                            result = await this.system.call(fid, (data as any).data || data, {
+                                unwrap: false,
+                                callerPort: req.socket?.remotePort,
+                                accessKey: req.headers['x-krnl-access-key'] as string | undefined,
+                            });
+                        }
                         this._sendJson(res, 200, result);
                     } catch (e: any) {
                         Logger.error(`[HttpAdapter] Friendly route error (${fid}):`, e.message);

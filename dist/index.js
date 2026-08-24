@@ -1,7 +1,7 @@
 import {
   Entity,
   KrnlFlowBuilder
-} from "./chunk-5ADDSZ6T.js";
+} from "./chunk-3YXHDIM4.js";
 import {
   DefaultEventRegistrar,
   DefaultOperationRegistrar,
@@ -19,15 +19,15 @@ import {
 } from "./chunk-UBJAGRZU.js";
 import {
   KrnlSubAppLoader
-} from "./chunk-WWKZMB2H.js";
+} from "./chunk-VO6XDSLT.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-6N7IX3XC.js";
+} from "./chunk-EIEVYD2F.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-4W6BPB3T.js";
+} from "./chunk-FOQJAGMV.js";
 import {
   KrnlApplicationOrchestrator,
   KrnlBootBarrier,
@@ -47,7 +47,7 @@ import {
   krnl,
   krnlSystemCommComponent,
   krnlSystemEntityBase
-} from "./chunk-UTWAZ42Q.js";
+} from "./chunk-J7LPCRGW.js";
 import {
   KrnlFrontendGenerator,
   init_K_LIB_Krnl_Frontend_Generator
@@ -57,8 +57,24 @@ import {
   init_K_LIB_Krnl_Frontend_Builder
 } from "./chunk-GUJKDC62.js";
 import {
+  AdminGuard,
   CUSTOM_ERROR_CODE,
+  ControlPlaneManager,
+  FilesystemStorageProvider,
+  FirebaseDataProvider,
+  FirebaseStorageProvider,
+  FunctionalityTable,
+  HostedAccountProvider,
+  LocalSQLiteAccountProvider,
   MemoryTransportAdapter,
+  PocketBaseDataProvider,
+  PocketBaseStorageProvider,
+  PostgresDataProvider,
+  S3StorageProvider,
+  SQLiteDataProvider,
+  SupabaseDataProvider,
+  SupabaseStorageProvider,
+  WorkspaceBackendFactory,
   krnlCollector,
   krnlEmitter,
   krnlEntityBase,
@@ -73,26 +89,26 @@ import {
   krnlMessage,
   krnlRemoteFunctionality,
   krnlTransportAdapter
-} from "./chunk-GQT5UY2I.js";
+} from "./chunk-WEW3N533.js";
 import {
-  AsyncKit,
   CacheKit,
   FileCache,
-  FileLock,
   GitManager,
   KrnlAikoClient,
   KrnlEnv,
-  KrnlFS,
-  KrnlHTTP,
   KrnlShell,
   LRUCache,
   StringKit,
   TTLCache
-} from "./chunk-AXDWB3AV.js";
+} from "./chunk-WK77QM4R.js";
 import {
+  AsyncKit,
+  FileLock,
+  KrnlFS,
+  KrnlHTTP,
   ObjectKit
-} from "./chunk-64MILH7G.js";
-import "./chunk-LXOSOI27.js";
+} from "./chunk-VSIHESQD.js";
+import "./chunk-GL23ZN7U.js";
 import {
   telemetry
 } from "./chunk-AHWZBXWV.js";
@@ -100,7 +116,7 @@ import {
   KrnlAcpProtocol,
   KrnlMcpProtocol,
   krnlUnifiedHttpAdapter
-} from "./chunk-HBDBW7IQ.js";
+} from "./chunk-AX5FJY7Z.js";
 import {
   KrnlPolicy,
   Logger,
@@ -426,16 +442,23 @@ var PocerBlock = class extends krnlSystemEntityBase {
   }
 };
 export {
+  AdminGuard,
   AsyncKit,
   CUSTOM_ERROR_CODE,
   CacheKit,
+  ControlPlaneManager,
   DefaultEventRegistrar,
   DefaultOperationRegistrar,
   DefaultServiceContainer,
   Entity,
   FileCache,
   FileLock,
+  FilesystemStorageProvider,
+  FirebaseDataProvider,
+  FirebaseStorageProvider,
+  FunctionalityTable,
   GitManager,
+  HostedAccountProvider,
   KrnlAcpProtocol,
   KrnlAikoClient,
   KrnlApplicationOrchestrator,
@@ -470,13 +493,22 @@ export {
   KrnlTaskRunner,
   KrnlWatchVariablesTracker,
   LRUCache,
+  LocalSQLiteAccountProvider,
   Logger,
   MemoryTransportAdapter,
   ObjectKit,
   PocerBlock,
+  PocketBaseDataProvider,
+  PocketBaseStorageProvider,
+  PostgresDataProvider,
+  S3StorageProvider,
+  SQLiteDataProvider,
   StringKit,
+  SupabaseDataProvider,
+  SupabaseStorageProvider,
   TTLCache,
   WebSocketTransportAdapter,
+  WorkspaceBackendFactory,
   buildEntityIntention,
   createEnum,
   createHttpsAppAdapter,

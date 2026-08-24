@@ -808,10 +808,10 @@ var init_ObjectKit = __esm({
       /**
        * Accesses an in-memory object by dot-notation.
        */
-      static getPath(obj, path20, defaultValue) {
-        if (!path20)
+      static getPath(obj, path23, defaultValue) {
+        if (!path23)
           return obj;
-        const parts = path20.split(".");
+        const parts = path23.split(".");
         let current = obj;
         for (const part of parts) {
           if (current === null || current === void 0) {
@@ -824,10 +824,10 @@ var init_ObjectKit = __esm({
       /**
        * Mutates or sets an in-memory object by dot-notation.
        */
-      static setPath(obj, path20, value) {
-        if (!path20)
+      static setPath(obj, path23, value) {
+        if (!path23)
           return obj;
-        const parts = path20.split(".");
+        const parts = path23.split(".");
         let current = obj;
         for (let i = 0; i < parts.length - 1; i++) {
           const part = parts[i];
@@ -843,6 +843,2124 @@ var init_ObjectKit = __esm({
   }
 });
 
+// src/krnl/backend/types.ts
+var init_types = __esm({
+  "src/krnl/backend/types.ts"() {
+    "use strict";
+  }
+});
+
+// src/krnl/backend/FunctionalityTable.ts
+var FunctionalityTable;
+var init_FunctionalityTable = __esm({
+  "src/krnl/backend/FunctionalityTable.ts"() {
+    "use strict";
+    FunctionalityTable = class {
+      tableName;
+      service;
+      provider;
+      isTableInitialized = false;
+      constructor(tableName, provider) {
+        this.tableName = tableName;
+        this.provider = provider;
+        this.service = provider.engine;
+      }
+      async ensureInitialized() {
+        if (!this.isTableInitialized) {
+          await this.provider.ensureTable(this.tableName);
+          this.isTableInitialized = true;
+        }
+      }
+      async find(filter, options) {
+        await this.ensureInitialized();
+        return await this.provider.find(this.tableName, filter, options);
+      }
+      async findOne(filter) {
+        await this.ensureInitialized();
+        return await this.provider.findOne(this.tableName, filter);
+      }
+      async create(record) {
+        await this.ensureInitialized();
+        const result = await this.provider.insert(this.tableName, record);
+        return Array.isArray(result) ? result[0] : result;
+      }
+      async insert(record) {
+        await this.ensureInitialized();
+        return await this.provider.insert(this.tableName, record);
+      }
+      async update(filter, patch) {
+        await this.ensureInitialized();
+        return await this.provider.update(this.tableName, filter, patch);
+      }
+      async delete(filter) {
+        await this.ensureInitialized();
+        return await this.provider.delete(this.tableName, filter);
+      }
+      async upsert(record, keyField = "id") {
+        await this.ensureInitialized();
+        const keyVal = record[keyField];
+        if (keyVal !== void 0 && keyVal !== null) {
+          const existing = await this.findOne({ [keyField]: keyVal });
+          if (existing) {
+            await this.update({ [keyField]: keyVal }, record);
+            return { ...existing, ...record };
+          }
+        }
+        return await this.create(record);
+      }
+      async count(filter) {
+        await this.ensureInitialized();
+        return await this.provider.count(this.tableName, filter);
+      }
+      async query(rawQueryOrFilter, params) {
+        await this.ensureInitialized();
+        if (typeof rawQueryOrFilter === "string") {
+          return await this.provider.query(rawQueryOrFilter, params);
+        }
+        return await this.provider.find(this.tableName, rawQueryOrFilter);
+      }
+      async clear() {
+        await this.ensureInitialized();
+        await this.provider.clear(this.tableName);
+      }
+    };
+  }
+});
+
+// src/krnl/tools/KrnlFS.js
+var import_fs, import_promises, import_path, import_os, FileLock, KrnlFS;
+var init_KrnlFS = __esm({
+  "src/krnl/tools/KrnlFS.js"() {
+    "use strict";
+    import_fs = __toESM(require("fs"), 1);
+    import_promises = __toESM(require("fs/promises"), 1);
+    import_path = __toESM(require("path"), 1);
+    import_os = __toESM(require("os"), 1);
+    init_ObjectKit();
+    FileLock = class _FileLock {
+      static locks = /* @__PURE__ */ new Map();
+      static async acquire(filePath) {
+        const resolvedPath = import_path.default.resolve(filePath);
+        const existing = _FileLock.locks.get(resolvedPath) || Promise.resolve();
+        let release = () => {
+        };
+        const nextLock = new Promise((resolve) => {
+          release = () => {
+            _FileLock.locks.delete(resolvedPath);
+            resolve();
+          };
+        });
+        _FileLock.locks.set(resolvedPath, nextLock);
+        await existing;
+        return release;
+      }
+    };
+    KrnlFS = class _KrnlFS {
+      // --- File primitives ---
+      static async readFile(filePath, encoding = "utf8") {
+        return await import_promises.default.readFile(filePath, encoding);
+      }
+      static async writeFile(filePath, content) {
+        await import_promises.default.writeFile(filePath, content);
+      }
+      /**
+       * Atomic file writing via temp files.
+       */
+      static async writeFileAtomic(filePath, content) {
+        const dir = import_path.default.dirname(filePath);
+        await _KrnlFS.ensureDir(dir);
+        const tempFile = import_path.default.join(dir, `.${import_path.default.basename(filePath)}.tmp_${Date.now()}_${Math.random().toString(36).substring(7)}`);
+        try {
+          await import_promises.default.writeFile(tempFile, content);
+          await import_promises.default.rename(tempFile, filePath);
+        } catch (e) {
+          if (import_fs.default.existsSync(tempFile)) {
+            await import_promises.default.unlink(tempFile).catch(() => {
+            });
+          }
+          throw e;
+        }
+      }
+      static async appendFile(filePath, content) {
+        await import_promises.default.appendFile(filePath, content);
+      }
+      static async deleteFile(filePath) {
+        await import_promises.default.unlink(filePath);
+      }
+      static async fileExists(filePath) {
+        try {
+          const stat = await import_promises.default.stat(filePath);
+          return stat.isFile();
+        } catch (e) {
+          return false;
+        }
+      }
+      static async getFileStat(filePath) {
+        const stat = await import_promises.default.stat(filePath);
+        return {
+          size: stat.size,
+          createdAt: stat.birthtime,
+          modifiedAt: stat.mtime,
+          isDir: stat.isDirectory()
+        };
+      }
+      // --- JSON convenience ---
+      static async readJSON(filePath) {
+        try {
+          const content = await _KrnlFS.readFile(filePath, "utf8");
+          return JSON.parse(content);
+        } catch (e) {
+          return null;
+        }
+      }
+      static async writeJSON(filePath, data, indent = 2) {
+        const content = JSON.stringify(data, null, indent);
+        await _KrnlFS.writeFileAtomic(filePath, content);
+      }
+      static async updateJSON(filePath, patch) {
+        const release = await FileLock.acquire(filePath);
+        try {
+          let existing = await _KrnlFS.readJSON(filePath);
+          if (!existing) {
+            existing = {};
+          }
+          const updated = ObjectKit.deepMerge(existing, patch);
+          await _KrnlFS.writeJSON(filePath, updated);
+          return updated;
+        } finally {
+          release();
+        }
+      }
+      // --- Directory primitives ---
+      static async ensureDir(dirPath) {
+        await import_promises.default.mkdir(dirPath, { recursive: true });
+      }
+      static async deleteDir(dirPath, recursive = true) {
+        await import_promises.default.rm(dirPath, { recursive, force: true });
+      }
+      static async listDir(dirPath) {
+        return await import_promises.default.readdir(dirPath);
+      }
+      static async *walkDir(dirPath, filter) {
+        const list = await _KrnlFS.listDir(dirPath);
+        for (const item of list) {
+          const full = import_path.default.join(dirPath, item);
+          const stat = await _KrnlFS.getFileStat(full);
+          if (stat.isDir) {
+            yield* _KrnlFS.walkDir(full, filter);
+          } else {
+            if (!filter || filter(full)) {
+              yield full;
+            }
+          }
+        }
+      }
+      static async dirExists(dirPath) {
+        try {
+          const stat = await import_promises.default.stat(dirPath);
+          return stat.isDirectory();
+        } catch (e) {
+          return false;
+        }
+      }
+      static async copyDir(src, dest) {
+        await _KrnlFS.ensureDir(dest);
+        const list = await _KrnlFS.listDir(src);
+        for (const item of list) {
+          const srcItem = import_path.default.join(src, item);
+          const destItem = import_path.default.join(dest, item);
+          const stat = await _KrnlFS.getFileStat(srcItem);
+          if (stat.isDir) {
+            await _KrnlFS.copyDir(srcItem, destItem);
+          } else {
+            await import_promises.default.copyFile(srcItem, destItem);
+          }
+        }
+      }
+      // --- Path utilities ---
+      static join(...parts) {
+        return import_path.default.join(...parts);
+      }
+      static resolve(...parts) {
+        return import_path.default.resolve(...parts);
+      }
+      static relative(from, to) {
+        return import_path.default.relative(from, to);
+      }
+      static basename(filePath, ext) {
+        return import_path.default.basename(filePath, ext);
+      }
+      static dirname(filePath) {
+        return import_path.default.dirname(filePath);
+      }
+      static extname(filePath) {
+        return import_path.default.extname(filePath);
+      }
+      static normalize(filePath) {
+        return import_path.default.normalize(filePath);
+      }
+      static isSafe(filePath, root) {
+        const resolvedPath = import_path.default.resolve(filePath);
+        const resolvedRoot = import_path.default.resolve(root);
+        return resolvedPath.startsWith(resolvedRoot);
+      }
+      // --- Candidate resolution ---
+      static async firstExisting(candidates) {
+        for (const cand of candidates) {
+          if (await _KrnlFS.fileExists(cand)) {
+            return cand;
+          }
+        }
+        return null;
+      }
+      // --- Watching ---
+      static watchFile(filePath, handler, debounceMs = 100) {
+        let timer = null;
+        return import_fs.default.watch(filePath, (event) => {
+          if (timer)
+            clearTimeout(timer);
+          timer = setTimeout(() => handler(event), debounceMs);
+        });
+      }
+      static watchDir(dirPath, handler, debounceMs = 100) {
+        let timer = null;
+        return import_fs.default.watch(dirPath, (event, filename) => {
+          if (timer)
+            clearTimeout(timer);
+          timer = setTimeout(() => handler(event, filename), debounceMs);
+        });
+      }
+      // --- Temp ---
+      static createTempFile(prefix = "tmp-") {
+        return import_path.default.join(import_os.default.tmpdir(), `${prefix}${Math.random().toString(36).substring(7)}.tmp`);
+      }
+      static createTempDir(prefix = "tmp-dir-") {
+        const dir = import_path.default.join(import_os.default.tmpdir(), `${prefix}${Math.random().toString(36).substring(7)}`);
+        import_fs.default.mkdirSync(dir, { recursive: true });
+        return dir;
+      }
+      static async withTempDir(fn, prefix = "tmp-") {
+        const tempDir = _KrnlFS.createTempDir(prefix);
+        try {
+          return await fn(tempDir);
+        } finally {
+          await _KrnlFS.deleteDir(tempDir, true).catch(() => {
+          });
+        }
+      }
+    };
+  }
+});
+
+// src/krnl/backend/providers/data/SQLiteDataProvider.ts
+var import_path2, SQLiteDataProvider;
+var init_SQLiteDataProvider = __esm({
+  "src/krnl/backend/providers/data/SQLiteDataProvider.ts"() {
+    "use strict";
+    init_KrnlFS();
+    init_ObjectKit();
+    import_path2 = __toESM(require("path"), 1);
+    SQLiteDataProvider = class {
+      engine = "sqlite";
+      filePath;
+      enableWAL;
+      isConnected = false;
+      tables = /* @__PURE__ */ new Map();
+      constructor(config = "./workspace.sqlite") {
+        if (typeof config === "string") {
+          this.filePath = import_path2.default.resolve(config);
+          this.enableWAL = true;
+        } else {
+          this.filePath = import_path2.default.resolve(config.filePath || "./workspace.sqlite");
+          this.enableWAL = config.enableWAL !== false;
+        }
+      }
+      async connect() {
+        if (this.isConnected) return;
+        const dir = import_path2.default.dirname(this.filePath);
+        await KrnlFS.ensureDir(dir);
+        if (await KrnlFS.fileExists(this.filePath)) {
+          try {
+            const raw = await KrnlFS.readJSON(this.filePath);
+            if (raw && typeof raw === "object") {
+              for (const [tbl, rows] of Object.entries(raw)) {
+                if (Array.isArray(rows)) {
+                  this.tables.set(tbl, rows);
+                }
+              }
+            }
+          } catch {
+            this.tables.clear();
+          }
+        }
+        this.isConnected = true;
+      }
+      async disconnect() {
+        if (!this.isConnected) return;
+        await this.persist();
+        this.isConnected = false;
+      }
+      async testConnection() {
+        const t0 = Date.now();
+        try {
+          await this.connect();
+          const latencyMs = Date.now() - t0;
+          return {
+            ok: true,
+            latencyMs,
+            details: {
+              engine: "sqlite",
+              filePath: this.filePath,
+              wal: this.enableWAL,
+              tablesCount: this.tables.size
+            }
+          };
+        } catch (err) {
+          return {
+            ok: false,
+            latencyMs: Date.now() - t0,
+            details: { error: err.message }
+          };
+        }
+      }
+      async ensureTable(tableName, _schema) {
+        await this.connect();
+        if (!this.tables.has(tableName)) {
+          this.tables.set(tableName, []);
+          await this.persist();
+        }
+      }
+      async persist() {
+        const release = await FileLock.acquire(this.filePath);
+        try {
+          const dump = {};
+          for (const [tbl, rows] of this.tables.entries()) {
+            dump[tbl] = rows;
+          }
+          await KrnlFS.writeJSON(this.filePath, dump, 2);
+        } finally {
+          release();
+        }
+      }
+      getTableRows(table) {
+        if (!this.tables.has(table)) {
+          this.tables.set(table, []);
+        }
+        return this.tables.get(table);
+      }
+      matchesFilter(row, filter) {
+        if (typeof filter === "string") {
+          return row.id === filter || row._id === filter;
+        }
+        if (!filter || Object.keys(filter).length === 0) return true;
+        for (const [key, expected] of Object.entries(filter)) {
+          const actual = row[key];
+          if (expected && typeof expected === "object" && !Array.isArray(expected)) {
+            if ("$gt" in expected && !(actual > expected.$gt)) return false;
+            if ("$gte" in expected && !(actual >= expected.$gte)) return false;
+            if ("$lt" in expected && !(actual < expected.$lt)) return false;
+            if ("$lte" in expected && !(actual <= expected.$lte)) return false;
+            if ("$ne" in expected && actual === expected.$ne) return false;
+            if ("$in" in expected && Array.isArray(expected.$in) && !expected.$in.includes(actual)) return false;
+            if ("$nin" in expected && Array.isArray(expected.$nin) && expected.$nin.includes(actual)) return false;
+          } else if (actual !== expected) {
+            return false;
+          }
+        }
+        return true;
+      }
+      async find(table, filter, options) {
+        await this.connect();
+        const rows = this.getTableRows(table);
+        let results = rows.filter((r) => this.matchesFilter(r, filter || {}));
+        if (options?.sort) {
+          const sortEntries = Object.entries(options.sort);
+          results.sort((a, b) => {
+            for (const [key, dir] of sortEntries) {
+              if (a[key] < b[key]) return dir === 1 ? -1 : 1;
+              if (a[key] > b[key]) return dir === 1 ? 1 : -1;
+            }
+            return 0;
+          });
+        }
+        if (options?.offset) {
+          results = results.slice(options.offset);
+        }
+        if (options?.limit) {
+          results = results.slice(0, options.limit);
+        }
+        return ObjectKit.deepClone(results);
+      }
+      async findOne(table, filter) {
+        const list = await this.find(table, typeof filter === "string" ? { id: filter } : filter, { limit: 1 });
+        return list[0] || null;
+      }
+      async insert(table, data) {
+        await this.connect();
+        const rows = this.getTableRows(table);
+        const items = Array.isArray(data) ? data : [data];
+        const inserted = [];
+        for (const item of items) {
+          const record = ObjectKit.deepClone(item);
+          if (!record.id && !record._id) {
+            record.id = `rec_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+          }
+          if (!record.createdAt) {
+            record.createdAt = Date.now();
+          }
+          record.updatedAt = Date.now();
+          rows.push(record);
+          inserted.push(record);
+        }
+        await this.persist();
+        return Array.isArray(data) ? inserted : inserted[0];
+      }
+      async update(table, filter, patch) {
+        await this.connect();
+        const rows = this.getTableRows(table);
+        let affected = 0;
+        for (let i = 0; i < rows.length; i++) {
+          if (this.matchesFilter(rows[i], filter)) {
+            rows[i] = ObjectKit.deepMerge(rows[i], {
+              ...patch,
+              updatedAt: Date.now()
+            });
+            affected++;
+          }
+        }
+        if (affected > 0) {
+          await this.persist();
+        }
+        return { affectedRows: affected };
+      }
+      async delete(table, filter) {
+        await this.connect();
+        const rows = this.getTableRows(table);
+        const initialLen = rows.length;
+        const remaining = rows.filter((r) => !this.matchesFilter(r, filter));
+        const affected = initialLen - remaining.length;
+        if (affected > 0) {
+          this.tables.set(table, remaining);
+          await this.persist();
+        }
+        return { affectedRows: affected };
+      }
+      async count(table, filter) {
+        await this.connect();
+        const rows = this.getTableRows(table);
+        if (!filter || Object.keys(filter).length === 0) {
+          return rows.length;
+        }
+        return rows.filter((r) => this.matchesFilter(r, filter)).length;
+      }
+      async clear(table) {
+        await this.connect();
+        this.tables.set(table, []);
+        await this.persist();
+      }
+      async query(queryStr, _params) {
+        await this.connect();
+        const normalized = queryStr.trim().toLowerCase();
+        if (normalized.startsWith("select * from")) {
+          const parts = queryStr.trim().split(/\s+/);
+          const tableName = parts[3]?.replace(/['";]/g, "");
+          if (tableName) {
+            return this.find(tableName);
+          }
+        }
+        return [];
+      }
+      async execute(commandStr, _params) {
+        await this.connect();
+        const normalized = commandStr.trim().toLowerCase();
+        if (normalized.startsWith("create table")) {
+          const parts = commandStr.trim().split(/\s+/);
+          const tableName = parts[2]?.replace(/['";(]/g, "");
+          if (tableName) {
+            await this.ensureTable(tableName);
+            return { affectedRows: 0 };
+          }
+        }
+        return { affectedRows: 0 };
+      }
+    };
+  }
+});
+
+// src/krnl/tools/AsyncKit.js
+var AsyncKit;
+var init_AsyncKit = __esm({
+  "src/krnl/tools/AsyncKit.js"() {
+    "use strict";
+    AsyncKit = class _AsyncKit {
+      /**
+       * Classic sleep/delay.
+       */
+      static sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+      /**
+       * Rejects if the task does not finish within ms.
+       */
+      static withTimeout(promise, ms, label = "Operation") {
+        let timer;
+        const timeoutPromise = new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            reject(new Error(`[KrnlTimeoutError] ${label} timed out after ${ms}ms`));
+          }, ms);
+        });
+        return Promise.race([
+          promise.then((val) => {
+            clearTimeout(timer);
+            return val;
+          }),
+          timeoutPromise
+        ]);
+      }
+      /**
+       * Retries an async execution up to maxAttempts times.
+       */
+      static async retry(fn, maxAttempts, delayMs = 1e3) {
+        let attempts = 0;
+        while (attempts < maxAttempts) {
+          try {
+            return await fn();
+          } catch (err) {
+            attempts++;
+            if (attempts >= maxAttempts) {
+              throw err;
+            }
+            await _AsyncKit.sleep(delayMs);
+          }
+        }
+        throw new Error("Retry failed");
+      }
+      static async pLimit(tasks, concurrency) {
+        const results = [];
+        let index = 0;
+        const worker = async () => {
+          while (index < tasks.length) {
+            const i = index++;
+            results[i] = await tasks[i]();
+          }
+        };
+        const workers = [];
+        for (let i = 0; i < concurrency && i < tasks.length; i++) {
+          workers.push(worker());
+        }
+        await Promise.all(workers);
+        return results;
+      }
+      /**
+       * Debounces a function.
+       */
+      static debounce(fn, ms) {
+        let timer = null;
+        return (...args) => {
+          if (timer)
+            clearTimeout(timer);
+          timer = setTimeout(() => fn(...args), ms);
+        };
+      }
+      /**
+       * Throttles a function.
+       */
+      static throttle(fn, ms) {
+        let lastCall = 0;
+        return (...args) => {
+          const now = Date.now();
+          if (now - lastCall >= ms) {
+            lastCall = now;
+            fn(...args);
+          }
+        };
+      }
+      /**
+       * Wraps a function to run only once and cache its outcome.
+       */
+      static once(fn) {
+        let run = false;
+        let result;
+        return (...args) => {
+          if (!run) {
+            run = true;
+            result = fn(...args);
+          }
+          return result;
+        };
+      }
+      /**
+       * computational memoization cache helper.
+       */
+      static memoize(fn, keyFn) {
+        const cache = /* @__PURE__ */ new Map();
+        return (...args) => {
+          const key = keyFn ? keyFn(...args) : JSON.stringify(args);
+          if (cache.has(key)) {
+            return cache.get(key);
+          }
+          const val = fn(...args);
+          cache.set(key, val);
+          return val;
+        };
+      }
+    };
+  }
+});
+
+// src/krnl/tools/KrnlHTTP.js
+var KrnlHTTP;
+var init_KrnlHTTP = __esm({
+  "src/krnl/tools/KrnlHTTP.js"() {
+    "use strict";
+    init_AsyncKit();
+    KrnlHTTP = class _KrnlHTTP {
+      /**
+       * Helper to perform fetch with timeout and retries.
+       */
+      static async requestRaw(url, opts = {}) {
+        const timeout = opts.timeout || 6e4;
+        const retries = opts.retries || 0;
+        const perform = async () => {
+          const controller = new AbortController();
+          const id = setTimeout(() => controller.abort(), timeout);
+          try {
+            const response = await fetch(url, {
+              ...opts,
+              signal: controller.signal
+            });
+            clearTimeout(id);
+            return response;
+          } catch (e) {
+            clearTimeout(id);
+            throw e;
+          }
+        };
+        return await AsyncKit.retry(perform, retries + 1, 1e3);
+      }
+      static async request(url, opts = {}) {
+        try {
+          const res = await _KrnlHTTP.requestRaw(url, opts);
+          if (!res.ok) {
+            return { status: "error", message: `HTTP Error ${res.status}: ${res.statusText}`, code: res.status };
+          }
+          const data = await res.json();
+          return { status: "success", data };
+        } catch (e) {
+          return { status: "error", message: e.message || String(e) };
+        }
+      }
+      static async get(url, opts = {}) {
+        return await _KrnlHTTP.request(url, { ...opts, method: "GET" });
+      }
+      static async post(url, body, opts = {}) {
+        return await _KrnlHTTP.request(url, {
+          ...opts,
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...opts.headers },
+          body: JSON.stringify(body)
+        });
+      }
+      static async put(url, body, opts = {}) {
+        return await _KrnlHTTP.request(url, {
+          ...opts,
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...opts.headers },
+          body: JSON.stringify(body)
+        });
+      }
+      static async del(url, opts = {}) {
+        return await _KrnlHTTP.request(url, { ...opts, method: "DELETE" });
+      }
+      /**
+       * Creates a client instance.
+       */
+      static createClient(baseUrl, defaultHeaders = {}) {
+        return {
+          get: (path23, opts = {}) => _KrnlHTTP.get(`${baseUrl}${path23}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+          post: (path23, body, opts = {}) => _KrnlHTTP.post(`${baseUrl}${path23}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+          put: (path23, body, opts = {}) => _KrnlHTTP.put(`${baseUrl}${path23}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
+          del: (path23, opts = {}) => _KrnlHTTP.del(`${baseUrl}${path23}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } })
+        };
+      }
+      /**
+       * Streaming SSE / Chunk response.
+       */
+      static async *streamResponse(url, opts = {}) {
+        const res = await _KrnlHTTP.requestRaw(url, opts);
+        if (!res.ok || !res.body) {
+          throw new Error(`Failed to initialize stream: HTTP ${res.status}`);
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done)
+              break;
+            yield decoder.decode(value, { stream: true });
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      }
+    };
+  }
+});
+
+// src/krnl/backend/providers/data/PostgresDataProvider.ts
+var PostgresDataProvider;
+var init_PostgresDataProvider = __esm({
+  "src/krnl/backend/providers/data/PostgresDataProvider.ts"() {
+    "use strict";
+    init_KrnlHTTP();
+    PostgresDataProvider = class {
+      engine = "postgres";
+      config;
+      isConnected = false;
+      constructor(config) {
+        this.config = config;
+      }
+      async connect() {
+        this.isConnected = true;
+      }
+      async disconnect() {
+        this.isConnected = false;
+      }
+      async testConnection() {
+        const t0 = Date.now();
+        try {
+          if (this.config.endpoint) {
+            const res = await KrnlHTTP.get(this.config.endpoint, { timeout: 5e3 });
+            return {
+              ok: res.status === "success" || res.code === 200,
+              latencyMs: Date.now() - t0,
+              details: {
+                engine: "postgres",
+                endpoint: this.config.endpoint,
+                ssl: this.config.ssl ?? true
+              }
+            };
+          }
+          const hasConnectionInfo = Boolean(
+            this.config.connectionString || this.config.host && this.config.database
+          );
+          return {
+            ok: hasConnectionInfo,
+            latencyMs: Date.now() - t0,
+            details: {
+              engine: "postgres",
+              host: this.config.host,
+              database: this.config.database,
+              ssl: this.config.ssl ?? true,
+              poolSize: this.config.poolSize ?? 10
+            }
+          };
+        } catch (err) {
+          return {
+            ok: false,
+            latencyMs: Date.now() - t0,
+            details: { error: err.message }
+          };
+        }
+      }
+      async ensureTable(_tableName, _schema) {
+      }
+      async find(_table, _filter, _options) {
+        return [];
+      }
+      async findOne(_table, _filter) {
+        return null;
+      }
+      async insert(_table, data) {
+        return data;
+      }
+      async update(_table, _filter, _patch) {
+        return { affectedRows: 0 };
+      }
+      async delete(_table, _filter) {
+        return { affectedRows: 0 };
+      }
+      async count(_table, _filter) {
+        return 0;
+      }
+      async clear(_table) {
+      }
+      async query(_queryStr, _params) {
+        return [];
+      }
+      async execute(_commandStr, _params) {
+        return { affectedRows: 0 };
+      }
+    };
+  }
+});
+
+// src/krnl/backend/providers/data/SupabaseDataProvider.ts
+var SupabaseDataProvider;
+var init_SupabaseDataProvider = __esm({
+  "src/krnl/backend/providers/data/SupabaseDataProvider.ts"() {
+    "use strict";
+    init_KrnlHTTP();
+    SupabaseDataProvider = class {
+      engine = "supabase";
+      endpoint;
+      apiKey;
+      isConnected = false;
+      constructor(config) {
+        this.endpoint = (config.endpoint || "").replace(/\/+$/, "");
+        this.apiKey = config.apiKey || "";
+      }
+      getHeaders() {
+        return {
+          "apikey": this.apiKey,
+          "Authorization": `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+          "Prefer": "return=representation"
+        };
+      }
+      async connect() {
+        this.isConnected = true;
+      }
+      async disconnect() {
+        this.isConnected = false;
+      }
+      async testConnection() {
+        const t0 = Date.now();
+        try {
+          const res = await KrnlHTTP.get(`${this.endpoint}/rest/v1/`, {
+            headers: this.getHeaders(),
+            timeout: 5e3
+          });
+          const latencyMs = Date.now() - t0;
+          return {
+            ok: res.status === "success" || res.code === 200 || res.code === 404,
+            latencyMs,
+            details: {
+              engine: "supabase",
+              endpoint: this.endpoint,
+              status: res.status,
+              code: res.code
+            }
+          };
+        } catch (err) {
+          return {
+            ok: false,
+            latencyMs: Date.now() - t0,
+            details: { error: err.message }
+          };
+        }
+      }
+      async ensureTable(_tableName, _schema) {
+      }
+      buildQueryString(filter, options) {
+        const params = [];
+        if (filter) {
+          for (const [key, val] of Object.entries(filter)) {
+            if (val === null || val === void 0) {
+              params.push(`${key}=is.null`);
+            } else if (typeof val === "object") {
+              if ("$gt" in val) params.push(`${key}=gt.${encodeURIComponent(val.$gt)}`);
+              if ("$gte" in val) params.push(`${key}=gte.${encodeURIComponent(val.$gte)}`);
+              if ("$lt" in val) params.push(`${key}=lt.${encodeURIComponent(val.$lt)}`);
+              if ("$lte" in val) params.push(`${key}=lte.${encodeURIComponent(val.$lte)}`);
+              if ("$ne" in val) params.push(`${key}=neq.${encodeURIComponent(val.$ne)}`);
+            } else {
+              params.push(`${key}=eq.${encodeURIComponent(String(val))}`);
+            }
+          }
+        }
+        if (options?.limit) {
+          params.push(`limit=${options.limit}`);
+        }
+        if (options?.offset) {
+          params.push(`offset=${options.offset}`);
+        }
+        if (options?.sort) {
+          const order = Object.entries(options.sort).map(([col, dir]) => `${col}.${dir === 1 ? "asc" : "desc"}`).join(",");
+          params.push(`order=${order}`);
+        }
+        return params.length > 0 ? `?${params.join("&")}` : "";
+      }
+      async find(table, filter, options) {
+        const qs = this.buildQueryString(filter, options);
+        const url = `${this.endpoint}/rest/v1/${table}${qs}`;
+        const res = await KrnlHTTP.get(url, { headers: this.getHeaders() });
+        if (res.status === "success" && Array.isArray(res.data)) {
+          return res.data;
+        }
+        return [];
+      }
+      async findOne(table, filter) {
+        const filterObj = typeof filter === "string" ? { id: filter } : filter;
+        const list = await this.find(table, filterObj, { limit: 1 });
+        return list[0] || null;
+      }
+      async insert(table, data) {
+        const url = `${this.endpoint}/rest/v1/${table}`;
+        const res = await KrnlHTTP.post(url, data, { headers: this.getHeaders() });
+        if (res.status === "success" && res.data) {
+          return Array.isArray(data) ? res.data : res.data[0];
+        }
+        return data;
+      }
+      async update(table, filter, patch) {
+        const filterObj = typeof filter === "string" ? { id: filter } : filter;
+        const qs = this.buildQueryString(filterObj);
+        const url = `${this.endpoint}/rest/v1/${table}${qs}`;
+        const res = await KrnlHTTP.request(url, {
+          method: "PATCH",
+          headers: this.getHeaders(),
+          body: JSON.stringify(patch)
+        });
+        const affected = res.status === "success" && Array.isArray(res.data) ? res.data.length : 0;
+        return { affectedRows: affected };
+      }
+      async delete(table, filter) {
+        const filterObj = typeof filter === "string" ? { id: filter } : filter;
+        const qs = this.buildQueryString(filterObj);
+        const url = `${this.endpoint}/rest/v1/${table}${qs}`;
+        const res = await KrnlHTTP.del(url, { headers: this.getHeaders() });
+        const affected = res.status === "success" && Array.isArray(res.data) ? res.data.length : 0;
+        return { affectedRows: affected };
+      }
+      async count(table, filter) {
+        const qs = this.buildQueryString(filter);
+        const url = `${this.endpoint}/rest/v1/${table}${qs}`;
+        const headers = { ...this.getHeaders(), "Prefer": "count=exact", "Range-Unit": "items", "Range": "0-0" };
+        const res = await KrnlHTTP.get(url, { headers });
+        return res.status === "success" && Array.isArray(res.data) ? res.data.length : 0;
+      }
+      async clear(table) {
+        await this.delete(table, {});
+      }
+      async query(queryStr, _params) {
+        return this.find(queryStr);
+      }
+      async execute(_commandStr, _params) {
+        return { affectedRows: 0 };
+      }
+    };
+  }
+});
+
+// src/krnl/backend/providers/data/PocketBaseDataProvider.ts
+var PocketBaseDataProvider;
+var init_PocketBaseDataProvider = __esm({
+  "src/krnl/backend/providers/data/PocketBaseDataProvider.ts"() {
+    "use strict";
+    init_KrnlHTTP();
+    PocketBaseDataProvider = class {
+      engine = "pocketbase";
+      endpoint;
+      apiKey;
+      isConnected = false;
+      constructor(config) {
+        this.endpoint = (config.endpoint || "http://127.0.0.1:8090").replace(/\/+$/, "");
+        this.apiKey = config.apiKey;
+      }
+      getHeaders() {
+        const headers = {
+          "Content-Type": "application/json"
+        };
+        if (this.apiKey) {
+          headers["Authorization"] = this.apiKey;
+        }
+        return headers;
+      }
+      async connect() {
+        this.isConnected = true;
+      }
+      async disconnect() {
+        this.isConnected = false;
+      }
+      async testConnection() {
+        const t0 = Date.now();
+        try {
+          const res = await KrnlHTTP.get(`${this.endpoint}/api/health`, {
+            headers: this.getHeaders(),
+            timeout: 5e3
+          });
+          const latencyMs = Date.now() - t0;
+          return {
+            ok: res.status === "success" && (res.data?.code === 200 || res.code === 200),
+            latencyMs,
+            details: {
+              engine: "pocketbase",
+              endpoint: this.endpoint,
+              data: res.data
+            }
+          };
+        } catch (err) {
+          return {
+            ok: false,
+            latencyMs: Date.now() - t0,
+            details: { error: err.message }
+          };
+        }
+      }
+      async ensureTable(_tableName, _schema) {
+      }
+      buildFilterParam(filter) {
+        if (!filter || Object.keys(filter).length === 0) return "";
+        const expressions = [];
+        for (const [key, val] of Object.entries(filter)) {
+          if (typeof val === "string") {
+            expressions.push(`${key}='${val.replace(/'/g, "\\'")}'`);
+          } else if (typeof val === "number" || typeof val === "boolean") {
+            expressions.push(`${key}=${val}`);
+          }
+        }
+        return expressions.length > 0 ? encodeURIComponent(expressions.join(" && ")) : "";
+      }
+      async find(table, filter, options) {
+        const params = [];
+        const filterStr = this.buildFilterParam(filter);
+        if (filterStr) params.push(`filter=${filterStr}`);
+        const perPage = options?.limit || 50;
+        const page = options?.offset ? Math.floor(options.offset / perPage) + 1 : 1;
+        params.push(`page=${page}&perPage=${perPage}`);
+        if (options?.sort) {
+          const sortParts = Object.entries(options.sort).map(([col, dir]) => `${dir === -1 ? "-" : "+"}${col}`);
+          params.push(`sort=${encodeURIComponent(sortParts.join(","))}`);
+        }
+        const qs = params.length > 0 ? `?${params.join("&")}` : "";
+        const url = `${this.endpoint}/api/collections/${table}/records${qs}`;
+        const res = await KrnlHTTP.get(url, { headers: this.getHeaders() });
+        if (res.status === "success" && res.data?.items) {
+          return res.data.items;
+        }
+        return [];
+      }
+      async findOne(table, filter) {
+        if (typeof filter === "string") {
+          const url = `${this.endpoint}/api/collections/${table}/records/${filter}`;
+          const res = await KrnlHTTP.get(url, { headers: this.getHeaders() });
+          return res.status === "success" && res.data ? res.data : null;
+        }
+        const list = await this.find(table, filter, { limit: 1 });
+        return list[0] || null;
+      }
+      async insert(table, data) {
+        const url = `${this.endpoint}/api/collections/${table}/records`;
+        if (Array.isArray(data)) {
+          const results = [];
+          for (const item of data) {
+            const res = await KrnlHTTP.post(url, item, { headers: this.getHeaders() });
+            if (res.status === "success" && res.data) results.push(res.data);
+          }
+          return results;
+        } else {
+          const res = await KrnlHTTP.post(url, data, { headers: this.getHeaders() });
+          return res.status === "success" && res.data ? res.data : data;
+        }
+      }
+      async update(table, filter, patch) {
+        let targetId = null;
+        if (typeof filter === "string") {
+          targetId = filter;
+        } else {
+          const existing = await this.findOne(table, filter);
+          targetId = existing?.id || null;
+        }
+        if (!targetId) return { affectedRows: 0 };
+        const url = `${this.endpoint}/api/collections/${table}/records/${targetId}`;
+        const res = await KrnlHTTP.request(url, {
+          method: "PATCH",
+          headers: this.getHeaders(),
+          body: JSON.stringify(patch)
+        });
+        return { affectedRows: res.status === "success" ? 1 : 0 };
+      }
+      async delete(table, filter) {
+        let targetId = null;
+        if (typeof filter === "string") {
+          targetId = filter;
+        } else {
+          const existing = await this.findOne(table, filter);
+          targetId = existing?.id || null;
+        }
+        if (!targetId) return { affectedRows: 0 };
+        const url = `${this.endpoint}/api/collections/${table}/records/${targetId}`;
+        const res = await KrnlHTTP.del(url, { headers: this.getHeaders() });
+        return { affectedRows: res.status === "success" ? 1 : 0 };
+      }
+      async count(table, filter) {
+        const filterStr = this.buildFilterParam(filter);
+        const qs = `?page=1&perPage=1${filterStr ? `&filter=${filterStr}` : ""}`;
+        const url = `${this.endpoint}/api/collections/${table}/records${qs}`;
+        const res = await KrnlHTTP.get(url, { headers: this.getHeaders() });
+        return res.status === "success" && typeof res.data?.totalItems === "number" ? res.data.totalItems : 0;
+      }
+      async clear(table) {
+        const all = await this.find(table);
+        for (const item of all) {
+          if (item.id) await this.delete(table, item.id);
+        }
+      }
+      async query(queryStr, _params) {
+        return this.find(queryStr);
+      }
+      async execute(_commandStr, _params) {
+        return { affectedRows: 0 };
+      }
+    };
+  }
+});
+
+// src/krnl/backend/providers/data/FirebaseDataProvider.ts
+var FirebaseDataProvider;
+var init_FirebaseDataProvider = __esm({
+  "src/krnl/backend/providers/data/FirebaseDataProvider.ts"() {
+    "use strict";
+    init_KrnlHTTP();
+    FirebaseDataProvider = class {
+      engine = "firebase";
+      projectId;
+      apiKey;
+      isConnected = false;
+      constructor(config) {
+        this.projectId = config.projectId || "";
+        this.apiKey = config.apiKey;
+      }
+      get baseUrl() {
+        return `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/(default)/documents`;
+      }
+      get urlSuffix() {
+        return this.apiKey ? `?key=${this.apiKey}` : "";
+      }
+      async connect() {
+        this.isConnected = true;
+      }
+      async disconnect() {
+        this.isConnected = false;
+      }
+      async testConnection() {
+        const t0 = Date.now();
+        try {
+          const url = `${this.baseUrl}${this.urlSuffix}`;
+          const res = await KrnlHTTP.get(url, { timeout: 5e3 });
+          const latencyMs = Date.now() - t0;
+          return {
+            ok: res.status === "success" || res.code === 200 || res.code === 404,
+            latencyMs,
+            details: {
+              engine: "firebase",
+              projectId: this.projectId,
+              status: res.status
+            }
+          };
+        } catch (err) {
+          return {
+            ok: false,
+            latencyMs: Date.now() - t0,
+            details: { error: err.message }
+          };
+        }
+      }
+      async ensureTable(_tableName, _schema) {
+      }
+      /**
+       * Translates plain JavaScript object into Firestore document value structure
+       */
+      toFirestoreFields(obj) {
+        const fields = {};
+        for (const [key, val] of Object.entries(obj)) {
+          fields[key] = this.toFirestoreValue(val);
+        }
+        return fields;
+      }
+      toFirestoreValue(val) {
+        if (val === null || val === void 0) return { nullValue: null };
+        if (typeof val === "boolean") return { booleanValue: val };
+        if (typeof val === "number") {
+          return Number.isInteger(val) ? { integerValue: String(val) } : { doubleValue: val };
+        }
+        if (typeof val === "string") return { stringValue: val };
+        if (Array.isArray(val)) {
+          return { arrayValue: { values: val.map((v) => this.toFirestoreValue(v)) } };
+        }
+        if (typeof val === "object") {
+          return { mapValue: { fields: this.toFirestoreFields(val) } };
+        }
+        return { stringValue: String(val) };
+      }
+      /**
+       * Translates Firestore document into standard JavaScript object
+       */
+      fromFirestoreDoc(doc) {
+        if (!doc || !doc.fields) return null;
+        const result = {};
+        const docName = doc.name || "";
+        const id = docName.split("/").pop();
+        if (id) result.id = id;
+        for (const [key, fieldObj] of Object.entries(doc.fields)) {
+          result[key] = this.fromFirestoreValue(fieldObj);
+        }
+        return result;
+      }
+      fromFirestoreValue(fieldObj) {
+        if (!fieldObj || typeof fieldObj !== "object") return null;
+        if ("stringValue" in fieldObj) return fieldObj.stringValue;
+        if ("integerValue" in fieldObj) return parseInt(fieldObj.integerValue, 10);
+        if ("doubleValue" in fieldObj) return fieldObj.doubleValue;
+        if ("booleanValue" in fieldObj) return fieldObj.booleanValue;
+        if ("nullValue" in fieldObj) return null;
+        if ("arrayValue" in fieldObj) {
+          return (fieldObj.arrayValue.values || []).map((v) => this.fromFirestoreValue(v));
+        }
+        if ("mapValue" in fieldObj) {
+          const obj = {};
+          for (const [k, v] of Object.entries(fieldObj.mapValue.fields || {})) {
+            obj[k] = this.fromFirestoreValue(v);
+          }
+          return obj;
+        }
+        return null;
+      }
+      async find(table, filter, options) {
+        const url = `${this.baseUrl}/${table}${this.urlSuffix}`;
+        const res = await KrnlHTTP.get(url);
+        if (res.status === "success" && Array.isArray(res.data?.documents)) {
+          let items = res.data.documents.map((d) => this.fromFirestoreDoc(d)).filter(Boolean);
+          if (filter && Object.keys(filter).length > 0) {
+            items = items.filter((item) => {
+              for (const [k, v] of Object.entries(filter)) {
+                if (item[k] !== v) return false;
+              }
+              return true;
+            });
+          }
+          if (options?.offset) items = items.slice(options.offset);
+          if (options?.limit) items = items.slice(0, options.limit);
+          return items;
+        }
+        return [];
+      }
+      async findOne(table, filter) {
+        if (typeof filter === "string") {
+          const url = `${this.baseUrl}/${table}/${filter}${this.urlSuffix}`;
+          const res = await KrnlHTTP.get(url);
+          return res.status === "success" && res.data ? this.fromFirestoreDoc(res.data) : null;
+        }
+        const list = await this.find(table, filter, { limit: 1 });
+        return list[0] || null;
+      }
+      async insert(table, data) {
+        const items = Array.isArray(data) ? data : [data];
+        const results = [];
+        for (const item of items) {
+          const docObj = { ...item };
+          const docId = docObj.id || docObj._id || `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+          delete docObj.id;
+          delete docObj._id;
+          const url = `${this.baseUrl}/${table}?documentId=${docId}${this.apiKey ? `&key=${this.apiKey}` : ""}`;
+          const body = { fields: this.toFirestoreFields(docObj) };
+          const res = await KrnlHTTP.post(url, body);
+          if (res.status === "success" && res.data) {
+            results.push(this.fromFirestoreDoc(res.data));
+          } else {
+            results.push({ id: docId, ...docObj });
+          }
+        }
+        return Array.isArray(data) ? results : results[0];
+      }
+      async update(table, filter, patch) {
+        let docId = null;
+        if (typeof filter === "string") {
+          docId = filter;
+        } else {
+          const existing = await this.findOne(table, filter);
+          docId = existing?.id || null;
+        }
+        if (!docId) return { affectedRows: 0 };
+        const patchFields = this.toFirestoreFields(patch);
+        const updateMask = Object.keys(patch).map((k) => `updateMask.fieldPaths=${k}`).join("&");
+        const url = `${this.baseUrl}/${table}/${docId}?${updateMask}${this.apiKey ? `&key=${this.apiKey}` : ""}`;
+        const res = await KrnlHTTP.request(url, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: patchFields })
+        });
+        return { affectedRows: res.status === "success" ? 1 : 0 };
+      }
+      async delete(table, filter) {
+        let docId = null;
+        if (typeof filter === "string") {
+          docId = filter;
+        } else {
+          const existing = await this.findOne(table, filter);
+          docId = existing?.id || null;
+        }
+        if (!docId) return { affectedRows: 0 };
+        const url = `${this.baseUrl}/${table}/${docId}${this.urlSuffix}`;
+        const res = await KrnlHTTP.del(url);
+        return { affectedRows: res.status === "success" ? 1 : 0 };
+      }
+      async count(table, filter) {
+        const list = await this.find(table, filter);
+        return list.length;
+      }
+      async clear(table) {
+        const all = await this.find(table);
+        for (const item of all) {
+          if (item.id) await this.delete(table, item.id);
+        }
+      }
+      async query(queryStr, _params) {
+        return this.find(queryStr);
+      }
+      async execute(_commandStr, _params) {
+        return { affectedRows: 0 };
+      }
+    };
+  }
+});
+
+// src/krnl/backend/providers/storage/FilesystemStorageProvider.ts
+var import_path3, import_promises2, FilesystemStorageProvider;
+var init_FilesystemStorageProvider = __esm({
+  "src/krnl/backend/providers/storage/FilesystemStorageProvider.ts"() {
+    "use strict";
+    init_KrnlFS();
+    import_path3 = __toESM(require("path"), 1);
+    import_promises2 = __toESM(require("fs/promises"), 1);
+    FilesystemStorageProvider = class {
+      driver = "filesystem";
+      basePath;
+      constructor(config = "./storage") {
+        if (typeof config === "string") {
+          this.basePath = import_path3.default.resolve(config);
+        } else {
+          this.basePath = import_path3.default.resolve(config.basePath || "./storage");
+        }
+      }
+      async uploadFile(targetPath, content, _mimeType) {
+        const fullPath = import_path3.default.join(this.basePath, targetPath);
+        await KrnlFS.ensureDir(import_path3.default.dirname(fullPath));
+        let buf;
+        if (Buffer.isBuffer(content)) {
+          buf = content;
+        } else if (typeof content === "string") {
+          buf = Buffer.from(content, "utf8");
+        } else if (content instanceof Uint8Array) {
+          buf = Buffer.from(content);
+        } else {
+          buf = Buffer.from(await content.arrayBuffer());
+        }
+        await KrnlFS.writeFileAtomic(fullPath, buf);
+        const size = buf.byteLength;
+        return {
+          url: `file://${fullPath}`,
+          size
+        };
+      }
+      async downloadFile(targetPath) {
+        const fullPath = import_path3.default.join(this.basePath, targetPath);
+        return await import_promises2.default.readFile(fullPath);
+      }
+      async deleteFile(targetPath) {
+        const fullPath = import_path3.default.join(this.basePath, targetPath);
+        try {
+          await KrnlFS.deleteFile(fullPath);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+      getPublicUrl(targetPath) {
+        return `file://${import_path3.default.join(this.basePath, targetPath)}`;
+      }
+      async listFiles(prefix = "") {
+        const startDir = import_path3.default.join(this.basePath, prefix);
+        if (!await KrnlFS.dirExists(startDir)) {
+          return [];
+        }
+        const results = [];
+        for await (const file of KrnlFS.walkDir(startDir)) {
+          const stat = await KrnlFS.getFileStat(file);
+          results.push({
+            path: import_path3.default.relative(this.basePath, file),
+            size: stat.size,
+            updatedAt: stat.modifiedAt.getTime()
+          });
+        }
+        return results;
+      }
+    };
+  }
+});
+
+// src/krnl/backend/providers/storage/SupabaseStorageProvider.ts
+var SupabaseStorageProvider;
+var init_SupabaseStorageProvider = __esm({
+  "src/krnl/backend/providers/storage/SupabaseStorageProvider.ts"() {
+    "use strict";
+    init_KrnlHTTP();
+    SupabaseStorageProvider = class {
+      driver = "supabase_storage";
+      endpoint;
+      apiKey;
+      bucket;
+      constructor(config) {
+        this.endpoint = (config.endpoint || "").replace(/\/+$/, "");
+        this.apiKey = config.apiKey || "";
+        this.bucket = config.bucket || "default";
+      }
+      getHeaders(mimeType) {
+        const headers = {
+          "apikey": this.apiKey,
+          "Authorization": `Bearer ${this.apiKey}`
+        };
+        if (mimeType) {
+          headers["Content-Type"] = mimeType;
+        }
+        return headers;
+      }
+      async uploadFile(targetPath, content, mimeType = "application/octet-stream") {
+        const cleanPath = targetPath.replace(/^\/+/, "");
+        const url = `${this.endpoint}/storage/v1/object/${this.bucket}/${cleanPath}`;
+        let body = content;
+        let size = 0;
+        if (Buffer.isBuffer(content)) {
+          size = content.byteLength;
+        } else if (typeof content === "string") {
+          size = Buffer.byteLength(content);
+        }
+        await KrnlHTTP.request(url, {
+          method: "POST",
+          headers: this.getHeaders(mimeType),
+          body
+        });
+        return {
+          url: this.getPublicUrl(cleanPath),
+          size
+        };
+      }
+      async downloadFile(targetPath) {
+        const cleanPath = targetPath.replace(/^\/+/, "");
+        const url = `${this.endpoint}/storage/v1/object/authenticated/${this.bucket}/${cleanPath}`;
+        const res = await fetch(url, { headers: this.getHeaders() });
+        const arrayBuf = await res.arrayBuffer();
+        return Buffer.from(arrayBuf);
+      }
+      async deleteFile(targetPath) {
+        const cleanPath = targetPath.replace(/^\/+/, "");
+        const url = `${this.endpoint}/storage/v1/object/${this.bucket}/${cleanPath}`;
+        const res = await KrnlHTTP.del(url, { headers: this.getHeaders() });
+        return res.status === "success";
+      }
+      getPublicUrl(targetPath) {
+        const cleanPath = targetPath.replace(/^\/+/, "");
+        return `${this.endpoint}/storage/v1/object/public/${this.bucket}/${cleanPath}`;
+      }
+      async listFiles(prefix = "") {
+        const url = `${this.endpoint}/storage/v1/object/list/${this.bucket}`;
+        const res = await KrnlHTTP.post(url, { prefix, limit: 100 }, { headers: this.getHeaders("application/json") });
+        if (res.status === "success" && Array.isArray(res.data)) {
+          return res.data.map((item) => ({
+            path: item.name,
+            size: item.metadata?.size || 0,
+            updatedAt: item.updated_at ? new Date(item.updated_at).getTime() : Date.now()
+          }));
+        }
+        return [];
+      }
+    };
+  }
+});
+
+// src/krnl/backend/providers/storage/S3StorageProvider.ts
+var S3StorageProvider;
+var init_S3StorageProvider = __esm({
+  "src/krnl/backend/providers/storage/S3StorageProvider.ts"() {
+    "use strict";
+    init_KrnlHTTP();
+    S3StorageProvider = class {
+      driver = "s3";
+      endpoint;
+      bucket;
+      region;
+      accessKey;
+      secretKey;
+      constructor(config) {
+        this.bucket = config.bucket || "default-bucket";
+        this.region = config.region || "us-east-1";
+        this.accessKey = config.accessKey;
+        this.secretKey = config.secretKey;
+        this.endpoint = config.endpoint ? config.endpoint.replace(/\/+$/, "") : `https://${this.bucket}.s3.${this.region}.amazonaws.com`;
+      }
+      getBaseUrl() {
+        return this.endpoint.includes(this.bucket) ? this.endpoint : `${this.endpoint}/${this.bucket}`;
+      }
+      async uploadFile(targetPath, content, mimeType = "application/octet-stream") {
+        const cleanPath = targetPath.replace(/^\/+/, "");
+        const url = `${this.getBaseUrl()}/${cleanPath}`;
+        let body = content;
+        let size = 0;
+        if (Buffer.isBuffer(content)) {
+          size = content.byteLength;
+        } else if (typeof content === "string") {
+          size = Buffer.byteLength(content);
+        }
+        await KrnlHTTP.request(url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": mimeType
+          },
+          body
+        });
+        return {
+          url: this.getPublicUrl(cleanPath),
+          size
+        };
+      }
+      async downloadFile(targetPath) {
+        const cleanPath = targetPath.replace(/^\/+/, "");
+        const url = `${this.getBaseUrl()}/${cleanPath}`;
+        const res = await fetch(url);
+        const arrayBuf = await res.arrayBuffer();
+        return Buffer.from(arrayBuf);
+      }
+      async deleteFile(targetPath) {
+        const cleanPath = targetPath.replace(/^\/+/, "");
+        const url = `${this.getBaseUrl()}/${cleanPath}`;
+        const res = await KrnlHTTP.del(url);
+        return res.status === "success";
+      }
+      getPublicUrl(targetPath) {
+        const cleanPath = targetPath.replace(/^\/+/, "");
+        return `${this.getBaseUrl()}/${cleanPath}`;
+      }
+      async listFiles(_prefix = "") {
+        return [];
+      }
+    };
+  }
+});
+
+// src/krnl/backend/providers/storage/PocketBaseStorageProvider.ts
+var PocketBaseStorageProvider;
+var init_PocketBaseStorageProvider = __esm({
+  "src/krnl/backend/providers/storage/PocketBaseStorageProvider.ts"() {
+    "use strict";
+    init_KrnlHTTP();
+    PocketBaseStorageProvider = class {
+      driver = "pocketbase_storage";
+      endpoint;
+      bucket;
+      constructor(config) {
+        this.endpoint = (config.endpoint || "http://127.0.0.1:8090").replace(/\/+$/, "");
+        this.bucket = config.bucket || "files";
+      }
+      async uploadFile(targetPath, content, mimeType = "application/octet-stream") {
+        const cleanPath = targetPath.replace(/^\/+/, "");
+        const url = `${this.endpoint}/api/collections/${this.bucket}/records`;
+        let size = 0;
+        if (Buffer.isBuffer(content)) size = content.byteLength;
+        else if (typeof content === "string") size = Buffer.byteLength(content);
+        const formData = new FormData();
+        const blob = new Blob([content], { type: mimeType });
+        formData.append("file", blob, cleanPath);
+        await fetch(url, {
+          method: "POST",
+          body: formData
+        });
+        return {
+          url: this.getPublicUrl(cleanPath),
+          size
+        };
+      }
+      async downloadFile(targetPath) {
+        const cleanPath = targetPath.replace(/^\/+/, "");
+        const url = `${this.endpoint}/api/files/${this.bucket}/${cleanPath}`;
+        const res = await fetch(url);
+        const arrayBuf = await res.arrayBuffer();
+        return Buffer.from(arrayBuf);
+      }
+      async deleteFile(targetPath) {
+        const cleanPath = targetPath.replace(/^\/+/, "");
+        const url = `${this.endpoint}/api/collections/${this.bucket}/records/${cleanPath}`;
+        const res = await KrnlHTTP.del(url);
+        return res.status === "success";
+      }
+      getPublicUrl(targetPath) {
+        const cleanPath = targetPath.replace(/^\/+/, "");
+        return `${this.endpoint}/api/files/${this.bucket}/${cleanPath}`;
+      }
+      async listFiles(_prefix = "") {
+        return [];
+      }
+    };
+  }
+});
+
+// src/krnl/backend/providers/storage/FirebaseStorageProvider.ts
+var FirebaseStorageProvider;
+var init_FirebaseStorageProvider = __esm({
+  "src/krnl/backend/providers/storage/FirebaseStorageProvider.ts"() {
+    "use strict";
+    init_KrnlHTTP();
+    FirebaseStorageProvider = class {
+      driver = "firebase_storage";
+      bucket;
+      apiKey;
+      constructor(config) {
+        this.bucket = config.bucket || `${config.projectId || "default"}.appspot.com`;
+        this.apiKey = config.apiKey;
+      }
+      get baseUrl() {
+        return `https://firebasestorage.googleapis.com/v0/b/${this.bucket}/o`;
+      }
+      async uploadFile(targetPath, content, mimeType = "application/octet-stream") {
+        const cleanPath = encodeURIComponent(targetPath.replace(/^\/+/, ""));
+        const url = `${this.baseUrl}?name=${cleanPath}${this.apiKey ? `&key=${this.apiKey}` : ""}`;
+        let body = content;
+        let size = 0;
+        if (Buffer.isBuffer(content)) size = content.byteLength;
+        else if (typeof content === "string") size = Buffer.byteLength(content);
+        await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": mimeType
+          },
+          body
+        });
+        return {
+          url: this.getPublicUrl(targetPath),
+          size
+        };
+      }
+      async downloadFile(targetPath) {
+        const cleanPath = encodeURIComponent(targetPath.replace(/^\/+/, ""));
+        const url = `${this.baseUrl}/${cleanPath}?alt=media${this.apiKey ? `&key=${this.apiKey}` : ""}`;
+        const res = await fetch(url);
+        const arrayBuf = await res.arrayBuffer();
+        return Buffer.from(arrayBuf);
+      }
+      async deleteFile(targetPath) {
+        const cleanPath = encodeURIComponent(targetPath.replace(/^\/+/, ""));
+        const url = `${this.baseUrl}/${cleanPath}${this.apiKey ? `&key=${this.apiKey}` : ""}`;
+        const res = await KrnlHTTP.del(url);
+        return res.status === "success";
+      }
+      getPublicUrl(targetPath) {
+        const cleanPath = encodeURIComponent(targetPath.replace(/^\/+/, ""));
+        return `${this.baseUrl}/${cleanPath}?alt=media`;
+      }
+      async listFiles(_prefix = "") {
+        return [];
+      }
+    };
+  }
+});
+
+// src/krnl/backend/WorkspaceBackendFactory.ts
+var WorkspaceBackendFactory;
+var init_WorkspaceBackendFactory = __esm({
+  "src/krnl/backend/WorkspaceBackendFactory.ts"() {
+    "use strict";
+    init_SQLiteDataProvider();
+    init_PostgresDataProvider();
+    init_SupabaseDataProvider();
+    init_PocketBaseDataProvider();
+    init_FirebaseDataProvider();
+    init_FilesystemStorageProvider();
+    init_SupabaseStorageProvider();
+    init_S3StorageProvider();
+    init_PocketBaseStorageProvider();
+    init_FirebaseStorageProvider();
+    WorkspaceBackendFactory = class _WorkspaceBackendFactory {
+      static create(config) {
+        const dataProvider = _WorkspaceBackendFactory.resolveDataProvider(config);
+        const storageProvider = _WorkspaceBackendFactory.resolveStorageProvider(config);
+        return {
+          id: config.id,
+          mode: config.mode,
+          data: dataProvider,
+          storage: storageProvider,
+          async initialize() {
+            await dataProvider.connect();
+          },
+          async dispose() {
+            await dataProvider.disconnect();
+          }
+        };
+      }
+      static createLocal(filePath = "./workspace.sqlite", storagePath = "./storage") {
+        return _WorkspaceBackendFactory.create({
+          id: "local-workspace",
+          provider: "sqlite",
+          mode: "local",
+          database: { type: "sqlite", filePath, enableWAL: true },
+          storage: { type: "filesystem", basePath: storagePath }
+        });
+      }
+      static resolveDataProvider(config) {
+        const dbConfig = config.database || { type: config.provider };
+        switch (dbConfig.type) {
+          case "sqlite":
+            return new SQLiteDataProvider(dbConfig);
+          case "postgres":
+            return new PostgresDataProvider(dbConfig);
+          case "supabase":
+            return new SupabaseDataProvider({
+              ...dbConfig,
+              endpoint: dbConfig.endpoint || config.endpoint,
+              apiKey: dbConfig.apiKey || config.auth?.apiKey
+            });
+          case "pocketbase":
+            return new PocketBaseDataProvider({
+              ...dbConfig,
+              endpoint: dbConfig.endpoint || config.endpoint,
+              apiKey: dbConfig.apiKey || config.auth?.token
+            });
+          case "firebase":
+            return new FirebaseDataProvider({
+              ...dbConfig,
+              apiKey: dbConfig.apiKey || config.auth?.apiKey
+            });
+          default:
+            return new SQLiteDataProvider("./workspace.sqlite");
+        }
+      }
+      static resolveStorageProvider(config) {
+        const storageConfig = config.storage || { type: "filesystem" };
+        switch (storageConfig.type) {
+          case "filesystem":
+            return new FilesystemStorageProvider(storageConfig);
+          case "supabase_storage":
+            return new SupabaseStorageProvider({
+              ...storageConfig,
+              endpoint: storageConfig.endpoint || config.endpoint,
+              apiKey: storageConfig.apiKey || config.auth?.apiKey
+            });
+          case "s3":
+            return new S3StorageProvider({
+              ...storageConfig,
+              endpoint: storageConfig.endpoint || config.endpoint
+            });
+          case "pocketbase_storage":
+            return new PocketBaseStorageProvider({
+              ...storageConfig,
+              endpoint: storageConfig.endpoint || config.endpoint
+            });
+          case "firebase_storage":
+            return new FirebaseStorageProvider({
+              ...storageConfig,
+              apiKey: storageConfig.apiKey || config.auth?.apiKey
+            });
+          default:
+            return new FilesystemStorageProvider("./storage");
+        }
+      }
+    };
+  }
+});
+
+// src/krnl/backend/control_plane/LocalSQLiteAccountProvider.ts
+var import_path4, LocalSQLiteAccountProvider;
+var init_LocalSQLiteAccountProvider = __esm({
+  "src/krnl/backend/control_plane/LocalSQLiteAccountProvider.ts"() {
+    "use strict";
+    init_KrnlFS();
+    import_path4 = __toESM(require("path"), 1);
+    LocalSQLiteAccountProvider = class {
+      filePath;
+      isLoaded = false;
+      db = { users: {}, workspaces: {} };
+      constructor(filePath = "./accounts.sqlite") {
+        this.filePath = import_path4.default.resolve(filePath);
+      }
+      async load() {
+        if (this.isLoaded) return;
+        await KrnlFS.ensureDir(import_path4.default.dirname(this.filePath));
+        if (await KrnlFS.fileExists(this.filePath)) {
+          try {
+            const raw = await KrnlFS.readJSON(this.filePath);
+            if (raw && typeof raw === "object") {
+              this.db = {
+                users: raw.users || {},
+                workspaces: raw.workspaces || {}
+              };
+            }
+          } catch {
+            this.db = { users: {}, workspaces: {} };
+          }
+        }
+        this.isLoaded = true;
+      }
+      async persist() {
+        const release = await FileLock.acquire(this.filePath);
+        try {
+          await KrnlFS.writeJSON(this.filePath, this.db, 2);
+        } finally {
+          release();
+        }
+      }
+      async getUser(userId) {
+        await this.load();
+        const user = this.db.users[userId];
+        if (!user) return null;
+        const { passwordHash, ...profile } = user;
+        return profile;
+      }
+      async registerUser(credentials) {
+        await this.load();
+        const userId = credentials.username || credentials.email || `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const profile = {
+          id: userId,
+          email: credentials.email,
+          username: credentials.username || credentials.email,
+          role: credentials.role || "USER",
+          passwordHash: credentials.password,
+          metadata: credentials.metadata || {},
+          createdAt: Date.now()
+        };
+        this.db.users[userId] = profile;
+        if (!this.db.workspaces[userId]) {
+          this.db.workspaces[userId] = [];
+        }
+        await this.persist();
+        const { passwordHash, ...safeProfile } = profile;
+        return safeProfile;
+      }
+      async authenticate(credentials) {
+        await this.load();
+        const userId = credentials.username || credentials.email;
+        let user = userId ? this.db.users[userId] : null;
+        if (!user && (credentials.email || credentials.username)) {
+          const isFirst = Object.keys(this.db.users).length === 0;
+          user = await this.registerUser({
+            ...credentials,
+            role: isFirst ? "ADMIN" : "USER"
+          });
+        }
+        if (!user) {
+          throw new Error("Invalid user credentials.");
+        }
+        const token = `sess::${user.id}::${Date.now()}::${Math.random().toString(36).substring(2, 9)}`;
+        const { passwordHash, ...profile } = user;
+        return {
+          userId: user.id,
+          role: user.role,
+          token,
+          expiresAt: Date.now() + 864e5,
+          user: profile
+        };
+      }
+      async verifySession(token) {
+        if (!token) return null;
+        await this.load();
+        const parts = token.split("::");
+        if (parts.length >= 4 && parts[0] === "sess") {
+          const userId = parts[1];
+          const user = this.db.users[userId];
+          if (user) {
+            const { passwordHash, ...profile } = user;
+            return {
+              userId: user.id,
+              role: user.role,
+              token,
+              expiresAt: Date.now() + 864e5,
+              user: profile
+            };
+          }
+        }
+        return null;
+      }
+      async listWorkspaces(userId) {
+        await this.load();
+        return this.db.workspaces[userId] || [];
+      }
+      async createWorkspace(userId, descriptor) {
+        await this.load();
+        if (!this.db.workspaces[userId]) {
+          this.db.workspaces[userId] = [];
+        }
+        const newWs = {
+          id: descriptor.id || `ws_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          ownerId: userId,
+          name: descriptor.name || "Default Workspace",
+          backendConfig: descriptor.backendConfig || {
+            id: "default",
+            provider: "sqlite",
+            mode: "local",
+            database: { type: "sqlite", filePath: "./workspace.sqlite" },
+            storage: { type: "filesystem", basePath: "./storage" }
+          },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+        this.db.workspaces[userId].push(newWs);
+        await this.persist();
+        return newWs;
+      }
+      async deleteWorkspace(userId, workspaceId) {
+        await this.load();
+        const list = this.db.workspaces[userId] || [];
+        const idx = list.findIndex((w) => w.id === workspaceId);
+        if (idx !== -1) {
+          list.splice(idx, 1);
+          await this.persist();
+          return true;
+        }
+        return false;
+      }
+    };
+  }
+});
+
+// src/krnl/backend/control_plane/HostedAccountProvider.ts
+var HostedAccountProvider;
+var init_HostedAccountProvider = __esm({
+  "src/krnl/backend/control_plane/HostedAccountProvider.ts"() {
+    "use strict";
+    init_KrnlHTTP();
+    HostedAccountProvider = class {
+      endpoint;
+      apiKey;
+      constructor(config) {
+        this.endpoint = (config.endpoint || "").replace(/\/+$/, "");
+        this.apiKey = config.apiKey || config.token;
+      }
+      getHeaders() {
+        const headers = { "Content-Type": "application/json" };
+        if (this.apiKey) {
+          headers["Authorization"] = `Bearer ${this.apiKey}`;
+          headers["apikey"] = this.apiKey;
+        }
+        return headers;
+      }
+      async getUser(userId) {
+        const res = await KrnlHTTP.get(`${this.endpoint}/api/auth/users/${userId}`, { headers: this.getHeaders() });
+        return res.status === "success" && res.data ? res.data : null;
+      }
+      async authenticate(credentials) {
+        const res = await KrnlHTTP.post(`${this.endpoint}/api/auth/login`, credentials, { headers: this.getHeaders() });
+        if (res.status === "success" && res.data) {
+          return res.data;
+        }
+        throw new Error(res.message || "Authentication failed against hosted account backend.");
+      }
+      async verifySession(token) {
+        if (!token) return null;
+        const res = await KrnlHTTP.post(`${this.endpoint}/api/auth/verify`, { token }, { headers: this.getHeaders() });
+        return res.status === "success" && res.data ? res.data : null;
+      }
+      async listWorkspaces(userId) {
+        const res = await KrnlHTTP.get(`${this.endpoint}/api/workspaces?userId=${userId}`, { headers: this.getHeaders() });
+        return res.status === "success" && Array.isArray(res.data) ? res.data : [];
+      }
+      async createWorkspace(userId, descriptor) {
+        const res = await KrnlHTTP.post(`${this.endpoint}/api/workspaces`, { userId, ...descriptor }, { headers: this.getHeaders() });
+        if (res.status === "success" && res.data) {
+          return res.data;
+        }
+        throw new Error(res.message || "Failed to create workspace on hosted account backend.");
+      }
+      async deleteWorkspace(_userId, workspaceId) {
+        const res = await KrnlHTTP.del(`${this.endpoint}/api/workspaces/${workspaceId}`, { headers: this.getHeaders() });
+        return res.status === "success";
+      }
+    };
+  }
+});
+
+// src/krnl/backend/control_plane/ControlPlaneManager.ts
+var ControlPlaneManager;
+var init_ControlPlaneManager = __esm({
+  "src/krnl/backend/control_plane/ControlPlaneManager.ts"() {
+    "use strict";
+    init_LocalSQLiteAccountProvider();
+    init_HostedAccountProvider();
+    ControlPlaneManager = class _ControlPlaneManager {
+      accountProvider;
+      constructor(providerOrPath) {
+        if (!providerOrPath || typeof providerOrPath === "string") {
+          this.accountProvider = new LocalSQLiteAccountProvider(providerOrPath || "./accounts.sqlite");
+        } else {
+          this.accountProvider = providerOrPath;
+        }
+      }
+      static createLocal(filePath = "./accounts.sqlite") {
+        return new _ControlPlaneManager(new LocalSQLiteAccountProvider(filePath));
+      }
+      static createHosted(endpoint, apiKey) {
+        return new _ControlPlaneManager(new HostedAccountProvider({ endpoint, apiKey }));
+      }
+      async login(credentials) {
+        return await this.accountProvider.authenticate(credentials);
+      }
+      async verifyToken(token) {
+        return await this.accountProvider.verifySession(token);
+      }
+      async getUser(userId) {
+        return await this.accountProvider.getUser(userId);
+      }
+      async getUserWorkspaces(userId) {
+        return await this.accountProvider.listWorkspaces(userId);
+      }
+      async registerWorkspace(userId, descriptor) {
+        return await this.accountProvider.createWorkspace(userId, descriptor);
+      }
+    };
+  }
+});
+
+// src/krnl/backend/control_plane/AdminGuard.ts
+var AdminGuard;
+var init_AdminGuard = __esm({
+  "src/krnl/backend/control_plane/AdminGuard.ts"() {
+    "use strict";
+    AdminGuard = class {
+      static async verify(authHeaderOrToken, accountProvider) {
+        const token = authHeaderOrToken?.startsWith("Bearer ") ? authHeaderOrToken.substring(7).trim() : authHeaderOrToken?.trim() || null;
+        const session = await accountProvider.verifySession(token);
+        if (!session) {
+          throw new Error("[AccessDenied] Authentication required: Invalid or missing session token.");
+        }
+        if (session.role !== "ADMIN") {
+          throw new Error(`[AccessDenied] Forbidden: Administrative role required. Current role: "${session.role}".`);
+        }
+        return session;
+      }
+      static enforce(session) {
+        if (!session) {
+          throw new Error("[AccessDenied] Authentication required: Session is null.");
+        }
+        if (session.role !== "ADMIN") {
+          throw new Error(`[AccessDenied] Forbidden: Administrative privileges required. Current role: "${session.role}".`);
+        }
+      }
+    };
+  }
+});
+
+// src/krnl/backend/index.ts
+var init_backend = __esm({
+  "src/krnl/backend/index.ts"() {
+    "use strict";
+    init_types();
+    init_FunctionalityTable();
+    init_WorkspaceBackendFactory();
+    init_LocalSQLiteAccountProvider();
+    init_HostedAccountProvider();
+    init_ControlPlaneManager();
+    init_AdminGuard();
+    init_SQLiteDataProvider();
+    init_PostgresDataProvider();
+    init_SupabaseDataProvider();
+    init_PocketBaseDataProvider();
+    init_FirebaseDataProvider();
+    init_FilesystemStorageProvider();
+    init_SupabaseStorageProvider();
+    init_S3StorageProvider();
+    init_PocketBaseStorageProvider();
+    init_FirebaseStorageProvider();
+  }
+});
+
 // src/krnl/core/K_LIB_Krnl_Functionality_Types.ts
 function cloneState(source) {
   return ObjectKit.deepClone(source);
@@ -854,6 +2972,7 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
     init_K_LIB_Krnl_Messaging_Concepts();
     init_K_LIB_Krnl_Telemetry();
     init_ObjectKit();
+    init_backend();
     krnlTransportAdapter = class {
     };
     MemoryTransportAdapter = class extends krnlTransportAdapter {
@@ -898,6 +3017,8 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
       ai;
       requires;
       _hasBeenExecuted = false;
+      backend;
+      table;
       constructor(config = {}) {
         const {
           id,
@@ -916,7 +3037,8 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
           accessKey = null,
           tests = [],
           requires = null,
-          manifest = null
+          manifest = null,
+          backend = null
         } = config;
         if (!id) throw new Error("LocalFunctionality requires an ID.");
         this.id = id;
@@ -926,6 +3048,8 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
         this.sourcePath = sourcePath;
         if (requires) this.requires = requires;
         this.manifest = manifest || config.manifest || null;
+        this.backend = backend || config.backend || null;
+        this.table = null;
         this.helpers = new Map(Object.entries(helpers));
         this.emitters = /* @__PURE__ */ new Map();
         this.schema = schema;
@@ -1074,6 +3198,9 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
       }
       bindToEntity(entity) {
         this.hostEntity = entity;
+        if (this.backend) {
+          this._initializeBackendTable(entity);
+        }
         if (this.visibility === "public") {
           this._registerInInterface();
         }
@@ -1083,10 +3210,43 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
             emitters: this.emitters,
             helpers: this.helpers,
             entity: this.hostEntity,
-            functionality: this
+            functionality: this,
+            table: this.table,
+            backend: this.table?.provider
           });
         }
         return this;
+      }
+      _initializeBackendTable(entity) {
+        try {
+          let service = "sqlite";
+          let tableName = this.id;
+          let credentials = void 0;
+          if (typeof this.backend === "string") {
+            service = this.backend;
+          } else if (typeof this.backend === "object" && this.backend !== null) {
+            if (this.backend.service) service = this.backend.service;
+            if (this.backend.table) tableName = this.backend.table;
+            if (this.backend.credentials) credentials = this.backend.credentials;
+          }
+          if (!credentials && entity && typeof entity.getBackendCredentials === "function") {
+            credentials = entity.getBackendCredentials(service);
+          }
+          const provider = WorkspaceBackendFactory.resolveDataProvider({
+            id: `provider-${this.id}`,
+            provider: service,
+            mode: "local",
+            database: {
+              type: service,
+              filePath: credentials?.filePath || `./${tableName}.sqlite`,
+              enableWAL: credentials?.enableWAL ?? true,
+              ...credentials
+            }
+          });
+          this.table = new FunctionalityTable(tableName, provider);
+        } catch (err) {
+          console.warn(`[KrnlBackendWarning] Failed to initialize table for functionality "${this.id}":`, err.message);
+        }
       }
       teardown() {
         if (typeof this.lifecycle.teardown === "function") {
@@ -1095,7 +3255,9 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
             emitters: this.emitters,
             helpers: this.helpers,
             entity: this.hostEntity,
-            functionality: this
+            functionality: this,
+            table: this.table,
+            backend: this.table?.provider
           });
         }
       }
@@ -1147,7 +3309,9 @@ var init_K_LIB_Krnl_Functionality_Types = __esm({
             helpers: this.helpers,
             entity: this.hostEntity,
             functionality: this,
-            caller
+            caller,
+            table: this.table,
+            backend: this.table?.provider
           });
           if (this.schema && this.schema.output) {
             try {
@@ -1346,6 +3510,36 @@ var init_K_ENT_Krnl_Entity_Base = __esm({
       collectors;
       hierarchyManager;
       intention;
+      backendSettings;
+      /**
+       * Configures backend services and credentials for this entity and cascading child functionalities.
+       */
+      configureBackend(settings) {
+        this.backendSettings = {
+          ...this.backendSettings,
+          ...settings
+        };
+        return this;
+      }
+      /**
+       * Resolves backend credentials for a specific service, cascading from parent entities if necessary.
+       */
+      getBackendCredentials(service) {
+        if (this.backendSettings) {
+          if (service && this.backendSettings[service]) {
+            return this.backendSettings[service];
+          }
+          const defaultSvc = this.backendSettings.defaultService;
+          if (defaultSvc && this.backendSettings[defaultSvc]) {
+            return this.backendSettings[defaultSvc];
+          }
+        }
+        const owner = this.hierarchyManager?.getOwnerEntity();
+        if (owner && typeof owner.getBackendCredentials === "function") {
+          return owner.getBackendCredentials(service);
+        }
+        return void 0;
+      }
       // Extension points for decorators/middleware
       async _decorateResult(result, fid, input) {
         return result;
@@ -1508,9 +3702,9 @@ var init_K_ENT_Krnl_Entity_Base = __esm({
           if (current.isLocal) {
             return current;
           }
-          if (current.transport && current.transport.targetEntity) {
-            const target = current.transport.targetEntity;
-            const targetFid = current.targetFunction;
+          const target = current.targetEntity || current.transport && (current.transport.targetEntity || current.transport.target || current.transport.instance);
+          if (target) {
+            const targetFid = current.targetFunction || fid;
             if (target.localFunctionalities && target.localFunctionalities.has(targetFid)) {
               return target.localFunctionalities.get(targetFid);
             }
@@ -1564,11 +3758,11 @@ function createEnum(typeNames) {
   });
   return Object.freeze(enumObj);
 }
-var import_fs, Logger, EnumTemplate, krnlSystemTypes, krnlServiceSuites, defaultConnectionBehaviour, krnlServiceSuitePorts, krnlPrimitiveDataTypes, krnlData, krnlDataFactory, KrnlPolicy;
+var import_fs2, Logger, EnumTemplate, krnlSystemTypes, krnlServiceSuites, defaultConnectionBehaviour, krnlServiceSuitePorts, krnlPrimitiveDataTypes, krnlData, krnlDataFactory, KrnlPolicy;
 var init_K_LIB_Krnl_Base_Concepts = __esm({
   "src/krnl/core/K_LIB_Krnl_Base_Concepts.ts"() {
     "use strict";
-    import_fs = __toESM(require("fs"), 1);
+    import_fs2 = __toESM(require("fs"), 1);
     Logger = class {
       static log(...args) {
         console.log(`[${(/* @__PURE__ */ new Date()).toISOString()}]`, ...args);
@@ -1580,8 +3774,8 @@ var init_K_LIB_Krnl_Base_Concepts = __esm({
       static flush() {
         if (typeof process !== "undefined") {
           try {
-            if (process.stdout && typeof process.stdout.fd === "number") import_fs.default.fsyncSync(process.stdout.fd);
-            if (process.stderr && typeof process.stderr.fd === "number") import_fs.default.fsyncSync(process.stderr.fd);
+            if (process.stdout && typeof process.stdout.fd === "number") import_fs2.default.fsyncSync(process.stdout.fd);
+            if (process.stderr && typeof process.stderr.fd === "number") import_fs2.default.fsyncSync(process.stderr.fd);
           } catch (e) {
           }
         }
@@ -2991,127 +5185,6 @@ var init_K_LIB_Krnl_System_Comm_Component = __esm({
   }
 });
 
-// src/krnl/tools/AsyncKit.js
-var AsyncKit;
-var init_AsyncKit = __esm({
-  "src/krnl/tools/AsyncKit.js"() {
-    "use strict";
-    AsyncKit = class _AsyncKit {
-      /**
-       * Classic sleep/delay.
-       */
-      static sleep(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
-      }
-      /**
-       * Rejects if the task does not finish within ms.
-       */
-      static withTimeout(promise, ms, label = "Operation") {
-        let timer;
-        const timeoutPromise = new Promise((_, reject) => {
-          timer = setTimeout(() => {
-            reject(new Error(`[KrnlTimeoutError] ${label} timed out after ${ms}ms`));
-          }, ms);
-        });
-        return Promise.race([
-          promise.then((val) => {
-            clearTimeout(timer);
-            return val;
-          }),
-          timeoutPromise
-        ]);
-      }
-      /**
-       * Retries an async execution up to maxAttempts times.
-       */
-      static async retry(fn, maxAttempts, delayMs = 1e3) {
-        let attempts = 0;
-        while (attempts < maxAttempts) {
-          try {
-            return await fn();
-          } catch (err) {
-            attempts++;
-            if (attempts >= maxAttempts) {
-              throw err;
-            }
-            await _AsyncKit.sleep(delayMs);
-          }
-        }
-        throw new Error("Retry failed");
-      }
-      static async pLimit(tasks, concurrency) {
-        const results = [];
-        let index = 0;
-        const worker = async () => {
-          while (index < tasks.length) {
-            const i = index++;
-            results[i] = await tasks[i]();
-          }
-        };
-        const workers = [];
-        for (let i = 0; i < concurrency && i < tasks.length; i++) {
-          workers.push(worker());
-        }
-        await Promise.all(workers);
-        return results;
-      }
-      /**
-       * Debounces a function.
-       */
-      static debounce(fn, ms) {
-        let timer = null;
-        return (...args) => {
-          if (timer)
-            clearTimeout(timer);
-          timer = setTimeout(() => fn(...args), ms);
-        };
-      }
-      /**
-       * Throttles a function.
-       */
-      static throttle(fn, ms) {
-        let lastCall = 0;
-        return (...args) => {
-          const now = Date.now();
-          if (now - lastCall >= ms) {
-            lastCall = now;
-            fn(...args);
-          }
-        };
-      }
-      /**
-       * Wraps a function to run only once and cache its outcome.
-       */
-      static once(fn) {
-        let run = false;
-        let result;
-        return (...args) => {
-          if (!run) {
-            run = true;
-            result = fn(...args);
-          }
-          return result;
-        };
-      }
-      /**
-       * computational memoization cache helper.
-       */
-      static memoize(fn, keyFn) {
-        const cache = /* @__PURE__ */ new Map();
-        return (...args) => {
-          const key = keyFn ? keyFn(...args) : JSON.stringify(args);
-          if (cache.has(key)) {
-            return cache.get(key);
-          }
-          const val = fn(...args);
-          cache.set(key, val);
-          return val;
-        };
-      }
-    };
-  }
-});
-
 // src/krnl/tools/StringKit.js
 var StringKit;
 var init_StringKit = __esm({
@@ -3168,12 +5241,12 @@ var init_StringKit = __esm({
 });
 
 // src/krnl/tools/CacheKit.js
-var import_fs2, import_path, LRUCache, TTLCache, CacheKit, FileCache;
+var import_fs3, import_path5, LRUCache, TTLCache, CacheKit, FileCache;
 var init_CacheKit = __esm({
   "src/krnl/tools/CacheKit.js"() {
     "use strict";
-    import_fs2 = __toESM(require("fs"), 1);
-    import_path = __toESM(require("path"), 1);
+    import_fs3 = __toESM(require("fs"), 1);
+    import_path5 = __toESM(require("path"), 1);
     LRUCache = class {
       maxSize;
       cache;
@@ -3263,21 +5336,21 @@ var init_CacheKit = __esm({
       constructor(cacheDir) {
         this.cacheDir = cacheDir;
         try {
-          if (!import_fs2.default.existsSync(cacheDir)) {
-            import_fs2.default.mkdirSync(cacheDir, { recursive: true });
+          if (!import_fs3.default.existsSync(cacheDir)) {
+            import_fs3.default.mkdirSync(cacheDir, { recursive: true });
           }
         } catch (e) {
         }
       }
       getFilePath(key) {
-        return import_path.default.join(this.cacheDir, `${encodeURIComponent(key)}.json`);
+        return import_path5.default.join(this.cacheDir, `${encodeURIComponent(key)}.json`);
       }
       get(key) {
         const file = this.getFilePath(key);
-        if (!import_fs2.default.existsSync(file))
+        if (!import_fs3.default.existsSync(file))
           return null;
         try {
-          const content = import_fs2.default.readFileSync(file, "utf8");
+          const content = import_fs3.default.readFileSync(file, "utf8");
           return JSON.parse(content);
         } catch (e) {
           return null;
@@ -3286,251 +5359,26 @@ var init_CacheKit = __esm({
       set(key, value) {
         const file = this.getFilePath(key);
         try {
-          import_fs2.default.writeFileSync(file, JSON.stringify(value, null, 2), "utf8");
+          import_fs3.default.writeFileSync(file, JSON.stringify(value, null, 2), "utf8");
         } catch (e) {
         }
       }
       delete(key) {
         const file = this.getFilePath(key);
-        if (import_fs2.default.existsSync(file)) {
+        if (import_fs3.default.existsSync(file)) {
           try {
-            import_fs2.default.unlinkSync(file);
+            import_fs3.default.unlinkSync(file);
           } catch (e) {
           }
         }
       }
       clear() {
         try {
-          const files = import_fs2.default.readdirSync(this.cacheDir);
+          const files = import_fs3.default.readdirSync(this.cacheDir);
           for (const file of files) {
-            import_fs2.default.unlinkSync(import_path.default.join(this.cacheDir, file));
+            import_fs3.default.unlinkSync(import_path5.default.join(this.cacheDir, file));
           }
         } catch (e) {
-        }
-      }
-    };
-  }
-});
-
-// src/krnl/tools/KrnlFS.js
-var import_fs3, import_promises, import_path2, import_os, FileLock, KrnlFS;
-var init_KrnlFS = __esm({
-  "src/krnl/tools/KrnlFS.js"() {
-    "use strict";
-    import_fs3 = __toESM(require("fs"), 1);
-    import_promises = __toESM(require("fs/promises"), 1);
-    import_path2 = __toESM(require("path"), 1);
-    import_os = __toESM(require("os"), 1);
-    init_ObjectKit();
-    FileLock = class _FileLock {
-      static locks = /* @__PURE__ */ new Map();
-      static async acquire(filePath) {
-        const resolvedPath = import_path2.default.resolve(filePath);
-        const existing = _FileLock.locks.get(resolvedPath) || Promise.resolve();
-        let release = () => {
-        };
-        const nextLock = new Promise((resolve) => {
-          release = () => {
-            _FileLock.locks.delete(resolvedPath);
-            resolve();
-          };
-        });
-        _FileLock.locks.set(resolvedPath, nextLock);
-        await existing;
-        return release;
-      }
-    };
-    KrnlFS = class _KrnlFS {
-      // --- File primitives ---
-      static async readFile(filePath, encoding = "utf8") {
-        return await import_promises.default.readFile(filePath, encoding);
-      }
-      static async writeFile(filePath, content) {
-        await import_promises.default.writeFile(filePath, content);
-      }
-      /**
-       * Atomic file writing via temp files.
-       */
-      static async writeFileAtomic(filePath, content) {
-        const dir = import_path2.default.dirname(filePath);
-        await _KrnlFS.ensureDir(dir);
-        const tempFile = import_path2.default.join(dir, `.${import_path2.default.basename(filePath)}.tmp_${Date.now()}_${Math.random().toString(36).substring(7)}`);
-        try {
-          await import_promises.default.writeFile(tempFile, content);
-          await import_promises.default.rename(tempFile, filePath);
-        } catch (e) {
-          if (import_fs3.default.existsSync(tempFile)) {
-            await import_promises.default.unlink(tempFile).catch(() => {
-            });
-          }
-          throw e;
-        }
-      }
-      static async appendFile(filePath, content) {
-        await import_promises.default.appendFile(filePath, content);
-      }
-      static async deleteFile(filePath) {
-        await import_promises.default.unlink(filePath);
-      }
-      static async fileExists(filePath) {
-        try {
-          const stat = await import_promises.default.stat(filePath);
-          return stat.isFile();
-        } catch (e) {
-          return false;
-        }
-      }
-      static async getFileStat(filePath) {
-        const stat = await import_promises.default.stat(filePath);
-        return {
-          size: stat.size,
-          createdAt: stat.birthtime,
-          modifiedAt: stat.mtime,
-          isDir: stat.isDirectory()
-        };
-      }
-      // --- JSON convenience ---
-      static async readJSON(filePath) {
-        try {
-          const content = await _KrnlFS.readFile(filePath, "utf8");
-          return JSON.parse(content);
-        } catch (e) {
-          return null;
-        }
-      }
-      static async writeJSON(filePath, data, indent = 2) {
-        const content = JSON.stringify(data, null, indent);
-        await _KrnlFS.writeFileAtomic(filePath, content);
-      }
-      static async updateJSON(filePath, patch) {
-        const release = await FileLock.acquire(filePath);
-        try {
-          let existing = await _KrnlFS.readJSON(filePath);
-          if (!existing) {
-            existing = {};
-          }
-          const updated = ObjectKit.deepMerge(existing, patch);
-          await _KrnlFS.writeJSON(filePath, updated);
-          return updated;
-        } finally {
-          release();
-        }
-      }
-      // --- Directory primitives ---
-      static async ensureDir(dirPath) {
-        await import_promises.default.mkdir(dirPath, { recursive: true });
-      }
-      static async deleteDir(dirPath, recursive = true) {
-        await import_promises.default.rm(dirPath, { recursive, force: true });
-      }
-      static async listDir(dirPath) {
-        return await import_promises.default.readdir(dirPath);
-      }
-      static async *walkDir(dirPath, filter) {
-        const list = await _KrnlFS.listDir(dirPath);
-        for (const item of list) {
-          const full = import_path2.default.join(dirPath, item);
-          const stat = await _KrnlFS.getFileStat(full);
-          if (stat.isDir) {
-            yield* _KrnlFS.walkDir(full, filter);
-          } else {
-            if (!filter || filter(full)) {
-              yield full;
-            }
-          }
-        }
-      }
-      static async dirExists(dirPath) {
-        try {
-          const stat = await import_promises.default.stat(dirPath);
-          return stat.isDirectory();
-        } catch (e) {
-          return false;
-        }
-      }
-      static async copyDir(src, dest) {
-        await _KrnlFS.ensureDir(dest);
-        const list = await _KrnlFS.listDir(src);
-        for (const item of list) {
-          const srcItem = import_path2.default.join(src, item);
-          const destItem = import_path2.default.join(dest, item);
-          const stat = await _KrnlFS.getFileStat(srcItem);
-          if (stat.isDir) {
-            await _KrnlFS.copyDir(srcItem, destItem);
-          } else {
-            await import_promises.default.copyFile(srcItem, destItem);
-          }
-        }
-      }
-      // --- Path utilities ---
-      static join(...parts) {
-        return import_path2.default.join(...parts);
-      }
-      static resolve(...parts) {
-        return import_path2.default.resolve(...parts);
-      }
-      static relative(from, to) {
-        return import_path2.default.relative(from, to);
-      }
-      static basename(filePath, ext) {
-        return import_path2.default.basename(filePath, ext);
-      }
-      static dirname(filePath) {
-        return import_path2.default.dirname(filePath);
-      }
-      static extname(filePath) {
-        return import_path2.default.extname(filePath);
-      }
-      static normalize(filePath) {
-        return import_path2.default.normalize(filePath);
-      }
-      static isSafe(filePath, root) {
-        const resolvedPath = import_path2.default.resolve(filePath);
-        const resolvedRoot = import_path2.default.resolve(root);
-        return resolvedPath.startsWith(resolvedRoot);
-      }
-      // --- Candidate resolution ---
-      static async firstExisting(candidates) {
-        for (const cand of candidates) {
-          if (await _KrnlFS.fileExists(cand)) {
-            return cand;
-          }
-        }
-        return null;
-      }
-      // --- Watching ---
-      static watchFile(filePath, handler, debounceMs = 100) {
-        let timer = null;
-        return import_fs3.default.watch(filePath, (event) => {
-          if (timer)
-            clearTimeout(timer);
-          timer = setTimeout(() => handler(event), debounceMs);
-        });
-      }
-      static watchDir(dirPath, handler, debounceMs = 100) {
-        let timer = null;
-        return import_fs3.default.watch(dirPath, (event, filename) => {
-          if (timer)
-            clearTimeout(timer);
-          timer = setTimeout(() => handler(event, filename), debounceMs);
-        });
-      }
-      // --- Temp ---
-      static createTempFile(prefix = "tmp-") {
-        return import_path2.default.join(import_os.default.tmpdir(), `${prefix}${Math.random().toString(36).substring(7)}.tmp`);
-      }
-      static createTempDir(prefix = "tmp-dir-") {
-        const dir = import_path2.default.join(import_os.default.tmpdir(), `${prefix}${Math.random().toString(36).substring(7)}`);
-        import_fs3.default.mkdirSync(dir, { recursive: true });
-        return dir;
-      }
-      static async withTempDir(fn, prefix = "tmp-") {
-        const tempDir = _KrnlFS.createTempDir(prefix);
-        try {
-          return await fn(tempDir);
-        } finally {
-          await _KrnlFS.deleteDir(tempDir, true).catch(() => {
-          });
         }
       }
     };
@@ -3538,12 +5386,12 @@ var init_KrnlFS = __esm({
 });
 
 // src/krnl/tools/KrnlEnv.js
-var import_fs4, import_path3, KrnlEnv;
+var import_fs4, import_path6, KrnlEnv;
 var init_KrnlEnv = __esm({
   "src/krnl/tools/KrnlEnv.js"() {
     "use strict";
     import_fs4 = __toESM(require("fs"), 1);
-    import_path3 = __toESM(require("path"), 1);
+    import_path6 = __toESM(require("path"), 1);
     KrnlEnv = class {
       /**
        * Reads a process environment variable with type coercion and defaults.
@@ -3587,7 +5435,7 @@ var init_KrnlEnv = __esm({
        * Loads a .env file and injects variables into process.env.
        */
       static load(filePath) {
-        const file = filePath || import_path3.default.join(process.cwd(), ".env");
+        const file = filePath || import_path6.default.join(process.cwd(), ".env");
         if (!import_fs4.default.existsSync(file))
           return;
         try {
@@ -3629,12 +5477,12 @@ var init_KrnlEnv = __esm({
 });
 
 // src/krnl/tools/KrnlShell.js
-var import_child_process, import_path4, import_fs5, KrnlShell;
+var import_child_process, import_path7, import_fs5, KrnlShell;
 var init_KrnlShell = __esm({
   "src/krnl/tools/KrnlShell.js"() {
     "use strict";
     import_child_process = require("child_process");
-    import_path4 = __toESM(require("path"), 1);
+    import_path7 = __toESM(require("path"), 1);
     import_fs5 = __toESM(require("fs"), 1);
     KrnlShell = class {
       /**
@@ -3684,11 +5532,11 @@ Stderr: ${String(stderr)}`));
        */
       static which(cmd) {
         const envPath = process.env.PATH || "";
-        const paths = envPath.split(import_path4.default.delimiter);
+        const paths = envPath.split(import_path7.default.delimiter);
         const extensions = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
         for (const p of paths) {
           for (const ext of extensions) {
-            const fullPath = import_path4.default.join(p, `${cmd}${ext}`);
+            const fullPath = import_path7.default.join(p, `${cmd}${ext}`);
             try {
               if (import_fs5.default.existsSync(fullPath) && import_fs5.default.statSync(fullPath).isFile()) {
                 return fullPath;
@@ -3703,117 +5551,17 @@ Stderr: ${String(stderr)}`));
   }
 });
 
-// src/krnl/tools/KrnlHTTP.js
-var KrnlHTTP;
-var init_KrnlHTTP = __esm({
-  "src/krnl/tools/KrnlHTTP.js"() {
-    "use strict";
-    init_AsyncKit();
-    KrnlHTTP = class _KrnlHTTP {
-      /**
-       * Helper to perform fetch with timeout and retries.
-       */
-      static async requestRaw(url, opts = {}) {
-        const timeout = opts.timeout || 6e4;
-        const retries = opts.retries || 0;
-        const perform = async () => {
-          const controller = new AbortController();
-          const id = setTimeout(() => controller.abort(), timeout);
-          try {
-            const response = await fetch(url, {
-              ...opts,
-              signal: controller.signal
-            });
-            clearTimeout(id);
-            return response;
-          } catch (e) {
-            clearTimeout(id);
-            throw e;
-          }
-        };
-        return await AsyncKit.retry(perform, retries + 1, 1e3);
-      }
-      static async request(url, opts = {}) {
-        try {
-          const res = await _KrnlHTTP.requestRaw(url, opts);
-          if (!res.ok) {
-            return { status: "error", message: `HTTP Error ${res.status}: ${res.statusText}`, code: res.status };
-          }
-          const data = await res.json();
-          return { status: "success", data };
-        } catch (e) {
-          return { status: "error", message: e.message || String(e) };
-        }
-      }
-      static async get(url, opts = {}) {
-        return await _KrnlHTTP.request(url, { ...opts, method: "GET" });
-      }
-      static async post(url, body, opts = {}) {
-        return await _KrnlHTTP.request(url, {
-          ...opts,
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...opts.headers },
-          body: JSON.stringify(body)
-        });
-      }
-      static async put(url, body, opts = {}) {
-        return await _KrnlHTTP.request(url, {
-          ...opts,
-          method: "PUT",
-          headers: { "Content-Type": "application/json", ...opts.headers },
-          body: JSON.stringify(body)
-        });
-      }
-      static async del(url, opts = {}) {
-        return await _KrnlHTTP.request(url, { ...opts, method: "DELETE" });
-      }
-      /**
-       * Creates a client instance.
-       */
-      static createClient(baseUrl, defaultHeaders = {}) {
-        return {
-          get: (path20, opts = {}) => _KrnlHTTP.get(`${baseUrl}${path20}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
-          post: (path20, body, opts = {}) => _KrnlHTTP.post(`${baseUrl}${path20}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
-          put: (path20, body, opts = {}) => _KrnlHTTP.put(`${baseUrl}${path20}`, body, { ...opts, headers: { ...defaultHeaders, ...opts.headers } }),
-          del: (path20, opts = {}) => _KrnlHTTP.del(`${baseUrl}${path20}`, { ...opts, headers: { ...defaultHeaders, ...opts.headers } })
-        };
-      }
-      /**
-       * Streaming SSE / Chunk response.
-       */
-      static async *streamResponse(url, opts = {}) {
-        const res = await _KrnlHTTP.requestRaw(url, opts);
-        if (!res.ok || !res.body) {
-          throw new Error(`Failed to initialize stream: HTTP ${res.status}`);
-        }
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done)
-              break;
-            yield decoder.decode(value, { stream: true });
-          }
-        } finally {
-          reader.releaseLock();
-        }
-      }
-    };
-  }
-});
-
 // src/krnl/tools/GitManager.js
-var import_fs6, import_path5, GitManager;
+var import_fs6, import_path8, GitManager;
 var init_GitManager = __esm({
   "src/krnl/tools/GitManager.js"() {
     "use strict";
     init_KrnlShell();
     import_fs6 = __toESM(require("fs"), 1);
-    import_path5 = __toESM(require("path"), 1);
+    import_path8 = __toESM(require("path"), 1);
     GitManager = class _GitManager {
       static isRepo(dirPath) {
-        return import_fs6.default.existsSync(import_path5.default.join(dirPath, ".git"));
+        return import_fs6.default.existsSync(import_path8.default.join(dirPath, ".git"));
       }
       static async init(dirPath) {
         if (_GitManager.isRepo(dirPath))
@@ -3821,11 +5569,11 @@ var init_GitManager = __esm({
         await KrnlShell.exec("git init", { cwd: dirPath });
       }
       static async clone(repoUrl, destPath) {
-        const parentDir = import_path5.default.dirname(destPath);
+        const parentDir = import_path8.default.dirname(destPath);
         if (!import_fs6.default.existsSync(parentDir)) {
           import_fs6.default.mkdirSync(parentDir, { recursive: true });
         }
-        await KrnlShell.exec(`git clone ${repoUrl} ${import_path5.default.basename(destPath)}`, { cwd: parentDir });
+        await KrnlShell.exec(`git clone ${repoUrl} ${import_path8.default.basename(destPath)}`, { cwd: parentDir });
       }
       static async commit(dirPath, message) {
         if (!_GitManager.isRepo(dirPath)) {
@@ -4578,13 +6326,13 @@ var K_LIB_Krnl_System_Unified_Http_Adapter_exports = {};
 __export(K_LIB_Krnl_System_Unified_Http_Adapter_exports, {
   krnlUnifiedHttpAdapter: () => krnlUnifiedHttpAdapter
 });
-var import_http, import_fs7, import_path6, import_ws, krnlUnifiedHttpAdapter;
+var import_http, import_fs7, import_path9, import_ws, krnlUnifiedHttpAdapter;
 var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Unified_Http_Adapter.ts"() {
     "use strict";
     import_http = __toESM(require("http"), 1);
     import_fs7 = __toESM(require("fs"), 1);
-    import_path6 = __toESM(require("path"), 1);
+    import_path9 = __toESM(require("path"), 1);
     import_ws = require("ws");
     init_K_LIB_Krnl_Protocol_MCP();
     init_K_LIB_Krnl_Protocol_ACP();
@@ -4787,7 +6535,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
         if (!isKrnlRoute) {
           if (reqPath === "/inspect" || reqPath.startsWith("/inspect/") || reqPath === "/frontend" || reqPath.startsWith("/frontend/")) {
             if (!this.system._frontend && this.system._entityDataDir) {
-              const frontendDir = import_path6.default.join(this.system._entityDataDir, "frontend");
+              const frontendDir = import_path9.default.join(this.system._entityDataDir, "frontend");
               if (import_fs7.default.existsSync(frontendDir)) {
                 this.system.enableFrontend({ frontendDir });
               }
@@ -4803,7 +6551,7 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
           const isFrontendAsset = reqPath === "/" || reqPath === "/index.html" || reqPath === "/bundle.js" || reqPath === "/styles.css" || reqPath === "/index.css";
           if (isFrontendAsset && req.method === "GET" && (this.system._frontend || this.system._entityDataDir)) {
             if (!this.system._frontend && this.system._entityDataDir) {
-              const frontendDir = import_path6.default.join(this.system._entityDataDir, "frontend");
+              const frontendDir = import_path9.default.join(this.system._entityDataDir, "frontend");
               if (import_fs7.default.existsSync(frontendDir)) {
                 this.system.enableFrontend({ frontendDir });
               }
@@ -4817,7 +6565,8 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
           if (this.enableFriendlyRouting) {
             let fid = reqPath.slice(1);
             if (fid.endsWith("/")) fid = fid.slice(0, -1);
-            const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid);
+            const resolvedCap = this.system.resolveCapability ? this.system.resolveCapability(fid) : null;
+            const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid) || (resolvedCap ? resolvedCap.owner.localFunctionalities.get(resolvedCap.fid) : null);
             const resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
             if (functionality) {
               const expectedMethod = (resolved || functionality).method || "POST";
@@ -4832,11 +6581,20 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
                 Logger.log(`[HttpAdapter] Friendly route hit: ${fid} (${req.method})`);
                 const input = req.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : await this._readJsonBody(req);
                 const data = input && typeof input === "object" && !("data" in input) && Object.keys(input).length > 0 ? { data: input } : input;
-                const result = await this.system.call(fid, data.data || data, {
-                  unwrap: false,
-                  callerPort: req.socket?.remotePort,
-                  accessKey: req.headers["x-krnl-access-key"]
-                });
+                let result;
+                if (resolvedCap) {
+                  result = await resolvedCap.owner.call(resolvedCap.fid, data.data || data, {
+                    unwrap: false,
+                    callerPort: req.socket?.remotePort,
+                    accessKey: req.headers["x-krnl-access-key"]
+                  });
+                } else {
+                  result = await this.system.call(fid, data.data || data, {
+                    unwrap: false,
+                    callerPort: req.socket?.remotePort,
+                    accessKey: req.headers["x-krnl-access-key"]
+                  });
+                }
                 this._sendJson(res, 200, result);
               } catch (e) {
                 Logger.error(`[HttpAdapter] Friendly route error (${fid}):`, e.message);
@@ -5169,12 +6927,12 @@ var K_LIB_Krnl_System_App_Adapter_exports = {};
 __export(K_LIB_Krnl_System_App_Adapter_exports, {
   KrnlNonKrnlAppAdapter: () => KrnlNonKrnlAppAdapter
 });
-var import_fs8, import_path7, import_http2, import_net, KrnlNonKrnlAppAdapter;
+var import_fs8, import_path10, import_http2, import_net, KrnlNonKrnlAppAdapter;
 var init_K_LIB_Krnl_System_App_Adapter = __esm({
   "src/krnl/core/K_LIB_Krnl_System_App_Adapter.ts"() {
     "use strict";
     import_fs8 = __toESM(require("fs"), 1);
-    import_path7 = __toESM(require("path"), 1);
+    import_path10 = __toESM(require("path"), 1);
     import_http2 = __toESM(require("http"), 1);
     import_net = __toESM(require("net"), 1);
     init_K_ENT_Krnl_System_Entity_Base();
@@ -5196,7 +6954,7 @@ var init_K_LIB_Krnl_System_App_Adapter = __esm({
         let command = "node";
         let args = ["."];
         try {
-          const pkgPath = import_path7.default.join(this.appPath, "package.json");
+          const pkgPath = import_path10.default.join(this.appPath, "package.json");
           if (import_fs8.default.existsSync(pkgPath)) {
             const packageJson = JSON.parse(import_fs8.default.readFileSync(pkgPath, "utf8"));
             if (packageJson.scripts?.start) {
@@ -5304,12 +7062,12 @@ function createHttpsAppAdapter(options) {
     operations
   };
 }
-var import_fs9, import_path8, import_url, DefaultServiceContainer, DefaultOperationRegistrar, DefaultEventRegistrar, KrnlSubAppDiscovery, KrnlSubAppValidator, KrnlSubAppLifecycle;
+var import_fs9, import_path11, import_url, DefaultServiceContainer, DefaultOperationRegistrar, DefaultEventRegistrar, KrnlSubAppDiscovery, KrnlSubAppValidator, KrnlSubAppLifecycle;
 var init_K_LIB_Krnl_SubApp_Engine = __esm({
   "src/krnl/core/K_LIB_Krnl_SubApp_Engine.ts"() {
     "use strict";
     import_fs9 = __toESM(require("fs"), 1);
-    import_path8 = __toESM(require("path"), 1);
+    import_path11 = __toESM(require("path"), 1);
     import_url = require("url");
     init_K_LIB_Krnl_Base_Concepts();
     DefaultServiceContainer = class {
@@ -5390,7 +7148,7 @@ var init_K_LIB_Krnl_SubApp_Engine = __esm({
         const entries = await import_fs9.default.promises.readdir(searchDir, { withFileTypes: true });
         for (const dirent of entries) {
           if (dirent.isDirectory()) {
-            const subAppDir = import_path8.default.join(searchDir, dirent.name);
+            const subAppDir = import_path11.default.join(searchDir, dirent.name);
             const desc = await this.locateDescriptor(subAppDir, dirent.name);
             if (desc) {
               descriptors.push(desc);
@@ -5404,10 +7162,10 @@ var init_K_LIB_Krnl_SubApp_Engine = __esm({
        */
       static async locateDescriptor(subAppDir, fallbackId) {
         if (!import_fs9.default.existsSync(subAppDir)) return null;
-        let id = fallbackId || import_path8.default.basename(subAppDir);
+        let id = fallbackId || import_path11.default.basename(subAppDir);
         let manifestPath;
         let manifest;
-        const subappJsonPath = import_path8.default.join(subAppDir, "subapp.json");
+        const subappJsonPath = import_path11.default.join(subAppDir, "subapp.json");
         if (import_fs9.default.existsSync(subappJsonPath)) {
           try {
             manifest = JSON.parse(import_fs9.default.readFileSync(subappJsonPath, "utf-8"));
@@ -5418,7 +7176,7 @@ var init_K_LIB_Krnl_SubApp_Engine = __esm({
           }
         }
         if (!manifest) {
-          const manifestJsonPath = import_path8.default.join(subAppDir, "manifest.json");
+          const manifestJsonPath = import_path11.default.join(subAppDir, "manifest.json");
           if (import_fs9.default.existsSync(manifestJsonPath)) {
             try {
               manifest = JSON.parse(import_fs9.default.readFileSync(manifestJsonPath, "utf-8"));
@@ -5429,7 +7187,7 @@ var init_K_LIB_Krnl_SubApp_Engine = __esm({
           }
         }
         if (!manifest) {
-          const packageJsonPath = import_path8.default.join(subAppDir, "package.json");
+          const packageJsonPath = import_path11.default.join(subAppDir, "package.json");
           if (import_fs9.default.existsSync(packageJsonPath)) {
             try {
               const pkg = JSON.parse(import_fs9.default.readFileSync(packageJsonPath, "utf-8"));
@@ -5463,7 +7221,7 @@ var init_K_LIB_Krnl_SubApp_Engine = __esm({
         ].filter(Boolean);
         let registrationPath = null;
         for (const cand of candidateEntries) {
-          const candPath = import_path8.default.resolve(subAppDir, cand);
+          const candPath = import_path11.default.resolve(subAppDir, cand);
           if (import_fs9.default.existsSync(candPath)) {
             registrationPath = candPath;
             break;
@@ -5682,17 +7440,17 @@ var K_LIB_Krnl_Frontend_Generator_exports = {};
 __export(K_LIB_Krnl_Frontend_Generator_exports, {
   KrnlFrontendGenerator: () => KrnlFrontendGenerator
 });
-var import_fs10, import_path9, import_url2, import_meta, _metaUrl, _filename, _dirname, KrnlFrontendGenerator;
+var import_fs10, import_path12, import_url2, import_meta, _metaUrl, _filename, _dirname, KrnlFrontendGenerator;
 var init_K_LIB_Krnl_Frontend_Generator = __esm({
   "src/krnl/core/K_LIB_Krnl_Frontend_Generator.ts"() {
     "use strict";
     import_fs10 = __toESM(require("fs"), 1);
-    import_path9 = __toESM(require("path"), 1);
+    import_path12 = __toESM(require("path"), 1);
     import_url2 = require("url");
     import_meta = {};
     _metaUrl = typeof import_meta !== "undefined" && import_meta.url ? import_meta.url : null;
     _filename = _metaUrl ? (0, import_url2.fileURLToPath)(_metaUrl) : "";
-    _dirname = _metaUrl ? import_path9.default.dirname(_filename) : "";
+    _dirname = _metaUrl ? import_path12.default.dirname(_filename) : "";
     KrnlFrontendGenerator = class {
       /**
        * Main entrypoint: ensures skeleton exists, generates React components & index.tsx
@@ -5739,13 +7497,13 @@ ${contractVal.errors.map((e) => ` - ${e}`).join("\n")}`);
           }
         }
         this.generateAtoms(frontendDir);
-        const componentsDir = import_path9.default.join(frontendDir, "src", "components");
+        const componentsDir = import_path12.default.join(frontendDir, "src", "components");
         import_fs10.default.mkdirSync(componentsDir, { recursive: true });
         for (const ep of uiEndpoints) {
-          const epDir = import_path9.default.join(componentsDir, ep.id);
+          const epDir = import_path12.default.join(componentsDir, ep.id);
           import_fs10.default.mkdirSync(epDir, { recursive: true });
           const compSource = this.generateComponentSource(ep.id, ep.uiSpec, ep.schema);
-          import_fs10.default.writeFileSync(import_path9.default.join(epDir, "index.ts"), compSource, "utf-8");
+          import_fs10.default.writeFileSync(import_path12.default.join(epDir, "index.ts"), compSource, "utf-8");
         }
         const subAppPrefixesSet = new Set(entity._subAppRegistry?.keys() || []);
         if (entity.hierarchyManager?.ownedComponents) {
@@ -5757,32 +7515,32 @@ ${contractVal.errors.map((e) => ` - ${e}`).join("\n")}`);
         }
         const subAppPrefixes = Array.from(subAppPrefixesSet);
         const indexSource = this.generateIndexSource(entity.entityName, uiEndpoints, subAppPrefixes);
-        import_fs10.default.writeFileSync(import_path9.default.join(frontendDir, "src", "index.ts"), indexSource, "utf-8");
+        import_fs10.default.writeFileSync(import_path12.default.join(frontendDir, "src", "index.ts"), indexSource, "utf-8");
       }
       /**
        * Ensures essential files (package.json, index.html, index.css, atoms/) exist in frontendDir
        */
       static ensureFrontendSkeleton(entity, frontendDir) {
-        const srcDir = import_path9.default.join(frontendDir, "src");
-        const atomsDir = import_path9.default.join(srcDir, "atoms");
+        const srcDir = import_path12.default.join(frontendDir, "src");
+        const atomsDir = import_path12.default.join(srcDir, "atoms");
         import_fs10.default.mkdirSync(atomsDir, { recursive: true });
         const candidates = [
-          import_path9.default.resolve(_dirname, "../src/krnl/frontend/atoms"),
-          import_path9.default.resolve(_dirname, "../../src/krnl/frontend/atoms"),
-          import_path9.default.resolve(_dirname, "../frontend/atoms"),
-          import_path9.default.resolve(process.cwd(), "node_modules/krnlts/src/krnl/frontend/atoms"),
-          import_path9.default.resolve(process.cwd(), "node_modules/krnlts/dist/frontend/atoms")
+          import_path12.default.resolve(_dirname, "../src/krnl/frontend/atoms"),
+          import_path12.default.resolve(_dirname, "../../src/krnl/frontend/atoms"),
+          import_path12.default.resolve(_dirname, "../frontend/atoms"),
+          import_path12.default.resolve(process.cwd(), "node_modules/krnlts/src/krnl/frontend/atoms"),
+          import_path12.default.resolve(process.cwd(), "node_modules/krnlts/dist/frontend/atoms")
         ];
         const libAtomsDir = candidates.find((c) => import_fs10.default.existsSync(c));
         if (libAtomsDir && import_fs10.default.existsSync(libAtomsDir)) {
           const files = import_fs10.default.readdirSync(libAtomsDir);
           for (const file of files) {
-            const srcFile = import_path9.default.join(libAtomsDir, file);
-            const destFile = import_path9.default.join(atomsDir, file);
+            const srcFile = import_path12.default.join(libAtomsDir, file);
+            const destFile = import_path12.default.join(atomsDir, file);
             import_fs10.default.copyFileSync(srcFile, destFile);
           }
         }
-        const pkgPath = import_path9.default.join(frontendDir, "package.json");
+        const pkgPath = import_path12.default.join(frontendDir, "package.json");
         if (!import_fs10.default.existsSync(pkgPath)) {
           const pkgContent = {
             name: `${entity.entityName.toLowerCase()}-frontend`,
@@ -5799,7 +7557,7 @@ ${contractVal.errors.map((e) => ` - ${e}`).join("\n")}`);
           };
           import_fs10.default.writeFileSync(pkgPath, JSON.stringify(pkgContent, null, 2), "utf-8");
         }
-        const htmlPath = import_path9.default.join(frontendDir, "index.html");
+        const htmlPath = import_path12.default.join(frontendDir, "index.html");
         if (!import_fs10.default.existsSync(htmlPath)) {
           const htmlContent = `<!DOCTYPE html>
 <html lang="en" data-theme="glass-brutalism">
@@ -5822,7 +7580,7 @@ ${contractVal.errors.map((e) => ` - ${e}`).join("\n")}`);
 </html>`;
           import_fs10.default.writeFileSync(htmlPath, htmlContent, "utf-8");
         }
-        const cssPath = import_path9.default.join(frontendDir, "index.css");
+        const cssPath = import_path12.default.join(frontendDir, "index.css");
         if (!import_fs10.default.existsSync(cssPath)) {
           const defaultCss = `/* =============================================================
    KRNL Glass-Brutalism Fallback Design System
@@ -6295,8 +8053,8 @@ body {
        * Verifies React dependencies are installed in frontend/
        */
       static checkReactDependencies(frontendDir) {
-        const nodeModulesReact = import_path9.default.join(frontendDir, "node_modules", "react");
-        const rootNodeModulesReact = import_path9.default.resolve(frontendDir, "../../node_modules/react");
+        const nodeModulesReact = import_path12.default.join(frontendDir, "node_modules", "react");
+        const rootNodeModulesReact = import_path12.default.resolve(frontendDir, "../../node_modules/react");
         let hasReact = import_fs10.default.existsSync(nodeModulesReact) || import_fs10.default.existsSync(rootNodeModulesReact);
         if (!hasReact) {
           try {
@@ -6691,7 +8449,7 @@ if (rootElement) {
 `;
       }
       static generateAtoms(frontendDir) {
-        const atomsDir = import_path9.default.join(frontendDir, "src", "atoms");
+        const atomsDir = import_path12.default.join(frontendDir, "src", "atoms");
         import_fs10.default.mkdirSync(atomsDir, { recursive: true });
       }
     };
@@ -6703,40 +8461,40 @@ var K_LIB_Krnl_Frontend_Builder_exports = {};
 __export(K_LIB_Krnl_Frontend_Builder_exports, {
   KrnlFrontendBuilder: () => KrnlFrontendBuilder
 });
-var import_fs11, import_path10, KrnlFrontendBuilder;
+var import_fs11, import_path13, KrnlFrontendBuilder;
 var init_K_LIB_Krnl_Frontend_Builder = __esm({
   "src/krnl/core/K_LIB_Krnl_Frontend_Builder.ts"() {
     "use strict";
     import_fs11 = __toESM(require("fs"), 1);
-    import_path10 = __toESM(require("path"), 1);
+    import_path13 = __toESM(require("path"), 1);
     KrnlFrontendBuilder = class {
       static activeContexts = /* @__PURE__ */ new Map();
       /**
        * Bundles frontend/src/index.ts -> frontend/dist/bundle.js
        */
       static async build(frontendDir) {
-        const entryFileTs = import_path10.default.join(frontendDir, "src", "index.ts");
-        const entryFileTsx = import_path10.default.join(frontendDir, "src", "index.tsx");
+        const entryFileTs = import_path13.default.join(frontendDir, "src", "index.ts");
+        const entryFileTsx = import_path13.default.join(frontendDir, "src", "index.tsx");
         const entryFile = import_fs11.default.existsSync(entryFileTs) ? entryFileTs : entryFileTsx;
         if (!import_fs11.default.existsSync(entryFile)) {
           return false;
         }
-        const distDir = import_path10.default.join(frontendDir, "dist");
+        const distDir = import_path13.default.join(frontendDir, "dist");
         import_fs11.default.mkdirSync(distDir, { recursive: true });
         try {
           const candidates = [
             // When running from inside KrnlTS dist (relative to __dirname)
-            import_path10.default.resolve(__dirname, "..", "..", "frontend", "atoms"),
-            import_path10.default.resolve(__dirname, "..", "frontend", "atoms"),
+            import_path13.default.resolve(__dirname, "..", "..", "frontend", "atoms"),
+            import_path13.default.resolve(__dirname, "..", "frontend", "atoms"),
             // Scoped package (@dinilmusick/krnlts) installed in consuming app
-            import_path10.default.resolve(process.cwd(), "node_modules", "@dinilmusick", "krnlts", "dist", "frontend", "atoms"),
-            import_path10.default.resolve(process.cwd(), "node_modules", "@dinilmusick", "krnlts", "src", "krnl", "frontend", "atoms"),
+            import_path13.default.resolve(process.cwd(), "node_modules", "@dinilmusick", "krnlts", "dist", "frontend", "atoms"),
+            import_path13.default.resolve(process.cwd(), "node_modules", "@dinilmusick", "krnlts", "src", "krnl", "frontend", "atoms"),
             // Unscoped fallback (krnlts)
-            import_path10.default.resolve(process.cwd(), "node_modules", "krnlts", "dist", "frontend", "atoms"),
-            import_path10.default.resolve(process.cwd(), "node_modules", "krnlts", "src", "krnl", "frontend", "atoms")
+            import_path13.default.resolve(process.cwd(), "node_modules", "krnlts", "dist", "frontend", "atoms"),
+            import_path13.default.resolve(process.cwd(), "node_modules", "krnlts", "src", "krnl", "frontend", "atoms")
           ];
           const nodeModulesAtoms = candidates.find((c) => import_fs11.default.existsSync(c));
-          const srcAtoms = import_path10.default.join(frontendDir, "src", "atoms");
+          const srcAtoms = import_path13.default.join(frontendDir, "src", "atoms");
           if (nodeModulesAtoms) {
             import_fs11.default.mkdirSync(srcAtoms, { recursive: true });
             import_fs11.default.cpSync(nodeModulesAtoms, srcAtoms, { recursive: true, force: true });
@@ -6752,7 +8510,7 @@ var init_K_LIB_Krnl_Frontend_Builder = __esm({
           await esbuild.build({
             entryPoints: [entryFile],
             bundle: true,
-            outfile: import_path10.default.join(distDir, "bundle.js"),
+            outfile: import_path13.default.join(distDir, "bundle.js"),
             loader: {
               ".css": "css",
               ".ts": "ts",
@@ -6780,8 +8538,8 @@ var init_K_LIB_Krnl_Frontend_Builder = __esm({
         if (this.activeContexts.has(frontendDir)) {
           return;
         }
-        const entryFileTs = import_path10.default.join(frontendDir, "src", "index.ts");
-        const entryFileTsx = import_path10.default.join(frontendDir, "src", "index.tsx");
+        const entryFileTs = import_path13.default.join(frontendDir, "src", "index.ts");
+        const entryFileTsx = import_path13.default.join(frontendDir, "src", "index.tsx");
         const entryFile = import_fs11.default.existsSync(entryFileTs) ? entryFileTs : entryFileTsx;
         if (!import_fs11.default.existsSync(entryFile)) {
           return;
@@ -6791,7 +8549,7 @@ var init_K_LIB_Krnl_Frontend_Builder = __esm({
           const ctx = await esbuild.context({
             entryPoints: [entryFile],
             bundle: true,
-            outfile: import_path10.default.join(frontendDir, "dist", "bundle.js"),
+            outfile: import_path13.default.join(frontendDir, "dist", "bundle.js"),
             loader: {
               ".css": "css",
               ".ts": "ts",
@@ -6904,7 +8662,10 @@ var init_K_ENT_Entity = __esm({
     init_K_LIB_Krnl_Functionality_Types();
     init_K_LIB_Krnl_Flow();
     init_K_LIB_Krnl_SubApp_Engine();
+    init_ObjectKit();
     Entity = class _Entity extends krnlEntityBase {
+      /** Strongly-typed reactive entity state */
+      state;
       /** True while this entity occupies root position and actively self-hosts protocol adapters */
       _selfHosting = false;
       /** Protocol adapters attached to this entity. Operational only in root position. */
@@ -6922,6 +8683,64 @@ var init_K_ENT_Entity = __esm({
       constructor(name, owner = null, options = {}) {
         super(name, owner, options);
         this.systemType = "Entity";
+        this.state = options.initialState ?? {};
+      }
+      /**
+       * Get an immutable, read-only snapshot of current entity state.
+       */
+      getState() {
+        return Object.freeze(ObjectKit.deepClone(this.state));
+      }
+      /**
+       * Mutates the entity state via deep-merge and emits a reactive state:changed event.
+       */
+      setState(mutation) {
+        this.state = ObjectKit.deepMerge(this.state, mutation);
+        this.emit("state:changed", {
+          entity: this.entityName,
+          delta: mutation,
+          state: this.getState()
+        });
+      }
+      /**
+       * Resets entity state to a new or initial baseline.
+       */
+      resetState(newState) {
+        this.state = newState ?? {};
+        this.emit("state:reset", {
+          entity: this.entityName,
+          state: this.getState()
+        });
+      }
+      /** Private cache mapping event names to krnlEmitters */
+      _eventEmitterMap = /* @__PURE__ */ new Map();
+      /**
+       * Subscribes a listener to a domain event on this entity.
+       */
+      on(event, handler) {
+        let emitter = this._eventEmitterMap.get(event);
+        if (!emitter) {
+          emitter = this.interface.createEmitter(event);
+          this._eventEmitterMap.set(event, emitter);
+        }
+        return emitter.subscribe((msg) => handler(msg.data));
+      }
+      /**
+       * Emits an event with a data payload to all subscribers.
+       */
+      emit(event, payload) {
+        let emitter = this._eventEmitterMap.get(event);
+        if (!emitter) {
+          emitter = this.interface.createEmitter(event);
+          this._eventEmitterMap.set(event, emitter);
+        }
+        emitter.pushDataStreamToEmitter(payload);
+      }
+      /**
+       * Dispatches a strongly-typed domain event.
+       */
+      emitEvent(event, payload) {
+        this.emit(String(event), payload);
       }
       /**
        * System flags representing discoverability and reservation status.
@@ -7538,12 +9357,12 @@ __export(K_LIB_Krnl_System_Magnetic_Loader_exports, {
   magneticStorage: () => magneticStorage,
   subappLocalStorage: () => subappLocalStorage
 });
-var import_fs12, import_path11, import_url3, import_async_hooks, magneticStorage, subappLocalStorage, KrnlMagneticLoader;
+var import_fs12, import_path14, import_url3, import_async_hooks, magneticStorage, subappLocalStorage, KrnlMagneticLoader;
 var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Magnetic_Loader.ts"() {
     "use strict";
     import_fs12 = __toESM(require("fs"), 1);
-    import_path11 = __toESM(require("path"), 1);
+    import_path14 = __toESM(require("path"), 1);
     import_url3 = require("url");
     import_async_hooks = require("async_hooks");
     init_K_ENT_Krnl_System_Entity_Base();
@@ -7559,27 +9378,27 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
       static async loadAll(entity, baseDir) {
         const entityLabel = entity.entityName || entity.id || "Entity";
         console.log(`[MagneticLoader] loadAll called for entity '${entityLabel}' with baseDir '${baseDir}'`);
-        const functionalitiesDir = import_path11.default.join(baseDir, "functionalities");
+        const functionalitiesDir = import_path14.default.join(baseDir, "functionalities");
         if (import_fs12.default.existsSync(functionalitiesDir)) {
           const funcDirs = await import_fs12.default.promises.readdir(functionalitiesDir, { withFileTypes: true });
           for (const dirent of funcDirs) {
             if (dirent.isDirectory()) {
-              await this.loadFunctionality(entity, import_path11.default.join(functionalitiesDir, dirent.name), dirent.name);
+              await this.loadFunctionality(entity, import_path14.default.join(functionalitiesDir, dirent.name), dirent.name);
             }
           }
         }
-        const entitiesDir = import_path11.default.join(baseDir, "entities");
+        const entitiesDir = import_path14.default.join(baseDir, "entities");
         if (import_fs12.default.existsSync(entitiesDir)) {
           const entDirs = await import_fs12.default.promises.readdir(entitiesDir, { withFileTypes: true });
           for (const dirent of entDirs) {
             if (dirent.isDirectory()) {
-              await this.loadEntity(entity, import_path11.default.join(entitiesDir, dirent.name), dirent.name);
+              await this.loadEntity(entity, import_path14.default.join(entitiesDir, dirent.name), dirent.name);
             }
           }
         }
-        const subappsDir = import_path11.default.join(baseDir, "subapps");
+        const subappsDir = import_path14.default.join(baseDir, "subapps");
         const isSubApp = subappLocalStorage.getStore() || entity._isSubApp || entity._isIngressNetworkMember;
-        const krnlJsonPath = import_path11.default.join(baseDir, "krnl.json");
+        const krnlJsonPath = import_path14.default.join(baseDir, "krnl.json");
         let subappMetaMap = {};
         if (import_fs12.default.existsSync(krnlJsonPath)) {
           try {
@@ -7595,7 +9414,7 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
           for (const [subappName, subMeta] of Object.entries(subappMetaMap)) {
             const gitUrl = subMeta.git || subMeta.repo || subMeta.repository;
             if (gitUrl) {
-              const targetAppPath = import_path11.default.join(subappsDir, subappName);
+              const targetAppPath = import_path14.default.join(subappsDir, subappName);
               if (!import_fs12.default.existsSync(targetAppPath)) {
                 console.log(`[MagneticLoader] Cloning sub-app '${subappName}' from git repository '${gitUrl}'...`);
                 try {
@@ -7627,7 +9446,7 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
           const subappConfigs = [];
           for (const dirent of apps) {
             if (dirent.isDirectory()) {
-              const appPath = import_path11.default.join(subappsDir, dirent.name);
+              const appPath = import_path14.default.join(subappsDir, dirent.name);
               const buildOk = await this.ensureSubAppBuilt(appPath, dirent.name, entity, baseDir);
               if (!buildOk) {
                 continue;
@@ -7635,7 +9454,7 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
               if (typeof entity.loadSubApp === "function") {
                 const { KrnlSubAppDiscovery: KrnlSubAppDiscovery2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_SubApp_Engine(), K_LIB_Krnl_SubApp_Engine_exports));
                 const desc = await KrnlSubAppDiscovery2.locateDescriptor(appPath, dirent.name);
-                if (desc && (import_fs12.default.existsSync(import_path11.default.join(appPath, "subapp.json")) || import_fs12.default.existsSync(desc.registrationPath))) {
+                if (desc && (import_fs12.default.existsSync(import_path14.default.join(appPath, "subapp.json")) || import_fs12.default.existsSync(desc.registrationPath))) {
                   try {
                     const subMeta = subappMetaMap[dirent.name] || subappMetaMap[dirent.name.toLowerCase()];
                     const inst = await entity.loadSubApp(desc, subMeta || {});
@@ -7663,8 +9482,8 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             await entity.loadSubApps(subappConfigs);
           }
         }
-        let frontendDir = import_path11.default.join(baseDir, "frontend");
-        const oldFrontendsDir = import_path11.default.join(baseDir, "frontends");
+        let frontendDir = import_path14.default.join(baseDir, "frontend");
+        const oldFrontendsDir = import_path14.default.join(baseDir, "frontends");
         if (!import_fs12.default.existsSync(frontendDir) && import_fs12.default.existsSync(oldFrontendsDir)) {
           try {
             import_fs12.default.renameSync(oldFrontendsDir, frontendDir);
@@ -7684,12 +9503,12 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             entity.enableFrontend({ frontendDir });
           }
           const hasLocalFuncs = entity.localFunctionalities && entity.localFunctionalities.size > 0;
-          const indexExists = import_fs12.default.existsSync(import_path11.default.join(frontendDir, "src", "index.tsx"));
+          const indexExists = import_fs12.default.existsSync(import_path14.default.join(frontendDir, "src", "index.tsx"));
           if (entity._subAppRegistry) {
             for (const [prefix, entry] of entity._subAppRegistry.entries()) {
               const subAppDir = entry.entity?._entityDataDir || entry.entity?._sourceDir;
               if (subAppDir) {
-                const subFrontend = import_path11.default.join(subAppDir, "frontend");
+                const subFrontend = import_path14.default.join(subAppDir, "frontend");
                 if (import_fs12.default.existsSync(subFrontend) && entity._frontend) {
                   entity._frontend.registerSubAppFrontend(prefix, subFrontend);
                 }
@@ -7716,14 +9535,14 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             }
           }
         }
-        const adaptersDir = import_path11.default.join(baseDir, "protocol_adapters");
+        const adaptersDir = import_path14.default.join(baseDir, "protocol_adapters");
         if (import_fs12.default.existsSync(adaptersDir) && typeof entity.attachAdapter === "function") {
           try {
             const adapterFiles = await import_fs12.default.promises.readdir(adaptersDir);
             for (const file of adapterFiles) {
               if (file.endsWith(".js") || file.endsWith(".ts")) {
-                const mod = await import((0, import_url3.pathToFileURL)(import_path11.default.join(adaptersDir, file)).href);
-                const AdapterClass = mod.default || mod[import_path11.default.basename(file, import_path11.default.extname(file))];
+                const mod = await import((0, import_url3.pathToFileURL)(import_path14.default.join(adaptersDir, file)).href);
+                const AdapterClass = mod.default || mod[import_path14.default.basename(file, import_path14.default.extname(file))];
                 if (AdapterClass && typeof AdapterClass === "function") {
                   const adapterInstance = new AdapterClass();
                   entity.attachAdapter(adapterInstance);
@@ -7738,7 +9557,7 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         if (entity.localFunctionalities && typeof entity.initializeAiLayer === "function") {
           const hasAiConfig = [...entity.localFunctionalities.values()].some((f) => f.ai?.enabled);
           let hasAiStore = false;
-          const storePath = import_path11.default.join(baseDir, "krnl_runtime_state.db");
+          const storePath = import_path14.default.join(baseDir, "krnl_runtime_state.db");
           if (import_fs12.default.existsSync(storePath)) {
             try {
               const storeContent = JSON.parse(import_fs12.default.readFileSync(storePath, "utf-8"));
@@ -7757,7 +9576,7 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         entity.setFlag?.("krnl:magnetic_load_complete");
       }
       static async loadFunctionality(entity, funcDir, funcName) {
-        const descriptorPath = import_path11.default.join(funcDir, `${funcName}.js`);
+        const descriptorPath = import_path14.default.join(funcDir, `${funcName}.js`);
         let atom = null;
         if (import_fs12.default.existsSync(descriptorPath)) {
           const mod = await import((0, import_url3.pathToFileURL)(descriptorPath).href);
@@ -7769,23 +9588,23 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             visibility: "public",
             emitters: {}
           };
-          const statePath = import_path11.default.join(funcDir, "state_data", "state.js");
+          const statePath = import_path14.default.join(funcDir, "state_data", "state.js");
           if (import_fs12.default.existsSync(statePath)) {
             const mod = await import((0, import_url3.pathToFileURL)(statePath).href);
             atom.initialState = mod[`${funcName.toLowerCase()}InitialState`] || mod.initialState || mod.default;
           }
-          const logicPath = import_path11.default.join(funcDir, "main_function", "logic.js");
+          const logicPath = import_path14.default.join(funcDir, "main_function", "logic.js");
           if (import_fs12.default.existsSync(logicPath)) {
             const mod = await import((0, import_url3.pathToFileURL)(logicPath).href);
             atom.api = mod.main || mod.default;
           }
-          const lifecyclePath = import_path11.default.join(funcDir, "main_function", "lifecycle.js");
+          const lifecyclePath = import_path14.default.join(funcDir, "main_function", "lifecycle.js");
           if (import_fs12.default.existsSync(lifecyclePath)) {
             const mod = await import((0, import_url3.pathToFileURL)(lifecyclePath).href);
             atom.onMount = mod.onMount;
             atom.onTeardown = mod.onTeardown;
           }
-          const manifestPath = import_path11.default.join(funcDir, "manifest.json");
+          const manifestPath = import_path14.default.join(funcDir, "manifest.json");
           if (import_fs12.default.existsSync(manifestPath)) {
             try {
               const parsedManifest = JSON.parse(import_fs12.default.readFileSync(manifestPath, "utf-8"));
@@ -7794,19 +9613,19 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
               console.warn(`[MagneticLoader] Error parsing manifest.json in '${funcDir}':`, e.message);
             }
           }
-          const eventsDir2 = import_path11.default.join(funcDir, "events");
+          const eventsDir2 = import_path14.default.join(funcDir, "events");
           if (import_fs12.default.existsSync(eventsDir2)) {
             const eventFiles = await import_fs12.default.promises.readdir(eventsDir2);
             for (const file of eventFiles) {
               if (file.endsWith(".js")) {
-                const name = import_path11.default.basename(file, ".js");
+                const name = import_path14.default.basename(file, ".js");
                 atom.emitters[name] = {};
               }
             }
           }
         }
         if (atom && !atom.manifest) {
-          const manifestPath = import_path11.default.join(funcDir, "manifest.json");
+          const manifestPath = import_path14.default.join(funcDir, "manifest.json");
           if (import_fs12.default.existsSync(manifestPath)) {
             try {
               atom.manifest = JSON.parse(import_fs12.default.readFileSync(manifestPath, "utf-8"));
@@ -7815,26 +9634,26 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
           }
         }
         const helpers = {};
-        const helpersDir = import_path11.default.join(funcDir, "helper_functions");
+        const helpersDir = import_path14.default.join(funcDir, "helper_functions");
         if (import_fs12.default.existsSync(helpersDir)) {
           const files = await import_fs12.default.promises.readdir(helpersDir);
           for (const file of files) {
             if (file.endsWith(".js")) {
-              const name = import_path11.default.basename(file, ".js");
-              const mod = await import((0, import_url3.pathToFileURL)(import_path11.default.join(helpersDir, file)).href);
+              const name = import_path14.default.basename(file, ".js");
+              const mod = await import((0, import_url3.pathToFileURL)(import_path14.default.join(helpersDir, file)).href);
               helpers[name] = mod[name] || mod.default || mod;
               this.registerGlobalWrapper(name);
             }
           }
         }
         const events = {};
-        const eventsDir = import_path11.default.join(funcDir, "events");
+        const eventsDir = import_path14.default.join(funcDir, "events");
         if (import_fs12.default.existsSync(eventsDir)) {
           const files = await import_fs12.default.promises.readdir(eventsDir);
           for (const file of files) {
             if (file.endsWith(".js")) {
-              const name = import_path11.default.basename(file, ".js");
-              const mod = await import((0, import_url3.pathToFileURL)(import_path11.default.join(eventsDir, file)).href);
+              const name = import_path14.default.basename(file, ".js");
+              const mod = await import((0, import_url3.pathToFileURL)(import_path14.default.join(eventsDir, file)).href);
               events[name] = mod[name] || mod.default || mod;
               this.registerGlobalWrapper(name);
             }
@@ -7854,7 +9673,7 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         let fileToImport = null;
         const candidates = [`${entName}.js`, "assembler.js", "index.js"];
         for (const cand of candidates) {
-          const p = import_path11.default.join(entDir, cand);
+          const p = import_path14.default.join(entDir, cand);
           if (import_fs12.default.existsSync(p)) {
             fileToImport = p;
             break;
@@ -7879,15 +9698,15 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         }
       }
       static async ensureSubAppBuilt(appPath, appName, entity, parentBaseDir) {
-        const packageJsonPath = import_path11.default.join(appPath, "package.json");
+        const packageJsonPath = import_path14.default.join(appPath, "package.json");
         if (!import_fs12.default.existsSync(packageJsonPath)) {
           return true;
         }
-        const subNodeModules = import_path11.default.join(appPath, "node_modules");
+        const subNodeModules = import_path14.default.join(appPath, "node_modules");
         const candidateParentDirs = [
-          parentBaseDir ? import_path11.default.join(parentBaseDir, "node_modules") : null,
-          parentBaseDir ? import_path11.default.resolve(parentBaseDir, "..", "node_modules") : null,
-          import_path11.default.join(process.cwd(), "node_modules")
+          parentBaseDir ? import_path14.default.join(parentBaseDir, "node_modules") : null,
+          parentBaseDir ? import_path14.default.resolve(parentBaseDir, "..", "node_modules") : null,
+          import_path14.default.join(process.cwd(), "node_modules")
         ].filter(Boolean);
         const parentNodeModules = candidateParentDirs.find((d) => import_fs12.default.existsSync(d));
         if (!import_fs12.default.existsSync(subNodeModules) && parentNodeModules) {
@@ -7898,19 +9717,19 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             console.warn(`[MagneticLoader] Symlinking node_modules for '${appName}' failed, falling back:`, symErr.message);
           }
         }
-        const assemblerPath = import_path11.default.join(appPath, "assembler.js");
-        let distPath = import_path11.default.join(appPath, "dist", `${appName}.js`);
+        const assemblerPath = import_path14.default.join(appPath, "assembler.js");
+        let distPath = import_path14.default.join(appPath, "dist", `${appName}.js`);
         if (import_fs12.default.existsSync(packageJsonPath)) {
           try {
             const pkgJson = JSON.parse(import_fs12.default.readFileSync(packageJsonPath, "utf-8"));
             if (pkgJson.main) {
-              distPath = import_path11.default.resolve(appPath, pkgJson.main);
+              distPath = import_path14.default.resolve(appPath, pkgJson.main);
             }
           } catch (_) {
           }
         }
         let gitUpdated = false;
-        const gitDir = import_path11.default.join(appPath, ".git");
+        const gitDir = import_path14.default.join(appPath, ".git");
         if (import_fs12.default.existsSync(gitDir)) {
           console.log(`[MagneticLoader] Checking for git remote updates for sub-app '${appName}'...`);
           try {
@@ -7931,7 +9750,7 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             console.warn(`[MagneticLoader] Warning: git update check failed for '${appName}':`, err.message || err);
           }
         }
-        if (!import_fs12.default.existsSync(assemblerPath) || !import_fs12.default.existsSync(distPath) || !import_fs12.default.existsSync(import_path11.default.join(appPath, "node_modules")) || gitUpdated) {
+        if (!import_fs12.default.existsSync(assemblerPath) || !import_fs12.default.existsSync(distPath) || !import_fs12.default.existsSync(import_path14.default.join(appPath, "node_modules")) || gitUpdated) {
           console.log(`[MagneticLoader] Sub-app '${appName}' ${gitUpdated ? "was updated via git" : "is missing build artifacts"}. Initiating auto-build...`);
           try {
             const pkgJson = JSON.parse(import_fs12.default.readFileSync(packageJsonPath, "utf-8"));
@@ -7939,12 +9758,12 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             if (!hasBuildScript) {
               throw new Error(`package.json is missing a 'build' script.`);
             }
-            const nodeModulesPath = import_path11.default.join(appPath, "node_modules");
+            const nodeModulesPath = import_path14.default.join(appPath, "node_modules");
             if (!import_fs12.default.existsSync(nodeModulesPath)) {
               let installCmd = "npm install --no-audit --no-fund";
-              if (import_fs12.default.existsSync(import_path11.default.join(appPath, "pnpm-lock.yaml"))) {
+              if (import_fs12.default.existsSync(import_path14.default.join(appPath, "pnpm-lock.yaml"))) {
                 installCmd = "pnpm install";
-              } else if (import_fs12.default.existsSync(import_path11.default.join(appPath, "yarn.lock"))) {
+              } else if (import_fs12.default.existsSync(import_path14.default.join(appPath, "yarn.lock"))) {
                 installCmd = "yarn install";
               }
               console.log(`[MagneticLoader] Installing dependencies for '${appName}' using '${installCmd}'...`);
@@ -7957,9 +9776,9 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
               const hasKrnlts = pkgJson2.dependencies && pkgJson2.dependencies.krnlts || pkgJson2.devDependencies && pkgJson2.devDependencies.krnlts;
               if (hasKrnlts) {
                 let updateCmd = "npm update krnlts";
-                if (import_fs12.default.existsSync(import_path11.default.join(appPath, "pnpm-lock.yaml"))) {
+                if (import_fs12.default.existsSync(import_path14.default.join(appPath, "pnpm-lock.yaml"))) {
                   updateCmd = "pnpm update krnlts";
-                } else if (import_fs12.default.existsSync(import_path11.default.join(appPath, "yarn.lock"))) {
+                } else if (import_fs12.default.existsSync(import_path14.default.join(appPath, "yarn.lock"))) {
                   updateCmd = "yarn upgrade krnlts";
                 }
                 console.log(`[MagneticLoader] Automatically updating krnlts dependency for '${appName}' using '${updateCmd}'...`);
@@ -7974,9 +9793,9 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
               }
             }
             let buildCmd = "npm run build";
-            if (import_fs12.default.existsSync(import_path11.default.join(appPath, "pnpm-lock.yaml"))) {
+            if (import_fs12.default.existsSync(import_path14.default.join(appPath, "pnpm-lock.yaml"))) {
               buildCmd = "pnpm run build";
-            } else if (import_fs12.default.existsSync(import_path11.default.join(appPath, "yarn.lock"))) {
+            } else if (import_fs12.default.existsSync(import_path14.default.join(appPath, "yarn.lock"))) {
               buildCmd = "yarn build";
             }
             console.log(`[MagneticLoader] Building '${appName}' using '${buildCmd}'...`);
@@ -8005,7 +9824,7 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
         return true;
       }
       static async detectSubApp(appPath, appName) {
-        const assemblerPath = import_path11.default.join(appPath, "assembler.js");
+        const assemblerPath = import_path14.default.join(appPath, "assembler.js");
         if (import_fs12.default.existsSync(assemblerPath)) {
           const mod = await import((0, import_url3.pathToFileURL)(assemblerPath).href);
           const ServiceClass = mod[appName] || mod.default;
@@ -8019,9 +9838,9 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             };
           }
         }
-        const packageJsonPath = import_path11.default.join(appPath, "package.json");
+        const packageJsonPath = import_path14.default.join(appPath, "package.json");
         if (import_fs12.default.existsSync(packageJsonPath)) {
-          if (import_fs12.default.existsSync(import_path11.default.join(appPath, "KrnlFrontendModule.ts"))) {
+          if (import_fs12.default.existsSync(import_path14.default.join(appPath, "KrnlFrontendModule.ts"))) {
             return null;
           }
           return {
@@ -8040,14 +9859,14 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
       static async syncParentSubAppDependencies(baseDir, subappsDir) {
         try {
           const candidateParentPaths = [
-            import_path11.default.join(baseDir, "package.json"),
-            import_path11.default.resolve(baseDir, "..", "package.json"),
-            import_path11.default.join(process.cwd(), "package.json")
+            import_path14.default.join(baseDir, "package.json"),
+            import_path14.default.resolve(baseDir, "..", "package.json"),
+            import_path14.default.join(process.cwd(), "package.json")
           ];
           const parentPkgPath = candidateParentPaths.find((p) => import_fs12.default.existsSync(p));
           if (!parentPkgPath) return;
-          const parentDir = import_path11.default.dirname(parentPkgPath);
-          const parentKrnlJsonPath = import_path11.default.join(baseDir, "krnl.json");
+          const parentDir = import_path14.default.dirname(parentPkgPath);
+          const parentKrnlJsonPath = import_path14.default.join(baseDir, "krnl.json");
           let krnlJson = {};
           if (import_fs12.default.existsSync(parentKrnlJsonPath)) {
             try {
@@ -8060,7 +9879,7 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
           const subEntries = await import_fs12.default.promises.readdir(subappsDir, { withFileTypes: true });
           for (const dirent of subEntries) {
             if (dirent.isDirectory()) {
-              const subPkgPath = import_path11.default.join(subappsDir, dirent.name, "package.json");
+              const subPkgPath = import_path14.default.join(subappsDir, dirent.name, "package.json");
               if (import_fs12.default.existsSync(subPkgPath)) {
                 try {
                   const subPkg = JSON.parse(import_fs12.default.readFileSync(subPkgPath, "utf-8"));
@@ -8132,11 +9951,11 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
 });
 
 // src/krnl/core/K_LIB_Krnl_System_Ingress_Network.ts
-var import_path12, KrnlSiblingNetwork, KrnlIngressNetwork;
+var import_path15, KrnlSiblingNetwork, KrnlIngressNetwork;
 var init_K_LIB_Krnl_System_Ingress_Network = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Ingress_Network.ts"() {
     "use strict";
-    import_path12 = __toESM(require("path"), 1);
+    import_path15 = __toESM(require("path"), 1);
     KrnlSiblingNetwork = class {
       members = /* @__PURE__ */ new Map();
       /**
@@ -8164,7 +9983,7 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
           const memberPort = config.port ?? -1;
           const args = config.constructorArgs ?? [];
           const { subappLocalStorage: subappLocalStorage2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_System_Magnetic_Loader(), K_LIB_Krnl_System_Magnetic_Loader_exports));
-          const appDir = config.entryPath ? import_path12.default.dirname(config.entryPath) : "";
+          const appDir = config.entryPath ? import_path15.default.dirname(config.entryPath) : "";
           entity = await subappLocalStorage2.run({ appPath: appDir }, async () => {
             const ent = new ServiceClass(memberPort, ...args);
             if (ent._magneticLoadPromise) {
@@ -8259,12 +10078,12 @@ var init_K_LIB_Krnl_System_Ingress_Network = __esm({
 });
 
 // src/krnl/core/K_LIB_Krnl_Frontend_Inspector.ts
-var import_fs13, import_path13, KrnlFrontendInspector;
+var import_fs13, import_path16, KrnlFrontendInspector;
 var init_K_LIB_Krnl_Frontend_Inspector = __esm({
   "src/krnl/core/K_LIB_Krnl_Frontend_Inspector.ts"() {
     "use strict";
     import_fs13 = __toESM(require("fs"), 1);
-    import_path13 = __toESM(require("path"), 1);
+    import_path16 = __toESM(require("path"), 1);
     KrnlFrontendInspector = class {
       static manifest(system, frontendDir) {
         const appName = system.entityName || "KrnlTS App";
@@ -8272,7 +10091,7 @@ var init_K_LIB_Krnl_Frontend_Inspector = __esm({
         const frontendUrl = `http://127.0.0.1:${commPort}/frontend/`;
         const cssFile = "frontend/index.css";
         const bundleFile = "frontend/dist/bundle.js";
-        const bundleBuilt = import_fs13.default.existsSync(import_path13.default.join(frontendDir, "dist", "bundle.js"));
+        const bundleBuilt = import_fs13.default.existsSync(import_path16.default.join(frontendDir, "dist", "bundle.js"));
         const localFuncs = Array.from(system.localFunctionalities?.values() || []);
         const remoteFuncs = Array.from(system.remoteFunctionalities?.values() || []);
         const allFuncs = [...localFuncs, ...remoteFuncs];
@@ -8312,7 +10131,7 @@ var init_K_LIB_Krnl_Frontend_Inspector = __esm({
         };
       }
       static source(frontendDir) {
-        const htmlPath = import_path13.default.join(frontendDir, "index.html");
+        const htmlPath = import_path16.default.join(frontendDir, "index.html");
         if (!import_fs13.default.existsSync(htmlPath)) {
           return { status: "error", message: "index.html not found" };
         }
@@ -8769,12 +10588,12 @@ ${endpoints.map((e) => `  - group '${e.fid}':
 });
 
 // src/krnl/core/K_LIB_Krnl_System_Frontend.ts
-var import_fs14, import_path14, KrnlFrontend;
+var import_fs14, import_path17, KrnlFrontend;
 var init_K_LIB_Krnl_System_Frontend = __esm({
   "src/krnl/core/K_LIB_Krnl_System_Frontend.ts"() {
     "use strict";
     import_fs14 = __toESM(require("fs"), 1);
-    import_path14 = __toESM(require("path"), 1);
+    import_path17 = __toESM(require("path"), 1);
     init_K_LIB_Krnl_Frontend_Inspector();
     KrnlFrontend = class {
       system;
@@ -8791,7 +10610,7 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
           enableMonitoringApi: true,
           ...options
         };
-        this.frontendDir = options.frontendDir || import_path14.default.join(system._entityDataDir, "frontend");
+        this.frontendDir = options.frontendDir || import_path17.default.join(system._entityDataDir, "frontend");
         this._interceptConsole();
       }
       _interceptConsole() {
@@ -8879,7 +10698,7 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
           }
         }
         if ((normalized === "/" || normalized === "/index.html") && req.method === "GET") {
-          let htmlPath = import_path14.default.join(this.frontendDir, "index.html");
+          let htmlPath = import_path17.default.join(this.frontendDir, "index.html");
           if (!import_fs14.default.existsSync(htmlPath)) {
             try {
               const { KrnlFrontendGenerator: KrnlFrontendGenerator2 } = (init_K_LIB_Krnl_Frontend_Generator(), __toCommonJS(K_LIB_Krnl_Frontend_Generator_exports));
@@ -8894,7 +10713,7 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
           }
         }
         if (normalized === "/bundle.js" && req.method === "GET") {
-          let bundlePath = import_path14.default.join(this.frontendDir, "dist", "bundle.js");
+          let bundlePath = import_path17.default.join(this.frontendDir, "dist", "bundle.js");
           if (!import_fs14.default.existsSync(bundlePath)) {
             try {
               const { KrnlFrontendGenerator: KrnlFrontendGenerator2 } = (init_K_LIB_Krnl_Frontend_Generator(), __toCommonJS(K_LIB_Krnl_Frontend_Generator_exports));
@@ -8915,17 +10734,17 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
           return;
         }
         if ((normalized === "/styles.css" || normalized === "/index.css") && req.method === "GET") {
-          const cssPath = import_path14.default.join(this.frontendDir, "index.css");
+          const cssPath = import_path17.default.join(this.frontendDir, "index.css");
           if (import_fs14.default.existsSync(cssPath)) {
             res.writeHead(200, { "Content-Type": "text/css" });
             res.end(import_fs14.default.readFileSync(cssPath));
             return;
           }
           const libCssCandidates = [
-            import_path14.default.resolve(process.cwd(), "dist/frontend/index.css"),
-            import_path14.default.resolve(process.cwd(), "src/krnl/frontend/index.css"),
-            import_path14.default.resolve(process.cwd(), "node_modules/krnlts/dist/frontend/index.css"),
-            import_path14.default.resolve(process.cwd(), "node_modules/krnlts/src/krnl/frontend/index.css")
+            import_path17.default.resolve(process.cwd(), "dist/frontend/index.css"),
+            import_path17.default.resolve(process.cwd(), "src/krnl/frontend/index.css"),
+            import_path17.default.resolve(process.cwd(), "node_modules/krnlts/dist/frontend/index.css"),
+            import_path17.default.resolve(process.cwd(), "node_modules/krnlts/src/krnl/frontend/index.css")
           ];
           const fallbackCssPath = libCssCandidates.find((c) => import_fs14.default.existsSync(c));
           if (fallbackCssPath) {
@@ -8942,15 +10761,15 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
           const prefix = parts[1]?.toLowerCase();
           let subDir = prefix ? this.subAppFrontendDirs.get(prefix) : void 0;
           if (!subDir && prefix) {
-            const candidate1 = import_path14.default.join(this.system._entityDataDir || ".", "subapps", prefix, "frontend");
-            const candidate2 = import_path14.default.join(process.cwd(), "subapps", prefix, "frontend");
+            const candidate1 = import_path17.default.join(this.system._entityDataDir || ".", "subapps", prefix, "frontend");
+            const candidate2 = import_path17.default.join(process.cwd(), "subapps", prefix, "frontend");
             if (import_fs14.default.existsSync(candidate1)) subDir = candidate1;
             else if (import_fs14.default.existsSync(candidate2)) subDir = candidate2;
           }
           if (subDir && import_fs14.default.existsSync(subDir)) {
             const fileRel = parts.slice(2).join("/");
             if (fileRel === "styles.css") {
-              const cssPath = import_path14.default.join(this.frontendDir, "index.css");
+              const cssPath = import_path17.default.join(this.frontendDir, "index.css");
               if (import_fs14.default.existsSync(cssPath)) {
                 res.writeHead(200, { "Content-Type": "text/css" });
                 res.end(import_fs14.default.readFileSync(cssPath));
@@ -8958,7 +10777,7 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
               }
             }
             if (!fileRel || fileRel === "index.html") {
-              const subHtml = import_path14.default.join(subDir, "index.html");
+              const subHtml = import_path17.default.join(subDir, "index.html");
               if (import_fs14.default.existsSync(subHtml)) {
                 res.writeHead(200, { "Content-Type": "text/html" });
                 res.end(import_fs14.default.readFileSync(subHtml));
@@ -8966,14 +10785,14 @@ var init_K_LIB_Krnl_System_Frontend = __esm({
               }
             }
             if (fileRel === "bundle.js") {
-              const subBundle = import_path14.default.join(subDir, "dist", "bundle.js");
+              const subBundle = import_path17.default.join(subDir, "dist", "bundle.js");
               if (import_fs14.default.existsSync(subBundle)) {
                 res.writeHead(200, { "Content-Type": "application/javascript" });
                 res.end(import_fs14.default.readFileSync(subBundle));
                 return;
               }
             }
-            const assetPath = import_path14.default.join(subDir, fileRel);
+            const assetPath = import_path17.default.join(subDir, fileRel);
             if (import_fs14.default.existsSync(assetPath) && import_fs14.default.statSync(assetPath).isFile()) {
               res.writeHead(200);
               res.end(import_fs14.default.readFileSync(assetPath));
@@ -9888,12 +11707,12 @@ Generate corrected JSON payload.`;
 });
 
 // src/krnl/core/K_LIB_Krnl_Runtime_Store.ts
-var import_fs15, import_path15, KrnlRuntimeStore;
+var import_fs15, import_path18, KrnlRuntimeStore;
 var init_K_LIB_Krnl_Runtime_Store = __esm({
   "src/krnl/core/K_LIB_Krnl_Runtime_Store.ts"() {
     "use strict";
     import_fs15 = __toESM(require("fs"), 1);
-    import_path15 = __toESM(require("path"), 1);
+    import_path18 = __toESM(require("path"), 1);
     KrnlRuntimeStore = class {
       filePath;
       data = {
@@ -9905,7 +11724,7 @@ var init_K_LIB_Krnl_Runtime_Store = __esm({
         activeTasks: null
       };
       constructor(appRoot) {
-        this.filePath = import_path15.default.join(appRoot, "krnl_runtime_state.db");
+        this.filePath = import_path18.default.join(appRoot, "krnl_runtime_state.db");
       }
       async load() {
         try {
@@ -10441,16 +12260,16 @@ var K_LIB_Krnl_SubApp_Worker_Host_exports = {};
 __export(K_LIB_Krnl_SubApp_Worker_Host_exports, {
   KrnlSubAppWorkerHost: () => KrnlSubAppWorkerHost
 });
-var import_worker_threads, import_url4, import_path16, import_meta2, __filename, __dirname2, _rpcSeq, KrnlSubAppWorkerHost;
+var import_worker_threads, import_url4, import_path19, import_meta2, __filename, __dirname2, _rpcSeq, KrnlSubAppWorkerHost;
 var init_K_LIB_Krnl_SubApp_Worker_Host = __esm({
   "src/krnl/core/K_LIB_Krnl_SubApp_Worker_Host.ts"() {
     "use strict";
     import_worker_threads = require("worker_threads");
     import_url4 = require("url");
-    import_path16 = __toESM(require("path"), 1);
+    import_path19 = __toESM(require("path"), 1);
     import_meta2 = {};
     __filename = (0, import_url4.fileURLToPath)(import_meta2.url);
-    __dirname2 = import_path16.default.dirname(__filename);
+    __dirname2 = import_path19.default.dirname(__filename);
     _rpcSeq = 0;
     KrnlSubAppWorkerHost = class _KrnlSubAppWorkerHost {
       prefix;
@@ -10503,7 +12322,7 @@ var init_K_LIB_Krnl_SubApp_Worker_Host = __esm({
        * Spawn a worker_thread for the given sub-app config and wait for the manifest.
        */
       static async create(config, timeoutMs = 3e4) {
-        const runtimePath = import_path16.default.resolve(__dirname2, "K_LIB_Krnl_SubApp_Worker_Runtime.js");
+        const runtimePath = import_path19.default.resolve(__dirname2, "K_LIB_Krnl_SubApp_Worker_Runtime.js");
         const worker = new import_worker_threads.Worker(runtimePath, {
           workerData: {
             entryPath: config.entryPath ?? "",
@@ -10566,11 +12385,11 @@ var K_LIB_Krnl_SubApp_Registry_exports = {};
 __export(K_LIB_Krnl_SubApp_Registry_exports, {
   KrnlSubAppLoader: () => KrnlSubAppLoader
 });
-var import_path17, import_url5, KrnlSubAppLoader;
+var import_path20, import_url5, KrnlSubAppLoader;
 var init_K_LIB_Krnl_SubApp_Registry = __esm({
   "src/krnl/core/K_LIB_Krnl_SubApp_Registry.ts"() {
     "use strict";
-    import_path17 = __toESM(require("path"), 1);
+    import_path20 = __toESM(require("path"), 1);
     import_url5 = require("url");
     init_K_LIB_Krnl_System_Magnetic_Loader();
     KrnlSubAppLoader = class {
@@ -10594,7 +12413,7 @@ var init_K_LIB_Krnl_SubApp_Registry = __esm({
         }
         let entry;
         if (mode === "local") {
-          const appDir = config.entryPath ? import_path17.default.dirname(config.entryPath) : "";
+          const appDir = config.entryPath ? import_path20.default.dirname(config.entryPath) : "";
           let entity;
           if (config.isKrnl === false || !config.ServiceClass) {
             const { KrnlNonKrnlAppAdapter: KrnlNonKrnlAppAdapter2 } = await Promise.resolve().then(() => (init_K_LIB_Krnl_System_App_Adapter(), K_LIB_Krnl_System_App_Adapter_exports));
@@ -10764,7 +12583,7 @@ var init_K_LIB_Krnl_Ep_Tools = __esm({
 });
 
 // src/krnl/core/K_ENT_Krnl_System_Entity_Base.ts
-var import_http3, import_net2, import_fs16, import_path18, import_url6, import_zod_to_json_schema2, krnlSystemEntityBase;
+var import_http3, import_net2, import_fs16, import_path21, import_url6, import_zod_to_json_schema2, krnlSystemEntityBase;
 var init_K_ENT_Krnl_System_Entity_Base = __esm({
   "src/krnl/core/K_ENT_Krnl_System_Entity_Base.ts"() {
     "use strict";
@@ -10787,7 +12606,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
     import_http3 = __toESM(require("http"), 1);
     import_net2 = __toESM(require("net"), 1);
     import_fs16 = __toESM(require("fs"), 1);
-    import_path18 = __toESM(require("path"), 1);
+    import_path21 = __toESM(require("path"), 1);
     import_url6 = require("url");
     import_zod_to_json_schema2 = require("zod-to-json-schema");
     krnlSystemEntityBase = class extends krnlEntityBase {
@@ -10946,7 +12765,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         } else if (options.sourcePath) {
           try {
             const resolved = options.sourcePath.startsWith("file:") ? (0, import_url6.fileURLToPath)(options.sourcePath) : options.sourcePath;
-            dataDir = import_path18.default.dirname(resolved);
+            dataDir = import_path21.default.dirname(resolved);
           } catch (_) {
           }
         }
@@ -11008,7 +12827,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
        */
       async _validateBootManifestDependencies() {
         try {
-          const manifestPath = import_path18.default.join(this._entityDataDir, "krnl.json");
+          const manifestPath = import_path21.default.join(this._entityDataDir, "krnl.json");
           if (!import_fs16.default.existsSync(manifestPath)) return;
           const content = import_fs16.default.readFileSync(manifestPath, "utf-8");
           const manifest = JSON.parse(content);
@@ -11075,8 +12894,8 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
             const entry = this._subAppRegistry.get(prefix);
             if (entry && entry.entity) {
               const subAppDir = entry.entity?._entityDataDir || entry.entity?._sourceDir;
-              if (subAppDir && import_fs16.default.existsSync(import_path18.default.join(subAppDir, "frontend")) && this._frontend) {
-                this._frontend.registerSubAppFrontend(prefix, import_path18.default.join(subAppDir, "frontend"));
+              if (subAppDir && import_fs16.default.existsSync(import_path21.default.join(subAppDir, "frontend")) && this._frontend) {
+                this._frontend.registerSubAppFrontend(prefix, import_path21.default.join(subAppDir, "frontend"));
               }
             }
           } catch (err) {
@@ -11262,10 +13081,10 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
         }
         return response;
       }
-      getNotFoundResponse(path20) {
+      getNotFoundResponse(path23) {
         const response = {
           status: "error",
-          message: `Route '${path20}' not found.`
+          message: `Route '${path23}' not found.`
         };
         if (this._documentationProvider && typeof this._documentationProvider.getDocsForLayer === "function") {
           const entryPoints = this._documentationProvider.getDocsForLayer("LAYER_1_ENTRY");
@@ -11341,7 +13160,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
       // ── Port Snapshot File ────────────────────────────────────────────────────
       /** Absolute path of the JSON port snapshot co-located with the assembler. */
       _getPortsFilePath() {
-        return import_path18.default.join(this._entityDataDir, `${this.entityName}.ports.json`);
+        return import_path21.default.join(this._entityDataDir, `${this.entityName}.ports.json`);
       }
       /**
        * _writePortsFile — persists portRegistry to disk.
@@ -11356,7 +13175,7 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
           ports: this.getRegisteredPorts()
         }, null, 2);
         try {
-          const dir = import_path18.default.dirname(filePath);
+          const dir = import_path21.default.dirname(filePath);
           if (!import_fs16.default.existsSync(dir)) {
             await import_fs16.default.promises.mkdir(dir, { recursive: true });
           }
@@ -12246,16 +14065,23 @@ var init_K_ENT_Krnl_System_Entity_Base = __esm({
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  AdminGuard: () => AdminGuard,
   AsyncKit: () => AsyncKit,
   CUSTOM_ERROR_CODE: () => CUSTOM_ERROR_CODE,
   CacheKit: () => CacheKit,
+  ControlPlaneManager: () => ControlPlaneManager,
   DefaultEventRegistrar: () => DefaultEventRegistrar,
   DefaultOperationRegistrar: () => DefaultOperationRegistrar,
   DefaultServiceContainer: () => DefaultServiceContainer,
   Entity: () => Entity,
   FileCache: () => FileCache,
   FileLock: () => FileLock,
+  FilesystemStorageProvider: () => FilesystemStorageProvider,
+  FirebaseDataProvider: () => FirebaseDataProvider,
+  FirebaseStorageProvider: () => FirebaseStorageProvider,
+  FunctionalityTable: () => FunctionalityTable,
   GitManager: () => GitManager,
+  HostedAccountProvider: () => HostedAccountProvider,
   KrnlAcpProtocol: () => KrnlAcpProtocol,
   KrnlAikoClient: () => KrnlAikoClient,
   KrnlApplicationOrchestrator: () => KrnlApplicationOrchestrator,
@@ -12290,13 +14116,22 @@ __export(index_exports, {
   KrnlTaskRunner: () => KrnlTaskRunner,
   KrnlWatchVariablesTracker: () => KrnlWatchVariablesTracker,
   LRUCache: () => LRUCache,
+  LocalSQLiteAccountProvider: () => LocalSQLiteAccountProvider,
   Logger: () => Logger,
   MemoryTransportAdapter: () => MemoryTransportAdapter,
   ObjectKit: () => ObjectKit,
   PocerBlock: () => PocerBlock,
+  PocketBaseDataProvider: () => PocketBaseDataProvider,
+  PocketBaseStorageProvider: () => PocketBaseStorageProvider,
+  PostgresDataProvider: () => PostgresDataProvider,
+  S3StorageProvider: () => S3StorageProvider,
+  SQLiteDataProvider: () => SQLiteDataProvider,
   StringKit: () => StringKit,
+  SupabaseDataProvider: () => SupabaseDataProvider,
+  SupabaseStorageProvider: () => SupabaseStorageProvider,
   TTLCache: () => TTLCache,
   WebSocketTransportAdapter: () => WebSocketTransportAdapter,
+  WorkspaceBackendFactory: () => WorkspaceBackendFactory,
   buildEntityIntention: () => buildEntityIntention,
   createEnum: () => createEnum,
   createHttpsAppAdapter: () => createHttpsAppAdapter,
@@ -12473,9 +14308,11 @@ init_krnl_pb();
 init_K_ENT_Entity();
 init_K_LIB_Krnl_Flow();
 init_K_LIB_Krnl_SubApp_Engine();
+init_backend();
 
 // src/index.ts
 init_tools();
+init_backend();
 init_K_ENT_Entity();
 init_K_LIB_Krnl_Flow();
 init_K_ENT_Krnl_Entity_Base();
@@ -12695,16 +14532,23 @@ var PocerBlock = class extends krnlSystemEntityBase {
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  AdminGuard,
   AsyncKit,
   CUSTOM_ERROR_CODE,
   CacheKit,
+  ControlPlaneManager,
   DefaultEventRegistrar,
   DefaultOperationRegistrar,
   DefaultServiceContainer,
   Entity,
   FileCache,
   FileLock,
+  FilesystemStorageProvider,
+  FirebaseDataProvider,
+  FirebaseStorageProvider,
+  FunctionalityTable,
   GitManager,
+  HostedAccountProvider,
   KrnlAcpProtocol,
   KrnlAikoClient,
   KrnlApplicationOrchestrator,
@@ -12739,13 +14583,22 @@ var PocerBlock = class extends krnlSystemEntityBase {
   KrnlTaskRunner,
   KrnlWatchVariablesTracker,
   LRUCache,
+  LocalSQLiteAccountProvider,
   Logger,
   MemoryTransportAdapter,
   ObjectKit,
   PocerBlock,
+  PocketBaseDataProvider,
+  PocketBaseStorageProvider,
+  PostgresDataProvider,
+  S3StorageProvider,
+  SQLiteDataProvider,
   StringKit,
+  SupabaseDataProvider,
+  SupabaseStorageProvider,
   TTLCache,
   WebSocketTransportAdapter,
+  WorkspaceBackendFactory,
   buildEntityIntention,
   createEnum,
   createHttpsAppAdapter,

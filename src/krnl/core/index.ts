@@ -62,3 +62,6 @@ export {
   createHttpsAppAdapter
 } from "./K_LIB_Krnl_SubApp_Engine.js";
 
+// Universal Backend Exports
+export * from "../backend/index.js";
+

@@ -673,6 +673,665 @@ interface KrnlIntentionEntity {
 declare function buildEntityIntention(entity: any): KrnlIntentionEntity;
 
 /**
+ * @file types.ts
+ * @description Core types and interfaces for the KrnlTS Universal Backend Architecture.
+ */
+type StorageMode = "local" | "local_hosted" | "remote";
+type BackendServiceType = "sqlite" | "postgres" | "supabase" | "pocketbase" | "firebase" | "filesystem" | "s3" | "custom";
+interface DatabaseProviderConfig {
+    type: "sqlite" | "postgres" | "supabase" | "pocketbase" | "firebase" | "custom";
+    filePath?: string;
+    enableWAL?: boolean;
+    connectionString?: string;
+    host?: string;
+    port?: number;
+    user?: string;
+    password?: string;
+    database?: string;
+    ssl?: boolean;
+    poolSize?: number;
+    endpoint?: string;
+    apiKey?: string;
+    projectId?: string;
+}
+interface StorageProviderConfig {
+    type: "filesystem" | "s3" | "supabase_storage" | "pocketbase_storage" | "firebase_storage" | "custom";
+    basePath?: string;
+    bucket?: string;
+    region?: string;
+    accessKey?: string;
+    secretKey?: string;
+    endpoint?: string;
+    apiKey?: string;
+    projectId?: string;
+}
+interface AuthConfig {
+    jwtSecret?: string;
+    apiKey?: string;
+    token?: string;
+    endpoint?: string;
+}
+interface BackendConnectionConfig {
+    id: string;
+    name?: string;
+    provider: BackendServiceType;
+    mode: StorageMode;
+    endpoint?: string;
+    database?: DatabaseProviderConfig;
+    storage?: StorageProviderConfig;
+    auth?: AuthConfig;
+}
+interface WorkspaceDescriptor {
+    id: string;
+    ownerId: string;
+    name: string;
+    backendConfig: BackendConnectionConfig;
+    createdAt: number;
+    updatedAt: number;
+}
+interface AuthCredentials {
+    email?: string;
+    username?: string;
+    password?: string;
+    token?: string;
+    apiKey?: string;
+    [key: string]: any;
+}
+interface UserProfile {
+    id: string;
+    email?: string;
+    username?: string;
+    role: "USER" | "ADMIN";
+    metadata?: Record<string, any>;
+    createdAt: number;
+}
+interface AuthSession {
+    userId: string;
+    role: "USER" | "ADMIN";
+    token: string;
+    expiresAt: number;
+    user?: UserProfile;
+}
+/**
+ * Control Plane Account Provider interface
+ */
+interface IAccountProvider {
+    getUser(userId: string): Promise<UserProfile | null>;
+    authenticate(credentials: AuthCredentials): Promise<AuthSession>;
+    verifySession(token: string | null): Promise<AuthSession | null>;
+    listWorkspaces(userId: string): Promise<WorkspaceDescriptor[]>;
+    createWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>): Promise<WorkspaceDescriptor>;
+    deleteWorkspace(userId: string, workspaceId: string): Promise<boolean>;
+}
+/**
+ * Workspace Data Provider interface (Structured / Relational Records)
+ */
+interface IWorkspaceDataProvider {
+    readonly engine: BackendServiceType;
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    testConnection(): Promise<{
+        ok: boolean;
+        latencyMs: number;
+        details?: any;
+    }>;
+    ensureTable(tableName: string, schema?: Record<string, any>): Promise<void>;
+    query<T = any>(queryStr: string, params?: any[]): Promise<T[]>;
+    execute(commandStr: string, params?: any[]): Promise<{
+        affectedRows: number;
+        lastInsertId?: string | number;
+    }>;
+    find<T = any>(table: string, filter?: Record<string, any>, options?: {
+        limit?: number;
+        offset?: number;
+        sort?: Record<string, 1 | -1>;
+    }): Promise<T[]>;
+    findOne<T = any>(table: string, filter: Record<string, any> | string): Promise<T | null>;
+    insert<T = any>(table: string, data: T | T[]): Promise<T | T[]>;
+    update<T = any>(table: string, filter: Record<string, any> | string, patch: Partial<T>): Promise<{
+        affectedRows: number;
+    }>;
+    delete(table: string, filter: Record<string, any> | string): Promise<{
+        affectedRows: number;
+    }>;
+    count(table: string, filter?: Record<string, any>): Promise<number>;
+    clear(table: string): Promise<void>;
+}
+/**
+ * Workspace Storage Provider interface (Large Files / Binary Blobs)
+ */
+interface IStorageProvider {
+    readonly driver: string;
+    uploadFile(path: string, content: Buffer | Uint8Array | string | ReadableStream, mimeType?: string): Promise<{
+        url: string;
+        size: number;
+    }>;
+    downloadFile(path: string): Promise<Buffer>;
+    deleteFile(path: string): Promise<boolean>;
+    getPublicUrl(path: string): string;
+    listFiles(prefix?: string): Promise<Array<{
+        path: string;
+        size: number;
+        updatedAt: number;
+    }>>;
+}
+/**
+ * Aggregated Workspace Backend
+ */
+interface IWorkspaceBackend {
+    readonly id: string;
+    readonly mode: StorageMode;
+    readonly data: IWorkspaceDataProvider;
+    readonly storage: IStorageProvider;
+    initialize(): Promise<void>;
+    dispose(): Promise<void>;
+}
+/**
+ * Built-in Table interface passed directly into Functionality execution context
+ */
+interface IFunctionalityTable<T = any> {
+    readonly tableName: string;
+    readonly service: BackendServiceType;
+    readonly provider: IWorkspaceDataProvider;
+    find(filter?: Record<string, any>, options?: {
+        limit?: number;
+        offset?: number;
+        sort?: Record<string, 1 | -1>;
+    }): Promise<T[]>;
+    findOne(filter: Record<string, any> | string): Promise<T | null>;
+    create(record: T): Promise<T>;
+    insert(record: T | T[]): Promise<T | T[]>;
+    update(filter: Record<string, any> | string, patch: Partial<T>): Promise<{
+        affectedRows: number;
+    }>;
+    delete(filter: Record<string, any> | string): Promise<{
+        affectedRows: number;
+    }>;
+    upsert(record: T, keyField?: string): Promise<T>;
+    count(filter?: Record<string, any>): Promise<number>;
+    query(rawQueryOrFilter: any, params?: any[]): Promise<any>;
+    clear(): Promise<void>;
+}
+/**
+ * Functionality-level backend configuration flags
+ */
+type FunctionalityBackendFlag = boolean | BackendServiceType | FunctionalityBackendConfig;
+interface FunctionalityBackendConfig {
+    enabled?: boolean;
+    service?: BackendServiceType;
+    table?: string;
+    schema?: Record<string, any>;
+    credentials?: DatabaseProviderConfig;
+}
+/**
+ * Entity-level backend configuration container
+ */
+interface EntityBackendSettings {
+    defaultService?: BackendServiceType;
+    sqlite?: DatabaseProviderConfig;
+    postgres?: DatabaseProviderConfig;
+    supabase?: DatabaseProviderConfig;
+    pocketbase?: DatabaseProviderConfig;
+    firebase?: DatabaseProviderConfig;
+    filesystem?: StorageProviderConfig;
+    s3?: StorageProviderConfig;
+    custom?: Record<string, any>;
+}
+
+/**
+ * @file FunctionalityTable.ts
+ * @description Built-in CRUD table engine for krnlLocalFunctionality instances.
+ */
+
+declare class FunctionalityTable<T = any> implements IFunctionalityTable<T> {
+    readonly tableName: string;
+    readonly service: BackendServiceType;
+    readonly provider: IWorkspaceDataProvider;
+    private isTableInitialized;
+    constructor(tableName: string, provider: IWorkspaceDataProvider);
+    private ensureInitialized;
+    find(filter?: Record<string, any>, options?: {
+        limit?: number;
+        offset?: number;
+        sort?: Record<string, 1 | -1>;
+    }): Promise<T[]>;
+    findOne(filter: Record<string, any> | string): Promise<T | null>;
+    create(record: T): Promise<T>;
+    insert(record: T | T[]): Promise<T | T[]>;
+    update(filter: Record<string, any> | string, patch: Partial<T>): Promise<{
+        affectedRows: number;
+    }>;
+    delete(filter: Record<string, any> | string): Promise<{
+        affectedRows: number;
+    }>;
+    upsert(record: T, keyField?: string): Promise<T>;
+    count(filter?: Record<string, any>): Promise<number>;
+    query(rawQueryOrFilter: any, params?: any[]): Promise<any>;
+    clear(): Promise<void>;
+}
+
+/**
+ * @file WorkspaceBackendFactory.ts
+ * @description Factory resolving decoupled Data Providers and Storage Providers for any storage mode.
+ */
+
+declare class WorkspaceBackendFactory {
+    static create(config: BackendConnectionConfig): IWorkspaceBackend;
+    static createLocal(filePath?: string, storagePath?: string): IWorkspaceBackend;
+    static resolveDataProvider(config: BackendConnectionConfig): IWorkspaceDataProvider;
+    static resolveStorageProvider(config: BackendConnectionConfig): IStorageProvider;
+}
+
+/**
+ * @file LocalSQLiteAccountProvider.ts
+ * @description Local SQLite/JSON-backed Control Plane Account Provider for user accounts and workspace registry.
+ */
+
+declare class LocalSQLiteAccountProvider implements IAccountProvider {
+    private filePath;
+    private isLoaded;
+    private db;
+    constructor(filePath?: string);
+    private load;
+    private persist;
+    getUser(userId: string): Promise<UserProfile | null>;
+    registerUser(credentials: AuthCredentials & {
+        role?: "USER" | "ADMIN";
+    }): Promise<UserProfile>;
+    authenticate(credentials: AuthCredentials): Promise<AuthSession>;
+    verifySession(token: string | null): Promise<AuthSession | null>;
+    listWorkspaces(userId: string): Promise<WorkspaceDescriptor[]>;
+    createWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>): Promise<WorkspaceDescriptor>;
+    deleteWorkspace(userId: string, workspaceId: string): Promise<boolean>;
+}
+
+/**
+ * @file HostedAccountProvider.ts
+ * @description Hosted Control Plane Account Provider for cloud authentication services.
+ */
+
+declare class HostedAccountProvider implements IAccountProvider {
+    private endpoint;
+    private apiKey?;
+    constructor(config: AuthConfig);
+    private getHeaders;
+    getUser(userId: string): Promise<UserProfile | null>;
+    authenticate(credentials: AuthCredentials): Promise<AuthSession>;
+    verifySession(token: string | null): Promise<AuthSession | null>;
+    listWorkspaces(userId: string): Promise<WorkspaceDescriptor[]>;
+    createWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>): Promise<WorkspaceDescriptor>;
+    deleteWorkspace(_userId: string, workspaceId: string): Promise<boolean>;
+}
+
+/**
+ * @file ControlPlaneManager.ts
+ * @description High-level manager coordinating user accounts, workspace registry, and session resolution.
+ */
+
+declare class ControlPlaneManager {
+    readonly accountProvider: IAccountProvider;
+    constructor(providerOrPath?: IAccountProvider | string);
+    static createLocal(filePath?: string): ControlPlaneManager;
+    static createHosted(endpoint: string, apiKey?: string): ControlPlaneManager;
+    login(credentials: AuthCredentials): Promise<AuthSession>;
+    verifyToken(token: string | null): Promise<AuthSession | null>;
+    getUser(userId: string): Promise<UserProfile | null>;
+    getUserWorkspaces(userId: string): Promise<WorkspaceDescriptor[]>;
+    registerWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>): Promise<WorkspaceDescriptor>;
+}
+
+/**
+ * @file AdminGuard.ts
+ * @description Strict backend API boundary authorization guard enforcing role checks.
+ */
+
+declare class AdminGuard {
+    static verify(authHeaderOrToken: string | null | undefined, accountProvider: IAccountProvider): Promise<AuthSession>;
+    static enforce(session: AuthSession | null | undefined): void;
+}
+
+/**
+ * @file SQLiteDataProvider.ts
+ * @description SQLite Data Provider supporting WAL mode, automatic table schemas, and ACID operations.
+ */
+
+declare class SQLiteDataProvider implements IWorkspaceDataProvider {
+    readonly engine: "sqlite";
+    private filePath;
+    private enableWAL;
+    private isConnected;
+    private tables;
+    constructor(config?: DatabaseProviderConfig | string);
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    testConnection(): Promise<{
+        ok: boolean;
+        latencyMs: number;
+        details?: any;
+    }>;
+    ensureTable(tableName: string, _schema?: Record<string, any>): Promise<void>;
+    private persist;
+    private getTableRows;
+    private matchesFilter;
+    find<T = any>(table: string, filter?: Record<string, any>, options?: {
+        limit?: number;
+        offset?: number;
+        sort?: Record<string, 1 | -1>;
+    }): Promise<T[]>;
+    findOne<T = any>(table: string, filter: Record<string, any> | string): Promise<T | null>;
+    insert<T = any>(table: string, data: T | T[]): Promise<T | T[]>;
+    update<T = any>(table: string, filter: Record<string, any> | string, patch: Partial<T>): Promise<{
+        affectedRows: number;
+    }>;
+    delete(table: string, filter: Record<string, any> | string): Promise<{
+        affectedRows: number;
+    }>;
+    count(table: string, filter?: Record<string, any>): Promise<number>;
+    clear(table: string): Promise<void>;
+    query<T = any>(queryStr: string, _params?: any[]): Promise<T[]>;
+    execute(commandStr: string, _params?: any[]): Promise<{
+        affectedRows: number;
+        lastInsertId?: string | number;
+    }>;
+}
+
+/**
+ * @file PostgresDataProvider.ts
+ * @description PostgreSQL Data Provider supporting connection pools, SSL enforcement, and CRUD operations.
+ */
+
+declare class PostgresDataProvider implements IWorkspaceDataProvider {
+    readonly engine: "postgres";
+    private config;
+    private isConnected;
+    constructor(config: DatabaseProviderConfig);
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    testConnection(): Promise<{
+        ok: boolean;
+        latencyMs: number;
+        details?: any;
+    }>;
+    ensureTable(_tableName: string, _schema?: Record<string, any>): Promise<void>;
+    find<T = any>(_table: string, _filter?: Record<string, any>, _options?: any): Promise<T[]>;
+    findOne<T = any>(_table: string, _filter: Record<string, any> | string): Promise<T | null>;
+    insert<T = any>(_table: string, data: T | T[]): Promise<T | T[]>;
+    update<T = any>(_table: string, _filter: Record<string, any> | string, _patch: Partial<T>): Promise<{
+        affectedRows: number;
+    }>;
+    delete(_table: string, _filter: Record<string, any> | string): Promise<{
+        affectedRows: number;
+    }>;
+    count(_table: string, _filter?: Record<string, any>): Promise<number>;
+    clear(_table: string): Promise<void>;
+    query<T = any>(_queryStr: string, _params?: any[]): Promise<T[]>;
+    execute(_commandStr: string, _params?: any[]): Promise<{
+        affectedRows: number;
+    }>;
+}
+
+/**
+ * @file SupabaseDataProvider.ts
+ * @description Supabase PostgREST Data Provider with latency ping and REST CRUD operations.
+ */
+
+declare class SupabaseDataProvider implements IWorkspaceDataProvider {
+    readonly engine: "supabase";
+    private endpoint;
+    private apiKey;
+    private isConnected;
+    constructor(config: DatabaseProviderConfig);
+    private getHeaders;
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    testConnection(): Promise<{
+        ok: boolean;
+        latencyMs: number;
+        details?: any;
+    }>;
+    ensureTable(_tableName: string, _schema?: Record<string, any>): Promise<void>;
+    private buildQueryString;
+    find<T = any>(table: string, filter?: Record<string, any>, options?: {
+        limit?: number;
+        offset?: number;
+        sort?: Record<string, 1 | -1>;
+    }): Promise<T[]>;
+    findOne<T = any>(table: string, filter: Record<string, any> | string): Promise<T | null>;
+    insert<T = any>(table: string, data: T | T[]): Promise<T | T[]>;
+    update<T = any>(table: string, filter: Record<string, any> | string, patch: Partial<T>): Promise<{
+        affectedRows: number;
+    }>;
+    delete(table: string, filter: Record<string, any> | string): Promise<{
+        affectedRows: number;
+    }>;
+    count(table: string, filter?: Record<string, any>): Promise<number>;
+    clear(table: string): Promise<void>;
+    query<T = any>(queryStr: string, _params?: any[]): Promise<T[]>;
+    execute(_commandStr: string, _params?: any[]): Promise<{
+        affectedRows: number;
+    }>;
+}
+
+/**
+ * @file PocketBaseDataProvider.ts
+ * @description PocketBase REST Data Provider for collection records CRUD and filtering.
+ */
+
+declare class PocketBaseDataProvider implements IWorkspaceDataProvider {
+    readonly engine: "pocketbase";
+    private endpoint;
+    private apiKey?;
+    private isConnected;
+    constructor(config: DatabaseProviderConfig);
+    private getHeaders;
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    testConnection(): Promise<{
+        ok: boolean;
+        latencyMs: number;
+        details?: any;
+    }>;
+    ensureTable(_tableName: string, _schema?: Record<string, any>): Promise<void>;
+    private buildFilterParam;
+    find<T = any>(table: string, filter?: Record<string, any>, options?: {
+        limit?: number;
+        offset?: number;
+        sort?: Record<string, 1 | -1>;
+    }): Promise<T[]>;
+    findOne<T = any>(table: string, filter: Record<string, any> | string): Promise<T | null>;
+    insert<T = any>(table: string, data: T | T[]): Promise<T | T[]>;
+    update<T = any>(table: string, filter: Record<string, any> | string, patch: Partial<T>): Promise<{
+        affectedRows: number;
+    }>;
+    delete(table: string, filter: Record<string, any> | string): Promise<{
+        affectedRows: number;
+    }>;
+    count(table: string, filter?: Record<string, any>): Promise<number>;
+    clear(table: string): Promise<void>;
+    query<T = any>(queryStr: string, _params?: any[]): Promise<T[]>;
+    execute(_commandStr: string, _params?: any[]): Promise<{
+        affectedRows: number;
+    }>;
+}
+
+/**
+ * @file FirebaseDataProvider.ts
+ * @description Firebase Firestore REST Data Provider for document collections CRUD.
+ */
+
+declare class FirebaseDataProvider implements IWorkspaceDataProvider {
+    readonly engine: "firebase";
+    private projectId;
+    private apiKey?;
+    private isConnected;
+    constructor(config: DatabaseProviderConfig);
+    private get baseUrl();
+    private get urlSuffix();
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    testConnection(): Promise<{
+        ok: boolean;
+        latencyMs: number;
+        details?: any;
+    }>;
+    ensureTable(_tableName: string, _schema?: Record<string, any>): Promise<void>;
+    /**
+     * Translates plain JavaScript object into Firestore document value structure
+     */
+    private toFirestoreFields;
+    private toFirestoreValue;
+    /**
+     * Translates Firestore document into standard JavaScript object
+     */
+    private fromFirestoreDoc;
+    private fromFirestoreValue;
+    find<T = any>(table: string, filter?: Record<string, any>, options?: {
+        limit?: number;
+        offset?: number;
+    }): Promise<T[]>;
+    findOne<T = any>(table: string, filter: Record<string, any> | string): Promise<T | null>;
+    insert<T = any>(table: string, data: T | T[]): Promise<T | T[]>;
+    update<T = any>(table: string, filter: Record<string, any> | string, patch: Partial<T>): Promise<{
+        affectedRows: number;
+    }>;
+    delete(table: string, filter: Record<string, any> | string): Promise<{
+        affectedRows: number;
+    }>;
+    count(table: string, filter?: Record<string, any>): Promise<number>;
+    clear(table: string): Promise<void>;
+    query<T = any>(queryStr: string, _params?: any[]): Promise<T[]>;
+    execute(_commandStr: string, _params?: any[]): Promise<{
+        affectedRows: number;
+    }>;
+}
+
+/**
+ * @file FilesystemStorageProvider.ts
+ * @description Local Filesystem Storage Provider using KrnlFS for zero-cloud file persistence.
+ */
+
+declare class FilesystemStorageProvider implements IStorageProvider {
+    readonly driver: "filesystem";
+    private basePath;
+    constructor(config?: StorageProviderConfig | string);
+    uploadFile(targetPath: string, content: Buffer | Uint8Array | string | ReadableStream, _mimeType?: string): Promise<{
+        url: string;
+        size: number;
+    }>;
+    downloadFile(targetPath: string): Promise<Buffer>;
+    deleteFile(targetPath: string): Promise<boolean>;
+    getPublicUrl(targetPath: string): string;
+    listFiles(prefix?: string): Promise<Array<{
+        path: string;
+        size: number;
+        updatedAt: number;
+    }>>;
+}
+
+/**
+ * @file SupabaseStorageProvider.ts
+ * @description Supabase Storage Provider for bucket-based file uploads and asset URLs.
+ */
+
+declare class SupabaseStorageProvider implements IStorageProvider {
+    readonly driver: "supabase_storage";
+    private endpoint;
+    private apiKey;
+    private bucket;
+    constructor(config: StorageProviderConfig);
+    private getHeaders;
+    uploadFile(targetPath: string, content: Buffer | Uint8Array | string | ReadableStream, mimeType?: string): Promise<{
+        url: string;
+        size: number;
+    }>;
+    downloadFile(targetPath: string): Promise<Buffer>;
+    deleteFile(targetPath: string): Promise<boolean>;
+    getPublicUrl(targetPath: string): string;
+    listFiles(prefix?: string): Promise<Array<{
+        path: string;
+        size: number;
+        updatedAt: number;
+    }>>;
+}
+
+/**
+ * @file S3StorageProvider.ts
+ * @description S3-Compatible Storage Provider supporting AWS S3, MinIO, and Cloudflare R2.
+ */
+
+declare class S3StorageProvider implements IStorageProvider {
+    readonly driver: "s3";
+    private endpoint;
+    private bucket;
+    private region;
+    private accessKey?;
+    private secretKey?;
+    constructor(config: StorageProviderConfig);
+    private getBaseUrl;
+    uploadFile(targetPath: string, content: Buffer | Uint8Array | string | ReadableStream, mimeType?: string): Promise<{
+        url: string;
+        size: number;
+    }>;
+    downloadFile(targetPath: string): Promise<Buffer>;
+    deleteFile(targetPath: string): Promise<boolean>;
+    getPublicUrl(targetPath: string): string;
+    listFiles(_prefix?: string): Promise<Array<{
+        path: string;
+        size: number;
+        updatedAt: number;
+    }>>;
+}
+
+/**
+ * @file PocketBaseStorageProvider.ts
+ * @description PocketBase Storage Provider for file uploads and downloads.
+ */
+
+declare class PocketBaseStorageProvider implements IStorageProvider {
+    readonly driver: "pocketbase_storage";
+    private endpoint;
+    private bucket;
+    constructor(config: StorageProviderConfig);
+    uploadFile(targetPath: string, content: Buffer | Uint8Array | string | ReadableStream, mimeType?: string): Promise<{
+        url: string;
+        size: number;
+    }>;
+    downloadFile(targetPath: string): Promise<Buffer>;
+    deleteFile(targetPath: string): Promise<boolean>;
+    getPublicUrl(targetPath: string): string;
+    listFiles(_prefix?: string): Promise<Array<{
+        path: string;
+        size: number;
+        updatedAt: number;
+    }>>;
+}
+
+/**
+ * @file FirebaseStorageProvider.ts
+ * @description Firebase Cloud Storage REST Provider for binary assets and public download URLs.
+ */
+
+declare class FirebaseStorageProvider implements IStorageProvider {
+    readonly driver: "firebase_storage";
+    private bucket;
+    private apiKey?;
+    constructor(config: StorageProviderConfig);
+    private get baseUrl();
+    uploadFile(targetPath: string, content: Buffer | Uint8Array | string | ReadableStream, mimeType?: string): Promise<{
+        url: string;
+        size: number;
+    }>;
+    downloadFile(targetPath: string): Promise<Buffer>;
+    deleteFile(targetPath: string): Promise<boolean>;
+    getPublicUrl(targetPath: string): string;
+    listFiles(_prefix?: string): Promise<Array<{
+        path: string;
+        size: number;
+        updatedAt: number;
+    }>>;
+}
+
+/**
  * @file K_LIB_Krnl_Functionality_Types.ts
  * @description defines Logic Atoms with Visibility control for Recursive Bubbling.
  */
@@ -767,6 +1426,8 @@ declare class krnlLocalFunctionality {
     ai?: any;
     requires?: KrnlRequiresSpec;
     _hasBeenExecuted: boolean;
+    backend?: FunctionalityBackendFlag | null;
+    table?: IFunctionalityTable | null;
     constructor(config?: any);
     _createObservedState(initialState: any): any;
     _notifyStateChanged(prop: string, value: any): void;
@@ -791,6 +1452,7 @@ declare class krnlLocalFunctionality {
         reason?: string;
     };
     bindToEntity(entity: any): this;
+    private _initializeBackendTable;
     teardown(): void;
     execute(input: any, opts?: any): Promise<any>;
     private _checkRequires;
@@ -923,6 +1585,15 @@ declare class krnlEntityBase {
     collectors: Set<any>;
     hierarchyManager: krnlEntityCompositionalHierarchyManager;
     intention?: KrnlIntentionEntity;
+    backendSettings?: EntityBackendSettings;
+    /**
+     * Configures backend services and credentials for this entity and cascading child functionalities.
+     */
+    configureBackend(settings: EntityBackendSettings): this;
+    /**
+     * Resolves backend credentials for a specific service, cascading from parent entities if necessary.
+     */
+    getBackendCredentials(service?: BackendServiceType): DatabaseProviderConfig | undefined;
     _decorateResult(result: any, fid: string, input: any): Promise<any>;
     _decorateError(error: any, fid: string, input: any): Promise<any>;
     /**
@@ -2994,7 +3665,9 @@ interface SubAppInstance {
  *    - Has parent → CHILD position (adapters dormant, capabilities bubble up).
  */
 
-declare class Entity extends krnlEntityBase {
+declare class Entity<TState extends Record<string, any> = any, TEvents extends Record<string, any> = any> extends krnlEntityBase {
+    /** Strongly-typed reactive entity state */
+    protected state: TState;
     /** True while this entity occupies root position and actively self-hosts protocol adapters */
     _selfHosting: boolean;
     /** Protocol adapters attached to this entity. Operational only in root position. */
@@ -3010,6 +3683,32 @@ declare class Entity extends krnlEntityBase {
     /** Discoverability state for network beacons / registries */
     discoverable: boolean;
     constructor(name: string, owner?: krnlEntityBase | null, options?: any);
+    /**
+     * Get an immutable, read-only snapshot of current entity state.
+     */
+    getState(): Readonly<TState>;
+    /**
+     * Mutates the entity state via deep-merge and emits a reactive state:changed event.
+     */
+    setState(mutation: Partial<TState>): void;
+    /**
+     * Resets entity state to a new or initial baseline.
+     */
+    resetState(newState?: TState): void;
+    /** Private cache mapping event names to krnlEmitters */
+    private _eventEmitterMap;
+    /**
+     * Subscribes a listener to a domain event on this entity.
+     */
+    on(event: string, handler: (payload: any) => void): () => void;
+    /**
+     * Emits an event with a data payload to all subscribers.
+     */
+    emit(event: string, payload: any): void;
+    /**
+     * Dispatches a strongly-typed domain event.
+     */
+    emitEvent<K extends keyof TEvents>(event: K, payload: TEvents[K]): void;
     /**
      * System flags representing discoverability and reservation status.
      */
@@ -3622,56 +4321,247 @@ declare class KrnlBuildValidator {
 }
 
 /**
- * KrnlTS Source Analyzer
- *
- * Performs static analysis of KrnlTS entity source files to enforce
- * architectural constraints that prevent runtime timing bugs.
- *
- * KEY CONSTRAINT ENFORCED:
- *   "All addLocal() calls with uiSpec MUST appear before the first
- *    KrnlMagneticLoader.loadAll() call in boot(). Violating this causes
- *    the frontend generator to see zero endpoints → blank UI."
+ * @file K_LIB_Krnl_Source_Analyzer.ts
+ * @role skeleton
+ * @description Master source analyzer enforcing boot order, UI specs, line limits, and 4-layer purity.
  */
+interface ValidationReport {
+    valid: boolean;
+    errors: string[];
+    warnings: string[];
+}
 declare class KrnlSourceAnalyzer {
-    /**
-     * Extracts all addLocal() call positions and their uiSpec presence from source.
-     */
     static getAddLocalCalls(source: string): Array<{
         line: number;
         hasUiSpec: boolean;
         id: string;
     }>;
-    /**
-     * Finds the line number of KrnlMagneticLoader.loadAll() or MagneticLoader.loadAll() in source.
-     */
     static getMagneticLoaderLine(source: string): number;
-    /**
-     * Checks for bare relative fetch URLs (missing leading slash) in generated component source.
-     * These cause page blanks when the browser treats them as relative to the current path.
-     */
-    static getBareRelativeFetches(source: string): number[];
-    /**
-     * Validates a single entity source file for boot-order constraints.
-     *
-     * RULE 1: addLocal() calls with uiSpec MUST appear before KrnlMagneticLoader.loadAll()
-     * RULE 2: Every addLocal() with ui_component_enabled MUST have ui_component_enabled: true
-     */
-    static validateEntitySource(filePath: string): {
-        valid: boolean;
-        errors: string[];
-        warnings: string[];
-    };
-    /**
-     * Validates all entity source files in the project.
-     * Scans for *.ts and *.js files in src/ that extend krnlSystemEntityBase or krnlEntityBase.
-     */
-    static validateProject(projectRoot: string): {
-        valid: boolean;
-        errors: string[];
-        warnings: string[];
-    };
-    private static findEntityFiles;
+    static validateEntitySource(filePath: string): ValidationReport;
+    static validateProject(projectRoot: string): ValidationReport;
+    private static scanSourceFiles;
 }
+
+/**
+ * @file K_LIB_Krnl_Purity_Rules.ts
+ * @role component
+ * @description Static AST and rule validators for 4-layer function purity, delegation limits, and context traps.
+ */
+interface PurityValidationResult {
+    errors: string[];
+    warnings: string[];
+}
+declare class KrnlPurityRules {
+    /**
+     * Asserts file line limit is <= 200 lines.
+     */
+    static checkFileLineLimit(filePath: string, source: string): string | null;
+    /**
+     * Asserts all local relative imports end in .js suffix.
+     */
+    static checkImportSuffixes(filePath: string, source: string): string[];
+    /**
+     * Checks for the silent context destructuring trap ({ state, system } instead of { state, entity }).
+     */
+    static checkContextDestructuring(filePath: string, source: string): string | null;
+    /**
+     * Asserts that helper functions do not import state or perform I/O, and obey the 30-line threshold.
+     */
+    static checkHelperPurity(filePath: string, source: string): string[];
+    /**
+     * Checks main_function logic for excessive consecutive code without delegation (max 20 lines).
+     */
+    static checkMainDelegation(filePath: string, source: string): string[];
+}
+
+/**
+ * @file DataConcepts.ts
+ * @role component
+ * @description Polymorphic generic templates for collections, object diffs, deep merge, and lenses.
+ */
+/**
+ * Indexes an array of objects into a Map using a specified key property.
+ */
+declare function indexBy<T, K extends keyof T>(items: T[], key: K): Map<T[K], T>;
+/**
+ * Groups an array of objects by a key or discriminator function.
+ */
+declare function groupBy<T, K extends PropertyKey>(items: T[], keyFn: K | ((item: T) => K)): Record<K, T[]>;
+/**
+ * Computes a shallow or 1-level delta between original and modified objects.
+ */
+declare function computeDelta<T extends object>(original: T, modified: T): Partial<T>;
+/**
+ * Deeply merges source into target using ObjectKit.
+ */
+declare function deepMerge<T extends object>(target: T, source: Partial<T>): T;
+/**
+ * Creates a functional lens for focused property access and immutable updates.
+ */
+declare function lens<T, R>(getter: (obj: T) => R, setter: (obj: T, val: R) => T): {
+    get: (obj: T) => R;
+    set: (obj: T, val: R) => T;
+};
+/**
+ * Partitions an array into two arrays [matches, nonMatches] based on a predicate.
+ */
+declare function partition<T>(items: T[], predicate: (item: T) => boolean): [T[], T[]];
+/**
+ * Deduplicates an array by value or key selector.
+ */
+declare function deduplicate<T, K extends keyof T>(items: T[], key?: K): T[];
+/**
+ * Paginates an array with page number and page size.
+ */
+declare function paginate<T>(items: T[], page?: number, pageSize?: number): {
+    items: T[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+};
+
+/**
+ * @file ValidationConcepts.ts
+ * @role component
+ * @description Polymorphic generic templates for Zod schema validation and assertion contracts.
+ */
+
+interface ValidationSuccess<T> {
+    success: true;
+    data: T;
+}
+interface ValidationFailure {
+    success: false;
+    errors: string[];
+    fieldErrors?: Record<string, string[]>;
+}
+type ValidationResult<T> = ValidationSuccess<T> | ValidationFailure;
+/**
+ * Formats a ZodError into a human-readable list of string error messages.
+ */
+declare function formatZodErrors(error: z.ZodError): string[];
+/**
+ * Validates data against any Zod schema and returns a structured ValidationResult.
+ */
+declare function validateSchema<TSchema extends z.ZodTypeAny>(schema: TSchema, data: unknown): ValidationResult<z.infer<TSchema>>;
+/**
+ * Asserts that data satisfies a given Zod schema, throwing an Error if invalid.
+ */
+declare function assertSchema<TSchema extends z.ZodTypeAny>(schema: TSchema, data: unknown, customErrorMessage?: string): asserts data is z.infer<TSchema>;
+
+/**
+ * @file MathConcepts.ts
+ * @role component
+ * @description Polymorphic generic templates for vector math, statistics, range mapping, and clamping.
+ */
+/**
+ * Clamps a numeric value between min and max bounds.
+ */
+declare function clamp(val: number, min: number, max: number): number;
+/**
+ * Linear interpolation between start and end by factor t (0 <= t <= 1).
+ */
+declare function lerp(start: number, end: number, t: number): number;
+/**
+ * Maps a number from an input range [inMin, inMax] to an output range [outMin, outMax].
+ */
+declare function mapRange(val: number, inMin: number, inMax: number, outMin: number, outMax: number): number;
+/**
+ * Rounds a number to a specified number of decimal places.
+ */
+declare function roundTo(val: number, decimals?: number): number;
+/**
+ * Applies an element-wise arithmetic operation between two numeric vectors.
+ */
+declare function vectorOp<T extends number[]>(a: T, b: T, op: (x: number, y: number) => number): T;
+/**
+ * Calculates summary statistics for an array of numbers.
+ */
+declare function stats(values: number[]): {
+    count: number;
+    min: number;
+    max: number;
+    sum: number;
+    mean: number;
+    median: number;
+    stdDev: number;
+};
+
+/**
+ * @file StringConcepts.ts
+ * @role component
+ * @description Polymorphic generic templates for string interpolation, slugification, casing, and sanitization.
+ */
+/**
+ * Interpolates a template string containing {{variable}} placeholders with values from an object.
+ */
+declare function interpolate(template: string, vars: Record<string, any>): string;
+/**
+ * Converts a string into a URL-friendly slug.
+ */
+declare function toSlug(input: string): string;
+/**
+ * Transforms string casing between camelCase, PascalCase, kebab-case, and snake_case.
+ */
+declare function toCase(input: string, targetCase: "camel" | "pascal" | "kebab" | "snake"): string;
+/**
+ * Truncates a string to a max length, appending an ellipsis suffix if truncated.
+ */
+declare function truncate(input: string, maxLength: number, suffix?: string): string;
+/**
+ * Strips HTML tags and unsafe script characters from text.
+ */
+declare function sanitize(input: string): string;
+
+/**
+ * @file GraphConcepts.ts
+ * @role component
+ * @description Polymorphic generic templates for graph topology, BFS/DFS traversal, and topological sorting.
+ */
+interface IGraph<TNode, TEdge = any> {
+    nodes: Map<string, TNode>;
+    edges: Map<string, Array<{
+        target: string;
+        data?: TEdge;
+    }>>;
+}
+/**
+ * Traverses a graph using Breadth-First Search (BFS) or Depth-First Search (DFS).
+ */
+declare function traverseGraph<TNode, TEdge>(graph: IGraph<TNode, TEdge>, startId: string, mode: "bfs" | "dfs" | undefined, visitor: (nodeId: string, node: TNode, depth: number) => boolean | void): void;
+/**
+ * Performs topological sort on a directed acyclic graph (DAG) with cycle detection.
+ */
+declare function topologicalSort<TNode, TEdge>(graph: IGraph<TNode, TEdge>): {
+    sorted: string[];
+    hasCycle: boolean;
+};
+
+/**
+ * @file StateConcepts.ts
+ * @role component
+ * @description Polymorphic generic templates for Finite State Machine transitions and action reducers.
+ */
+interface FsmTransitionResult<TState> {
+    allowed: boolean;
+    nextState?: TState;
+    reason?: string;
+}
+/**
+ * Validates and executes a state transition in a Finite State Machine.
+ */
+declare function transitionFSM<TState extends string, TEvent extends string>(matrix: Record<TState, Partial<Record<TEvent, TState>>>, currentState: TState, event: TEvent): FsmTransitionResult<TState>;
+/**
+ * Creates a type-safe action reducer mapping action types to handler functions.
+ */
+declare function createReducer<TState, TAction extends {
+    type: string;
+}>(handlers: {
+    [K in TAction["type"]]?: (state: TState, action: Extract<TAction, {
+        type: K;
+    }>) => TState;
+}, fallback?: (state: TState, action: TAction) => TState): (state: TState, action: TAction) => TState;
 
 interface PocerBlockConfig {
     image: string;
@@ -3700,4 +4590,4 @@ declare class PocerBlock extends krnlSystemEntityBase {
     private _waitForPort;
 }
 
-export { AsyncKit, CUSTOM_ERROR_CODE, CacheKit, type DefaultConnectionBehaviour, DefaultEventRegistrar, DefaultOperationRegistrar, DefaultServiceContainer, type EndpointCategory, Entity, type EventRegistrar, FileCache, FileLock, GitManager, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlCapabilityResolution, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFlowBuilder, type KrnlFlowStep, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, type KrnlFunctionalityManifest, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlJobScheduler, type KrnlJobTicket, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlProtocolAdapter, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, KrnlSubAppDiscovery, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLifecycle, KrnlSubAppLoader, KrnlSubAppValidator, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, type KrnlWorkspaceRequirements, LRUCache, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, type OperationDefinition, type OperationHandler, type OperationRegistrar, PocerBlock, type ReleaseFn, type ServiceContainer, type SiblingMemberEntry, type SpawnHandle, StringKit, type SubAppDescriptor, type SubAppErrorDetail, type SubAppExecutionContext, type SubAppInstance, type SubAppLifecycleState, type SubAppManifest, type SubAppModule, type SubAppRegistration, type SubAppRegistrationContext, type SubAppUIConfig, TTLCache, type TelemetrySnapshot, WebSocketTransportAdapter, buildEntityIntention, createEnum, createHttpsAppAdapter, defaultConnectionBehaviour, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, magneticStorage, subappLocalStorage, telemetry };
+export { AdminGuard, AsyncKit, type AuthConfig, type AuthCredentials, type AuthSession, type BackendConnectionConfig, type BackendServiceType, CUSTOM_ERROR_CODE, CacheKit, ControlPlaneManager, type DatabaseProviderConfig, type DefaultConnectionBehaviour, DefaultEventRegistrar, DefaultOperationRegistrar, DefaultServiceContainer, type EndpointCategory, Entity, type EntityBackendSettings, type EventRegistrar, FileCache, FileLock, FilesystemStorageProvider, FirebaseDataProvider, FirebaseStorageProvider, type FsmTransitionResult, type FunctionalityBackendConfig, type FunctionalityBackendFlag, FunctionalityTable, GitManager, HostedAccountProvider, type IAccountProvider, type IFunctionalityTable, type IGraph, type IStorageProvider, type IWorkspaceBackend, type IWorkspaceDataProvider, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlCapabilityResolution, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFlowBuilder, type KrnlFlowStep, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, type KrnlFunctionalityManifest, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlJobScheduler, type KrnlJobTicket, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlProtocolAdapter, KrnlPurityRules, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, KrnlSubAppDiscovery, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLifecycle, KrnlSubAppLoader, KrnlSubAppValidator, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, type KrnlWorkspaceRequirements, LRUCache, LocalSQLiteAccountProvider, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, type OperationDefinition, type OperationHandler, type OperationRegistrar, PocerBlock, PocketBaseDataProvider, PocketBaseStorageProvider, PostgresDataProvider, type PurityValidationResult, type ReleaseFn, S3StorageProvider, SQLiteDataProvider, type ServiceContainer, type SiblingMemberEntry, type SpawnHandle, type StorageMode, type StorageProviderConfig, StringKit, type SubAppDescriptor, type SubAppErrorDetail, type SubAppExecutionContext, type SubAppInstance, type SubAppLifecycleState, type SubAppManifest, type SubAppModule, type SubAppRegistration, type SubAppRegistrationContext, type SubAppUIConfig, SupabaseDataProvider, SupabaseStorageProvider, TTLCache, type TelemetrySnapshot, type UserProfile, type ValidationFailure, type ValidationReport, type ValidationResult, type ValidationSuccess, WebSocketTransportAdapter, WorkspaceBackendFactory, type WorkspaceDescriptor, assertSchema, buildEntityIntention, clamp, computeDelta, createEnum, createHttpsAppAdapter, createReducer, deduplicate, deepMerge, defaultConnectionBehaviour, formatZodErrors, groupBy, indexBy, interpolate, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, lens, lerp, magneticStorage, mapRange, paginate, partition, roundTo, sanitize, stats, subappLocalStorage, telemetry, toCase, toSlug, topologicalSort, transitionFSM, traverseGraph, truncate, validateSchema, vectorOp };

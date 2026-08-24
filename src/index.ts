@@ -1,5 +1,6 @@
 export * from "./krnl/core/index.js";
 export * from "./krnl/tools/index.js";
+export * from "./krnl/backend/index.js";
 
 // Explicitly export key base classes for convenience
 export { Entity } from "./krnl/core/K_ENT_Entity.js";

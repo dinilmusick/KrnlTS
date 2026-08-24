@@ -72,11 +72,89 @@ var KrnlBuildValidator = class {
 
 // src/krnl/tools/K_LIB_Krnl_Source_Analyzer.ts
 import * as fs2 from "fs";
+import * as path3 from "path";
+
+// src/krnl/tools/K_LIB_Krnl_Purity_Rules.ts
 import * as path2 from "path";
-var KrnlSourceAnalyzer = class {
+var KrnlPurityRules = class {
   /**
-   * Extracts all addLocal() call positions and their uiSpec presence from source.
+   * Asserts file line limit is <= 200 lines.
    */
+  static checkFileLineLimit(filePath, source) {
+    const lineCount = source.split("\n").length;
+    if (lineCount > 200) {
+      return `[ERR_FILE_LINE_LIMIT_EXCEEDED] '${path2.basename(filePath)}' has ${lineCount} lines (strict maximum is 200 lines).`;
+    }
+    return null;
+  }
+  /**
+   * Asserts all local relative imports end in .js suffix.
+   */
+  static checkImportSuffixes(filePath, source) {
+    const errors = [];
+    const importMatches = source.matchAll(/import\s+.*?from\s+['"](\.[^'"]+)['"]/g);
+    for (const match of importMatches) {
+      const importPath = match[1];
+      if (!importPath.endsWith(".js") && !importPath.endsWith(".json")) {
+        errors.push(
+          `[ERR_MISSING_JS_IMPORT_SUFFIX] In '${path2.basename(filePath)}': Import '${importPath}' must end with '.js' for NodeNext compatibility.`
+        );
+      }
+    }
+    return errors;
+  }
+  /**
+   * Checks for the silent context destructuring trap ({ state, system } instead of { state, entity }).
+   */
+  static checkContextDestructuring(filePath, source) {
+    if (/main\s*=\s*async\s*\([^,]+,\s*\{[^}]*\bsystem\b[^}]*\}\s*\)/.test(source) || /export\s+const\s+main\s*=\s*async\s*\([^,]+,\s*\{[^}]*\bsystem\b[^}]*\}\s*\)/.test(source)) {
+      return `[ERR_CONTEXT_DESTRUCTURING_TRAP] In '${path2.basename(filePath)}': Context parameter destructures 'system'. Functionality context passes { state, entity }. Always destructure 'entity' (or alias as 'entity: system').`;
+    }
+    return null;
+  }
+  /**
+   * Asserts that helper functions do not import state or perform I/O, and obey the 30-line threshold.
+   */
+  static checkHelperPurity(filePath, source) {
+    const errors = [];
+    const isHelper = filePath.includes("helper_functions") || filePath.includes("/helpers/") || filePath.includes("\\helpers\\");
+    if (!isHelper) return errors;
+    if (/import\s+.*state.*from/.test(source) || /import\s+.*(fs|http|ws).*from/.test(source)) {
+      errors.push(
+        `[ERR_HELPER_PURITY_VIOLATION] In '${path2.basename(filePath)}': Helper functions (Layer 0A) must be pure and cannot import state or I/O modules.`
+      );
+    }
+    const functions = source.split(/(?:export\s+)?function\s+/);
+    for (let i = 1; i < functions.length; i++) {
+      const fnBody = functions[i];
+      const fnLines = fnBody.split("\n").length;
+      if (fnLines > 30 && !fnBody.includes("Concepts.")) {
+        errors.push(
+          `[ERR_HELPER_LINE_LIMIT_EXCEEDED] In '${path2.basename(filePath)}': Helper function exceeds 30 lines (${fnLines} lines). Must delegate to a universal libraries/{Domain}Concepts.ts function.`
+        );
+      }
+    }
+    return errors;
+  }
+  /**
+   * Checks main_function logic for excessive consecutive code without delegation (max 20 lines).
+   */
+  static checkMainDelegation(filePath, source) {
+    const errors = [];
+    const isMainLogic = filePath.endsWith("logic.ts") || filePath.endsWith("logic.js");
+    if (!isMainLogic) return errors;
+    const lines = source.split("\n").filter((l) => l.trim().length > 0 && !l.trim().startsWith("//") && !l.trim().startsWith("/*"));
+    if (lines.length > 20 && !source.includes("helpers") && !source.includes("helper") && !source.includes("Concepts") && !source.includes("state")) {
+      errors.push(
+        `[ERR_MAIN_DELEGATION_REQUIRED] In '${path2.basename(filePath)}': Main logic function has ${lines.length} lines of inline code without delegating to helpers or state accessors.`
+      );
+    }
+    return errors;
+  }
+};
+
+// src/krnl/tools/K_LIB_Krnl_Source_Analyzer.ts
+var KrnlSourceAnalyzer = class {
   static getAddLocalCalls(source) {
     const results = [];
     const lines = source.split("\n");
@@ -121,9 +199,6 @@ var KrnlSourceAnalyzer = class {
     }
     return results;
   }
-  /**
-   * Finds the line number of KrnlMagneticLoader.loadAll() or MagneticLoader.loadAll() in source.
-   */
   static getMagneticLoaderLine(source) {
     const lines = source.split("\n");
     for (let i = 0; i < lines.length; i++) {
@@ -133,120 +208,65 @@ var KrnlSourceAnalyzer = class {
     }
     return -1;
   }
-  /**
-   * Checks for bare relative fetch URLs (missing leading slash) in generated component source.
-   * These cause page blanks when the browser treats them as relative to the current path.
-   */
-  static getBareRelativeFetches(source) {
-    const lines = source.split("\n");
-    const hits = [];
-    for (let i = 0; i < lines.length; i++) {
-      if (/fetch\s*\(\s*['"][^/h][^'"]*['"]/.test(lines[i])) {
-        hits.push(i + 1);
-      }
-    }
-    return hits;
-  }
-  /**
-   * Validates a single entity source file for boot-order constraints.
-   *
-   * RULE 1: addLocal() calls with uiSpec MUST appear before KrnlMagneticLoader.loadAll()
-   * RULE 2: Every addLocal() with ui_component_enabled MUST have ui_component_enabled: true
-   */
   static validateEntitySource(filePath) {
     const errors = [];
     const warnings = [];
-    if (!fs2.existsSync(filePath)) {
+    if (!fs2.existsSync(filePath)) return { valid: true, errors: [], warnings: [] };
+    const baseName = path3.basename(filePath);
+    if (baseName.includes("_pb.") || baseName.endsWith(".d.ts")) {
       return { valid: true, errors: [], warnings: [] };
     }
     const source = fs2.readFileSync(filePath, "utf-8");
-    const addLocals = this.getAddLocalCalls(source);
-    const magneticLoaderLine = this.getMagneticLoaderLine(source);
-    if (magneticLoaderLine !== -1) {
-      for (const al of addLocals) {
-        if (al.hasUiSpec && al.line > magneticLoaderLine) {
-          errors.push(
-            `[ERR_BOOT_ORDER_VIOLATION] In '${path2.basename(filePath)}': addLocal('${al.id}') with uiSpec at line ${al.line} appears AFTER KrnlMagneticLoader.loadAll() at line ${magneticLoaderLine}. The frontend generator runs inside loadAll() \u2014 if addLocal() calls come after it, the generator sees zero endpoints and produces a blank UI. FIX: Move all addLocal() calls to BEFORE KrnlMagneticLoader.loadAll() in boot().`
-          );
-        }
-      }
-    }
-    const anyHasUiSpec = addLocals.some((al) => al.hasUiSpec);
-    if (anyHasUiSpec) {
-      for (const al of addLocals) {
-        if (!al.hasUiSpec) {
-          warnings.push(
-            `[WARN_MISSING_UISPEC] In '${path2.basename(filePath)}': addLocal('${al.id}') at line ${al.line} is missing 'uiSpec'. Other endpoints in this file have uiSpec \u2014 this endpoint will not appear in the UI. Add 'uiSpec: { ui_component_enabled: true, ... }' to include it.`
-          );
-        }
-      }
-    }
-    if (magneticLoaderLine !== -1 && addLocals.length > 0 && !anyHasUiSpec) {
-      warnings.push(
-        `[WARN_NO_UISPEC_ENDPOINTS] In '${path2.basename(filePath)}': ${addLocals.length} addLocal() endpoint(s) found but none have 'uiSpec'. The generated frontend will show "No UI-enabled endpoints" message. Add 'uiSpec: { ui_component_enabled: true, inputs: [...], outputs: [...] }' to each addLocal().`
-      );
-    }
-    const allKnownIds = new Set(addLocals.map((al) => al.id));
-    const requiresMatches = source.matchAll(/functionalitiesExecuted\s*:\s*\[([^\]]+)\]/g);
-    for (const match of requiresMatches) {
-      const rawArray = match[1];
-      const targetIds = rawArray.split(",").map((s) => s.trim().replace(/['"]/g, ""));
-      for (const tid of targetIds) {
-        if (tid && !allKnownIds.has(tid)) {
-          const atomPattern = new RegExp(`id\\s*:\\s*["']${tid}["']`);
-          if (!atomPattern.test(source)) {
+    const isEntityClass = /class\s+\w+\s+extends\s+(?:krnlEntityBase|Entity|krnlSystemEntityBase)/.test(source);
+    const lineLimitErr = KrnlPurityRules.checkFileLineLimit(filePath, source);
+    if (lineLimitErr) errors.push(lineLimitErr);
+    errors.push(...KrnlPurityRules.checkImportSuffixes(filePath, source));
+    const contextErr = KrnlPurityRules.checkContextDestructuring(filePath, source);
+    if (contextErr) errors.push(contextErr);
+    errors.push(...KrnlPurityRules.checkHelperPurity(filePath, source));
+    errors.push(...KrnlPurityRules.checkMainDelegation(filePath, source));
+    if (isEntityClass && !filePath.includes("/bin/")) {
+      const addLocals = this.getAddLocalCalls(source);
+      const loaderLine = this.getMagneticLoaderLine(source);
+      if (loaderLine !== -1) {
+        for (const al of addLocals) {
+          if (al.hasUiSpec && al.line > loaderLine) {
             errors.push(
-              `[ERR_REQUIRES_UNKNOWN_FID] In '${path2.basename(filePath)}': Functionality requires dependency '${tid}' which is not defined in this application or project.`
+              `[ERR_BOOT_ORDER_VIOLATION] In '${path3.basename(filePath)}': addLocal('${al.id}') at line ${al.line} appears AFTER loadAll() at line ${loaderLine}.`
             );
           }
         }
       }
     }
-    return {
-      valid: errors.length === 0,
-      errors,
-      warnings
-    };
+    return { valid: errors.length === 0, errors, warnings };
   }
-  /**
-   * Validates all entity source files in the project.
-   * Scans for *.ts and *.js files in src/ that extend krnlSystemEntityBase or krnlEntityBase.
-   */
   static validateProject(projectRoot2) {
     const allErrors = [];
     const allWarnings = [];
-    const srcDir = path2.join(projectRoot2, "src");
-    if (!fs2.existsSync(srcDir)) {
-      return { valid: true, errors: [], warnings: [] };
+    const scanDirs = ["src", "entities", "libraries", "functionalities"];
+    for (const d of scanDirs) {
+      const targetDir = path3.join(projectRoot2, d);
+      if (fs2.existsSync(targetDir)) {
+        const files = this.scanSourceFiles(targetDir);
+        for (const f of files) {
+          const report = this.validateEntitySource(f);
+          allErrors.push(...report.errors);
+          allWarnings.push(...report.warnings);
+        }
+      }
     }
-    const entityFiles = this.findEntityFiles(srcDir);
-    for (const filePath of entityFiles) {
-      const result = this.validateEntitySource(filePath);
-      allErrors.push(...result.errors);
-      allWarnings.push(...result.warnings);
-    }
-    return {
-      valid: allErrors.length === 0,
-      errors: allErrors,
-      warnings: allWarnings
-    };
+    return { valid: allErrors.length === 0, errors: allErrors, warnings: allWarnings };
   }
-  static findEntityFiles(dir, found = []) {
+  static scanSourceFiles(dir, found = []) {
     if (!fs2.existsSync(dir)) return found;
     const entries = fs2.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.name === "node_modules" || entry.name === "dist" || entry.name === ".git") continue;
-      const fullPath = path2.join(dir, entry.name);
+      const fullPath = path3.join(dir, entry.name);
       if (entry.isDirectory()) {
-        this.findEntityFiles(fullPath, found);
+        this.scanSourceFiles(fullPath, found);
       } else if (entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".js"))) {
-        try {
-          const content = fs2.readFileSync(fullPath, "utf-8");
-          if (content.includes("krnlSystemEntityBase") || content.includes("krnlEntityBase") || content.includes("addLocal(")) {
-            found.push(fullPath);
-          }
-        } catch (_) {
-        }
+        found.push(fullPath);
       }
     }
     return found;
