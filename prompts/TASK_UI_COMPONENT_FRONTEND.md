@@ -1,106 +1,130 @@
 # TASK: UI_COMPONENT_AND_FRONTEND_PROTOCOL
-$UI := \text{ReactiveAtoms} \otimes \text{StyleAuthority} \otimes \text{TopologicalVisualizers}
+$UI := \text{IconOnlyControls} \otimes \text{TooltipOnHover} \otimes \text{NeoBrutalistGlow} \otimes \text{CentralStyleAuthority}
 
-## 1. IN-CODE UTILITY DOCUMENTATION, SECTION DEMARCATION & NAMING RULES
-- **Naming**: Use long, descriptive names for all UI atom components and props interfaces (e.g., `RealtimeSystemHealthMonitoringCard.tsx`, `RealtimeSystemHealthMonitoringCardProps`).
-- **Docblocks**: Document the utility of all components, prop contracts, and event dispatchers with an ASCII component tree diagram.
-- **Section Demarcation**: Partition imports, prop interfaces, styled containers, and React component definitions with `// ══════════════════════════════════════════════════════════════════════════════════════════`.
+## 1. STRICT DESIGN & INTERACTION INVARIANTS (MANDATORY)
+1. **Zero On-Screen Explanatory/Marketing Text**:
+   - FORBID direct text descriptions, tutorials, promotional copy, or verbose "how-to" guidance rendered into the UI view.
+   - All explanations and control functions MUST appear **exclusively on hover** via tooltips (`data-tooltip` or hover popover).
+2. **Strict Icon-Only Buttons (Zero Text Labels)**:
+   - Buttons MUST NOT render text labels directly on their surface.
+   - Buttons contain strictly monochromatic vector/SVG icons.
+   - Label text and shortcut hints appear **exclusively on hover** via a styled tooltip.
+3. **Subtle Neo-Brutalist Tactile Glow**:
+   - Apply subtle ambient neon/rune glow (`box-shadow: 0 0 10px var(--krnl-accent-glow)` or `0 0 14px rgba(212, 163, 89, 0.22)`) on hover, active borders, and selected nodes.
+   - Preserves crisp Neo-Brutalist 1px-2px solid borders while giving a lively, tactile, responsive feel.
+4. **Central Style Authority (No Hardcoded CSS)**:
+   - All components MUST consume CSS design tokens:
+     ```css
+     var(--krnl-bg-primary)
+     var(--krnl-bg-surface)
+     var(--krnl-border)
+     var(--krnl-accent)
+     var(--krnl-accent-glow)
+     var(--krnl-text-primary)
+     var(--krnl-text-muted)
+     var(--krnl-radius)
+     var(--krnl-shadow)
+     ```
 
-## 2. CENTRAL STYLE AUTHORITY (NO HARDCODED CSS)
-All UI atoms MUST consume design tokens via CSS custom properties:
-```css
-/* Central CSS Design Tokens */
-var(--krnl-bg-primary)
-var(--krnl-bg-surface)
-var(--krnl-border)
-var(--krnl-accent)
-var(--krnl-text-primary)
-var(--krnl-text-muted)
-var(--krnl-radius)
-var(--krnl-shadow)
-```
-
-## 3. CANONICAL ATOMIC REACT COMPONENT TEMPLATE
+## 2. CANONICAL ATOMIC REACT COMPONENT TEMPLATE
 ```tsx
 // ══════════════════════════════════════════════════════════════════════════════════════════
 // 1. IMPORTS & EXTERNAL DEPENDENCIES
 // ══════════════════════════════════════════════════════════════════════════════════════════
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
 // 2. DATA SCHEMAS & COMPONENT PROP INTERFACES
 // ══════════════════════════════════════════════════════════════════════════════════════════
-export interface RealtimeSystemHealthMonitoringCardProps {
+export interface DiagnosticsControlButtonProps {
   targetEntityIdentifier: string;
-  initialHealthStatus?: "HEALTHY" | "DEGRADED" | "CRITICAL";
-  onTriggerDiagnosticsAction?: (entityId: string, actionPayload: Record<string, any>) => void;
+  onTriggerDiagnosticsAction?: (entityIdentifier: string) => void;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 3. REACT ATOM COMPONENT IMPLEMENTATION
+// 3. REACT ATOM COMPONENT IMPLEMENTATION (ICON-ONLY + HOVER TOOLTIP + SUBTLE GLOW)
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 /**
  * ──────────────────────────────────────────────────────────────────────────────────────────
- * COMPONENT: RealtimeSystemHealthMonitoringCard
+ * COMPONENT: DiagnosticsControlButton
  * ──────────────────────────────────────────────────────────────────────────────────────────
- * Purpose: Renders reactive health telemetry for an active system entity, listening for
- *          "state:changed" events and providing a direct trigger for diagnostic routines.
+ * Purpose: Icon-only Neo-Brutalist control button with subtle ambient glow on hover,
+ *          triggering diagnostic routines while revealing action descriptions strictly via tooltip.
  *
- * Component Flow Chart:
- *   [Entity Telemetry Stream] ───► [Update Local State]
- *                                           │
- *                                           ▼
- *                                 [Render Status Card UI]
- *                                           │ (On Button Click)
- *                                           ▼
- *                              [Dispatch onTriggerDiagnosticsAction]
+ * Flow Chart:
+ *   [Default State: Icon Only] ───► [User Hover: Reveal Tooltip + Ambient Glow]
+ *                                              │ (Click)
+ *                                              ▼
+ *                                   [Dispatch Diagnostics RPC]
  *
  * Example:
- *   <RealtimeSystemHealthMonitoringCard 
- *     targetEntityIdentifier="DatabaseCoordinator"
- *     onTriggerDiagnosticsAction={(id, data) => console.log(id, data)}
+ *   <DiagnosticsControlButton 
+ *     targetEntityIdentifier="PaymentCoordinator" 
+ *     onTriggerDiagnosticsAction={(id) => console.log("Run diagnostics for", id)} 
  *   />
  * ──────────────────────────────────────────────────────────────────────────────────────────
  */
-export const RealtimeSystemHealthMonitoringCard: React.FC<RealtimeSystemHealthMonitoringCardProps> = ({
+export const DiagnosticsControlButton: React.FC<DiagnosticsControlButtonProps> = ({
   targetEntityIdentifier,
-  initialHealthStatus = "HEALTHY",
   onTriggerDiagnosticsAction
 }) => {
-  const [currentHealthStatus, setCurrentHealthStatus] = useState(initialHealthStatus);
+  const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <div
-      className="krnl-atom-monitoring-card"
-      style={{
-        background: "var(--krnl-bg-surface)",
-        border: "1px solid var(--krnl-border)",
-        borderRadius: "var(--krnl-radius)",
-        padding: "20px",
-        boxShadow: "var(--krnl-shadow)"
-      }}
-    >
-      <h4 style={{ color: "var(--krnl-text-primary)", margin: "0 0 8px 0" }}>
-        {targetEntityIdentifier}
-      </h4>
-      <p style={{ color: "var(--krnl-text-muted)", margin: "0 0 16px 0" }}>
-        Status: <span style={{ color: "var(--krnl-accent)" }}>{currentHealthStatus}</span>
-      </p>
+    <div style={{ position: "relative", display: "inline-block" }}>
+      {/* Icon-Only Button with Subtle Neo-Brutal Glow on Hover */}
       <button
-        className="krnl-btn-accent"
+        className="krnl-btn-icon-only"
+        aria-label="Run Diagnostics Routine"
         style={{
-          background: "var(--krnl-accent)",
-          color: "#ffffff",
-          border: "none",
+          background: isHovered ? "var(--krnl-bg-surface)" : "var(--krnl-bg-primary)",
+          border: "1px solid var(--krnl-border)",
           borderRadius: "var(--krnl-radius)",
-          padding: "8px 16px",
-          cursor: "pointer"
+          padding: "8px",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "all 0.15s ease",
+          boxShadow: isHovered 
+            ? "0 0 12px var(--krnl-accent-glow), 2px 2px 0px var(--krnl-border)" 
+            : "2px 2px 0px var(--krnl-border)"
         }}
-        onClick={() => onTriggerDiagnosticsAction?.(targetEntityIdentifier, { initiatedAt: Date.now() })}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onClick={() => onTriggerDiagnosticsAction?.(targetEntityIdentifier)}
       >
-        Run Diagnostics Routine
+        {/* Monochromatic Vector Icon */}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        </svg>
       </button>
+
+      {/* Text description revealed STRICTLY ON HOVER via Tooltip */}
+      {isHovered && (
+        <div
+          role="tooltip"
+          style={{
+            position: "absolute",
+            bottom: "calc(100% + 8px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "var(--krnl-bg-surface)",
+            border: "1px solid var(--krnl-border)",
+            borderRadius: "var(--krnl-radius)",
+            padding: "4px 8px",
+            fontSize: "12px",
+            color: "var(--krnl-text-primary)",
+            whiteSpace: "nowrap",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+            zIndex: 1000,
+            pointerEvents: "none"
+          }}
+        >
+          Run System Diagnostics ({targetEntityIdentifier})
+        </div>
+      )}
     </div>
   );
 };

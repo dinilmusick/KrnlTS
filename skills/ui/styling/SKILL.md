@@ -6,11 +6,17 @@ description: Directives for neo-brutalism 2.5D biome styling, locked coffee and 
 # UI STYLING & 2.5D BIOME GUIDELINES
 
 ## 1. THEME & VISUAL IDENTITY
-- **Core Paradigm**: `neo-brutalism_2.5D_biome`
-- **Shapes & Typography**: Brutalist (bold, blocky, direct-to-face, geometric).
-- **Fonts**: Locked set (1 Display + 1 Body font defined at project inception; no ad-hoc additions).
+- **Core Paradigm**: `neo-brutalism_2.5D_biome` with **Subtle Tactile Glow**.
+- **Shapes & Borders**: Neo-Brutalist (bold, blocky, geometric, crisp 1px-2px solid borders).
+- **Subtle Glow Effects**: Tactile ambient neon/rune glow on interactive elements, hover states, and active cards (`box-shadow: 0 0 10px var(--krnl-accent-glow)` / `0 0 18px rgba(212, 163, 89, 0.25)`).
+- **Strict Icon-Only Buttons**:
+  - **Zero Text Labels on Buttons**: Buttons MUST contain only monochromatic vector/SVG icons.
+  - Button text/utility description appears **exclusively on hover** via a tooltip.
+- **Zero On-Screen Explanatory Clutter**:
+  - FORBID direct on-screen marketing copy, descriptive paragraphs, tutorials, or "how-to" guidance text.
+  - All descriptions, feature utility, and guidance MUST be revealed **only on hover** over that specific element.
+- **Fonts**: Locked set (1 Display + 1 Body font; high contrast, clean typography).
 - **Icons**: Monochromatic only. Zero multi-color icons.
-- **Labels & Titles**: Icon-only on default display; titles/text revealed strictly on hover (tooltip); zero persistent title text on tiles/cards/buttons; no descriptions directly on UI.
 
 ---
 
