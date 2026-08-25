@@ -120,3 +120,15 @@ Every code file MUST use bold visual demarcation headers to partition distinct a
 - **Identifiers & Functions**: Use long, expressive names explicitly stating action and context (e.g., `calculateExponentialBackoffDelayMilliseconds`, `transformRawPayloadToValidatedUserRecord`).
 - **Zero Cryptic Abbreviations**: Disallow single-letter or abbreviated names (except standard math indices $i, j, k$).
 
+---
+
+## 7. MANDATORY FOLDER MARKDOWN EXPLANATION DIRECTIVE
+Every folder created or maintained by the agent in the codebase MUST contain a descriptive `README.md` (or `SKILL.md`) clearly explaining:
+1. **Folder Role & Utility**: What this folder represents in the system architecture.
+2. **Architectural Layer**: Which layer ($L_0 \dots L_3$, Control Plane, Data Plane, UI, etc.) it belongs to.
+3. **Directory Contents**: Table or list of all files/subdirectories and their distinct responsibilities.
+4. **Data Flow & Dependencies**: How assets in this folder interact with the rest of the codebase.
+
+No folder may exist as an unexplained container. This guarantees zero ambiguity for developers and agents navigating the repository.
+
+

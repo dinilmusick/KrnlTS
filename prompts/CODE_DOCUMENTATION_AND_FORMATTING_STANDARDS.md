@@ -66,4 +66,11 @@ Use bold unicode comment borders (`═` or `─`) to clearly segment code into s
 - **Filenames**: Must be completely descriptive, matching the primary class/entity/feature name (e.g., `UserAccountAuthenticationManager.ts`, `FilesystemWorkspaceStorageProvider.ts`).
 - **Function & Variable Names**: Must explicitly declare intent without cryptic abbreviations (e.g., `validateAndNormalizeIncomingUserRegistrationPayload`, `calculateTotalActiveWorkspaceConnections`).
 - **Code Block / Functionality IDs**: Use snake_case or camelCase matching the file name (e.g., `id: "user_account_authentication_manager"`).
+
+## 4. MANDATORY FOLDER MARKDOWN EXPLANATION DIRECTIVE
+Every folder created or maintained in the codebase MUST contain a `README.md` (or `SKILL.md`) describing:
+1. **Folder Role & Purpose**: What logical domain or subsystem this folder encapsulates.
+2. **Layer Classification**: The architectural layer ($L_0 \dots L_3$, Control Plane, Data Plane, Protocol Adapters, Frontend, Tools).
+3. **File Manifest**: Table of files with 1-line explanations of their utility.
+4. **Data Flow & Cross-Folder Interactivity**: How components in this folder receive data and dispatch events to sibling systems.
 ```

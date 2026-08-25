@@ -9,6 +9,7 @@ This directory contains **task-specific, token-efficient prompt attachments** fo
 1. **In-Code Utility Documentation & Flowcharts**: Every function, class, and data structure must have a comprehensive docblock explaining utility, parameters, return values, example usage, and an ASCII/text flow chart.
 2. **Bold Code Section Partitioning**: Use bold demarcation borders (`// ══════════════════════════════════════════════════════════════════════════════════════════`) to clearly divide file sections (imports, schemas, pure logic, impure IO, functionalities, exports).
 3. **Descriptive & Long Naming Conventions**: Use long, expressive, self-documenting names for files, functions, types, and variables (zero cryptic abbreviations).
+4. **Mandatory Folder Markdown Explanations**: Every folder in the codebase MUST contain a `README.md` (or `SKILL.md`) describing its architectural role, layer, file manifest, and interactions.
 
 ---
 
