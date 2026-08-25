@@ -1,66 +1,93 @@
-```markdown
 # TASK: CREATE_SUBAPP_OR_ENTITY_PROTOCOL
 $TOPOLOGY := \text{Tree}(\mathcal{E}) \quad \text{where } \mathcal{E} = \{ \text{Entity}_1, \dots, \text{Entity}_n \}
 
-## 1. ROOT VS CHILD POSITION RULE (CRITICAL)
+## 1. IN-CODE UTILITY DOCUMENTATION, SECTION DEMARCATION & NAMING RULES
+- **Naming**: Always use long, descriptive names for entities and sub-apps (e.g., `CustomerBillingManagementEntity.ts`, `FinancialAnalyticsReportingSubAppDescriptor.ts`).
+- **Docblocks**: Document the utility of all entities, reactive state models, and attached sub-apps with an ASCII hierarchy diagram.
+- **Section Demarcation**: Partition imports, state models, constructor initialization, functionalities, and exports with `// ══════════════════════════════════════════════════════════════════════════════════════════`.
+
+## 2. ROOT VS CHILD POSITION RULE (CRITICAL)
 $$\text{Position}(E) = \begin{cases}
 \text{ROOT} & \text{if } E.\text{hierarchyManager}.\text{getOwnerEntity}() = \emptyset \implies \text{Adapters ACTIVE (Unified Port: REST/WS/MCP/ACP)} \\
 \text{CHILD} & \text{if } E.\text{hierarchyManager}.\text{getOwnerEntity}() \neq \emptyset \implies \text{Adapters DORMANT (Capabilities bubble up to Root)}
 \end{cases}$$
 
-## 2. STANDARD ENTITY DECLARATION TEMPLATE
+## 3. CANONICAL ENTITY IMPLEMENTATION TEMPLATE
 ```typescript
-import { Entity, krnlLocalFunctionality } from "@dinilmusick/krnlts";
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 1. IMPORTS & EXTERNAL DEPENDENCIES
+// ══════════════════════════════════════════════════════════════════════════════════════════
+import { Entity, krnlLocalFunctionality, type SubAppDescriptor } from "@dinilmusick/krnlts";
 
-export interface MyEntityState {
-  status: "IDLE" | "PROCESSING" | "ERROR";
-  itemsCount: number;
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 2. DATA SCHEMAS, INTERFACES & REACTIVE STATE
+// ══════════════════════════════════════════════════════════════════════════════════════════
+export interface CustomerBillingEntityState {
+  orchestrationStatus: "INITIALIZING" | "ACTIVE" | "MAINTENANCE";
+  totalInvoicesProcessedCount: number;
+  lastProcessedTimestamp: number;
 }
 
-export class MyEntity extends Entity<MyEntityState> {
-  constructor(name = "MyEntity", owner = null) {
-    super(name, owner, {
-      initialState: { status: "IDLE", itemsCount: 0 }
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 3. ENTITY CLASS ORCHESTRATION & TOPOLOGY
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * ENTITY: CustomerBillingManagementEntity
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Manages the lifecycle, billing sub-apps, and invoice generation functionalities
+ *          for the organization.
+ *
+ * Topology & Hierarchy Flow Chart:
+ *   [Root System Entity]
+ *            │
+ *            ▼
+ *   [CustomerBillingManagementEntity]
+ *            ├── [ProcessInvoiceFunctionality] (Local Functionality)
+ *            └── [FinancialAnalyticsReportingSubApp] (Embedded Sub-App)
+ *
+ * Example:
+ *   const billingEntity = new CustomerBillingManagementEntity("BillingDepartment");
+ *   await billingEntity.call("process_invoice", { invoiceId: "inv_123" });
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+export class CustomerBillingManagementEntity extends Entity<CustomerBillingEntityState> {
+  constructor(entityName = "CustomerBillingManagementEntity", ownerEntity = null) {
+    super(entityName, ownerEntity, {
+      initialState: {
+        orchestrationStatus: "INITIALIZING",
+        totalInvoicesProcessedCount: 0,
+        lastProcessedTimestamp: Date.now()
+      }
     });
 
-    // 1. Attach Local Functionalities
-    this.addLocal(myActionFunctionality);
+    // Attach atomic functionalities
+    this.addLocal(ProcessInvoiceFunctionality);
   }
 }
-```
 
-## 3. SUB-APP REGISTRATION & MANIFEST PROTOCOL
-When declaring a self-contained sub-app / microservice under an Entity:
-```typescript
-import { Entity, type SubAppDescriptor } from "@dinilmusick/krnlts";
-
-const descriptor: SubAppDescriptor = {
-  id: "analytics_subapp",
-  name: "Analytics Service",
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 4. SUB-APP REGISTRATION DESCRIPTOR
+// ══════════════════════════════════════════════════════════════════════════════════════════
+export const FinancialAnalyticsReportingSubAppDescriptor: SubAppDescriptor = {
+  id: "financial_analytics_reporting_subapp",
+  name: "Financial Analytics & Reporting Sub-App",
   version: "1.0.0",
   type: "embedded", // "embedded" | "worker" | "remote"
   operations: [
     {
-      id: "generateReport",
-      name: "Generate Report",
-      description: "Generates monthly activity metrics",
-      parameters: { type: "object", properties: { month: { type: "string" } } },
-      execute: async (input, ctx) => {
-        return { reportId: `rep_${Date.now()}`, month: input.month };
+      id: "generateMonthlyRevenueReport",
+      name: "Generate Monthly Revenue Report",
+      description: "Aggregates revenue totals across all processed billing invoices",
+      parameters: { type: "object", properties: { targetMonth: { type: "string" } } },
+      execute: async (input, context) => {
+        return { reportId: `rep_${Date.now()}`, month: input.targetMonth };
       }
     }
   ],
   events: [
-    { id: "report:ready", name: "Report Ready Event" }
+    { id: "analytics:report_generated", name: "Analytics Report Generated Event" }
   ]
 };
-
-// Register under host entity
-parentEntity.registerSubApp(descriptor);
-```
-
-## 4. INVARIANTS
-1. Sub-apps must be fully self-contained and independently testable.
-2. If `type: "worker"`, the sub-app will be executed in an isolated worker host process.
-3. All public functionalities attached to child entities automatically register in the parent interface.
 ```

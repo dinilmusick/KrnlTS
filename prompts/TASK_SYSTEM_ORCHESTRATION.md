@@ -1,8 +1,12 @@
-```markdown
 # TASK: SYSTEM_ORCHESTRATION_AND_P2P_PROTOCOL
 $ORCH := \text{MagneticLoader} \otimes \text{IngressNetwork} \otimes \text{FlowPipelines}
 
-## 1. MAGNETIC LOADER (FILESYSTEM AS COMPOSITION)
+## 1. IN-CODE UTILITY DOCUMENTATION, SECTION DEMARCATION & NAMING RULES
+- **Naming**: Use long, descriptive names for all pipeline builders, orchestrator entities, and network nodes (e.g., `DistributedClusterNetworkOrchestratorEntity.ts`).
+- **Docblocks**: Document the utility of all pipelines and network meshes with an ASCII topology diagram.
+- **Section Demarcation**: Partition imports, network initialization, pipeline declarations, and startup routines with `// ══════════════════════════════════════════════════════════════════════════════════════════`.
+
+## 2. MAGNETIC LOADER (FILESYSTEM AS COMPOSITION)
 Directory structure automatically maps to runtime topology:
 ```
 my_system/
@@ -13,41 +17,61 @@ my_system/
 ├── protocol_adapters/        # Ingress Adapters (REST, WS, MCP)
 └── flows/                    # KrnlFlowBuilder Pipelines
 ```
-Bootstrapping via Magnetic Loader:
+
+## 3. CANONICAL ORCHESTRATION & PIPELINE TEMPLATE
 ```typescript
-import { KrnlSystemMagneticLoader, Entity } from "@dinilmusick/krnlts";
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 1. IMPORTS & EXTERNAL DEPENDENCIES
+// ══════════════════════════════════════════════════════════════════════════════════════════
+import {
+  Entity,
+  KrnlSystemMagneticLoader,
+  KrnlFlowBuilder,
+  KrnlSiblingNetwork
+} from "@dinilmusick/krnlts";
 
-const system = new Entity("RootSystem");
-const loader = new KrnlSystemMagneticLoader(system, "./my_system");
-await loader.loadAll();
-```
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 2. MAGNETIC LOADER BOOTSTRAPPING
+// ══════════════════════════════════════════════════════════════════════════════════════════
 
-## 2. P2P INGRESS & SIBLING NETWORK
-For distributed multi-instance communication:
-```typescript
-import { KrnlSiblingNetwork } from "@dinilmusick/krnlts";
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * ORCHESTRATOR: RootClusterOrchestratorInitialization
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Autoloads all child entities, functionalities, and protocol adapters from the
+ *          filesystem into a unified runtime tree.
+ *
+ * Topology Flow Chart:
+ *   [Filesystem Directory] ───► [Magnetic Loader] ───► [Mount Entities & Functionalities]
+ *                                                               │
+ *                                                               ▼
+ *                                                  [Start Unified Self-Hosting]
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+const rootSystemOrchestratorEntity = new Entity("RootClusterOrchestratorEntity");
+const magneticSystemLoader = new KrnlSystemMagneticLoader(rootSystemOrchestratorEntity, "./system_modules");
+await magneticSystemLoader.loadAll();
 
-const network = new KrnlSiblingNetwork({
-  appName: "WorkerNode_A",
-  registryPort: 10099 // Central Registry Host port
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 3. DISTRIBUTED P2P SIBLING NETWORK DISCOVERY
+// ══════════════════════════════════════════════════════════════════════════════════════════
+const distributedSiblingNetwork = new KrnlSiblingNetwork({
+  appName: "PrimaryComputingNode_Alpha",
+  registryPort: 10099
 });
+await distributedSiblingNetwork.initialize();
 
-await network.initialize();
-// Discover peer services dynamically
-const peer = await network.resolvePeer("WorkerNode_B");
-const result = await network.callPeer("WorkerNode_B", "compute_task", { data: 123 });
-```
-
-## 3. FLOW PIPELINES (KRNL_FLOW_BUILDER)
-```typescript
-import { KrnlFlowBuilder } from "@dinilmusick/krnlts";
-
-const pipeline = new KrnlFlowBuilder("OrderProcessingFlow")
-  .addStep("validate", { targetFunctionality: "validate_order" })
-  .addStep("charge", { targetFunctionality: "charge_payment" })
-  .addStep("notify", { targetFunctionality: "send_receipt" })
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 4. MULTI-STEP FLOW PIPELINE BUILDER
+// ══════════════════════════════════════════════════════════════════════════════════════════
+export const CustomerOrderFulfillmentFlowPipeline = new KrnlFlowBuilder("CustomerOrderFulfillmentFlowPipeline")
+  .addStep("validateIncomingOrderPayload", { targetFunctionality: "validate_order_details" })
+  .addStep("chargeCustomerPaymentMethod", { targetFunctionality: "process_credit_card_payment" })
+  .addStep("dispatchOrderConfirmationNotification", { targetFunctionality: "send_email_confirmation" })
   .build();
 
-const flowResult = await pipeline.execute(system, { orderId: "ord_123" });
-```
+const pipelineExecutionResult = await CustomerOrderFulfillmentFlowPipeline.execute(
+  rootSystemOrchestratorEntity,
+  { orderIdentifier: "order_99812", totalChargeAmount: 49.99 }
+);
 ```

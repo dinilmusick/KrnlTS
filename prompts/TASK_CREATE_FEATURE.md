@@ -1,12 +1,12 @@
-```markdown
 # TASK: CREATE_FEATURE_PROTOCOL (KRNL_FUNCTIONALITY)
 $GOAL := \text{CreateAtomicFeature}(F) \implies \text{krnlLocalFunctionality}(F) \in \text{Entity}(E)
 
-## 1. ATOMIC COMPOSITION & TOPOLOGY
+## 1. ATOMIC COMPOSITION, NAMING & TOPOLOGY
 $\forall \text{Feature } f$:
-- File Location: `entities/{EntityName}/functionalities/{FeatureId}.ts`
+- File Location: `entities/{LongDescriptiveEntityName}/functionalities/{LongDescriptiveFeatureName}Functionality.ts`
+- Naming Convention: Always use long, descriptive, unambiguous names for files, functions, types, and variables (zero cryptic abbreviations).
 - Line Count Constraint: $| \text{Lines}(f) | \le 150$. (If $>150 \implies \text{split into } L_0/L_1 \text{ helpers}$).
-- Rule: $\text{Functionality} = \langle \text{Logic}, \text{State}, \text{Schema}, \text{Emitters}, \text{Helpers}, \text{Table}, \text{Tests} \rangle$.
+- Rule: $\text{Functionality} = \langle \text{DocblockWithFlowchart}, \text{Logic}, \text{State}, \text{Schema}, \text{Emitters}, \text{Helpers}, \text{Table}, \text{Tests} \rangle$.
 
 ## 2. 4-LAYER PURITY SEPARATION (STRICT)
 $$\begin{array}{lll}
@@ -25,44 +25,135 @@ backend: "sqlite" | "supabase" | "pocketbase" | "firebase" | true
 $\implies$ Auto-binds `context.table` with built-in CRUD:
 $$\{ \text{create}, \text{insert}, \text{findOne}, \text{find}, \text{update}, \text{delete}, \text{upsert}, \text{count}, \text{query}, \text{clear} \}$$
 
-## 4. CANONICAL IMPLEMENTATION TEMPLATE
+## 4. CANONICAL IMPLEMENTATION TEMPLATE (MANDATORY FORMAT)
 ```typescript
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 1. IMPORTS & EXTERNAL DEPENDENCIES
+// ══════════════════════════════════════════════════════════════════════════════════════════
 import { krnlLocalFunctionality } from "@dinilmusick/krnlts";
 import { z } from "zod";
 
-const InputSchema = z.object({ /* inputs */ });
-const OutputSchema = z.object({ /* outputs */ });
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 2. DATA SCHEMAS, INTERFACES & TYPES
+// ══════════════════════════════════════════════════════════════════════════════════════════
+export const UserActivityInputSchema = z.object({
+  userId: z.string().min(1, "User ID is required"),
+  activityType: z.enum(["LOGIN", "VIEW_PAGE", "PURCHASE_ITEM"]),
+  metadata: z.record(z.any()).optional().default({})
+});
 
-// L0/L1 Pure Helper
-function pureTransform(data: z.infer<typeof InputSchema>) {
-  return { ...data, processedAt: Date.now() };
+export const UserActivityOutputSchema = z.object({
+  status: z.enum(["success", "error"]),
+  record: z.object({
+    id: z.string(),
+    userId: z.string(),
+    activityType: z.string(),
+    timestamp: z.number()
+  }),
+  totalActivitiesCount: z.number()
+});
+
+export type UserActivityInput = z.infer<typeof UserActivityInputSchema>;
+export type UserActivityOutput = z.infer<typeof UserActivityOutputSchema>;
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 3. PURE HELPER FUNCTIONS & TRANSFORMATIONS (L0 / L1)
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * UTILITY: normalizeUserActivityPayload
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Normalizes incoming activity payload and appends a deterministic epoch timestamp.
+ *
+ * Flow Chart:
+ *   [Raw Input] ───► [Zod Validation] ───► [Normalize Metadata] ───► [Attach Timestamp]
+ *
+ * Example:
+ *   const normalized = normalizeUserActivityPayload({ userId: "usr_1", activityType: "LOGIN" });
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+function normalizeUserActivityPayload(input: UserActivityInput) {
+  return {
+    id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    userId: input.userId.trim().toLowerCase(),
+    activityType: input.activityType,
+    metadata: input.metadata || {},
+    timestamp: Date.now()
+  };
 }
 
-export const myFeatureFunctionality = new krnlLocalFunctionality({
-  id: "my_feature",
-  description: "Detailed description of feature",
-  visibility: "public", // "public" (bubbles up to entity interface) | "private" (internal)
-  backend: "sqlite",    // Auto-creates and binds dedicated table "my_feature"
-  schema: { input: InputSchema, output: OutputSchema },
-  initialState: { counter: 0 },
-  api: async (input, context) => {
-    const { state, table, emitters, entity, helpers } = context;
-    
-    // 1. Pure validation & transform (L1)
-    const payload = pureTransform(input);
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 4. ATOMIC FUNCTIONALITY DECLARATION (L3)
+// ══════════════════════════════════════════════════════════════════════════════════════════
 
-    // 2. Dedicated Table CRUD (L2)
-    const record = await table.create({ id: `rec_${Date.now()}`, ...payload });
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * FUNCTIONALITY: TrackUserActivityMetricsFunctionality
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Atomic functionality recording user activities to a dedicated SQLite/Postgres table,
+ *          updating reactive state, and emitting the "activity:recorded" event stream.
+ *
+ * Flow Chart & Lifecycle:
+ *   [Caller Request] ───► [L1: Schema Parse]
+ *                                 │
+ *                                 ▼
+ *                        [L0: Normalize Payload]
+ *                                 │
+ *                                 ▼
+ *                        [L2: Table CRUD Insert] ───► [Dedicated DB Table]
+ *                                 │
+ *                                 ▼
+ *                        [L3: Emit Reactive Event & Return Result]
+ *
+ * Example Usage:
+ *   const result = await entity.call("track_user_activity_metrics", {
+ *     userId: "usr_1001",
+ *     activityType: "LOGIN"
+ *   });
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+export const TrackUserActivityMetricsFunctionality = new krnlLocalFunctionality({
+  id: "track_user_activity_metrics",
+  description: "Records and tracks real-time user activity events in dedicated storage.",
+  visibility: "public", // Bubbles up to host entity interface
+  backend: "sqlite",    // Auto-creates and binds dedicated table "track_user_activity_metrics"
+  schema: {
+    input: UserActivityInputSchema,
+    output: UserActivityOutputSchema
+  },
+  initialState: {
+    totalEventsRecorded: 0
+  },
+  api: async (input: UserActivityInput, context): Promise<UserActivityOutput> => {
+    const { state, table, emitters } = context;
 
-    // 3. Reactive State & Events (L3)
-    state.counter += 1;
-    emitters.get("state:changed")?.pushDataStreamToEmitter({ prop: "counter", value: state.counter });
+    // 1. Pure Transformation (L1)
+    const normalizedRecord = normalizeUserActivityPayload(input);
 
-    return { status: "success", record };
+    // 2. Dedicated Table CRUD Operation (L2)
+    const persistedRecord = await table.create(normalizedRecord);
+    const totalActivitiesCount = await table.count();
+
+    // 3. Reactive State Mutation & Event Stream (L3)
+    state.totalEventsRecorded += 1;
+    emitters.get("state:changed")?.pushDataStreamToEmitter({
+      prop: "totalEventsRecorded",
+      value: state.totalEventsRecorded
+    });
+
+    return {
+      status: "success",
+      record: persistedRecord,
+      totalActivitiesCount
+    };
   },
   tests: [
-    { name: "should execute successfully", input: {}, expected: { status: "success" } }
+    {
+      name: "should successfully record user login activity",
+      input: { userId: "user_test_01", activityType: "LOGIN" },
+      expected: { status: "success" }
+    }
   ]
 });
-```
 ```

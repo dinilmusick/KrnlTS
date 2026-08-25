@@ -42,3 +42,81 @@ Whenever big changes, new features, or architectural refactors are requested by 
 ## 3. CONTINUOUS SKILL & ENDPOINT REGISTRY SYNCHRONIZATION
 - **Skills**: Keep all local and root `SKILL.md` files synchronized whenever system invariants, routing, or folder structures evolve.
 - **API Registry**: Maintain up-to-date documentation of all active HTTP (`/call/{fid}`), WebSocket RPC, and MCP tool signatures with input/output schemas.
+
+---
+
+## 4. IN-CODE UTILITY DOCUMENTATION & FLOW CHART DIRECTIVE
+Every function, class, data structure, type, and code asset MUST be thoroughly documented directly in the code itself:
+1. **Utility & Purpose**: Clear explanation of what the asset does, why it exists, and when to use it.
+2. **Usage Examples**: Concrete, runnable code examples demonstrating input and expected output.
+3. **ASCII / Text Flow Chart**: Visual diagram illustrating where and how the asset fits into the lifecycle, data pipeline, or entity composition.
+
+### Canonical Docblock Template:
+```typescript
+/**
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * FUNCTION / ASSET UTILITY: UserRegistrationWorkflowManager
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Validates incoming registration requests, hashes passwords, persists account
+ *          records to the Control Plane, and broadcasts the UserRegisteredEvent.
+ *
+ * Flow Chart & Lifecycle:
+ *   [Raw Request] ───► [L1: Schema Validation (Zod)]
+ *                              │
+ *                              ▼ (If Valid)
+ *                     [L0: Hash & Normalize Data]
+ *                              │
+ *                              ▼
+ *                     [L2: Table CRUD Persistence] ───► [Database]
+ *                              │
+ *                              ▼
+ *                     [L3: Emit Event & Return Session Token]
+ *
+ * Example Usage:
+ *   const session = await registerUserAccountFunctionality.execute({
+ *     email: "user@example.com",
+ *     username: "alice_dev",
+ *     password: "SecurePassword123!"
+ *   });
+ *   console.log(session.token); // "sess::alice_dev::178760...::abc12"
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ */
+```
+
+---
+
+## 5. BOLD CODE SECTION PARTITIONING
+Every code file MUST use bold visual demarcation headers to partition distinct architectural layers:
+```typescript
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 1. IMPORTS & EXTERNAL DEPENDENCIES
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 2. DATA STRUCTURES, SCHEMAS & TYPE DEFINITIONS
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 3. PURE HELPER FUNCTIONS & TRANSFORMATIONS (L0 / L1)
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 4. IMPURE IO, STORAGE & DATABASE OPERATIONS (L2)
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 5. ATOMIC FUNCTIONALITY / ENTITY ORCHESTRATION (L3)
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 6. EXPORTS & PUBLIC INTERFACES
+// ══════════════════════════════════════════════════════════════════════════════════════════
+```
+
+---
+
+## 6. DESCRIPTIVE & LONG NAMING CONVENTIONS
+- **Filenames**: Always use full, unambiguous, descriptive names (e.g., `UserAuthenticationSessionManager.ts` instead of `auth.ts`, `FilesystemStorageMediaProvider.ts` instead of `fs.ts`).
+- **Identifiers & Functions**: Use long, expressive names explicitly stating action and context (e.g., `calculateExponentialBackoffDelayMilliseconds`, `transformRawPayloadToValidatedUserRecord`).
+- **Zero Cryptic Abbreviations**: Disallow single-letter or abbreviated names (except standard math indices $i, j, k$).
+

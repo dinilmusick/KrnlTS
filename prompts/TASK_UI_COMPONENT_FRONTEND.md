@@ -1,8 +1,12 @@
-```markdown
 # TASK: UI_COMPONENT_AND_FRONTEND_PROTOCOL
 $UI := \text{ReactiveAtoms} \otimes \text{StyleAuthority} \otimes \text{TopologicalVisualizers}
 
-## 1. CENTRAL STYLE AUTHORITY (NO HARDCODED CSS)
+## 1. IN-CODE UTILITY DOCUMENTATION, SECTION DEMARCATION & NAMING RULES
+- **Naming**: Use long, descriptive names for all UI atom components and props interfaces (e.g., `RealtimeSystemHealthMonitoringCard.tsx`, `RealtimeSystemHealthMonitoringCardProps`).
+- **Docblocks**: Document the utility of all components, prop contracts, and event dispatchers with an ASCII component tree diagram.
+- **Section Demarcation**: Partition imports, prop interfaces, styled containers, and React component definitions with `// ══════════════════════════════════════════════════════════════════════════════════════════`.
+
+## 2. CENTRAL STYLE AUTHORITY (NO HARDCODED CSS)
 All UI atoms MUST consume design tokens via CSS custom properties:
 ```css
 /* Central CSS Design Tokens */
@@ -16,46 +20,88 @@ var(--krnl-radius)
 var(--krnl-shadow)
 ```
 
-## 2. ATOMIC REACT COMPONENT TEMPLATE
-Atoms must be self-contained, typed, and resilient:
+## 3. CANONICAL ATOMIC REACT COMPONENT TEMPLATE
 ```tsx
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 1. IMPORTS & EXTERNAL DEPENDENCIES
+// ══════════════════════════════════════════════════════════════════════════════════════════
 import React, { useState, useEffect } from "react";
 
-interface AtomProps {
-  entityId: string;
-  initialState?: Record<string, any>;
-  onAction?: (actionId: string, payload: any) => void;
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 2. DATA SCHEMAS & COMPONENT PROP INTERFACES
+// ══════════════════════════════════════════════════════════════════════════════════════════
+export interface RealtimeSystemHealthMonitoringCardProps {
+  targetEntityIdentifier: string;
+  initialHealthStatus?: "HEALTHY" | "DEGRADED" | "CRITICAL";
+  onTriggerDiagnosticsAction?: (entityId: string, actionPayload: Record<string, any>) => void;
 }
 
-export const EntityStatusCard: React.FC<AtomProps> = ({ entityId, initialState = {}, onAction }) => {
-  const [state, setState] = useState(initialState);
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 3. REACT ATOM COMPONENT IMPLEMENTATION
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * COMPONENT: RealtimeSystemHealthMonitoringCard
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Renders reactive health telemetry for an active system entity, listening for
+ *          "state:changed" events and providing a direct trigger for diagnostic routines.
+ *
+ * Component Flow Chart:
+ *   [Entity Telemetry Stream] ───► [Update Local State]
+ *                                           │
+ *                                           ▼
+ *                                 [Render Status Card UI]
+ *                                           │ (On Button Click)
+ *                                           ▼
+ *                              [Dispatch onTriggerDiagnosticsAction]
+ *
+ * Example:
+ *   <RealtimeSystemHealthMonitoringCard 
+ *     targetEntityIdentifier="DatabaseCoordinator"
+ *     onTriggerDiagnosticsAction={(id, data) => console.log(id, data)}
+ *   />
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+export const RealtimeSystemHealthMonitoringCard: React.FC<RealtimeSystemHealthMonitoringCardProps> = ({
+  targetEntityIdentifier,
+  initialHealthStatus = "HEALTHY",
+  onTriggerDiagnosticsAction
+}) => {
+  const [currentHealthStatus, setCurrentHealthStatus] = useState(initialHealthStatus);
 
   return (
-    <div className="krnl-atom-card" style={{
-      background: "var(--krnl-bg-surface)",
-      border: "1px solid var(--krnl-border)",
-      borderRadius: "var(--krnl-radius)",
-      padding: "16px"
-    }}>
-      <h4 style={{ color: "var(--krnl-text-primary)" }}>{entityId}</h4>
-      <p style={{ color: "var(--krnl-text-muted)" }}>Status: {state.status || "IDLE"}</p>
-      <button 
+    <div
+      className="krnl-atom-monitoring-card"
+      style={{
+        background: "var(--krnl-bg-surface)",
+        border: "1px solid var(--krnl-border)",
+        borderRadius: "var(--krnl-radius)",
+        padding: "20px",
+        boxShadow: "var(--krnl-shadow)"
+      }}
+    >
+      <h4 style={{ color: "var(--krnl-text-primary)", margin: "0 0 8px 0" }}>
+        {targetEntityIdentifier}
+      </h4>
+      <p style={{ color: "var(--krnl-text-muted)", margin: "0 0 16px 0" }}>
+        Status: <span style={{ color: "var(--krnl-accent)" }}>{currentHealthStatus}</span>
+      </p>
+      <button
         className="krnl-btn-accent"
-        onClick={() => onAction?.("trigger", { entityId })}
+        style={{
+          background: "var(--krnl-accent)",
+          color: "#ffffff",
+          border: "none",
+          borderRadius: "var(--krnl-radius)",
+          padding: "8px 16px",
+          cursor: "pointer"
+        }}
+        onClick={() => onTriggerDiagnosticsAction?.(targetEntityIdentifier, { initiatedAt: Date.now() })}
       >
-        Execute Action
+        Run Diagnostics Routine
       </button>
     </div>
   );
 };
-```
-
-## 3. UI GRAPH & TOPOLOGY WIDGETS
-1. **Force Graph**: Visualizes entity/functionality trees, dependencies, and bubbling interfaces using D3/Canvas.
-2. **React Flow Pipeline**: Renders flow-builder pipelines (`KrnlFlowBuilder`) with inputs, steps, and transitions.
-3. **Dock & Toolbar**: Docked window trays, action palettes, and floating radial/tiled menus.
-
-## 4. INVARIANTS
-1. UI components must never communicate via side-channels; all IO flows through entity RPC, HTTP endpoints, or WebSocket streams.
-2. UI specs on functionalities (`uiSpec: { component: "...", renderMode: "..." }`) auto-register in the frontend generator.
 ```
