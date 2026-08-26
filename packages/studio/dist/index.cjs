@@ -1010,7 +1010,13 @@ var StudioServer = class {
   astEngine;
   constructor(options = {}) {
     this.port = options.port || 8080;
-    this.projectRoot = path5.resolve(options.projectRoot || process.cwd());
+    const initialRoot = path5.resolve(options.projectRoot || process.cwd());
+    const unifiedPath = path5.join(initialRoot, "examples/unified-workspace");
+    if (!fs5.existsSync(path5.join(initialRoot, "src/entities")) && fs5.existsSync(unifiedPath)) {
+      this.projectRoot = unifiedPath;
+    } else {
+      this.projectRoot = initialRoot;
+    }
     this.astEngine = new AstMutationEngine(this.projectRoot);
     this.watcher = new StudioFileWatcher(this.projectRoot);
     this.router = new JsonRpcRouter(this.projectRoot, (mutation) => {
@@ -1029,7 +1035,8 @@ var StudioServer = class {
         try {
           const req = JSON.parse(data.toString());
           if (req.method === "project.switch" || req.method === "project.load") {
-            const newPath = path5.resolve(this.projectRoot, req.params.path);
+            const targetPath = req.params.path || req.params.projectPath;
+            const newPath = path5.isAbsolute(targetPath) ? targetPath : path5.resolve(process.cwd(), targetPath);
             if (fs5.existsSync(newPath)) {
               this.projectRoot = newPath;
               this.router.setProjectRoot(this.projectRoot);
@@ -1042,7 +1049,7 @@ var StudioServer = class {
               ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, result: decorated }));
               this.broadcastGraphUpdate();
             } else {
-              ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, error: { code: -32001, message: "Directory does not exist" } }));
+              ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, error: { code: -32001, message: "Directory does not exist: " + targetPath } }));
             }
             return;
           }
@@ -1101,7 +1108,13 @@ var StudioServer = class {
       return;
     }
     const url = req.url?.split("?")[0] || "/";
-    if (url.startsWith("/api/v1/") || url === "/api/graph") {
+    if (url === "/api/graph") {
+      const graph = this.astEngine.extractArchitectureGraph();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "success", payload: graph, projectRoot: this.projectRoot }, null, 2));
+      return;
+    }
+    if (url.startsWith("/api/v1/")) {
       let body = "";
       req.on("data", (chunk) => {
         body += chunk;
@@ -1117,7 +1130,7 @@ var StudioServer = class {
         let method = "graph.getArchitecture";
         if (url === "/api/v1/project/create") method = "project.create";
         else if (url === "/api/v1/project/load") method = "project.load";
-        else if (url === "/api/v1/project/graph" || url === "/api/graph") method = "graph.getArchitecture";
+        else if (url === "/api/v1/project/graph") method = "graph.getArchitecture";
         else if (url === "/api/v1/project/status") method = "project.getStatus";
         else if (url === "/api/v1/entity/create") method = "entity.create";
         else if (url === "/api/v1/functionality/create") method = "functionality.create";
@@ -1155,7 +1168,7 @@ var StudioServer = class {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Krnl Studio \u2014 AI-Agent Accessible Visual IDE</title>
+  <title>Krnl Studio \u2014 AI-Agent Visual Node IDE</title>
   
   <!-- Monaco Editor AMD Loader -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
@@ -1166,9 +1179,9 @@ var StudioServer = class {
       --krnl-panel: #16161e;
       --krnl-panel-hover: #1f1f2a;
       --krnl-accent: #d4af37;
-      --krnl-accent-glow: rgba(212, 175, 55, 0.35);
+      --krnl-accent-glow: rgba(212, 175, 55, 0.45);
       --krnl-text: #f5ede4;
-      --krnl-border: 1px solid rgba(212, 175, 55, 0.25);
+      --krnl-border: 1px solid rgba(212, 175, 55, 0.3);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -1187,56 +1200,61 @@ var StudioServer = class {
     /* Header */
     .studio-header {
       position: absolute; top: 12px; left: 16px; right: 16px; z-index: 1000;
-      background: rgba(22, 22, 30, 0.90); backdrop-filter: blur(14px);
+      background: rgba(22, 22, 30, 0.94); backdrop-filter: blur(16px);
       border: var(--krnl-border); border-radius: 10px; padding: 8px 16px;
       display: flex; align-items: center; justify-content: space-between;
-      font-size: 13px; font-weight: bold; box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+      font-size: 13px; font-weight: bold; box-shadow: 0 4px 24px rgba(0,0,0,0.7);
     }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #98c379; box-shadow: 0 0 8px #98c379; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #98c379; box-shadow: 0 0 10px #98c379; }
 
     /* Live Agent Activity HUD Badge */
     #agent-activity-hud {
       position: fixed; top: 60px; left: 16px; z-index: 1500;
-      background: rgba(22, 22, 30, 0.95); border: 1px solid #d4af37;
-      border-radius: 8px; padding: 8px 14px; display: none; align-items: center; gap: 10px;
-      font-size: 12px; color: #d4af37; box-shadow: 0 4px 20px rgba(0,0,0,0.8), 0 0 12px var(--krnl-accent-glow);
+      background: rgba(22, 22, 30, 0.98); border: 2px solid #d4af37;
+      border-radius: 8px; padding: 10px 18px; display: none; align-items: center; gap: 12px;
+      font-size: 13px; color: #d4af37; font-weight: bold;
+      box-shadow: 0 6px 28px rgba(0,0,0,0.9), 0 0 16px var(--krnl-accent-glow);
     }
 
     /* Graph Canvas Viewport */
     #graph-viewport {
       width: 100%; height: 100%; position: relative; overflow: hidden;
-      background-image: radial-gradient(rgba(212, 175, 55, 0.1) 1px, transparent 1px);
+      background-color: #0e0e12;
+      background-image: radial-gradient(rgba(212, 175, 55, 0.15) 1px, transparent 1px);
       background-size: 24px 24px; cursor: grab;
     }
     #graph-viewport:active { cursor: grabbing; }
-    #graph-container { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
-    #svg-wires { position: absolute; top: 0; left: 0; width: 5000px; height: 5000px; pointer-events: none; }
+    #graph-container { position: absolute; top: 0; left: 0; width: 6000px; height: 6000px; transform-origin: 0 0; }
+    #svg-wires { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+    #nodes-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: auto; }
 
     /* Nodes */
     .krnl-node {
-      position: absolute; border-radius: 10px; padding: 14px 16px;
+      position: absolute; border-radius: 10px; padding: 14px 18px;
       font-family: inherit; color: var(--krnl-text); cursor: pointer;
-      transition: box-shadow 0.15s ease, border-color 0.15s ease;
-      z-index: 10;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+      transition: transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+      z-index: 20;
     }
     .krnl-node:hover {
-      box-shadow: 0 8px 30px rgba(0,0,0,0.8), 0 0 16px var(--krnl-accent-glow);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 36px rgba(0,0,0,0.9), 0 0 20px var(--krnl-accent-glow);
     }
     .krnl-node-entity {
-      background: rgba(24, 24, 34, 0.95); border: 2px solid #d4af37;
-      min-width: 240px; box-shadow: 0 8px 24px rgba(0,0,0,0.6), 0 0 12px var(--krnl-accent-glow);
+      background: #181822; border: 2px solid #d4af37;
+      min-width: 250px; box-shadow: 0 8px 28px rgba(0,0,0,0.8), 0 0 14px var(--krnl-accent-glow);
     }
     .krnl-node-functionality {
-      background: rgba(18, 18, 26, 0.95); border: 1px solid rgba(255, 255, 255, 0.25);
-      min-width: 210px; box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      background: #14141e; border: 1px solid rgba(255, 255, 255, 0.35);
+      min-width: 220px; box-shadow: 0 4px 18px rgba(0,0,0,0.6);
     }
     .krnl-node-library {
-      background: rgba(32, 26, 20, 0.95); border: 1px solid #e5c07b;
-      min-width: 190px;
+      background: #221c16; border: 1px solid #e5c07b;
+      min-width: 200px;
     }
     .krnl-node-subapp {
-      background: rgba(20, 30, 36, 0.95); border: 1px dashed #56b6c2;
-      min-width: 210px;
+      background: #152228; border: 1px dashed #56b6c2;
+      min-width: 220px;
     }
 
     /* Socket Ports */
@@ -1274,7 +1292,7 @@ var StudioServer = class {
   <div id="app">
     <!-- Live Agent Activity Toast -->
     <div id="agent-activity-hud">
-      <span style="font-size: 15px;">\u{1F916}</span>
+      <span style="font-size: 18px;">\u{1F916}</span>
       <span id="agent-hud-text">AI Agent Mutation</span>
     </div>
 
@@ -1287,6 +1305,7 @@ var StudioServer = class {
         <span id="canvas-title" style="color: #abb2bf;">\u{1F3D7}\uFE0F Architecture Canvas</span>
       </div>
       <div style="display: flex; align-items: center; gap: 14px;">
+        <span id="node-count-badge" style="background: rgba(212, 175, 55, 0.15); color: #d4af37; padding: 3px 8px; border-radius: 4px; font-size: 11px;">0 Nodes</span>
         <span style="font-size: 11px; color: #7f848e;">Project:</span>
         <select id="project-selector" onchange="switchProject(this.value)" style="background: #1e1e28; color: #d4af37; border: var(--krnl-border); padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">
           <option value="examples/unified-workspace" selected>examples/unified-workspace (All Combined)</option>
@@ -1397,78 +1416,8 @@ var StudioServer = class {
     let monacoTestOutputEditor = null;
     let monacoDrawerEditor = null;
 
-    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
-    require(['vs/editor/editor.main'], function () {
-      monaco.editor.defineTheme('krnl-dark', {
-        base: 'vs-dark',
-        inherit: true,
-        rules: [
-          { token: 'keyword', foreground: 'd4af37', fontStyle: 'bold' },
-          { token: 'string', foreground: '98c379' },
-          { token: 'number', foreground: 'd19a66' },
-          { token: 'comment', foreground: '5c6370', fontStyle: 'italic' },
-          { token: 'type', foreground: 'e5c07b' },
-          { token: 'identifier', foreground: 'f5ede4' }
-        ],
-        colors: {
-          'editor.background': '#16161e',
-          'editor.foreground': '#f5ede4',
-          'editor.lineHighlightBackground': '#1f1f2a',
-          'editorLineNumber.foreground': '#5c6370',
-          'editorLineNumber.activeForeground': '#d4af37',
-          'editorCursor.foreground': '#d4af37',
-          'editor.selectionBackground': '#2d3139',
-          'editorWidget.background': '#16161e',
-          'editorWidget.border': '#d4af37'
-        }
-      });
-
-      monacoUiEditor = monaco.editor.create(document.getElementById('ui-monaco-container'), {
-        value: '// Drag KrnlUI atoms into the canvas above to generate VanJS code...',
-        language: 'typescript',
-        theme: 'krnl-dark',
-        readOnly: true,
-        automaticLayout: true,
-        fontSize: 12,
-        fontFamily: 'Fira Code, Menlo, Monaco, monospace',
-        minimap: { enabled: false }
-      });
-
-      monacoTestInputEditor = monaco.editor.create(document.getElementById('test-input-monaco'), {
-        value: '{\\n  "payload": "demo_test_value"\\n}',
-        language: 'json',
-        theme: 'krnl-dark',
-        automaticLayout: true,
-        fontSize: 12,
-        fontFamily: 'Fira Code, Menlo, Monaco, monospace',
-        minimap: { enabled: false }
-      });
-
-      monacoTestOutputEditor = monaco.editor.create(document.getElementById('test-output-monaco'), {
-        value: '// Awaiting execution...',
-        language: 'json',
-        theme: 'krnl-dark',
-        readOnly: true,
-        automaticLayout: true,
-        fontSize: 12,
-        fontFamily: 'Fira Code, Menlo, Monaco, monospace',
-        minimap: { enabled: false }
-      });
-
-      monacoDrawerEditor = monaco.editor.create(document.getElementById('drawer-monaco-container'), {
-        value: '// Select a node to view its source code...',
-        language: 'typescript',
-        theme: 'krnl-dark',
-        readOnly: true,
-        automaticLayout: true,
-        fontSize: 12,
-        fontFamily: 'Fira Code, Menlo, Monaco, monospace',
-        minimap: { enabled: true }
-      });
-    });
-
     // Viewport Pan & Zoom
-    let panX = 40, panY = 70, zoom = 1.0;
+    let panX = 40, panY = 70, zoom = 0.85;
     let isPanning = false, startPanX = 0, startPanY = 0;
     const viewport = document.getElementById('graph-viewport');
     const container = document.getElementById('graph-container');
@@ -1491,7 +1440,7 @@ var StudioServer = class {
     viewport.onwheel = (e) => {
       e.preventDefault();
       const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-      zoom = Math.min(Math.max(0.4, zoom * zoomFactor), 2.5);
+      zoom = Math.min(Math.max(0.3, zoom * zoomFactor), 2.5);
       updateTransform();
     };
 
@@ -1509,48 +1458,51 @@ var StudioServer = class {
     };
     window.onclick = () => { document.getElementById('context-menu').style.display = 'none'; };
 
-    function switchCanvas(canvasId, title) {
-      activeCanvas = canvasId;
-      document.querySelectorAll('.studio-canvas').forEach(c => c.classList.remove('active'));
-      document.getElementById('canvas-' + canvasId).classList.add('active');
-      document.getElementById('canvas-title').textContent = title;
-
-      ['arch', 'ui', 'test'].forEach(k => {
-        const btn = document.getElementById('dock-btn-' + k);
-        if (canvasId.startsWith(k)) {
-          btn.style.background = 'rgba(212, 175, 55, 0.25)';
-          btn.style.borderColor = '#d4af37';
-          btn.style.color = '#d4af37';
-          btn.style.fontWeight = 'bold';
-        } else {
-          btn.style.background = 'rgba(255, 255, 255, 0.05)';
-          btn.style.borderColor = 'rgba(255,255,255,0.1)';
-          btn.style.color = '#e0e0e0';
-          btn.style.fontWeight = 'normal';
+    // Initial REST Graph Fetch immediately on page load
+    async function initialGraphFetch() {
+      try {
+        const res = await fetch('/api/graph');
+        const data = await res.json();
+        if (data.payload && data.payload.nodes) {
+          currentGraph = data.payload;
+          renderGraphNodes(currentGraph);
+          renderTestFunctions(currentGraph);
         }
-      });
-    }
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(protocol + '//' + window.location.host + '/studio/ws');
-
-    ws.onmessage = (evt) => {
-      const msg = JSON.parse(evt.data);
-      if (msg.method === 'graph.init' || msg.method === 'graph.updated') {
-        currentGraph = msg.params;
-        renderGraphNodes(currentGraph);
-        renderTestFunctions(currentGraph);
-      } else if (msg.method === 'agent.activity') {
-        // Display Live Agent Activity HUD
-        showAgentHud(msg.params);
-      } else if (msg.result && msg.result.durationMs !== undefined) {
-        renderTestOutput(msg.result);
-      } else if (msg.result && msg.result.content !== undefined) {
-        displaySourceFile(msg.result.filePath, msg.result.content);
-      } else if (msg.result && msg.result.errors !== undefined) {
-        alert(\`AST Purity Audit: \${msg.result.valid ? 'PASSED (Clean)' : 'FAILED (' + msg.result.errors.length + ' errors)'}\`);
+      } catch (e) {
+        console.error('Initial graph fetch error:', e);
       }
-    };
+    }
+    initialGraphFetch();
+
+    // WebSocket JSON-RPC for Live Push Updates
+    function connectWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(protocol + '//' + window.location.host + '/studio/ws');
+
+      ws.onmessage = (evt) => {
+        const msg = JSON.parse(evt.data);
+        if (msg.method === 'graph.init' || msg.method === 'graph.updated') {
+          currentGraph = msg.params;
+          renderGraphNodes(currentGraph);
+          renderTestFunctions(currentGraph);
+        } else if (msg.method === 'agent.activity') {
+          showAgentHud(msg.params);
+        } else if (msg.result && msg.result.durationMs !== undefined) {
+          renderTestOutput(msg.result);
+        } else if (msg.result && msg.result.content !== undefined) {
+          displaySourceFile(msg.result.filePath, msg.result.content);
+        } else if (msg.result && msg.result.valid !== undefined) {
+          alert(\`AST Purity Audit: \${msg.result.valid ? 'PASSED (Clean)' : 'FAILED (' + (msg.result.errors?.length || 0) + ' errors)'}\`);
+        }
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectWebSocket, 2000);
+      };
+
+      window.studioWs = ws;
+    }
+    connectWebSocket();
 
     function showAgentHud(activity) {
       const hud = document.getElementById('agent-activity-hud');
@@ -1564,33 +1516,47 @@ var StudioServer = class {
       const layer = document.getElementById('nodes-layer');
       layer.innerHTML = '';
 
+      if (!graph.nodes || graph.nodes.length === 0) {
+        document.getElementById('node-count-badge').textContent = '0 Nodes (Empty)';
+        return;
+      }
+
+      document.getElementById('node-count-badge').textContent = \`\${graph.nodes.length} Nodes | \${graph.edges?.length || 0} Wires\`;
+
       const positions = new Map();
+
+      // Column 1: Root & Subsystem Entities
       const entities = graph.nodes.filter(n => n.type === 'entity');
       entities.forEach((node, idx) => {
-        const x = 60 + (idx % 3) * 320;
-        const y = 60 + Math.floor(idx / 3) * 280;
+        const col = Math.floor(idx / 5);
+        const row = idx % 5;
+        const x = 60 + col * 360;
+        const y = 60 + row * 220;
         positions.set(node.id, { x, y });
         createNodeElement(node, x, y, layer);
       });
 
+      // Column 2: Quad-Unit Functionalities
       const funcs = graph.nodes.filter(n => n.type === 'functionality');
       funcs.forEach((node, idx) => {
-        const parentPos = node.parentEntity ? positions.get('entity:' + node.parentEntity) : null;
-        const x = parentPos ? parentPos.x + 40 : 420 + (idx % 3) * 280;
-        const y = parentPos ? parentPos.y + 120 + (idx % 2) * 90 : 380 + Math.floor(idx / 3) * 160;
+        const col = Math.floor(idx / 7);
+        const row = idx % 7;
+        const x = 800 + col * 320;
+        const y = 60 + row * 180;
         positions.set(node.id, { x, y });
         createNodeElement(node, x, y, layer);
       });
 
+      // Column 3: Concept Libraries & SubApps
       const others = graph.nodes.filter(n => n.type === 'library' || n.type === 'subapp');
       others.forEach((node, idx) => {
-        const x = 740 + (idx % 2) * 240;
-        const y = 80 + idx * 140;
+        const x = 1500;
+        const y = 60 + idx * 160;
         positions.set(node.id, { x, y });
         createNodeElement(node, x, y, layer);
       });
 
-      renderWires(graph.edges, positions);
+      renderWires(graph.edges || [], positions);
     }
 
     function createNodeElement(node, x, y, layer) {
@@ -1599,17 +1565,20 @@ var StudioServer = class {
       el.style.left = x + 'px';
       el.style.top = y + 'px';
 
+      const parentInfo = node.parentEntity ? \`<div style="font-size: 10px; color: #abb2bf; margin-bottom: 2px;">Parent: \${node.parentEntity}</div>\` : '';
+
       el.innerHTML = \`
         <div style="font-size: 10px; text-transform: uppercase; color: var(--krnl-accent); font-weight: bold; margin-bottom: 4px;">\${node.type}</div>
-        <div style="font-size: 15px; font-weight: bold; margin-bottom: 6px;">\${node.name}</div>
-        <div style="font-size: 9px; color: #7f848e; font-family: monospace; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">\${node.filePath}</div>
+        <div style="font-size: 15px; font-weight: bold; margin-bottom: 4px;">\${node.name}</div>
+        \${parentInfo}
+        <div style="font-size: 9px; color: #7f848e; font-family: monospace; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">\${node.filePath ? node.filePath.split('/').slice(-2).join('/') : ''}</div>
         <div class="node-socket socket-out"></div>
         <div class="node-socket socket-in"></div>
       \`;
 
       el.onclick = () => {
-        if (node.filePath) {
-          ws.send(JSON.stringify({
+        if (node.filePath && window.studioWs) {
+          window.studioWs.send(JSON.stringify({
             jsonrpc: '2.0',
             id: 'read-' + Date.now(),
             method: 'file.read',
@@ -1647,7 +1616,7 @@ var StudioServer = class {
         const sPos = positions.get(edge.source);
         const tPos = positions.get(edge.target);
         if (sPos && tPos) {
-          const sx = sPos.x + 220, sy = sPos.y + 40;
+          const sx = sPos.x + 250, sy = sPos.y + 40;
           const tx = tPos.x, ty = tPos.y + 35;
           const dx = Math.abs(tx - sx) * 0.5;
 
@@ -1694,15 +1663,17 @@ var StudioServer = class {
         return;
       }
 
-      ws.send(JSON.stringify({
-        jsonrpc: '2.0',
-        id: 'test-' + Date.now(),
-        method: 'test.executeFunction',
-        params: {
-          filePath: selectedFunction.filePath,
-          input: inputVal
-        }
-      }));
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'test-' + Date.now(),
+          method: 'test.executeFunction',
+          params: {
+            filePath: selectedFunction.filePath,
+            input: inputVal
+          }
+        }));
+      }
     };
 
     function renderTestOutput(result) {
@@ -1713,95 +1684,123 @@ var StudioServer = class {
     }
 
     function switchProject(relPath) {
-      ws.send(JSON.stringify({
-        jsonrpc: '2.0',
-        id: 'switch-' + Date.now(),
-        method: 'project.switch',
-        params: { path: relPath }
-      }));
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'switch-' + Date.now(),
+          method: 'project.switch',
+          params: { path: relPath }
+        }));
+      }
     }
 
     function triggerPurityAudit() {
-      ws.send(JSON.stringify({
-        jsonrpc: '2.0',
-        id: 'audit-' + Date.now(),
-        method: 'validate.runPurityAudit'
-      }));
-    }
-
-    function contextAddEntity() {
-      const name = prompt('Enter Entity Name:');
-      if (name) {
-        ws.send(JSON.stringify({
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
           jsonrpc: '2.0',
-          id: 'create-ent-' + Date.now(),
-          method: 'graph.createEntity',
-          params: { name }
+          id: 'audit-' + Date.now(),
+          method: 'validate.runPurityAudit'
         }));
       }
     }
 
-    function contextAddFunctionality() {
-      const entityName = prompt('Enter Parent Entity Name:');
-      const name = prompt('Enter Functionality Name:');
-      if (entityName && name) {
-        ws.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'create-fn-' + Date.now(),
-          method: 'graph.createFunctionality',
-          params: { entityName, name }
-        }));
-      }
+    function switchCanvas(canvasId, title) {
+      activeCanvas = canvasId;
+      document.querySelectorAll('.studio-canvas').forEach(c => c.classList.remove('active'));
+      document.getElementById('canvas-' + canvasId).classList.add('active');
+      document.getElementById('canvas-title').textContent = title;
+
+      ['arch', 'ui', 'test'].forEach(k => {
+        const btn = document.getElementById('dock-btn-' + k);
+        if (canvasId.startsWith(k)) {
+          btn.style.background = 'rgba(212, 175, 55, 0.25)';
+          btn.style.borderColor = '#d4af37';
+          btn.style.color = '#d4af37';
+          btn.style.fontWeight = 'bold';
+        } else {
+          btn.style.background = 'rgba(255, 255, 255, 0.05)';
+          btn.style.borderColor = 'rgba(255,255,255,0.1)';
+          btn.style.color = '#e0e0e0';
+          btn.style.fontWeight = 'normal';
+        }
+      });
     }
 
-    function contextAddLibrary() {
-      const name = prompt('Enter Domain Concept Library Name:');
-      if (name) {
-        ws.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'create-lib-' + Date.now(),
-          method: 'graph.createLibrary',
-          params: { name }
-        }));
-      }
-    }
+    // Initialize Monaco instances safely
+    if (window.require) {
+      require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+      require(['vs/editor/editor.main'], function () {
+        try {
+          monaco.editor.defineTheme('krnl-dark', {
+            base: 'vs-dark',
+            inherit: true,
+            rules: [
+              { token: 'keyword', foreground: 'd4af37', fontStyle: 'bold' },
+              { token: 'string', foreground: '98c379' },
+              { token: 'number', foreground: 'd19a66' },
+              { token: 'comment', foreground: '5c6370', fontStyle: 'italic' },
+              { token: 'type', foreground: 'e5c07b' },
+              { token: 'identifier', foreground: 'f5ede4' }
+            ],
+            colors: {
+              'editor.background': '#16161e',
+              'editor.foreground': '#f5ede4',
+              'editor.lineHighlightBackground': '#1f1f2a',
+              'editorLineNumber.foreground': '#5c6370',
+              'editorLineNumber.activeForeground': '#d4af37',
+              'editorCursor.foreground': '#d4af37',
+              'editor.selectionBackground': '#2d3139',
+              'editorWidget.background': '#16161e',
+              'editorWidget.border': '#d4af37'
+            }
+          });
 
-    function onDragAtom(e, atomType) {
-      e.dataTransfer.setData('text/plain', atomType);
-    }
-    function onDropAtom(e) {
-      e.preventDefault();
-      const atomType = e.dataTransfer.getData('text/plain');
-      if (atomType) {
-        document.getElementById('ui-empty-hint').style.display = 'none';
-        droppedAtoms.push({ type: atomType });
-        renderDroppedUI();
-      }
-    }
-    function renderDroppedUI() {
-      const target = document.getElementById('ui-drop-target');
-      target.innerHTML = '';
-      for (const atom of droppedAtoms) {
-        const item = document.createElement('div');
-        item.style.cssText = 'padding: 12px; background: #21212b; border: var(--krnl-border); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;';
-        item.innerHTML = \`<span>\${atom.type}</span><span style="color: #7f848e; font-size: 11px;">Bound to Entity</span>\`;
-        target.appendChild(item);
-      }
+          monacoUiEditor = monaco.editor.create(document.getElementById('ui-monaco-container'), {
+            value: '// Drag KrnlUI atoms into the canvas above to generate VanJS code...',
+            language: 'typescript',
+            theme: 'krnl-dark',
+            readOnly: true,
+            automaticLayout: true,
+            fontSize: 12,
+            fontFamily: 'Fira Code, Menlo, Monaco, monospace',
+            minimap: { enabled: false }
+          });
 
-      const imports = Array.from(new Set(droppedAtoms.map(a => a.type))).join(', ');
-      const code = \`import van from 'vanjs-core';
-import { \${imports} } from '@dinilmusick/krnl-ui';
+          monacoTestInputEditor = monaco.editor.create(document.getElementById('test-input-monaco'), {
+            value: '{\\n  "payload": "demo_test_value"\\n}',
+            language: 'json',
+            theme: 'krnl-dark',
+            automaticLayout: true,
+            fontSize: 12,
+            fontFamily: 'Fira Code, Menlo, Monaco, monospace',
+            minimap: { enabled: false }
+          });
 
-export function View({ state, entity }: any): HTMLElement {
-  const { div } = van.tags;
-  return div(
-    { class: 'krnl-view-panel' },
-    \${droppedAtoms.map(a => a.type + '({ ... })').join(',\\n    ')}
-  );
-}\`;
-      if (monacoUiEditor) {
-        monacoUiEditor.setValue(code);
-      }
+          monacoTestOutputEditor = monaco.editor.create(document.getElementById('test-output-monaco'), {
+            value: '// Awaiting execution...',
+            language: 'json',
+            theme: 'krnl-dark',
+            readOnly: true,
+            automaticLayout: true,
+            fontSize: 12,
+            fontFamily: 'Fira Code, Menlo, Monaco, monospace',
+            minimap: { enabled: false }
+          });
+
+          monacoDrawerEditor = monaco.editor.create(document.getElementById('drawer-monaco-container'), {
+            value: '// Select a node to view its source code...',
+            language: 'typescript',
+            theme: 'krnl-dark',
+            readOnly: true,
+            automaticLayout: true,
+            fontSize: 12,
+            fontFamily: 'Fira Code, Menlo, Monaco, monospace',
+            minimap: { enabled: true }
+          });
+        } catch (e) {
+          console.error('Monaco init error:', e);
+        }
+      });
     }
   </script>
 </body>
@@ -1812,6 +1811,7 @@ export function View({ state, entity }: any): HTMLElement {
       this.httpServer.listen(this.port, () => {
         console.log(`
 \u{1F680} [Krnl Studio] Visual IDE running at: http://localhost:${this.port}`);
+        console.log(`\u{1F4E1} [Krnl Studio] Active Project Root: ${this.projectRoot}`);
         console.log(`\u{1F4E1} [Krnl Studio] REST API Suite available at: http://localhost:${this.port}/api/v1/*`);
         console.log(`\u{1F4E1} [Krnl Studio] WebSocket JSON-RPC protocol active on /studio/ws
 `);
