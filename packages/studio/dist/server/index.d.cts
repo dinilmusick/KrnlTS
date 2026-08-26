@@ -127,8 +127,12 @@ declare class JsonRpcRouter {
     private astEngine;
     private validator;
     private projectRoot;
-    constructor(projectRoot?: string);
+    private onMutationCallback?;
+    constructor(projectRoot?: string, onMutation?: (m: any) => void);
+    setProjectRoot(newRoot: string): void;
+    getProjectRoot(): string;
     handle(req: JsonRpcRequest): Promise<JsonRpcResponse>;
+    private notifyMutation;
 }
 
 interface StudioServerOptions {
@@ -147,6 +151,7 @@ declare class StudioServer {
     private initWebSocket;
     private initFileWatcher;
     private broadcastGraphUpdate;
+    private broadcastAgentActivity;
     private handleHttpRequest;
     private getStudioHtml;
     start(): Promise<void>;

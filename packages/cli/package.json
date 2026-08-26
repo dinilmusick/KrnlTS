@@ -24,6 +24,7 @@
     "@dinilmusick/krnl-core": "workspace:*",
     "@dinilmusick/krnl-studio": "workspace:*",
     "@dinilmusick/krnl-validate": "workspace:*",
+    "esbuild": "^0.28.2",
     "ts-morph": "^25.0.1",
     "ws": "^8.18.0"
   },

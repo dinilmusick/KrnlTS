@@ -334,7 +334,10 @@ export class ${domainName}Concepts {
 };
 
 // src/server/FunctionExecutor.ts
+var path2 = __toESM(require("path"), 1);
+var fs2 = __toESM(require("fs"), 1);
 var import_worker_threads = require("worker_threads");
+var esbuild = __toESM(require("esbuild"), 1);
 var FunctionExecutor = class {
   /**
    * Executes a specific function in an isolated process/worker with performance metrics.
@@ -343,32 +346,77 @@ var FunctionExecutor = class {
     const startTime = performance.now();
     const initialMem = process.memoryUsage().heapUsed;
     const logs = [];
-    return new Promise((resolve4) => {
+    const absPath = path2.resolve(request.filePath);
+    if (!fs2.existsSync(absPath)) {
+      return {
+        success: false,
+        durationMs: 0,
+        memoryDeltaBytes: 0,
+        error: `File not found: ${absPath}`,
+        logs: []
+      };
+    }
+    const tsResolverPlugin = {
+      name: "ts-resolver-plugin",
+      setup(build2) {
+        build2.onResolve({ filter: /.*/ }, (args) => {
+          if (args.path.startsWith(".")) {
+            const dir = args.resolveDir || path2.dirname(args.importer);
+            const candidateJs = path2.resolve(dir, args.path);
+            const candidateTs = candidateJs.replace(/\.js$/, ".ts");
+            if (fs2.existsSync(candidateTs)) {
+              return { path: candidateTs };
+            }
+            if (fs2.existsSync(candidateJs)) {
+              return { path: candidateJs };
+            }
+          }
+          return null;
+        });
+      }
+    };
+    let bundledCode = "";
+    try {
+      const result = await esbuild.build({
+        entryPoints: [absPath],
+        bundle: true,
+        write: false,
+        format: "esm",
+        platform: "node",
+        target: "esnext",
+        plugins: [tsResolverPlugin],
+        external: ["@dinilmusick/krnl-core", "vanjs-core", "worker_threads", "ws", "fs", "path", "http", "events"]
+      });
+      if (result.outputFiles && result.outputFiles.length > 0) {
+        bundledCode = result.outputFiles[0].text;
+      } else {
+        throw new Error("esbuild produced no output");
+      }
+    } catch (err) {
+      return {
+        success: false,
+        durationMs: parseFloat((performance.now() - startTime).toFixed(2)),
+        memoryDeltaBytes: 0,
+        error: "Bundle error: " + (err?.message || String(err)),
+        logs
+      };
+    }
+    const codeBase64 = Buffer.from(bundledCode).toString("base64");
+    return new Promise((resolve6) => {
       try {
         const workerCode = `
           const { parentPort, workerData } = require('worker_threads');
-          const path = require('path');
 
           async function run() {
             try {
-              let mod;
-              const ext = path.extname(workerData.filePath);
-              if (ext === '.ts') {
-                try {
-                  mod = await import(workerData.filePath);
-                } catch (e) {
-                  mod = await import('file://' + workerData.filePath);
-                }
-              } else {
-                mod = await import('file://' + workerData.filePath);
-              }
+              const mod = await import('data:text/javascript;base64,' + workerData.codeBase64);
 
               const fn = workerData.functionName
                 ? (mod[workerData.functionName] || mod.default || mod.main)
                 : (mod.main || mod.default || mod[Object.keys(mod)[0]]);
 
               if (typeof fn !== 'function') {
-                throw new Error("No executable function export found in " + workerData.filePath);
+                throw new Error("No executable function export found in " + workerData.absPath);
               }
 
               const dummyContext = {
@@ -391,13 +439,19 @@ var FunctionExecutor = class {
         `;
         const worker = new import_worker_threads.Worker(workerCode, {
           eval: true,
-          workerData: request
+          workerData: {
+            absPath,
+            codeBase64,
+            functionName: request.functionName,
+            input: request.input,
+            state: request.state
+          }
         });
         const timer = setTimeout(() => {
           worker.terminate();
-          resolve4({
+          resolve6({
             success: false,
-            durationMs: performance.now() - startTime,
+            durationMs: parseFloat((performance.now() - startTime).toFixed(2)),
             memoryDeltaBytes: 0,
             error: "Execution timed out after 5000ms",
             logs
@@ -406,8 +460,8 @@ var FunctionExecutor = class {
         worker.on("message", (msg) => {
           clearTimeout(timer);
           const durationMs = parseFloat((performance.now() - startTime).toFixed(2));
-          const memoryDeltaBytes = process.memoryUsage().heapUsed - initialMem;
-          resolve4({
+          const memoryDeltaBytes = Math.max(0, process.memoryUsage().heapUsed - initialMem);
+          resolve6({
             success: msg.success,
             output: msg.output,
             error: msg.error,
@@ -418,18 +472,18 @@ var FunctionExecutor = class {
         });
         worker.on("error", (err) => {
           clearTimeout(timer);
-          resolve4({
+          resolve6({
             success: false,
-            durationMs: performance.now() - startTime,
+            durationMs: parseFloat((performance.now() - startTime).toFixed(2)),
             memoryDeltaBytes: 0,
             error: err?.message || String(err),
             logs
           });
         });
       } catch (err) {
-        resolve4({
+        resolve6({
           success: false,
-          durationMs: performance.now() - startTime,
+          durationMs: parseFloat((performance.now() - startTime).toFixed(2)),
           memoryDeltaBytes: 0,
           error: err?.message || String(err),
           logs
@@ -440,24 +494,24 @@ var FunctionExecutor = class {
 };
 
 // src/server/FileWatcher.ts
-var fs2 = __toESM(require("fs"), 1);
-var path2 = __toESM(require("path"), 1);
+var fs3 = __toESM(require("fs"), 1);
+var path3 = __toESM(require("path"), 1);
 var StudioFileWatcher = class {
   watcher = null;
   rootDir;
   listeners = /* @__PURE__ */ new Set();
   debounceTimers = /* @__PURE__ */ new Map();
   constructor(rootDir = process.cwd()) {
-    this.rootDir = path2.resolve(rootDir);
+    this.rootDir = path3.resolve(rootDir);
   }
   start() {
     if (this.watcher) return;
-    const srcDir = path2.join(this.rootDir, "src");
-    if (!fs2.existsSync(srcDir)) return;
-    this.watcher = fs2.watch(srcDir, { recursive: true }, (eventType, filename) => {
+    const srcDir = path3.join(this.rootDir, "src");
+    if (!fs3.existsSync(srcDir)) return;
+    this.watcher = fs3.watch(srcDir, { recursive: true }, (eventType, filename) => {
       if (!filename) return;
       if (filename.includes("node_modules") || filename.includes("dist") || filename.includes(".git")) return;
-      const fullPath = path2.join(srcDir, filename);
+      const fullPath = path3.join(srcDir, filename);
       if (this.debounceTimers.has(fullPath)) {
         clearTimeout(this.debounceTimers.get(fullPath));
       }
@@ -486,58 +540,436 @@ var StudioFileWatcher = class {
 };
 
 // src/server/JsonRpcRouter.ts
+var fs4 = __toESM(require("fs"), 1);
+var path4 = __toESM(require("path"), 1);
 var import_krnl_validate = require("@dinilmusick/krnl-validate");
+
+// src/server/PreemptiveDocManager.ts
+var PreemptiveDocManager = class {
+  static endpoints = {
+    // 1. Workspace
+    "project.create": {
+      id: "project.create",
+      method: "POST",
+      path: "/api/v1/project/create",
+      rpcMethod: "project.create",
+      title: "Create Project Workspace",
+      description: "Initializes a new Krnl full-stack workspace with standard quad-units, configs, and entity roots.",
+      category: "Workspace",
+      payloadSchema: { name: "string", targetDir: "string (optional)", options: "object (optional)" },
+      examplePayload: { name: "PaymentApp", targetDir: "./projects/PaymentApp" },
+      nextSuggestedEndpoints: ["entity.create", "library.create", "graph.getArchitecture"]
+    },
+    "project.load": {
+      id: "project.load",
+      method: "POST",
+      path: "/api/v1/project/load",
+      rpcMethod: "project.load",
+      title: "Load Project Workspace",
+      description: "Switches the active workspace context and synchronizes the visual node graph and file watcher.",
+      category: "Workspace",
+      payloadSchema: { path: "string (absolute or relative project path)" },
+      examplePayload: { path: "examples/unified-workspace" },
+      nextSuggestedEndpoints: ["graph.getArchitecture", "validate.audit", "test.executeFunction"]
+    },
+    "graph.getArchitecture": {
+      id: "graph.getArchitecture",
+      method: "GET",
+      path: "/api/v1/project/graph",
+      rpcMethod: "graph.getArchitecture",
+      title: "Get Architecture Graph",
+      description: "Inspects source files on disk and returns the complete hierarchical entity, quad-unit, and concept library graph.",
+      category: "Workspace",
+      payloadSchema: {},
+      examplePayload: {},
+      nextSuggestedEndpoints: ["entity.create", "functionality.create", "validate.audit"]
+    },
+    // 2. Scaffolding
+    "entity.create": {
+      id: "entity.create",
+      method: "POST",
+      path: "/api/v1/entity/create",
+      rpcMethod: "graph.createEntity",
+      title: "Scaffold Entity",
+      description: "Surgically creates a new root or component Entity on disk with magnetic auto-discovery hooks.",
+      category: "Scaffolding",
+      payloadSchema: { name: "string (e.g. OrderSystem)" },
+      examplePayload: { name: "OrderSystem" },
+      nextSuggestedEndpoints: ["functionality.create", "flow.addStep", "library.create"]
+    },
+    "functionality.create": {
+      id: "functionality.create",
+      method: "POST",
+      path: "/api/v1/functionality/create",
+      rpcMethod: "graph.createFunctionality",
+      title: "Scaffold Quad-Unit Functionality",
+      description: "Generates a 4-layer quad-unit (Atom, logic.ts, state.ts, helper_functions/) nested in the target Entity.",
+      category: "Scaffolding",
+      payloadSchema: { entityName: "string", name: "string (functionality name)" },
+      examplePayload: { entityName: "OrderSystem", name: "CreateOrder" },
+      nextSuggestedEndpoints: ["test.executeFunction", "flow.addStep", "file.edit"]
+    },
+    "library.create": {
+      id: "library.create",
+      method: "POST",
+      path: "/api/v1/library/create",
+      rpcMethod: "graph.createLibrary",
+      title: "Scaffold Domain Concept Library",
+      description: "Generates a Layer 0 pure domain concept library ({Domain}Concepts.ts) with zero I/O side effects.",
+      category: "Scaffolding",
+      payloadSchema: { name: "string (e.g. Crypto)" },
+      examplePayload: { name: "Crypto" },
+      nextSuggestedEndpoints: ["file.edit", "functionality.create", "validate.audit"]
+    },
+    "subapp.create": {
+      id: "subapp.create",
+      method: "POST",
+      path: "/api/v1/subapp/create",
+      rpcMethod: "graph.createSubApp",
+      title: "Scaffold Self-Contained Sub-App",
+      description: "Creates an isolated sub-application with subapp.json manifest and pure operation handlers.",
+      category: "Scaffolding",
+      payloadSchema: { name: "string (e.g. AnalyticsEngine)" },
+      examplePayload: { name: "AnalyticsEngine" },
+      nextSuggestedEndpoints: ["file.edit", "graph.getArchitecture"]
+    },
+    "flow.addStep": {
+      id: "flow.addStep",
+      method: "POST",
+      path: "/api/v1/flow/addStep",
+      rpcMethod: "graph.addFlowStep",
+      title: "Inject Flow Step",
+      description: "Surgically adds a .then() or .branch() step into an Entity boot flow pipeline without disturbing existing code.",
+      category: "Scaffolding",
+      payloadSchema: { entityFilePath: "string", flowName: "string", stepFunctionName: "string" },
+      examplePayload: {
+        entityFilePath: "src/entities/OrderSystem/OrderSystem.ts",
+        flowName: "CheckoutFlow",
+        stepFunctionName: "CreateOrder"
+      },
+      nextSuggestedEndpoints: ["test.executeFunction", "validate.audit"]
+    },
+    // 3. Code Mutation
+    "file.read": {
+      id: "file.read",
+      method: "POST",
+      path: "/api/v1/file/read",
+      rpcMethod: "file.read",
+      title: "Read Source File",
+      description: "Reads exact source code and metadata of any file in the workspace.",
+      category: "CodeMutation",
+      payloadSchema: { filePath: "string (absolute or relative)" },
+      examplePayload: { filePath: "src/entities/App/functionalities/Hello/main_function/logic.ts" },
+      nextSuggestedEndpoints: ["file.edit", "test.executeFunction"]
+    },
+    "file.edit": {
+      id: "file.edit",
+      method: "POST",
+      path: "/api/v1/file/edit",
+      rpcMethod: "file.edit",
+      title: "Surgical File Mutation",
+      description: "Surgically updates or replaces targeted code blocks in a TypeScript file while preserving comments and formatting.",
+      category: "CodeMutation",
+      payloadSchema: { filePath: "string", newContent: "string" },
+      examplePayload: { filePath: "src/.../logic.ts", newContent: "export const main = async () => ({ ok: true });" },
+      nextSuggestedEndpoints: ["validate.audit", "test.executeFunction"]
+    },
+    "ui.generate": {
+      id: "ui.generate",
+      method: "POST",
+      path: "/api/v1/ui/generate",
+      rpcMethod: "ui.generate",
+      title: "Generate VanJS UI Source",
+      description: "Compiles a visual component tree JSON into clean, reactive VanJS TypeScript source code.",
+      category: "CodeMutation",
+      payloadSchema: { componentTree: "object", targetFilePath: "string (optional)" },
+      examplePayload: { componentTree: { type: "KrnlButton", props: { icon: "\u{1F680}" } } },
+      nextSuggestedEndpoints: ["file.edit", "validate.audit"]
+    },
+    // 4. Validation & Quality Gates
+    "validate.audit": {
+      id: "validate.audit",
+      method: "POST",
+      path: "/api/v1/validate/audit",
+      rpcMethod: "validate.runPurityAudit",
+      title: "Run AST 4-Layer Purity Audit",
+      description: "Runs deep AST analysis across the workspace checking 4-layer function purity, 200-line limits, anti-polling, and import suffixes.",
+      category: "Validation",
+      payloadSchema: { projectPath: "string (optional)" },
+      examplePayload: {},
+      nextSuggestedEndpoints: ["test.executeFunction", "graph.getArchitecture"]
+    },
+    // 5. Sandboxed Testing
+    "test.executeFunction": {
+      id: "test.executeFunction",
+      method: "POST",
+      path: "/api/v1/test/execute",
+      rpcMethod: "test.executeFunction",
+      title: "Execute Function in Isolated Sandbox",
+      description: "Invokes any targeted function in an isolated Node.js Worker sandbox, capturing output, latency (ms), and memory delta.",
+      category: "Testing",
+      payloadSchema: { filePath: "string", functionName: "string (optional)", input: "object" },
+      examplePayload: {
+        filePath: "src/entities/CalculatorSystem/functionalities/Calculate/main_function/logic.ts",
+        input: { op: "add", a: 10, b: 20 }
+      },
+      nextSuggestedEndpoints: ["validate.audit", "flow.addStep"]
+    },
+    // 6. Documentation
+    "docs.endpoints": {
+      id: "docs.endpoints",
+      method: "GET",
+      path: "/api/v1/docs/endpoints",
+      rpcMethod: "docs.endpoints",
+      title: "Get Full API Documentation Catalog",
+      description: "Returns the full list of all available Krnl Studio agentic endpoints with schemas, examples, and next steps.",
+      category: "Documentation",
+      payloadSchema: {},
+      examplePayload: {},
+      nextSuggestedEndpoints: ["graph.getArchitecture", "entity.create"]
+    }
+  };
+  static getAllEndpoints() {
+    return Object.values(this.endpoints);
+  }
+  static getEndpoint(id) {
+    return this.endpoints[id];
+  }
+  static decorateResponse(actionId, payload, host = "localhost:8080") {
+    const ep = this.endpoints[actionId];
+    const nextSteps = (ep?.nextSuggestedEndpoints || ["graph.getArchitecture", "validate.audit", "test.executeFunction"]).map((nextId) => {
+      const nextMeta = this.endpoints[nextId];
+      if (!nextMeta) return null;
+      return {
+        id: nextMeta.id,
+        title: nextMeta.title,
+        endpoint: `${nextMeta.method} ${nextMeta.path}`,
+        rpcMethod: nextMeta.rpcMethod,
+        description: nextMeta.description,
+        examplePayload: nextMeta.examplePayload,
+        curl: nextMeta.method === "GET" ? `curl -X GET http://${host}${nextMeta.path}` : `curl -X POST http://${host}${nextMeta.path} -H 'Content-Type: application/json' -d '${JSON.stringify(nextMeta.examplePayload)}'`
+      };
+    }).filter(Boolean);
+    return {
+      status: "success",
+      payload,
+      preemptiveDocumentation: {
+        action: actionId,
+        description: ep?.description || `Executed ${actionId}`,
+        suggestedNextSteps: nextSteps,
+        documentationIndexEndpoint: `GET http://${host}/api/v1/docs/endpoints`
+      }
+    };
+  }
+};
+
+// src/client/ui-builder/VanJSCodeGenerator.ts
+var VanJSCodeGenerator = class {
+  /**
+   * Generates production-ready VanJS TypeScript source code from a component tree.
+   */
+  static generateCode(root, componentName = "GeneratedView") {
+    const usedAtoms = /* @__PURE__ */ new Set();
+    this.collectUsedAtoms(root, usedAtoms);
+    const atomImports = Array.from(usedAtoms).filter((a) => a !== "Container" && a.startsWith("Krnl")).join(", ");
+    let code = `import van from 'vanjs-core';
+`;
+    if (atomImports.length > 0) {
+      code += `import { ${atomImports} } from '@dinilmusick/krnl-ui';
+`;
+    }
+    code += `
+`;
+    code += `export function ${componentName}({ state, entity }: any): HTMLElement {
+`;
+    code += `  const { div } = van.tags;
+
+`;
+    code += `  return ${this.renderNodeToCode(root, 2)};
+`;
+    code += `}
+
+`;
+    code += `export default ${componentName};
+`;
+    return code;
+  }
+  static renderNodeToCode(node, indentLevel) {
+    const indent = " ".repeat(indentLevel);
+    const childIndent = " ".repeat(indentLevel + 2);
+    if (node.type === "Container") {
+      const childCode = (node.children || []).map((c) => this.renderNodeToCode(c, indentLevel + 2)).join(",\n");
+      return `div(
+${childIndent}{ class: '${node.props.class || "krnl-container"}' }${childCode ? `,
+${childCode}` : ""}
+${indent})`;
+    }
+    const propEntries = Object.entries(node.props).map(([k, v]) => {
+      if (typeof v === "string" && (v.startsWith("state.") || v.startsWith("entity."))) {
+        return `${k}: ${v}`;
+      }
+      if (k.startsWith("on") && typeof v === "string") {
+        return `${k}: () => { ${v} }`;
+      }
+      return `${k}: ${JSON.stringify(v)}`;
+    }).join(", ");
+    return `${node.type}({ ${propEntries} })`;
+  }
+  static collectUsedAtoms(node, atoms) {
+    atoms.add(node.type);
+    if (node.children) {
+      for (const c of node.children) {
+        this.collectUsedAtoms(c, atoms);
+      }
+    }
+  }
+};
+
+// src/server/JsonRpcRouter.ts
 var JsonRpcRouter = class {
   astEngine;
   validator;
   projectRoot;
-  constructor(projectRoot = process.cwd()) {
-    this.projectRoot = projectRoot;
-    this.astEngine = new AstMutationEngine(projectRoot);
-    this.validator = new import_krnl_validate.KrnlValidatorEngine({ projectRoot });
+  onMutationCallback;
+  constructor(projectRoot = process.cwd(), onMutation) {
+    this.projectRoot = path4.resolve(projectRoot);
+    this.astEngine = new AstMutationEngine(this.projectRoot);
+    this.validator = new import_krnl_validate.KrnlValidatorEngine({ projectRoot: this.projectRoot });
+    this.onMutationCallback = onMutation;
+  }
+  setProjectRoot(newRoot) {
+    this.projectRoot = path4.resolve(newRoot);
+    this.astEngine = new AstMutationEngine(this.projectRoot);
+    this.validator = new import_krnl_validate.KrnlValidatorEngine({ projectRoot: this.projectRoot });
+  }
+  getProjectRoot() {
+    return this.projectRoot;
   }
   async handle(req) {
     try {
       const { method, params = {}, id } = req;
       switch (method) {
-        case "graph.getArchitecture": {
+        // 1. Workspace
+        case "project.load":
+        case "project.switch": {
+          const targetPath = params.path || params.projectPath;
+          if (!targetPath) throw new Error("Path is required to load project");
+          const abs = path4.resolve(this.projectRoot, targetPath);
+          if (!fs4.existsSync(abs)) throw new Error(`Project directory not found: ${targetPath}`);
+          this.setProjectRoot(abs);
           const graph = this.astEngine.extractArchitectureGraph();
-          return { jsonrpc: "2.0", id, result: graph };
+          const decorated = PreemptiveDocManager.decorateResponse("project.load", { success: true, projectRoot: this.projectRoot, graph });
+          return { jsonrpc: "2.0", id, result: decorated };
         }
+        case "graph.getArchitecture":
+        case "project.getArchitecture": {
+          const graph = this.astEngine.extractArchitectureGraph();
+          const decorated = PreemptiveDocManager.decorateResponse("graph.getArchitecture", graph);
+          return { jsonrpc: "2.0", id, result: decorated };
+        }
+        case "project.getStatus": {
+          const graph = this.astEngine.extractArchitectureGraph();
+          const summary = this.validator.validateAll();
+          const status = {
+            projectRoot: this.projectRoot,
+            entityCount: graph.nodes.filter((n) => n.type === "entity").length,
+            functionalityCount: graph.nodes.filter((n) => n.type === "functionality").length,
+            libraryCount: graph.nodes.filter((n) => n.type === "library").length,
+            subappCount: graph.nodes.filter((n) => n.type === "subapp").length,
+            purityValid: summary.valid,
+            purityErrors: summary.errors.length
+          };
+          const decorated = PreemptiveDocManager.decorateResponse("graph.getArchitecture", status);
+          return { jsonrpc: "2.0", id, result: decorated };
+        }
+        // 2. Scaffolding
+        case "entity.create":
         case "graph.createEntity": {
           const { name } = params;
           if (!name) throw new Error("Entity name is required");
           const res = this.astEngine.createEntity(name);
           const graph = this.astEngine.extractArchitectureGraph();
-          return { jsonrpc: "2.0", id, result: { ...res, graph } };
+          this.notifyMutation("entity.create", { name, ...res });
+          const decorated = PreemptiveDocManager.decorateResponse("entity.create", { ...res, graph });
+          return { jsonrpc: "2.0", id, result: decorated };
         }
+        case "functionality.create":
         case "graph.createFunctionality": {
           const { entityName, name } = params;
           if (!entityName || !name) throw new Error("entityName and name are required");
           const res = this.astEngine.createFunctionality(entityName, name);
           const graph = this.astEngine.extractArchitectureGraph();
-          return { jsonrpc: "2.0", id, result: { ...res, graph } };
+          this.notifyMutation("functionality.create", { entityName, name, ...res });
+          const decorated = PreemptiveDocManager.decorateResponse("functionality.create", { ...res, graph });
+          return { jsonrpc: "2.0", id, result: decorated };
         }
+        case "library.create":
         case "graph.createLibrary": {
           const { name } = params;
           if (!name) throw new Error("Library name is required");
           const res = this.astEngine.createLibrary(name);
           const graph = this.astEngine.extractArchitectureGraph();
-          return { jsonrpc: "2.0", id, result: { ...res, graph } };
+          this.notifyMutation("library.create", { name, ...res });
+          const decorated = PreemptiveDocManager.decorateResponse("library.create", { ...res, graph });
+          return { jsonrpc: "2.0", id, result: decorated };
         }
+        case "flow.addStep":
         case "graph.addFlowStep": {
           const { entityFilePath, flowName, stepFunctionName } = params;
           const success = this.astEngine.addFlowStep(entityFilePath, flowName, stepFunctionName);
           const graph = this.astEngine.extractArchitectureGraph();
-          return { jsonrpc: "2.0", id, result: { success, graph } };
+          this.notifyMutation("flow.addStep", { flowName, stepFunctionName, success });
+          const decorated = PreemptiveDocManager.decorateResponse("flow.addStep", { success, graph });
+          return { jsonrpc: "2.0", id, result: decorated };
         }
-        case "test.executeFunction": {
-          const result = await FunctionExecutor.execute(params);
-          return { jsonrpc: "2.0", id, result };
+        // 3. Code Mutation
+        case "file.read": {
+          const { filePath } = params;
+          const abs = path4.resolve(this.projectRoot, filePath);
+          if (!fs4.existsSync(abs)) throw new Error(`File not found: ${filePath}`);
+          const content = fs4.readFileSync(abs, "utf-8");
+          const decorated = PreemptiveDocManager.decorateResponse("file.read", { filePath: abs, content });
+          return { jsonrpc: "2.0", id, result: decorated };
         }
+        case "file.edit": {
+          const { filePath, newContent } = params;
+          const abs = path4.resolve(this.projectRoot, filePath);
+          fs4.writeFileSync(abs, newContent, "utf-8");
+          this.notifyMutation("file.edit", { filePath });
+          const decorated = PreemptiveDocManager.decorateResponse("file.edit", { success: true, filePath: abs });
+          return { jsonrpc: "2.0", id, result: decorated };
+        }
+        case "ui.generate": {
+          const { componentTree, componentName, targetFilePath } = params;
+          const code = VanJSCodeGenerator.generateCode(componentTree, componentName || "GeneratedView");
+          if (targetFilePath) {
+            const abs = path4.resolve(this.projectRoot, targetFilePath);
+            fs4.mkdirSync(path4.dirname(abs), { recursive: true });
+            fs4.writeFileSync(abs, code, "utf-8");
+            this.notifyMutation("ui.generate", { targetFilePath });
+          }
+          const decorated = PreemptiveDocManager.decorateResponse("ui.generate", { code, targetFilePath });
+          return { jsonrpc: "2.0", id, result: decorated };
+        }
+        // 4. Validation
+        case "validate.audit":
         case "validate.runPurityAudit": {
           const summary = this.validator.validateAll();
-          return { jsonrpc: "2.0", id, result: summary };
+          const decorated = PreemptiveDocManager.decorateResponse("validate.audit", summary);
+          return { jsonrpc: "2.0", id, result: decorated };
+        }
+        // 5. Sandboxed Testing
+        case "test.executeFunction": {
+          const result = await FunctionExecutor.execute(params);
+          this.notifyMutation("test.executeFunction", { filePath: params.filePath, success: result.success, durationMs: result.durationMs });
+          const decorated = PreemptiveDocManager.decorateResponse("test.executeFunction", result);
+          return { jsonrpc: "2.0", id, result: decorated };
+        }
+        // 6. Documentation
+        case "docs.endpoints": {
+          const all = PreemptiveDocManager.getAllEndpoints();
+          const decorated = PreemptiveDocManager.decorateResponse("docs.endpoints", all);
+          return { jsonrpc: "2.0", id, result: decorated };
         }
         default:
           return {
@@ -554,12 +986,17 @@ var JsonRpcRouter = class {
       };
     }
   }
+  notifyMutation(action, params) {
+    if (this.onMutationCallback) {
+      this.onMutationCallback({ action, params });
+    }
+  }
 };
 
 // src/server/StudioServer.ts
 var http = __toESM(require("http"), 1);
-var fs3 = __toESM(require("fs"), 1);
-var path3 = __toESM(require("path"), 1);
+var fs5 = __toESM(require("fs"), 1);
+var path5 = __toESM(require("path"), 1);
 var import_ws = require("ws");
 var StudioServer = class {
   port;
@@ -571,10 +1008,12 @@ var StudioServer = class {
   astEngine;
   constructor(options = {}) {
     this.port = options.port || 8080;
-    this.projectRoot = path3.resolve(options.projectRoot || process.cwd());
-    this.router = new JsonRpcRouter(this.projectRoot);
+    this.projectRoot = path5.resolve(options.projectRoot || process.cwd());
     this.astEngine = new AstMutationEngine(this.projectRoot);
     this.watcher = new StudioFileWatcher(this.projectRoot);
+    this.router = new JsonRpcRouter(this.projectRoot, (mutation) => {
+      this.broadcastAgentActivity(mutation);
+    });
     this.httpServer = http.createServer((req, res) => this.handleHttpRequest(req, res));
     this.wss = new import_ws.WebSocketServer({ server: this.httpServer, path: "/studio/ws" });
     this.initWebSocket();
@@ -587,30 +1026,21 @@ var StudioServer = class {
       ws.on("message", async (data) => {
         try {
           const req = JSON.parse(data.toString());
-          if (req.method === "project.switch") {
-            const newPath = path3.resolve(this.projectRoot, req.params.path);
-            if (fs3.existsSync(newPath)) {
+          if (req.method === "project.switch" || req.method === "project.load") {
+            const newPath = path5.resolve(this.projectRoot, req.params.path);
+            if (fs5.existsSync(newPath)) {
               this.projectRoot = newPath;
-              this.router = new JsonRpcRouter(this.projectRoot);
+              this.router.setProjectRoot(this.projectRoot);
               this.astEngine = new AstMutationEngine(this.projectRoot);
               this.watcher.stop();
               this.watcher = new StudioFileWatcher(this.projectRoot);
               this.initFileWatcher();
               const graph = this.astEngine.extractArchitectureGraph();
-              ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, result: { success: true, projectRoot: this.projectRoot } }));
+              const decorated = PreemptiveDocManager.decorateResponse("project.load", { success: true, projectRoot: this.projectRoot, graph });
+              ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, result: decorated }));
               this.broadcastGraphUpdate();
             } else {
               ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, error: { code: -32001, message: "Directory does not exist" } }));
-            }
-            return;
-          }
-          if (req.method === "file.read") {
-            const fPath = req.params.filePath;
-            if (fs3.existsSync(fPath)) {
-              const content = fs3.readFileSync(fPath, "utf-8");
-              ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, result: { content, filePath: fPath } }));
-            } else {
-              ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, error: { code: -32002, message: "File not found" } }));
             }
             return;
           }
@@ -643,7 +1073,23 @@ var StudioServer = class {
       }
     }
   }
-  handleHttpRequest(req, res) {
+  broadcastAgentActivity(mutation) {
+    const payload = JSON.stringify({
+      jsonrpc: "2.0",
+      method: "agent.activity",
+      params: {
+        action: mutation.action,
+        params: mutation.params,
+        timestamp: Date.now()
+      }
+    });
+    for (const client of this.wss.clients) {
+      if (client.readyState === import_ws.WebSocket.OPEN) {
+        client.send(payload);
+      }
+    }
+  }
+  async handleHttpRequest(req, res) {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -652,10 +1098,50 @@ var StudioServer = class {
       res.end();
       return;
     }
-    if (req.url === "/api/graph") {
-      const graph = this.astEngine.extractArchitectureGraph();
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(graph));
+    const url = req.url?.split("?")[0] || "/";
+    if (url.startsWith("/api/v1/") || url === "/api/graph") {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += chunk;
+      });
+      req.on("end", async () => {
+        let params = {};
+        if (body.trim()) {
+          try {
+            params = JSON.parse(body);
+          } catch (e) {
+          }
+        }
+        let method = "graph.getArchitecture";
+        if (url === "/api/v1/project/create") method = "project.create";
+        else if (url === "/api/v1/project/load") method = "project.load";
+        else if (url === "/api/v1/project/graph" || url === "/api/graph") method = "graph.getArchitecture";
+        else if (url === "/api/v1/project/status") method = "project.getStatus";
+        else if (url === "/api/v1/entity/create") method = "entity.create";
+        else if (url === "/api/v1/functionality/create") method = "functionality.create";
+        else if (url === "/api/v1/library/create") method = "library.create";
+        else if (url === "/api/v1/flow/addStep") method = "flow.addStep";
+        else if (url === "/api/v1/file/read") method = "file.read";
+        else if (url === "/api/v1/file/edit") method = "file.edit";
+        else if (url === "/api/v1/ui/generate") method = "ui.generate";
+        else if (url === "/api/v1/validate/audit") method = "validate.audit";
+        else if (url === "/api/v1/test/execute") method = "test.executeFunction";
+        else if (url === "/api/v1/docs/endpoints") method = "docs.endpoints";
+        const rpcRes = await this.router.handle({
+          jsonrpc: "2.0",
+          id: "http-req-" + Date.now(),
+          method,
+          params
+        });
+        if (rpcRes.error) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(rpcRes.error, null, 2));
+        } else {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(rpcRes.result, null, 2));
+          this.broadcastGraphUpdate();
+        }
+      });
       return;
     }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
@@ -667,7 +1153,7 @@ var StudioServer = class {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Krnl Studio \u2014 Monaco-Powered Visual IDE</title>
+  <title>Krnl Studio \u2014 AI-Agent Accessible Visual IDE</title>
   
   <!-- Monaco Editor AMD Loader -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
@@ -705,6 +1191,14 @@ var StudioServer = class {
       font-size: 13px; font-weight: bold; box-shadow: 0 4px 20px rgba(0,0,0,0.6);
     }
     .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #98c379; box-shadow: 0 0 8px #98c379; }
+
+    /* Live Agent Activity HUD Badge */
+    #agent-activity-hud {
+      position: fixed; top: 60px; left: 16px; z-index: 1500;
+      background: rgba(22, 22, 30, 0.95); border: 1px solid #d4af37;
+      border-radius: 8px; padding: 8px 14px; display: none; align-items: center; gap: 10px;
+      font-size: 12px; color: #d4af37; box-shadow: 0 4px 20px rgba(0,0,0,0.8), 0 0 12px var(--krnl-accent-glow);
+    }
 
     /* Graph Canvas Viewport */
     #graph-viewport {
@@ -752,7 +1246,7 @@ var StudioServer = class {
     .socket-out { right: -6px; top: 50%; transform: translateY(-50%); }
     .socket-in { left: -6px; top: 50%; transform: translateY(-50%); background: #61afef; }
 
-    /* Monaco Container Borders */
+    /* Monaco Container */
     .monaco-card {
       border: 1px solid rgba(212, 175, 55, 0.25);
       border-radius: 8px;
@@ -776,6 +1270,12 @@ var StudioServer = class {
 </head>
 <body>
   <div id="app">
+    <!-- Live Agent Activity Toast -->
+    <div id="agent-activity-hud">
+      <span style="font-size: 15px;">\u{1F916}</span>
+      <span id="agent-hud-text">AI Agent Mutation</span>
+    </div>
+
     <!-- Header -->
     <div class="studio-header">
       <div style="display: flex; align-items: center; gap: 12px;">
@@ -805,7 +1305,7 @@ var StudioServer = class {
           <div id="nodes-layer"></div>
         </div>
       </div>
-      <!-- Side Source Code Drawer -->
+      <!-- Source Code Drawer -->
       <div id="code-drawer" style="position: absolute; top: 60px; right: 16px; bottom: 80px; width: 480px; background: rgba(22, 22, 30, 0.96); backdrop-filter: blur(16px); border: var(--krnl-border); border-radius: 10px; display: none; flex-direction: column; z-index: 1500; box-shadow: 0 12px 36px rgba(0,0,0,0.8);">
         <div style="padding: 12px 16px; border-bottom: var(--krnl-border); display: flex; justify-content: space-between; align-items: center;">
           <span id="drawer-file-title" style="font-size: 12px; font-weight: bold; color: var(--krnl-accent); font-family: monospace;">Source File</span>
@@ -815,7 +1315,7 @@ var StudioServer = class {
       </div>
     </div>
 
-    <!-- 2. UI Composer Canvas with Monaco Code Viewer -->
+    <!-- 2. UI Composer Canvas -->
     <div id="canvas-ui" class="studio-canvas">
       <div style="display: flex; width: 100%; height: 100%; padding-top: 60px;">
         <div style="width: 250px; border-right: var(--krnl-border); padding: 16px; background: var(--krnl-panel);">
@@ -833,16 +1333,14 @@ var StudioServer = class {
             <div id="ui-empty-hint" style="text-align: center; color: #7f848e; margin: auto;">Drag KrnlUI atoms here to compose live views</div>
           </div>
           <div style="height: 220px; display: flex; flex-direction: column;">
-            <div style="font-size: 11px; color: var(--krnl-accent); margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-              <span>\u26A1 GENERATED VANJS TYPESCRIPT CODE (MONACO IDE)</span>
-            </div>
+            <div style="font-size: 11px; color: var(--krnl-accent); margin-bottom: 6px;">\u26A1 GENERATED VANJS TYPESCRIPT CODE (MONACO IDE)</div>
             <div id="ui-monaco-container" class="monaco-card" style="flex: 1; width: 100%;"></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 3. Test Console Canvas with Monaco Input & Output Editors -->
+    <!-- 3. Test Console Canvas -->
     <div id="canvas-test" class="studio-canvas">
       <div style="display: flex; width: 100%; height: 100%; padding-top: 60px;">
         <div style="width: 280px; border-right: var(--krnl-border); padding: 16px; background: var(--krnl-panel); overflow-y: auto;">
@@ -892,13 +1390,11 @@ var StudioServer = class {
     let selectedFunction = null;
     let droppedAtoms = [];
 
-    // Monaco Editor instances
     let monacoUiEditor = null;
     let monacoTestInputEditor = null;
     let monacoTestOutputEditor = null;
     let monacoDrawerEditor = null;
 
-    // Initialize Monaco Loader
     require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
     require(['vs/editor/editor.main'], function () {
       monaco.editor.defineTheme('krnl-dark', {
@@ -925,7 +1421,6 @@ var StudioServer = class {
         }
       });
 
-      // 1. UI Composer Monaco Editor
       monacoUiEditor = monaco.editor.create(document.getElementById('ui-monaco-container'), {
         value: '// Drag KrnlUI atoms into the canvas above to generate VanJS code...',
         language: 'typescript',
@@ -937,7 +1432,6 @@ var StudioServer = class {
         minimap: { enabled: false }
       });
 
-      // 2. Test Input Monaco Editor
       monacoTestInputEditor = monaco.editor.create(document.getElementById('test-input-monaco'), {
         value: '{\\n  "payload": "demo_test_value"\\n}',
         language: 'json',
@@ -948,7 +1442,6 @@ var StudioServer = class {
         minimap: { enabled: false }
       });
 
-      // 3. Test Output Monaco Editor
       monacoTestOutputEditor = monaco.editor.create(document.getElementById('test-output-monaco'), {
         value: '// Awaiting execution...',
         language: 'json',
@@ -960,7 +1453,6 @@ var StudioServer = class {
         minimap: { enabled: false }
       });
 
-      // 4. Source Drawer Monaco Editor
       monacoDrawerEditor = monaco.editor.create(document.getElementById('drawer-monaco-container'), {
         value: '// Select a node to view its source code...',
         language: 'typescript',
@@ -1006,7 +1498,6 @@ var StudioServer = class {
     }
     updateTransform();
 
-    // Context Menu
     viewport.oncontextmenu = (e) => {
       e.preventDefault();
       const menu = document.getElementById('context-menu');
@@ -1038,7 +1529,6 @@ var StudioServer = class {
       });
     }
 
-    // WebSocket JSON-RPC
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(protocol + '//' + window.location.host + '/studio/ws');
 
@@ -1048,6 +1538,9 @@ var StudioServer = class {
         currentGraph = msg.params;
         renderGraphNodes(currentGraph);
         renderTestFunctions(currentGraph);
+      } else if (msg.method === 'agent.activity') {
+        // Display Live Agent Activity HUD
+        showAgentHud(msg.params);
       } else if (msg.result && msg.result.durationMs !== undefined) {
         renderTestOutput(msg.result);
       } else if (msg.result && msg.result.content !== undefined) {
@@ -1056,6 +1549,14 @@ var StudioServer = class {
         alert(\`AST Purity Audit: \${msg.result.valid ? 'PASSED (Clean)' : 'FAILED (' + msg.result.errors.length + ' errors)'}\`);
       }
     };
+
+    function showAgentHud(activity) {
+      const hud = document.getElementById('agent-activity-hud');
+      const text = document.getElementById('agent-hud-text');
+      text.textContent = \`AI Agent executed \${activity.action} (\${new Date(activity.timestamp).toLocaleTimeString()})\`;
+      hud.style.display = 'flex';
+      setTimeout(() => { hud.style.display = 'none'; }, 4000);
+    }
 
     function renderGraphNodes(graph) {
       const layer = document.getElementById('nodes-layer');
@@ -1104,7 +1605,6 @@ var StudioServer = class {
         <div class="node-socket socket-in"></div>
       \`;
 
-      // Click node to open source in Monaco Drawer
       el.onclick = () => {
         if (node.filePath) {
           ws.send(JSON.stringify({
@@ -1264,7 +1764,6 @@ var StudioServer = class {
       }
     }
 
-    // UI Composer Drag & Drop
     function onDragAtom(e, atomType) {
       e.dataTransfer.setData('text/plain', atomType);
     }
@@ -1307,21 +1806,22 @@ export function View({ state, entity }: any): HTMLElement {
 </html>`;
   }
   async start() {
-    return new Promise((resolve4) => {
+    return new Promise((resolve6) => {
       this.httpServer.listen(this.port, () => {
         console.log(`
 \u{1F680} [Krnl Studio] Visual IDE running at: http://localhost:${this.port}`);
+        console.log(`\u{1F4E1} [Krnl Studio] REST API Suite available at: http://localhost:${this.port}/api/v1/*`);
         console.log(`\u{1F4E1} [Krnl Studio] WebSocket JSON-RPC protocol active on /studio/ws
 `);
-        resolve4();
+        resolve6();
       });
     });
   }
   async stop() {
     this.watcher.stop();
-    return new Promise((resolve4) => {
+    return new Promise((resolve6) => {
       this.wss.close(() => {
-        this.httpServer.close(() => resolve4());
+        this.httpServer.close(() => resolve6());
       });
     });
   }

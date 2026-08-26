@@ -1,4 +1,4 @@
-import { AiConcepts } from '../../../../../../libraries/AiConcepts.js';
+import { AiConcepts } from '../../../../../../../libraries/AiConcepts.js';
 
 export function decomposeGoal(goal: string) {
   const steps = AiConcepts.decomposeGoal(goal);

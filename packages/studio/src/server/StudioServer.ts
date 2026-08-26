@@ -5,6 +5,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { JsonRpcRouter } from './JsonRpcRouter.js';
 import { StudioFileWatcher } from './FileWatcher.js';
 import { AstMutationEngine } from './AstMutationEngine.js';
+import { PreemptiveDocManager } from './PreemptiveDocManager.js';
 
 export interface StudioServerOptions {
   port?: number;
@@ -23,9 +24,12 @@ export class StudioServer {
   constructor(options: StudioServerOptions = {}) {
     this.port = options.port || 8080;
     this.projectRoot = path.resolve(options.projectRoot || process.cwd());
-    this.router = new JsonRpcRouter(this.projectRoot);
     this.astEngine = new AstMutationEngine(this.projectRoot);
     this.watcher = new StudioFileWatcher(this.projectRoot);
+
+    this.router = new JsonRpcRouter(this.projectRoot, (mutation) => {
+      this.broadcastAgentActivity(mutation);
+    });
 
     this.httpServer = http.createServer((req, res) => this.handleHttpRequest(req, res));
     this.wss = new WebSocketServer({ server: this.httpServer, path: '/studio/ws' });
@@ -43,31 +47,21 @@ export class StudioServer {
         try {
           const req = JSON.parse(data.toString());
 
-          if (req.method === 'project.switch') {
+          if (req.method === 'project.switch' || req.method === 'project.load') {
             const newPath = path.resolve(this.projectRoot, req.params.path);
             if (fs.existsSync(newPath)) {
               this.projectRoot = newPath;
-              this.router = new JsonRpcRouter(this.projectRoot);
+              this.router.setProjectRoot(this.projectRoot);
               this.astEngine = new AstMutationEngine(this.projectRoot);
               this.watcher.stop();
               this.watcher = new StudioFileWatcher(this.projectRoot);
               this.initFileWatcher();
               const graph = this.astEngine.extractArchitectureGraph();
-              ws.send(JSON.stringify({ jsonrpc: '2.0', id: req.id, result: { success: true, projectRoot: this.projectRoot } }));
+              const decorated = PreemptiveDocManager.decorateResponse('project.load', { success: true, projectRoot: this.projectRoot, graph });
+              ws.send(JSON.stringify({ jsonrpc: '2.0', id: req.id, result: decorated }));
               this.broadcastGraphUpdate();
             } else {
               ws.send(JSON.stringify({ jsonrpc: '2.0', id: req.id, error: { code: -32001, message: 'Directory does not exist' } }));
-            }
-            return;
-          }
-
-          if (req.method === 'file.read') {
-            const fPath = req.params.filePath;
-            if (fs.existsSync(fPath)) {
-              const content = fs.readFileSync(fPath, 'utf-8');
-              ws.send(JSON.stringify({ jsonrpc: '2.0', id: req.id, result: { content, filePath: fPath } }));
-            } else {
-              ws.send(JSON.stringify({ jsonrpc: '2.0', id: req.id, error: { code: -32002, message: 'File not found' } }));
             }
             return;
           }
@@ -105,7 +99,24 @@ export class StudioServer {
     }
   }
 
-  private handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse) {
+  private broadcastAgentActivity(mutation: { action: string; params: any }) {
+    const payload = JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'agent.activity',
+      params: {
+        action: mutation.action,
+        params: mutation.params,
+        timestamp: Date.now()
+      }
+    });
+    for (const client of this.wss.clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(payload);
+      }
+    }
+  }
+
+  private async handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -116,13 +127,54 @@ export class StudioServer {
       return;
     }
 
-    if (req.url === '/api/graph') {
-      const graph = this.astEngine.extractArchitectureGraph();
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(graph));
+    const url = req.url?.split('?')[0] || '/';
+
+    // REST API Endpoint Routing for AI Agents
+    if (url.startsWith('/api/v1/') || url === '/api/graph') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        let params: any = {};
+        if (body.trim()) {
+          try { params = JSON.parse(body); } catch (e) {}
+        }
+
+        let method = 'graph.getArchitecture';
+        if (url === '/api/v1/project/create') method = 'project.create';
+        else if (url === '/api/v1/project/load') method = 'project.load';
+        else if (url === '/api/v1/project/graph' || url === '/api/graph') method = 'graph.getArchitecture';
+        else if (url === '/api/v1/project/status') method = 'project.getStatus';
+        else if (url === '/api/v1/entity/create') method = 'entity.create';
+        else if (url === '/api/v1/functionality/create') method = 'functionality.create';
+        else if (url === '/api/v1/library/create') method = 'library.create';
+        else if (url === '/api/v1/flow/addStep') method = 'flow.addStep';
+        else if (url === '/api/v1/file/read') method = 'file.read';
+        else if (url === '/api/v1/file/edit') method = 'file.edit';
+        else if (url === '/api/v1/ui/generate') method = 'ui.generate';
+        else if (url === '/api/v1/validate/audit') method = 'validate.audit';
+        else if (url === '/api/v1/test/execute') method = 'test.executeFunction';
+        else if (url === '/api/v1/docs/endpoints') method = 'docs.endpoints';
+
+        const rpcRes = await this.router.handle({
+          jsonrpc: '2.0',
+          id: 'http-req-' + Date.now(),
+          method,
+          params
+        });
+
+        if (rpcRes.error) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(rpcRes.error, null, 2));
+        } else {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(rpcRes.result, null, 2));
+          this.broadcastGraphUpdate();
+        }
+      });
       return;
     }
 
+    // Serve HTML Shell for Krnl Studio UI
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(this.getStudioHtml());
   }
@@ -133,7 +185,7 @@ export class StudioServer {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Krnl Studio — Monaco-Powered Visual IDE</title>
+  <title>Krnl Studio — AI-Agent Accessible Visual IDE</title>
   
   <!-- Monaco Editor AMD Loader -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
@@ -171,6 +223,14 @@ export class StudioServer {
       font-size: 13px; font-weight: bold; box-shadow: 0 4px 20px rgba(0,0,0,0.6);
     }
     .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #98c379; box-shadow: 0 0 8px #98c379; }
+
+    /* Live Agent Activity HUD Badge */
+    #agent-activity-hud {
+      position: fixed; top: 60px; left: 16px; z-index: 1500;
+      background: rgba(22, 22, 30, 0.95); border: 1px solid #d4af37;
+      border-radius: 8px; padding: 8px 14px; display: none; align-items: center; gap: 10px;
+      font-size: 12px; color: #d4af37; box-shadow: 0 4px 20px rgba(0,0,0,0.8), 0 0 12px var(--krnl-accent-glow);
+    }
 
     /* Graph Canvas Viewport */
     #graph-viewport {
@@ -218,7 +278,7 @@ export class StudioServer {
     .socket-out { right: -6px; top: 50%; transform: translateY(-50%); }
     .socket-in { left: -6px; top: 50%; transform: translateY(-50%); background: #61afef; }
 
-    /* Monaco Container Borders */
+    /* Monaco Container */
     .monaco-card {
       border: 1px solid rgba(212, 175, 55, 0.25);
       border-radius: 8px;
@@ -242,6 +302,12 @@ export class StudioServer {
 </head>
 <body>
   <div id="app">
+    <!-- Live Agent Activity Toast -->
+    <div id="agent-activity-hud">
+      <span style="font-size: 15px;">🤖</span>
+      <span id="agent-hud-text">AI Agent Mutation</span>
+    </div>
+
     <!-- Header -->
     <div class="studio-header">
       <div style="display: flex; align-items: center; gap: 12px;">
@@ -271,7 +337,7 @@ export class StudioServer {
           <div id="nodes-layer"></div>
         </div>
       </div>
-      <!-- Side Source Code Drawer -->
+      <!-- Source Code Drawer -->
       <div id="code-drawer" style="position: absolute; top: 60px; right: 16px; bottom: 80px; width: 480px; background: rgba(22, 22, 30, 0.96); backdrop-filter: blur(16px); border: var(--krnl-border); border-radius: 10px; display: none; flex-direction: column; z-index: 1500; box-shadow: 0 12px 36px rgba(0,0,0,0.8);">
         <div style="padding: 12px 16px; border-bottom: var(--krnl-border); display: flex; justify-content: space-between; align-items: center;">
           <span id="drawer-file-title" style="font-size: 12px; font-weight: bold; color: var(--krnl-accent); font-family: monospace;">Source File</span>
@@ -281,7 +347,7 @@ export class StudioServer {
       </div>
     </div>
 
-    <!-- 2. UI Composer Canvas with Monaco Code Viewer -->
+    <!-- 2. UI Composer Canvas -->
     <div id="canvas-ui" class="studio-canvas">
       <div style="display: flex; width: 100%; height: 100%; padding-top: 60px;">
         <div style="width: 250px; border-right: var(--krnl-border); padding: 16px; background: var(--krnl-panel);">
@@ -299,16 +365,14 @@ export class StudioServer {
             <div id="ui-empty-hint" style="text-align: center; color: #7f848e; margin: auto;">Drag KrnlUI atoms here to compose live views</div>
           </div>
           <div style="height: 220px; display: flex; flex-direction: column;">
-            <div style="font-size: 11px; color: var(--krnl-accent); margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-              <span>⚡ GENERATED VANJS TYPESCRIPT CODE (MONACO IDE)</span>
-            </div>
+            <div style="font-size: 11px; color: var(--krnl-accent); margin-bottom: 6px;">⚡ GENERATED VANJS TYPESCRIPT CODE (MONACO IDE)</div>
             <div id="ui-monaco-container" class="monaco-card" style="flex: 1; width: 100%;"></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 3. Test Console Canvas with Monaco Input & Output Editors -->
+    <!-- 3. Test Console Canvas -->
     <div id="canvas-test" class="studio-canvas">
       <div style="display: flex; width: 100%; height: 100%; padding-top: 60px;">
         <div style="width: 280px; border-right: var(--krnl-border); padding: 16px; background: var(--krnl-panel); overflow-y: auto;">
@@ -358,13 +422,11 @@ export class StudioServer {
     let selectedFunction = null;
     let droppedAtoms = [];
 
-    // Monaco Editor instances
     let monacoUiEditor = null;
     let monacoTestInputEditor = null;
     let monacoTestOutputEditor = null;
     let monacoDrawerEditor = null;
 
-    // Initialize Monaco Loader
     require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
     require(['vs/editor/editor.main'], function () {
       monaco.editor.defineTheme('krnl-dark', {
@@ -391,7 +453,6 @@ export class StudioServer {
         }
       });
 
-      // 1. UI Composer Monaco Editor
       monacoUiEditor = monaco.editor.create(document.getElementById('ui-monaco-container'), {
         value: '// Drag KrnlUI atoms into the canvas above to generate VanJS code...',
         language: 'typescript',
@@ -403,7 +464,6 @@ export class StudioServer {
         minimap: { enabled: false }
       });
 
-      // 2. Test Input Monaco Editor
       monacoTestInputEditor = monaco.editor.create(document.getElementById('test-input-monaco'), {
         value: '{\\n  "payload": "demo_test_value"\\n}',
         language: 'json',
@@ -414,7 +474,6 @@ export class StudioServer {
         minimap: { enabled: false }
       });
 
-      // 3. Test Output Monaco Editor
       monacoTestOutputEditor = monaco.editor.create(document.getElementById('test-output-monaco'), {
         value: '// Awaiting execution...',
         language: 'json',
@@ -426,7 +485,6 @@ export class StudioServer {
         minimap: { enabled: false }
       });
 
-      // 4. Source Drawer Monaco Editor
       monacoDrawerEditor = monaco.editor.create(document.getElementById('drawer-monaco-container'), {
         value: '// Select a node to view its source code...',
         language: 'typescript',
@@ -472,7 +530,6 @@ export class StudioServer {
     }
     updateTransform();
 
-    // Context Menu
     viewport.oncontextmenu = (e) => {
       e.preventDefault();
       const menu = document.getElementById('context-menu');
@@ -504,7 +561,6 @@ export class StudioServer {
       });
     }
 
-    // WebSocket JSON-RPC
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(protocol + '//' + window.location.host + '/studio/ws');
 
@@ -514,6 +570,9 @@ export class StudioServer {
         currentGraph = msg.params;
         renderGraphNodes(currentGraph);
         renderTestFunctions(currentGraph);
+      } else if (msg.method === 'agent.activity') {
+        // Display Live Agent Activity HUD
+        showAgentHud(msg.params);
       } else if (msg.result && msg.result.durationMs !== undefined) {
         renderTestOutput(msg.result);
       } else if (msg.result && msg.result.content !== undefined) {
@@ -522,6 +581,14 @@ export class StudioServer {
         alert(\`AST Purity Audit: \${msg.result.valid ? 'PASSED (Clean)' : 'FAILED (' + msg.result.errors.length + ' errors)'}\`);
       }
     };
+
+    function showAgentHud(activity) {
+      const hud = document.getElementById('agent-activity-hud');
+      const text = document.getElementById('agent-hud-text');
+      text.textContent = \`AI Agent executed \${activity.action} (\${new Date(activity.timestamp).toLocaleTimeString()})\`;
+      hud.style.display = 'flex';
+      setTimeout(() => { hud.style.display = 'none'; }, 4000);
+    }
 
     function renderGraphNodes(graph) {
       const layer = document.getElementById('nodes-layer');
@@ -570,7 +637,6 @@ export class StudioServer {
         <div class="node-socket socket-in"></div>
       \`;
 
-      // Click node to open source in Monaco Drawer
       el.onclick = () => {
         if (node.filePath) {
           ws.send(JSON.stringify({
@@ -730,7 +796,6 @@ export class StudioServer {
       }
     }
 
-    // UI Composer Drag & Drop
     function onDragAtom(e, atomType) {
       e.dataTransfer.setData('text/plain', atomType);
     }
@@ -777,6 +842,7 @@ export function View({ state, entity }: any): HTMLElement {
     return new Promise((resolve) => {
       this.httpServer.listen(this.port, () => {
         console.log(`\n🚀 [Krnl Studio] Visual IDE running at: http://localhost:${this.port}`);
+        console.log(`📡 [Krnl Studio] REST API Suite available at: http://localhost:${this.port}/api/v1/*`);
         console.log(`📡 [Krnl Studio] WebSocket JSON-RPC protocol active on /studio/ws\n`);
         resolve();
       });
