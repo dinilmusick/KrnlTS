@@ -1,7 +1,7 @@
 {
   "name": "@dinilmusick/krnl",
   "version": "1.0.0",
-  "description": "Krnl: Full-Stack Multiplatform Framework with Direct-DOM Reactivity, AST Purity Gates, and Code Evolution",
+  "description": "Krnl: Full-Stack Multiplatform Framework with Direct-DOM Reactivity, AST Purity Gates, Code Evolution, and Visual Node IDE",
   "type": "module",
   "main": "packages/core/dist/index.js",
   "types": "packages/core/dist/index.d.ts",
@@ -21,6 +21,10 @@
     "./cli": {
       "import": "./packages/cli/dist/index.js",
       "require": "./packages/cli/dist/index.cjs"
+    },
+    "./studio": {
+      "import": "./packages/studio/dist/index.js",
+      "require": "./packages/studio/dist/index.cjs"
     }
   },
   "bin": {
@@ -32,7 +36,7 @@
     "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "build": "pnpm --filter @dinilmusick/krnl-core run build && pnpm --filter @dinilmusick/krnl-ui run build && pnpm --filter @dinilmusick/krnl-validate run build && pnpm --filter @dinilmusick/eslint-plugin-krnl run build && pnpm --filter @dinilmusick/krnl-cli run build && pnpm --filter create-krnl run build",
+    "build": "pnpm --filter @dinilmusick/krnl-core run build && pnpm --filter @dinilmusick/krnl-ui run build && pnpm --filter @dinilmusick/krnl-validate run build && pnpm --filter @dinilmusick/eslint-plugin-krnl run build && pnpm --filter @dinilmusick/krnl-studio run build && pnpm --filter @dinilmusick/krnl-cli run build && pnpm --filter create-krnl run build",
     "validate": "node packages/cli/dist/bin/krnl.js validate",
     "dev": "node packages/cli/dist/bin/krnl.js dev",
     "watch": "node packages/cli/dist/bin/krnl.js watch"
@@ -44,6 +48,8 @@
     "multiplatform",
     "vanjs",
     "code-evolution",
+    "visual-ide",
+    "node-editor",
     "ast-purity",
     "orchestrator"
   ],

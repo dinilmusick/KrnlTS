@@ -7,6 +7,7 @@ import {
 
 // src/bin/krnl.ts
 import * as fs from "fs";
+import { StudioServer } from "@dinilmusick/krnl-studio";
 var args = process.argv.slice(2);
 var command = args[0] || "help";
 async function main() {
@@ -50,9 +51,15 @@ async function main() {
       break;
     }
     case "dev": {
-      console.log("\u26A1 [Krnl Dev] Starting unified Krnl development runtime...");
+      const portArgIdx = args.indexOf("--port");
+      const port = portArgIdx !== -1 ? parseInt(args[portArgIdx + 1], 10) : 8080;
+      console.log("\u26A1 [Krnl Dev] Initializing Krnl Studio visual workspace...");
       generateMagneticDeclarations(process.cwd());
-      console.log("\u{1F4E1} [Krnl Dev] Unified port gateway active.");
+      const server = new StudioServer({
+        port,
+        projectRoot: process.cwd()
+      });
+      await server.start();
       break;
     }
     case "help":
@@ -65,7 +72,7 @@ async function main() {
 Usage: krnl <command> [options]
 
 Commands:
-  dev               Start unified dev server (API, UI, WS RPC, HMR)
+  dev               Start Krnl Studio visual node IDE & dev server (API, UI, WS RPC)
   build             Validate and build project for production
   validate          Run deep AST & 4-layer function purity validation
   watch             Generate ambient TypeScript declarations (krnl-magnetic.d.ts)
@@ -77,6 +84,7 @@ Commands:
                       krnl generate subapp BillingEngine
 
 Options:
+  --port <number>   Specify port for Krnl Studio dev server (default: 8080)
   --watch, -w       Enable continuous file watcher (for watch command)
   --help, -h        Show this help message
 `);

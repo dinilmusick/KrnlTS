@@ -18,11 +18,12 @@
     "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/bin/krnl.ts --dts --format esm,cjs"
+    "build": "tsup src/index.ts src/bin/krnl.ts --dts --format esm,cjs --external @dinilmusick/krnl-studio"
   },
   "dependencies": {
     "@dinilmusick/krnl-validate": "workspace:*",
-    "@dinilmusick/krnl-core": "workspace:*"
+    "@dinilmusick/krnl-core": "workspace:*",
+    "@dinilmusick/krnl-studio": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.4.0",

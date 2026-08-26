@@ -89,6 +89,61 @@ importers:
         specifier: ^5.7.3
         version: 5.9.3
 
+  packages/studio:
+    dependencies:
+      '@dinilmusick/krnl-core':
+        specifier: workspace:*
+        version: link:../core
+      '@dinilmusick/krnl-ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@dinilmusick/krnl-validate':
+        specifier: workspace:*
+        version: link:../validate
+      rete:
+        specifier: ^2.0.2
+        version: 2.0.6
+      rete-area-plugin:
+        specifier: ^2.0.1
+        version: 2.3.2(rete@2.0.6)
+      rete-auto-arrange-plugin:
+        specifier: ^2.0.1
+        version: 2.0.2(elkjs@0.8.2)(rete-area-plugin@2.3.2(rete@2.0.6))(rete@2.0.6)(web-worker@1.5.0)
+      rete-connection-plugin:
+        specifier: ^2.0.1
+        version: 2.0.5(rete-area-plugin@2.3.2(rete@2.0.6))(rete@2.0.6)
+      rete-history-plugin:
+        specifier: ^2.0.1
+        version: 2.2.0(rete-area-plugin@2.3.2(rete@2.0.6))(rete@2.0.6)
+      rete-minimap-plugin:
+        specifier: ^2.0.1
+        version: 2.0.3(rete-area-plugin@2.3.2(rete@2.0.6))(rete@2.0.6)
+      rete-scopes-plugin:
+        specifier: ^2.0.1
+        version: 2.1.1(rete-area-plugin@2.3.2(rete@2.0.6))(rete@2.0.6)
+      ts-morph:
+        specifier: ^25.0.1
+        version: 25.0.1
+      vanjs-core:
+        specifier: ^1.5.3
+        version: 1.6.1
+      ws:
+        specifier: ^8.18.0
+        version: 8.20.0
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.9.5
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      tsup:
+        specifier: ^8.4.0
+        version: 8.5.1(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
   packages/ui:
     dependencies:
       vanjs-core:
@@ -129,6 +184,10 @@ packages:
     resolution: {integrity: sha512-hnORnjP/1P/zFEndoeX+n+t1RwWRJiJpM/jO7FW32Kn9r5+sJB2JWOdYo4L6k78j15eCwY3Gm/7364B1EMwtNg==}
     engines: {node: '>=6.0.0'}
     hasBin: true
+
+  '@babel/runtime@7.29.7':
+    resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
+    engines: {node: '>=6.9.0'}
 
   '@babel/types@7.29.7':
     resolution: {integrity: sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA==}
@@ -734,6 +793,9 @@ packages:
       supports-color:
         optional: true
 
+  elkjs@0.8.2:
+    resolution: {integrity: sha512-L6uRgvZTH+4OF5NE/MBbzQx/WYpru1xCBE9respNj6qznEewGUIfhzmm7horWWxbNO2M0WckQypGctR8lH79xQ==}
+
   entities@4.5.0:
     resolution: {integrity: sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw==}
     engines: {node: '>=0.12'}
@@ -1007,6 +1069,50 @@ packages:
     resolution: {integrity: sha512-qYg9KP24dD5qka9J47d0aVky0N+b4fTU89LN9iDnjB5waksiC49rvMB0PrUJQGoTmH50XPiqOvAjDfaijGxYZw==}
     engines: {node: '>=8'}
 
+  rete-area-plugin@2.3.2:
+    resolution: {integrity: sha512-s7OrCz6xNwVl8EaJ7tXnJVQD9nbd+JAnf82qx/UDweRV86Q1qj2+nT8XkD5m1gSnvSZQqTlMptSiWUrouTEO+w==}
+    peerDependencies:
+      rete: ^2.0.0
+
+  rete-auto-arrange-plugin@2.0.2:
+    resolution: {integrity: sha512-VLTnVb9tqHfQKkFMZzpYgYxDWcIa+nXHRC+Po0k+gUh2zJqegkx8bFSA1n6VkMv+wPYa9EnWsTMfUDD3k1QEzg==}
+    peerDependencies:
+      elkjs: ^0.8.2
+      rete: ^2.0.1
+      rete-area-plugin: ^2.0.0
+      web-worker: ^1.2.0
+
+  rete-connection-plugin@2.0.5:
+    resolution: {integrity: sha512-KFtlOyEJRc0y9STVgo2T+t+j9u5fxiTxbyzPbMCm0uqncb3b8d2ABDIzvWoNo5zQAh2Oz/OvlUovupbzrGzpSg==}
+    peerDependencies:
+      rete: ^2.0.1
+      rete-area-plugin: ^2.0.0
+
+  rete-history-plugin@2.2.0:
+    resolution: {integrity: sha512-bKsoEJkt473kBlVQz+MySO5DAs2bEEz79ufmSLqyG0mhmOmfABa9uMTieX/Xm/ZfrXd/J3ZMJ1sTHoEiRV3NOw==}
+    peerDependencies:
+      rete: ^2.0.1
+      rete-area-plugin: ^2.0.0
+      rete-comment-plugin: ^2.2.0
+    peerDependenciesMeta:
+      rete-comment-plugin:
+        optional: true
+
+  rete-minimap-plugin@2.0.3:
+    resolution: {integrity: sha512-4rLvN6ykTY4Q1k6GO6W80mUbs5BXmGNtSXDumCF+eKkCK2nX8CNZGppcOqjTiWxHmsQfbZaKFwvnWDNwou4HHA==}
+    peerDependencies:
+      rete: ^2.0.1
+      rete-area-plugin: ^2.0.0
+
+  rete-scopes-plugin@2.1.1:
+    resolution: {integrity: sha512-7wZng5apPHxu9e9cWz3TR/U4hvr6+B4XPTVzCchPLhzCHaPLUg+TAM8l4CClqP22wIhdYJUMDFpmZBe9y6y0yQ==}
+    peerDependencies:
+      rete: ^2.0.1
+      rete-area-plugin: ^2.0.0
+
+  rete@2.0.6:
+    resolution: {integrity: sha512-kPmlKCGFES2VWtY7Y7SCB8ZeXRMsgX5deza9cu4OwmfM/ZUimd461kC3hRyccoyVxE4POlHUx0gg2jcGfusHFg==}
+
   reusify@1.1.0:
     resolution: {integrity: sha512-g6QUff04oZpHs0eG5p83rFLhHeV00ug/Yf9nZM6fLeUrPguBTkTQOdpAWWspMh55TZfVQDPaN3NQJfbVRAxdIw==}
     engines: {iojs: '>=1.0.0', node: '>=0.10.0'}
@@ -1111,6 +1217,9 @@ packages:
   vanjs-core@1.6.1:
     resolution: {integrity: sha512-CPUteb4/iW3hB7TLTKI9A9YMRTAQFpPz5n1/+vfnPxNs2wOI9HvSg6K3B/9x+uycX8eefqopBcakr2vJeHgIgw==}
 
+  web-worker@1.5.0:
+    resolution: {integrity: sha512-RiMReJrTAiA+mBjGONMnjVDP2u3p9R1vkcGz6gDIrOMT3oGuYwX2WRMYI9ipkphSuE5XKEhydbhNEJh4NY9mlw==}
+
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
@@ -1146,6 +1255,8 @@ snapshots:
   '@babel/parser@7.29.7':
     dependencies:
       '@babel/types': 7.29.7
+
+  '@babel/runtime@7.29.7': {}
 
   '@babel/types@7.29.7':
     dependencies:
@@ -1505,6 +1616,8 @@ snapshots:
     dependencies:
       ms: 2.1.3
 
+  elkjs@0.8.2: {}
+
   entities@4.5.0: {}
 
   esbuild@0.25.12:
@@ -1802,6 +1915,47 @@ snapshots:
 
   resolve-from@5.0.0: {}
 
+  rete-area-plugin@2.3.2(rete@2.0.6):
+    dependencies:
+      '@babel/runtime': 7.29.7
+      rete: 2.0.6
+
+  rete-auto-arrange-plugin@2.0.2(elkjs@0.8.2)(rete-area-plugin@2.3.2(rete@2.0.6))(rete@2.0.6)(web-worker@1.5.0):
+    dependencies:
+      '@babel/runtime': 7.29.7
+      elkjs: 0.8.2
+      rete: 2.0.6
+      rete-area-plugin: 2.3.2(rete@2.0.6)
+      web-worker: 1.5.0
+
+  rete-connection-plugin@2.0.5(rete-area-plugin@2.3.2(rete@2.0.6))(rete@2.0.6):
+    dependencies:
+      '@babel/runtime': 7.29.7
+      rete: 2.0.6
+      rete-area-plugin: 2.3.2(rete@2.0.6)
+
+  rete-history-plugin@2.2.0(rete-area-plugin@2.3.2(rete@2.0.6))(rete@2.0.6):
+    dependencies:
+      '@babel/runtime': 7.29.7
+      rete: 2.0.6
+      rete-area-plugin: 2.3.2(rete@2.0.6)
+
+  rete-minimap-plugin@2.0.3(rete-area-plugin@2.3.2(rete@2.0.6))(rete@2.0.6):
+    dependencies:
+      '@babel/runtime': 7.29.7
+      rete: 2.0.6
+      rete-area-plugin: 2.3.2(rete@2.0.6)
+
+  rete-scopes-plugin@2.1.1(rete-area-plugin@2.3.2(rete@2.0.6))(rete@2.0.6):
+    dependencies:
+      '@babel/runtime': 7.29.7
+      rete: 2.0.6
+      rete-area-plugin: 2.3.2(rete@2.0.6)
+
+  rete@2.0.6:
+    dependencies:
+      '@babel/runtime': 7.29.7
+
   reusify@1.1.0: {}
 
   rollup@4.60.1:
@@ -1933,6 +2087,8 @@ snapshots:
   undici-types@7.24.6: {}
 
   vanjs-core@1.6.1: {}
+
+  web-worker@1.5.0: {}
 
   wrappy@1.0.2: {}
 

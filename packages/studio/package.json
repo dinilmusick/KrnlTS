@@ -1,0 +1,41 @@
+{
+  "name": "@dinilmusick/krnl-studio",
+  "version": "1.0.0",
+  "description": "Krnl Studio: Visual Node-Based IDE, UI Composer, and Live Test Console for the Krnl Framework",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/server/index.ts --dts --format esm,cjs --external ts-morph,ws,esbuild,rete,rete-area-plugin,rete-connection-plugin,rete-auto-arrange-plugin,rete-history-plugin,rete-minimap-plugin,rete-scopes-plugin,vanjs-core"
+  },
+  "dependencies": {
+    "@dinilmusick/krnl-core": "workspace:*",
+    "@dinilmusick/krnl-ui": "workspace:*",
+    "@dinilmusick/krnl-validate": "workspace:*",
+    "rete": "^2.0.2",
+    "rete-area-plugin": "^2.0.1",
+    "rete-auto-arrange-plugin": "^2.0.1",
+    "rete-connection-plugin": "^2.0.1",
+    "rete-history-plugin": "^2.0.1",
+    "rete-minimap-plugin": "^2.0.1",
+    "rete-scopes-plugin": "^2.0.1",
+    "ts-morph": "^25.0.1",
+    "vanjs-core": "^1.5.3",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/ws": "^8.18.1",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3"
+  }
+}
