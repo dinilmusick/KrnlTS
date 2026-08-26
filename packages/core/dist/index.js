@@ -1,7 +1,7 @@
 import {
   Entity,
   KrnlFlowBuilder
-} from "./chunk-W4IHYUYD.js";
+} from "./chunk-MRQ3MITU.js";
 import {
   KrnlRegistryClient
 } from "./chunk-6ULMHNXR.js";
@@ -10,15 +10,15 @@ import {
 } from "./chunk-7WUETJEV.js";
 import {
   KrnlSubAppLoader
-} from "./chunk-QKMRSQV4.js";
+} from "./chunk-54GWZ5PC.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-KCBP7ZYA.js";
+} from "./chunk-NDDOIRW7.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-CIARVYDO.js";
+} from "./chunk-CR2ANE62.js";
 import {
   KrnlApplicationOrchestrator,
   KrnlBootBarrier,
@@ -38,15 +38,17 @@ import {
   krnl,
   krnlSystemCommComponent,
   krnlSystemEntityBase
-} from "./chunk-UGVVJKC6.js";
+} from "./chunk-ZZFRJGXM.js";
 import {
   KrnlFrontendBuilder,
   init_K_LIB_Krnl_Frontend_Builder
 } from "./chunk-6QCYRS5L.js";
 import {
   AdminGuard,
+  AuditLogger,
   CUSTOM_ERROR_CODE,
   ControlPlaneManager,
+  DatabaseClusterManager,
   FilesystemStorageProvider,
   FirebaseDataProvider,
   FirebaseStorageProvider,
@@ -54,6 +56,7 @@ import {
   HostedAccountProvider,
   LocalSQLiteAccountProvider,
   MemoryTransportAdapter,
+  MongoAtlasDataProvider,
   PocketBaseDataProvider,
   PocketBaseStorageProvider,
   PostgresDataProvider,
@@ -61,6 +64,8 @@ import {
   SQLiteDataProvider,
   SupabaseDataProvider,
   SupabaseStorageProvider,
+  TursoLibSQLDataProvider,
+  VercelBlobStorageProvider,
   WorkspaceBackendFactory,
   krnlCollector,
   krnlEmitter,
@@ -76,7 +81,7 @@ import {
   krnlMessage,
   krnlRemoteFunctionality,
   krnlTransportAdapter
-} from "./chunk-MPYVXHKO.js";
+} from "./chunk-WN3M7O7H.js";
 import {
   CacheKit,
   FileCache,
@@ -444,9 +449,11 @@ var PocerBlock = class extends krnlSystemEntityBase {
 export {
   AdminGuard,
   AsyncKit,
+  AuditLogger,
   CUSTOM_ERROR_CODE,
   CacheKit,
   ControlPlaneManager,
+  DatabaseClusterManager,
   DefaultEventRegistrar,
   DefaultOperationRegistrar,
   DefaultServiceContainer,
@@ -496,6 +503,7 @@ export {
   LocalSQLiteAccountProvider,
   Logger,
   MemoryTransportAdapter,
+  MongoAtlasDataProvider,
   ObjectKit,
   PocerBlock,
   PocketBaseDataProvider,
@@ -507,6 +515,8 @@ export {
   SupabaseDataProvider,
   SupabaseStorageProvider,
   TTLCache,
+  TursoLibSQLDataProvider,
+  VercelBlobStorageProvider,
   WebSocketTransportAdapter,
   WorkspaceBackendFactory,
   buildEntityIntention,

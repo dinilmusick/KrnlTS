@@ -3,7 +3,7 @@
  * @description Local SQLite/JSON-backed Control Plane Account Provider for user accounts and workspace registry.
  */
 
-import { IAccountProvider, UserProfile, AuthSession, AuthCredentials, WorkspaceDescriptor } from "../types.js";
+import { IAccountProvider, UserProfile, AuthSession, AuthCredentials, WorkspaceDescriptor, UserRole } from "../types.js";
 import { KrnlFS, FileLock } from "../../tools/KrnlFS.js";
 import path from "path";
 
@@ -57,7 +57,7 @@ export class LocalSQLiteAccountProvider implements IAccountProvider {
     return profile;
   }
 
-  async registerUser(credentials: AuthCredentials & { role?: "USER" | "ADMIN" }): Promise<UserProfile> {
+  async registerUser(credentials: AuthCredentials & { role?: UserRole }): Promise<UserProfile> {
     await this.load();
     const userId = credentials.username || credentials.email || `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const profile: UserProfile & { passwordHash?: string } = {

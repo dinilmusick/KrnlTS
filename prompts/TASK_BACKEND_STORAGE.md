@@ -1,98 +1,95 @@
-# TASK: BACKEND_AND_STORAGE_PROTOCOL (UNIVERSAL_BACKEND)
+# TASK: BACKEND_AND_STORAGE_PROTOCOL (UNIVERSAL_BACKEND_WITH_CLUSTERING)
 $ARCH := \text{ControlPlane} \otimes \text{WorkspaceDataPlane} \otimes \text{AppLogic}
 ASSERT(\text{UserAccountStorage} \cap \text{WorkspaceDataStorage} = \emptyset)
 
 ## 1. IN-CODE UTILITY DOCUMENTATION, SECTION DEMARCATION & NAMING RULES
-- **Naming**: Use long, descriptive names for all database tables, storage buckets, and provider classes (e.g., `UserWorkspaceMetadataStorageProvider.ts`).
-- **Docblocks**: Document the utility of all data structures, credentials, and storage interfaces with ASCII flow charts showing data persistence paths.
+- **Naming**: Use long, descriptive names for all database tables, storage buckets, provider classes, and cluster managers (e.g., `UserWorkspaceMetadataStorageProvider.ts`, `DatabaseClusterRedundancyManager.ts`).
+- **Docblocks**: Document the utility of all data structures, credentials, and storage interfaces with ASCII flow charts showing data persistence and failover paths.
 - **Section Demarcation**: Partition imports, schemas, connection configurations, and CRUD operations with bold borders `// ══════════════════════════════════════════════════════════════════════════════════════════`.
 
-## 2. CONTROL_PLANE SETUP (User Accounts & Workspaces)
-Let $CP = \langle \text{ControlPlaneManager}, \text{AdminGuard}, \text{AccountProvider} \rangle$:
+## 2. CONTROL_PLANE SETUP (RBAC, Audit Logging & Clustering)
+Let $CP = \langle \text{ControlPlaneManager}, \text{AdminGuard}, \text{DatabaseClusterManager}, \text{AuditLogger} \rangle$:
 ```typescript
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 1. CONTROL PLANE INITIALIZATION & AUTHENTICATION
+// 1. CONTROL PLANE, RBAC, CLUSTERING & AUDIT LOGGING
 // ══════════════════════════════════════════════════════════════════════════════════════════
-import { ControlPlaneManager, AdminGuard } from "@dinilmusick/krnlts";
+import {
+  ControlPlaneManager,
+  AdminGuard,
+  DatabaseClusterManager,
+  AuditLogger
+} from "@dinilmusick/krnlts";
 
-/**
- * ──────────────────────────────────────────────────────────────────────────────────────────
- * UTILITY: LocalSQLiteControlPlaneInitialization
- * ──────────────────────────────────────────────────────────────────────────────────────────
- * Purpose: Initializes the local control plane, authenticates administrative accounts,
- *          and validates session tokens.
- *
- * Flow Chart:
- *   [User Credentials] ───► [Authenticate] ───► [Generate Token: "sess::<userId>::..."]
- *                                                      │
- *                                                      ▼
- *                                            [AdminGuard Role Check] ───► [Grant Access]
- * ──────────────────────────────────────────────────────────────────────────────────────────
- */
+// 1. Initialize Control Plane & Audit Logging
+const auditLogger = new AuditLogger("./.krnl/control_plane/audit_trail.jsonl");
 const controlPlaneManager = ControlPlaneManager.createLocal("./accounts.sqlite");
-const authenticatedSession = await controlPlaneManager.login({ username: "admin", password: "pwd" });
 
-// Strict Admin Gate: throws [AccessDenied] if session is null or role != "ADMIN"
-await AdminGuard.verify(authenticatedSession.token, controlPlaneManager.accountProvider);
+// 2. Authentication: "sess::<userId>::<timestamp>::<random>"
+const authSession = await controlPlaneManager.login({ username: "admin", password: "pwd" });
+
+// 3. Strict Admin / Moderator Guard (RBAC)
+await AdminGuard.verify(authSession.token, controlPlaneManager.accountProvider);
+
+// 4. Database Redundancy Clustering & Failover
+const clusterManager = new DatabaseClusterManager("./.krnl/control_plane/database_cluster.json", auditLogger);
+await clusterManager.promoteToPrimary("cluster_turso_edge_01", authSession.userId);
 ```
 
-## 3. WORKSPACE DATA PLANE & STORAGE MODES
-Resolve storage mode $M \in \{ \text{Mode 1 (Local FS)}, \text{Mode 2 (Local BaaS)}, \text{Mode 3 (Cloud BaaS)} \}$:
+## 3. WORKSPACE DATA PLANE & PLUGGABLE ENGINES
+$$\text{DataEngines} \in \{ \text{sqlite}, \text{postgres}, \text{supabase}, \text{turso}, \text{mongodb}, \text{pocketbase}, \text{firebase}, \text{custom\_api} \}$$
+$$\text{StorageEngines} \in \{ \text{filesystem}, \text{s3}, \text{supabase\_storage}, \text{vercel\_blob}, \text{pocketbase\_storage} \}$$
+
 ```typescript
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 2. WORKSPACE BACKEND FACTORY RESOLUTION
+// 2. WORKSPACE BACKEND FACTORY & CONNECTION LATENCY TESTING
 // ══════════════════════════════════════════════════════════════════════════════════════════
 import { WorkspaceBackendFactory } from "@dinilmusick/krnlts";
 
-// Mode 1: Zero-Cloud Local SQLite + Filesystem
-const localWorkspaceBackend = WorkspaceBackendFactory.createLocal("./workspace.sqlite", "./storage");
+// Live connection latency test before committing
+const latencyTest = await clusterManager.testDatabaseConnection({
+  type: "turso",
+  endpoint: "https://my-db.turso.io",
+  authToken: "..."
+});
+console.log(`Probe OK: ${latencyTest.ok}, Latency: ${latencyTest.latencyMs}ms`);
 
-// Mode 2 / Mode 3: Decoupled Data & Storage Providers (Postgres / Supabase / PocketBase / Firebase / S3)
-const cloudWorkspaceBackend = WorkspaceBackendFactory.create({
+// Create multi-engine workspace backend (e.g. Turso LibSQL + Vercel Blob)
+const workspaceBackend = WorkspaceBackendFactory.create({
   id: "cloud-workspace",
-  provider: "supabase", // "sqlite" | "postgres" | "supabase" | "pocketbase" | "firebase"
-  mode: "remote_hosted",
-  database: { type: "supabase", endpoint: "https://xyz.supabase.co", apiKey: "..." },
-  storage: { type: "supabase_storage", bucket: "media", endpoint: "...", apiKey: "..." }
+  provider: "turso",
+  mode: "remote",
+  database: { type: "turso", endpoint: "https://my-db.turso.io", authToken: "..." },
+  storage: { type: "vercel_blob", token: "..." }
 });
 ```
 
-## 4. FUNCTIONALITY DEDICATED TABLE & CREDENTIAL CASCADING
-1. **Parent Entity Configures Backend Once**:
+## 4. FUNCTIONALITY DEDICATED TABLE & CREDENTIAL CASCADES
+1. **Fallback Resolution Cascade**:
+   $$\text{Credentials} = \text{FeatureExplicit} \lor \text{EntityConfigured} \lor \text{LocalSQLiteFallback}$$
+2. **Dedicated Table CRUD Operations**:
 ```typescript
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 3. ENTITY-LEVEL CREDENTIAL CONFIGURATION
-// ══════════════════════════════════════════════════════════════════════════════════════════
-systemEntity.configureBackend({
-  defaultService: "sqlite",
-  sqlite: { type: "sqlite", filePath: "./data.sqlite", enableWAL: true },
-  supabase: { type: "supabase", endpoint: "...", apiKey: "..." }
-});
-```
-2. **Child Functionalities Declare Flag (Auto Table Binding)**:
-```typescript
-// ══════════════════════════════════════════════════════════════════════════════════════════
-// 4. ATOMIC FUNCTIONALITY WITH DEDICATED TABLE
+// 3. ATOMIC FUNCTIONALITY WITH DEDICATED TABLE
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 /**
  * ──────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONALITY: ManageUserPreferencesFunctionality
+ * FUNCTIONALITY: ManageDocumentVaultRecordsFunctionality
  * ──────────────────────────────────────────────────────────────────────────────────────────
- * Purpose: Handles user settings persistence with automatic table creation & CRUD methods.
+ * Purpose: Manages document indexing with automatic table creation & CRUD methods.
  *
  * Flow Chart:
- *   [Incoming Preferences] ───► [L1: Validate] ───► [L2: table.upsert()] ───► [Return Record]
+ *   [Document Payload] ───► [L1: Validate] ───► [L2: table.upsert()] ───► [Return Record]
  * ──────────────────────────────────────────────────────────────────────────────────────────
  */
-export const ManageUserPreferencesFunctionality = new krnlLocalFunctionality({
-  id: "manage_user_preferences",
-  backend: "sqlite", // Inherits credentials from hostEntity.getBackendCredentials("sqlite")
+export const ManageDocumentVaultRecordsFunctionality = new krnlLocalFunctionality({
+  id: "document_vault",
+  backend: "turso", // Auto-resolves credentials via cascade with local SQLite fallback
   api: async (input, { table }) => {
     // Built-in CRUD methods: find, findOne, create, insert, update, delete, upsert, count, query, clear
-    const preferenceRecord = await table.upsert({ userId: input.userId, theme: input.theme }, "userId");
-    const totalPreferencesCount = await table.count();
-    return { preferenceRecord, totalPreferencesCount };
+    const documentRecord = await table.upsert({ id: input.docId, title: input.title }, "id");
+    const totalDocumentsCount = await table.count();
+    return { documentRecord, totalDocumentsCount };
   }
 });
 ```

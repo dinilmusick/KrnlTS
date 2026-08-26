@@ -1,30 +1,60 @@
-/**
- * @file WorkspaceBackendFactory.ts
- * @description Factory resolving decoupled Data Providers and Storage Providers for any storage mode.
- */
-
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 1. IMPORTS & EXTERNAL DEPENDENCIES
+// ══════════════════════════════════════════════════════════════════════════════════════════
 import {
   BackendConnectionConfig,
   IWorkspaceBackend,
   IWorkspaceDataProvider,
   IStorageProvider,
-  StorageMode,
   DatabaseProviderConfig,
-  StorageProviderConfig
+  StorageProviderConfig,
+  EntityBackendSettings,
+  FunctionalityBackendConfig
 } from "./types.js";
 import { SQLiteDataProvider } from "./providers/data/SQLiteDataProvider.js";
 import { PostgresDataProvider } from "./providers/data/PostgresDataProvider.js";
 import { SupabaseDataProvider } from "./providers/data/SupabaseDataProvider.js";
 import { PocketBaseDataProvider } from "./providers/data/PocketBaseDataProvider.js";
 import { FirebaseDataProvider } from "./providers/data/FirebaseDataProvider.js";
+import { TursoLibSQLDataProvider } from "./providers/data/TursoLibSQLDataProvider.js";
+import { MongoAtlasDataProvider } from "./providers/data/MongoAtlasDataProvider.js";
 import { FilesystemStorageProvider } from "./providers/storage/FilesystemStorageProvider.js";
 import { SupabaseStorageProvider } from "./providers/storage/SupabaseStorageProvider.js";
 import { S3StorageProvider } from "./providers/storage/S3StorageProvider.js";
 import { PocketBaseStorageProvider } from "./providers/storage/PocketBaseStorageProvider.js";
 import { FirebaseStorageProvider } from "./providers/storage/FirebaseStorageProvider.js";
+import { VercelBlobStorageProvider } from "./providers/storage/VercelBlobStorageProvider.js";
 
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 2. WORKSPACE BACKEND FACTORY & CREDENTIAL CASCADE RESOLVER
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: WorkspaceBackendFactory
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Resolves decoupled data and storage engine providers, performs live connection
+ *          latency probes, and resolves hierarchical credential cascades with local fallback.
+ *
+ * Cascade Resolution Flow Chart:
+ *   [Functionality Execution]
+ *              │
+ *              ▼
+ *   [1. Feature-Level Custom Credentials?] ──(Yes)──► [Use Feature Credentials]
+ *              │ (No)
+ *              ▼
+ *   [2. Host Entity Configured Backend?]   ──(Yes)──► [Use Entity Service Config]
+ *              │ (No / Fail)
+ *              ▼
+ *   [3. Fallback to Local SQLite/POSIX]    ─────────► [Use Safe Offline Engine]
+ *
+ * Example:
+ *   const backend = WorkspaceBackendFactory.createLocal("./workspace.sqlite", "./storage");
+ *   const credentials = WorkspaceBackendFactory.resolveCredentialsCascade(featureConfig, entitySettings);
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
 export class WorkspaceBackendFactory {
-  static create(config: BackendConnectionConfig): IWorkspaceBackend {
+  public static create(config: BackendConnectionConfig): IWorkspaceBackend {
     const dataProvider = WorkspaceBackendFactory.resolveDataProvider(config);
     const storageProvider = WorkspaceBackendFactory.resolveStorageProvider(config);
 
@@ -42,7 +72,7 @@ export class WorkspaceBackendFactory {
     };
   }
 
-  static createLocal(filePath = "./workspace.sqlite", storagePath = "./storage"): IWorkspaceBackend {
+  public static createLocal(filePath = "./workspace.sqlite", storagePath = "./storage"): IWorkspaceBackend {
     return WorkspaceBackendFactory.create({
       id: "local-workspace",
       provider: "sqlite",
@@ -52,7 +82,40 @@ export class WorkspaceBackendFactory {
     });
   }
 
-  static resolveDataProvider(config: BackendConnectionConfig): IWorkspaceDataProvider {
+  /**
+   * Resolves the credential cascade hierarchy:
+   * 1. Feature-level explicit credentials
+   * 2. Host entity configured credentials
+   * 3. Fallback to local SQLite
+   */
+  public static resolveCredentialsCascade(
+    functionalityConfig?: FunctionalityBackendConfig | boolean | string,
+    entitySettings?: EntityBackendSettings,
+    defaultFallback: DatabaseProviderConfig = { type: "sqlite", filePath: "./workspace.sqlite", enableWAL: true }
+  ): DatabaseProviderConfig {
+    // 1. Check feature-level explicit credentials
+    if (typeof functionalityConfig === "object" && functionalityConfig?.credentials) {
+      return functionalityConfig.credentials;
+    }
+
+    // 2. Check service requested by functionality vs entity settings
+    const requestedService: string = (
+      typeof functionalityConfig === "string"
+        ? functionalityConfig
+        : typeof functionalityConfig === "object" && functionalityConfig?.service
+        ? functionalityConfig.service
+        : entitySettings?.defaultService || "sqlite"
+    ) || "sqlite";
+
+    if (entitySettings && (entitySettings as Record<string, any>)[requestedService]) {
+      return (entitySettings as Record<string, any>)[requestedService];
+    }
+
+    // 3. Fallback to default local SQLite
+    return defaultFallback;
+  }
+
+  public static resolveDataProvider(config: BackendConnectionConfig): IWorkspaceDataProvider {
     const dbConfig: DatabaseProviderConfig = config.database || { type: config.provider as any };
 
     switch (dbConfig.type) {
@@ -77,12 +140,24 @@ export class WorkspaceBackendFactory {
           ...dbConfig,
           apiKey: dbConfig.apiKey || config.auth?.apiKey
         });
+      case "turso":
+        return new TursoLibSQLDataProvider({
+          ...dbConfig,
+          endpoint: dbConfig.endpoint || config.endpoint,
+          authToken: dbConfig.authToken || config.auth?.token
+        });
+      case "mongodb":
+        return new MongoAtlasDataProvider({
+          ...dbConfig,
+          endpoint: dbConfig.endpoint || config.endpoint,
+          apiKey: dbConfig.apiKey || config.auth?.apiKey
+        });
       default:
-        return new SQLiteDataProvider("./workspace.sqlite");
+        return new SQLiteDataProvider({ type: "sqlite", filePath: "./workspace.sqlite", enableWAL: true });
     }
   }
 
-  static resolveStorageProvider(config: BackendConnectionConfig): IStorageProvider {
+  public static resolveStorageProvider(config: BackendConnectionConfig): IStorageProvider {
     const storageConfig: StorageProviderConfig = config.storage || { type: "filesystem" };
 
     switch (storageConfig.type) {
@@ -109,6 +184,8 @@ export class WorkspaceBackendFactory {
           ...storageConfig,
           apiKey: storageConfig.apiKey || config.auth?.apiKey
         });
+      case "vercel_blob":
+        return new VercelBlobStorageProvider(storageConfig);
       default:
         return new FilesystemStorageProvider("./storage");
     }

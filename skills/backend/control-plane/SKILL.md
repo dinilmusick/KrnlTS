@@ -1,11 +1,11 @@
 ---
 name: backend-control-plane
-description: Control Plane directives: User Accounts, Authentication, Workspace Registry, Admin Control, and strict authorization boundary enforcement.
+description: Control Plane directives: User Accounts, Authentication, Workspace Registry, Admin Control, Multi-Database Redundancy Clusters, Failover, Immutable Audit Logging, and RBAC enforcement.
 ---
 
-# CONTROL PLANE — APPLICATION IDENTITY & CONFIGURATION
+# CONTROL PLANE — APPLICATION IDENTITY, CLUSTERING & GOVERNANCE
 
-The Control Plane is the application-owned, globally scoped governance system. It strictly manages *who* uses the application, *what* they are permitted to do, and *which* backend connections their workspaces attach to.
+The Control Plane is the application-owned, globally scoped governance system. It strictly manages *who* uses the application, *what* they are permitted to do (RBAC), *which* backend connections their workspaces attach to, and *how* high-availability database redundancy clusters fail over.
 
 ---
 
@@ -16,98 +16,101 @@ $$\text{Control Plane} \cap \text{Workspace Data Plane} = \emptyset$$
 ```
 CONTROL PLANE (Application-Owned)
 │
-├── User Accounts & Identity
-├── Authentication & Session Tokens
-├── User Profiles & Roles (USER vs ADMIN)
+├── User Accounts & Identities (USER, MODERATOR, ADMIN)
+├── Authentication & HMAC Session Tokens (sess::<userId>::<epoch>::<rand>)
 ├── Workspace Registry & Ownership Mappings
-├── Backend Connection Configurations
-└── System-Wide Admin Settings
+├── Persistent Config Vaults (.krnl/control_plane/database_cluster.json, .krnl/db_config.json)
+├── Multi-Backend Redundancy Clusters (primary, redundant_clone, read_replica)
+├── Real-Time Connection Latency Testing & Live Credential Validation
+├── Dynamic Primary Promotion & Automatic Failover
+└── Immutable Audit Logging (AuditLogger trails)
 ```
 
 > [!IMPORTANT]
-> The Control Plane **never** contains project documents, database records of a workspace, or user media files. It contains metadata and connection pointers only.
+> The Control Plane **never** contains project documents, database records of a workspace, or user media files. It contains metadata, account credentials, and cluster connection pointers only.
 
 ---
 
-## 2. Account Backend Storage Modes
+## 2. Role-Based Access Control (RBAC) & Boundary Guards
 
-The Control Plane supports two interchangeable storage strategies:
+$$\text{UserRole} \in \{ \text{USER}, \text{MODERATOR}, \text{ADMIN} \}$$
 
-### Mode A: Local SQLite Account Backend (`accounts.sqlite`)
-- **Use Case**: Offline-first, Desktop (Tauri/Electron), CLI, Single-tenant or local multi-user machines.
-- **Storage**: `~/.config/app/accounts.sqlite` or `<app_root>/accounts.sqlite`.
-- **Fields**:
-  ```sql
-  CREATE TABLE accounts (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT,
-    role TEXT CHECK(role IN ('USER', 'ADMIN')) NOT NULL DEFAULT 'USER',
-    profile_json TEXT,
-    created_at INTEGER NOT NULL
-  );
-  ```
-
-### Mode B: Hosted Account Backend (PostgreSQL / Supabase / Auth Service)
-- **Use Case**: Web applications, Vercel Serverless deployments, team collaboration.
-- **Storage**: Remote PostgreSQL database, Supabase Auth, or OAuth / OIDC identity provider.
-- **Invariant**: The application's account database is completely separate from any individual user's workspace database.
-
----
-
-## 3. User $\to$ Workspace Resolution Mapping
-
-$$\text{User} \xrightarrow{\text{owns}} \{ \text{Workspace}_1 \to \text{BackendConfig}_1, \; \text{Workspace}_2 \to \text{BackendConfig}_2, \dots \}$$
-
+- **AdminGuard Middleware**: Strict route-level barrier checking session validities and enforcing required role boundaries.
 ```typescript
-export interface WorkspaceRegistryEntry {
-  workspaceId: string;
-  userId: string;
-  workspaceName: string;
-  backendConfigId: string;
-  isDefault: boolean;
-  createdAt: number;
-}
+import { AdminGuard } from "@dinilmusick/krnlts";
+
+// Strict Admin Gate: Throws [AccessDenied] if session is null or role != "ADMIN"
+await AdminGuard.verify(authHeader, accountProvider);
+
+// Moderator or Admin Gate
+await AdminGuard.verifyModeratorOrAdmin(authHeader, accountProvider);
 ```
 
-### Resolution Flow
-1. User authenticates via Control Plane (`IAccountProvider.authenticate()`).
-2. Control Plane retrieves user session and associated workspace registry records.
-3. For the active workspace, the application retrieves its `BackendConnectionConfig`.
-4. The application instantiates the matching `IWorkspaceBackend` without modifying the global Control Plane.
+---
+
+## 3. Multi-Backend Database Clusters & High-Availability Redundancy
+
+To guarantee zero data loss and fault-tolerant operation, the Control Plane supports **Multi-Backend Database Clustering**:
+
+```
+                              DATABASE CLUSTER VAULT
+                                        │
+                 ┌──────────────────────┼──────────────────────┐
+                 ▼                      ▼                      ▼
+        [PRIMARY DATABASE]     [REDUNDANT CLONE 1]    [READ REPLICA 1]
+         (Turso LibSQL /        (PostgreSQL /          (Supabase /
+          MongoDB / SQLite)      Supabase)              Cloudflare)
+                 │                      ▲
+                 │ (Periodic Snapshot)  │ (Promoted on Spike / Failover)
+                 └──────────────────────┘
+```
+
+### Cluster Roles
+1. **`primary`**: Receives all active write mutations and authoring queries.
+2. **`redundant_clone`**: Kept in sync via periodic snapshot replication (`syncRedundantDatabases`).
+3. **`read_replica`**: Serves high-throughput read requests and reporting queries.
+
+### Dynamic Promotion & Failover
+- If a primary database experiences latency spikes or connection timeouts:
+  $$\text{Promote}(\text{RedundantClone}) \implies \text{Role} \gets \text{primary}$$
+  $$\text{Demote}(\text{OldPrimary}) \implies \text{Role} \gets \text{redundant\_clone}$$
+- Transition occurs dynamically in the persistent configuration vault with **zero application downtime**.
 
 ---
 
-## 4. Admin Control Plane vs User Scope
+## 4. Live Connection Testing & Latency Measurement
 
-Configuration scopes must never be intermixed:
-
-| Scope | Ownership | Configurable Settings | Prohibited Access |
-| :--- | :--- | :--- | :--- |
-| **System Admin** | Application-wide / Root | Active account backend, global default providers, allowed endpoints, system telemetry, audit logs | Cannot modify private workspace file payloads without explicit ownership |
-| **Normal User** | User / Workspace | Workspace backend selection, custom BaaS credentials for workspace, workspace UI preferences | Cannot alter system account database, system providers, or other users' configs |
+Administrators and users can test prospective database connections before committing:
+```typescript
+const result = await clusterManager.testDatabaseConnection(targetConfig);
+console.log(`Connection OK: ${result.ok}, Latency: ${result.latencyMs}ms`);
+```
 
 ---
 
-## 5. Strict Admin Authorization Invariant
+## 5. Immutable Audit Logging (`AuditLogger`)
 
-> [!CAUTION]
-> Admin access must be enforced strictly at the backend API route / handler boundary, never merely by hiding or disabling UI controls.
+Every administrative mutation, backend connection switch, user role upgrade, and cluster failover event is recorded in an immutable append-only audit trail:
 
 ```typescript
-// Strict Boundary Guard Pattern
-export async function requireAdmin(req: Request, ctx: AppContext): Promise<AdminSession> {
-  const session = await ctx.accountProvider.verifySession(req.headers.get("Authorization"));
-  
-  if (!session) {
-    throw new HttpError(401, "Unauthorized: Authentication token missing or expired.");
-  }
-  
-  if (session.role !== "ADMIN") {
-    ctx.logger.warn(`Security Violation: User ${session.userId} attempted admin access to ${req.url}`);
-    throw new HttpError(403, "Forbidden: Administrative privileges required.");
-  }
-  
-  return session as AdminSession;
-}
+import { AuditLogger } from "@dinilmusick/krnlts";
+
+const auditLogger = new AuditLogger("./.krnl/control_plane/audit_trail.jsonl");
+
+await auditLogger.log({
+  actorUserId: "admin_alice",
+  actorRole: "ADMIN",
+  action: "PROMOTE_DATABASE_PRIMARY",
+  resource: "cluster_turso_edge_01",
+  details: { previousPrimary: "sqlite_local", latencyMs: 24 },
+  status: "SUCCESS"
+});
 ```
+
+---
+
+## 6. Persistent Configuration Vaults
+
+Connection settings and cluster topologies are persisted in structured JSON vaults:
+- `.krnl/control_plane/database_cluster.json` (or `.docustack/control_plane/database_cluster.json`): Cluster definitions, assigned roles, and health statuses.
+- `.krnl/db_config.json` (or `.docustack/db_config.json`): Active workspace database configurations and daisy-chain parameters.

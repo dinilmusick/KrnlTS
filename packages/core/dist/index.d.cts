@@ -673,13 +673,20 @@ interface KrnlIntentionEntity {
 declare function buildEntityIntention(entity: any): KrnlIntentionEntity;
 
 /**
- * @file types.ts
- * @description Core types and interfaces for the KrnlTS Universal Backend Architecture.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * TYPE DEFINITIONS: KrnlTS Universal Backend Architecture (DocuStack Refinements)
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Complete type contracts for Control Plane (RBAC, Audit Logging, Database Clusters,
+ *          Redundancy Sync), Workspace Data Plane (Multi-Engine Providers, Failover Cascades),
+ *          and Built-in Functionality Table CRUD.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
  */
 type StorageMode = "local" | "local_hosted" | "remote";
-type BackendServiceType = "sqlite" | "postgres" | "supabase" | "pocketbase" | "firebase" | "filesystem" | "s3" | "custom";
+type BackendServiceType = "sqlite" | "postgres" | "supabase" | "pocketbase" | "firebase" | "turso" | "mongodb" | "custom_api" | "filesystem" | "s3" | "vercel_blob" | "custom";
+type UserRole = "USER" | "MODERATOR" | "ADMIN" | "user" | "moderator" | "admin";
+type ClusterDatabaseRole = "primary" | "redundant_clone" | "read_replica";
 interface DatabaseProviderConfig {
-    type: "sqlite" | "postgres" | "supabase" | "pocketbase" | "firebase" | "custom";
+    type: "sqlite" | "postgres" | "supabase" | "pocketbase" | "firebase" | "turso" | "mongodb" | "custom_api" | "custom";
     filePath?: string;
     enableWAL?: boolean;
     connectionString?: string;
@@ -692,10 +699,13 @@ interface DatabaseProviderConfig {
     poolSize?: number;
     endpoint?: string;
     apiKey?: string;
+    authToken?: string;
     projectId?: string;
+    collectionName?: string;
+    headers?: Record<string, string>;
 }
 interface StorageProviderConfig {
-    type: "filesystem" | "s3" | "supabase_storage" | "pocketbase_storage" | "firebase_storage" | "custom";
+    type: "filesystem" | "s3" | "supabase_storage" | "pocketbase_storage" | "firebase_storage" | "vercel_blob" | "custom";
     basePath?: string;
     bucket?: string;
     region?: string;
@@ -703,6 +713,7 @@ interface StorageProviderConfig {
     secretKey?: string;
     endpoint?: string;
     apiKey?: string;
+    token?: string;
     projectId?: string;
 }
 interface AuthConfig {
@@ -720,6 +731,34 @@ interface BackendConnectionConfig {
     database?: DatabaseProviderConfig;
     storage?: StorageProviderConfig;
     auth?: AuthConfig;
+}
+interface DatabaseClusterEntry {
+    id: string;
+    name: string;
+    role: ClusterDatabaseRole;
+    enabled: boolean;
+    config: DatabaseProviderConfig;
+    lastSyncTimestamp?: number;
+    lastHealthCheckLatencyMs?: number;
+    healthStatus?: "HEALTHY" | "DEGRADED" | "OFFLINE";
+    errorDetails?: string;
+}
+interface DatabaseClusterVault {
+    version: string;
+    primaryDatabaseId: string;
+    clusters: DatabaseClusterEntry[];
+    updatedAt: number;
+}
+interface AuditLogEntry {
+    id: string;
+    timestamp: number;
+    actorUserId: string;
+    actorRole: UserRole;
+    action: string;
+    resource: string;
+    details?: Record<string, any>;
+    ipAddress?: string;
+    status: "SUCCESS" | "FAILURE" | "SECURITY_DENIED";
 }
 interface WorkspaceDescriptor {
     id: string;
@@ -741,20 +780,17 @@ interface UserProfile {
     id: string;
     email?: string;
     username?: string;
-    role: "USER" | "ADMIN";
+    role: UserRole;
     metadata?: Record<string, any>;
     createdAt: number;
 }
 interface AuthSession {
     userId: string;
-    role: "USER" | "ADMIN";
+    role: UserRole;
     token: string;
     expiresAt: number;
     user?: UserProfile;
 }
-/**
- * Control Plane Account Provider interface
- */
 interface IAccountProvider {
     getUser(userId: string): Promise<UserProfile | null>;
     authenticate(credentials: AuthCredentials): Promise<AuthSession>;
@@ -763,9 +799,6 @@ interface IAccountProvider {
     createWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>): Promise<WorkspaceDescriptor>;
     deleteWorkspace(userId: string, workspaceId: string): Promise<boolean>;
 }
-/**
- * Workspace Data Provider interface (Structured / Relational Records)
- */
 interface IWorkspaceDataProvider {
     readonly engine: BackendServiceType;
     connect(): Promise<void>;
@@ -797,9 +830,6 @@ interface IWorkspaceDataProvider {
     count(table: string, filter?: Record<string, any>): Promise<number>;
     clear(table: string): Promise<void>;
 }
-/**
- * Workspace Storage Provider interface (Large Files / Binary Blobs)
- */
 interface IStorageProvider {
     readonly driver: string;
     uploadFile(path: string, content: Buffer | Uint8Array | string | ReadableStream, mimeType?: string): Promise<{
@@ -815,9 +845,6 @@ interface IStorageProvider {
         updatedAt: number;
     }>>;
 }
-/**
- * Aggregated Workspace Backend
- */
 interface IWorkspaceBackend {
     readonly id: string;
     readonly mode: StorageMode;
@@ -826,9 +853,6 @@ interface IWorkspaceBackend {
     initialize(): Promise<void>;
     dispose(): Promise<void>;
 }
-/**
- * Built-in Table interface passed directly into Functionality execution context
- */
 interface IFunctionalityTable<T = any> {
     readonly tableName: string;
     readonly service: BackendServiceType;
@@ -852,9 +876,6 @@ interface IFunctionalityTable<T = any> {
     query(rawQueryOrFilter: any, params?: any[]): Promise<any>;
     clear(): Promise<void>;
 }
-/**
- * Functionality-level backend configuration flags
- */
 type FunctionalityBackendFlag = boolean | BackendServiceType | FunctionalityBackendConfig;
 interface FunctionalityBackendConfig {
     enabled?: boolean;
@@ -863,9 +884,6 @@ interface FunctionalityBackendConfig {
     schema?: Record<string, any>;
     credentials?: DatabaseProviderConfig;
 }
-/**
- * Entity-level backend configuration container
- */
 interface EntityBackendSettings {
     defaultService?: BackendServiceType;
     sqlite?: DatabaseProviderConfig;
@@ -873,8 +891,12 @@ interface EntityBackendSettings {
     supabase?: DatabaseProviderConfig;
     pocketbase?: DatabaseProviderConfig;
     firebase?: DatabaseProviderConfig;
+    turso?: DatabaseProviderConfig;
+    mongodb?: DatabaseProviderConfig;
+    custom_api?: DatabaseProviderConfig;
     filesystem?: StorageProviderConfig;
     s3?: StorageProviderConfig;
+    vercel_blob?: StorageProviderConfig;
     custom?: Record<string, any>;
 }
 
@@ -911,13 +933,39 @@ declare class FunctionalityTable<T = any> implements IFunctionalityTable<T> {
 }
 
 /**
- * @file WorkspaceBackendFactory.ts
- * @description Factory resolving decoupled Data Providers and Storage Providers for any storage mode.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: WorkspaceBackendFactory
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Resolves decoupled data and storage engine providers, performs live connection
+ *          latency probes, and resolves hierarchical credential cascades with local fallback.
+ *
+ * Cascade Resolution Flow Chart:
+ *   [Functionality Execution]
+ *              │
+ *              ▼
+ *   [1. Feature-Level Custom Credentials?] ──(Yes)──► [Use Feature Credentials]
+ *              │ (No)
+ *              ▼
+ *   [2. Host Entity Configured Backend?]   ──(Yes)──► [Use Entity Service Config]
+ *              │ (No / Fail)
+ *              ▼
+ *   [3. Fallback to Local SQLite/POSIX]    ─────────► [Use Safe Offline Engine]
+ *
+ * Example:
+ *   const backend = WorkspaceBackendFactory.createLocal("./workspace.sqlite", "./storage");
+ *   const credentials = WorkspaceBackendFactory.resolveCredentialsCascade(featureConfig, entitySettings);
+ * ──────────────────────────────────────────────────────────────────────────────────────────
  */
-
 declare class WorkspaceBackendFactory {
     static create(config: BackendConnectionConfig): IWorkspaceBackend;
     static createLocal(filePath?: string, storagePath?: string): IWorkspaceBackend;
+    /**
+     * Resolves the credential cascade hierarchy:
+     * 1. Feature-level explicit credentials
+     * 2. Host entity configured credentials
+     * 3. Fallback to local SQLite
+     */
+    static resolveCredentialsCascade(functionalityConfig?: FunctionalityBackendConfig | boolean | string, entitySettings?: EntityBackendSettings, defaultFallback?: DatabaseProviderConfig): DatabaseProviderConfig;
     static resolveDataProvider(config: BackendConnectionConfig): IWorkspaceDataProvider;
     static resolveStorageProvider(config: BackendConnectionConfig): IStorageProvider;
 }
@@ -936,7 +984,7 @@ declare class LocalSQLiteAccountProvider implements IAccountProvider {
     private persist;
     getUser(userId: string): Promise<UserProfile | null>;
     registerUser(credentials: AuthCredentials & {
-        role?: "USER" | "ADMIN";
+        role?: UserRole;
     }): Promise<UserProfile>;
     authenticate(credentials: AuthCredentials): Promise<AuthSession>;
     verifySession(token: string | null): Promise<AuthSession | null>;
@@ -981,13 +1029,146 @@ declare class ControlPlaneManager {
 }
 
 /**
- * @file AdminGuard.ts
- * @description Strict backend API boundary authorization guard enforcing role checks.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: AdminGuard
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Strict API boundary authorization guard enforcing role-based access control
+ *          (RBAC: ADMIN / MODERATOR / USER) on administrative and sensitive operations.
+ *
+ * Flow Chart:
+ *   [Protected Action] ───► [Extract Bearer Token] ───► [Verify Session]
+ *                                                               │
+ *                                                               ▼
+ *                                                    [Check Allowed Roles]
+ *                                                    ├── (Match) ──► [Grant Access]
+ *                                                    └── (Fail)  ──► [Throw AccessDenied]
+ *
+ * Example Usage:
+ *   const session = await AdminGuard.verify(authHeader, accountProvider);
+ * ──────────────────────────────────────────────────────────────────────────────────────────
  */
-
 declare class AdminGuard {
+    /**
+     * Verifies that the session token is valid and belongs to an ADMIN.
+     */
     static verify(authHeaderOrToken: string | null | undefined, accountProvider: IAccountProvider): Promise<AuthSession>;
-    static enforce(session: AuthSession | null | undefined): void;
+    /**
+     * Verifies that the session token is valid and belongs to either a MODERATOR or ADMIN.
+     */
+    static verifyModeratorOrAdmin(authHeaderOrToken: string | null | undefined, accountProvider: IAccountProvider): Promise<AuthSession>;
+    /**
+     * Generalized RBAC verification against a list of allowed roles.
+     */
+    static verifyRole(authHeaderOrToken: string | null | undefined, accountProvider: IAccountProvider, allowedRoles?: UserRole[]): Promise<AuthSession>;
+    /**
+     * Synchronous assertion on pre-resolved session.
+     */
+    static enforce(session: AuthSession | null | undefined, allowedRoles?: UserRole[]): void;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: AuditLogger
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Records immutable audit trails for all administrative mutations, user status changes,
+ *          backend connection switches, and cluster failover events.
+ *
+ * Flow Chart:
+ *   [Admin Mutation / State Change] ───► [Construct AuditLogEntry]
+ *                                                    │
+ *                                                    ▼
+ *                                          [Append to Audit Vault] ───► [.krnl/audit_trail.jsonl]
+ *
+ * Example Usage:
+ *   const auditLogger = new AuditLogger("./.krnl/control_plane/audit_trail.jsonl");
+ *   await auditLogger.log({
+ *     actorUserId: "admin_01",
+ *     actorRole: "ADMIN",
+ *     action: "PROMOTE_DATABASE_PRIMARY",
+ *     resource: "cluster_db_turso",
+ *     status: "SUCCESS"
+ *   });
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class AuditLogger {
+    private filePath;
+    constructor(filePath?: string);
+    /**
+     * Records an immutable audit log entry.
+     */
+    log(params: {
+        actorUserId: string;
+        actorRole: UserRole;
+        action: string;
+        resource: string;
+        details?: Record<string, any>;
+        ipAddress?: string;
+        status?: "SUCCESS" | "FAILURE" | "SECURITY_DENIED";
+    }): Promise<AuditLogEntry>;
+    /**
+     * Retrieves historical audit entries with optional filtering.
+     */
+    query(filter?: {
+        actorUserId?: string;
+        action?: string;
+        status?: string;
+        actorRole?: UserRole;
+        limit?: number;
+    }): Promise<AuditLogEntry[]>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: DatabaseClusterManager
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Manages multi-backend redundancy clusters, real-time connection latency testing,
+ *          snapshot synchronization, dynamic primary promotion, and automatic failover.
+ *
+ * Topology Flow Chart:
+ *   [Admin / Health Monitor] ───► [Test Latencies] ───► [Detect Primary Spike / Failure]
+ *                                                               │
+ *                                                               ▼
+ *                                                    [Promote Redundant Clone]
+ *                                                               │
+ *                                                               ▼
+ *                                                    [Demote Old Primary] ───► [Audit Trail]
+ *
+ * Example Usage:
+ *   const clusterManager = new DatabaseClusterManager("./.krnl/control_plane/database_cluster.json");
+ *   await clusterManager.promoteToPrimary("cluster_turso_edge", "admin_01");
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class DatabaseClusterManager {
+    private vaultPath;
+    private auditLogger;
+    private inMemoryVault;
+    constructor(vaultPath?: string, auditLogger?: AuditLogger);
+    private init;
+    getVault(): DatabaseClusterVault;
+    private saveVault;
+    /**
+     * Tests a database connection and measures real-time round-trip latency in milliseconds.
+     */
+    testDatabaseConnection(config: DatabaseProviderConfig): Promise<{
+        ok: boolean;
+        latencyMs: number;
+        errorDetails?: string;
+    }>;
+    /**
+     * Promotes a redundant clone to the active primary role, auto-demoting the existing primary.
+     */
+    promoteToPrimary(targetDatabaseId: string, actorUserId?: string): Promise<DatabaseClusterVault>;
+    /**
+     * Adds or updates a database cluster entry.
+     */
+    upsertClusterEntry(entry: DatabaseClusterEntry, actorUserId?: string): Promise<DatabaseClusterVault>;
+    /**
+     * Synchronizes data snapshots across all enabled redundant backup clones.
+     */
+    syncRedundantDatabases(): Promise<{
+        syncedCount: number;
+        timestamp: number;
+    }>;
 }
 
 /**
@@ -1206,6 +1387,81 @@ declare class FirebaseDataProvider implements IWorkspaceDataProvider {
 }
 
 /**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: TursoLibSQLDataProvider
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Provides high-speed, edge-distributed SQLite query execution over Turso LibSQL HTTP API.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class TursoLibSQLDataProvider implements IWorkspaceDataProvider {
+    readonly engine: BackendServiceType;
+    private config;
+    private isConnected;
+    constructor(config: DatabaseProviderConfig);
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    testConnection(): Promise<{
+        ok: boolean;
+        latencyMs: number;
+        details?: any;
+    }>;
+    ensureTable(tableName: string): Promise<void>;
+    query<T = any>(queryStr: string, params?: any[]): Promise<T[]>;
+    execute(commandStr: string, params?: any[]): Promise<{
+        affectedRows: number;
+    }>;
+    find<T = any>(table: string, filter?: Record<string, any>): Promise<T[]>;
+    findOne<T = any>(table: string, filter: Record<string, any> | string): Promise<T | null>;
+    insert<T = any>(table: string, data: T | T[]): Promise<T | T[]>;
+    update<T = any>(table: string, filter: Record<string, any> | string, patch: Partial<T>): Promise<{
+        affectedRows: number;
+    }>;
+    delete(table: string, filter: Record<string, any> | string): Promise<{
+        affectedRows: number;
+    }>;
+    count(table: string): Promise<number>;
+    clear(table: string): Promise<void>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: MongoAtlasDataProvider
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Provides serverless document querying and mutations against MongoDB Atlas Data API.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class MongoAtlasDataProvider implements IWorkspaceDataProvider {
+    readonly engine: BackendServiceType;
+    private config;
+    private isConnected;
+    constructor(config: DatabaseProviderConfig);
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    testConnection(): Promise<{
+        ok: boolean;
+        latencyMs: number;
+        details?: any;
+    }>;
+    ensureTable(tableName: string): Promise<void>;
+    private callAtlasAction;
+    query<T = any>(queryStr: string): Promise<T[]>;
+    execute(): Promise<{
+        affectedRows: number;
+    }>;
+    find<T = any>(table: string, filter?: Record<string, any>): Promise<T[]>;
+    findOne<T = any>(table: string, filter: Record<string, any> | string): Promise<T | null>;
+    insert<T = any>(table: string, data: T | T[]): Promise<T | T[]>;
+    update<T = any>(table: string, filter: Record<string, any> | string, patch: Partial<T>): Promise<{
+        affectedRows: number;
+    }>;
+    delete(table: string, filter: Record<string, any> | string): Promise<{
+        affectedRows: number;
+    }>;
+    count(table: string, filter?: Record<string, any>): Promise<number>;
+    clear(table: string): Promise<void>;
+}
+
+/**
  * @file FilesystemStorageProvider.ts
  * @description Local Filesystem Storage Provider using KrnlFS for zero-cloud file persistence.
  */
@@ -1325,6 +1581,32 @@ declare class FirebaseStorageProvider implements IStorageProvider {
     deleteFile(targetPath: string): Promise<boolean>;
     getPublicUrl(targetPath: string): string;
     listFiles(_prefix?: string): Promise<Array<{
+        path: string;
+        size: number;
+        updatedAt: number;
+    }>>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: VercelBlobStorageProvider
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Provides serverless blob storage uploading, downloading, and URL resolution
+ *          via Vercel Blob REST API.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class VercelBlobStorageProvider implements IStorageProvider {
+    readonly driver = "vercel_blob";
+    private config;
+    constructor(config: StorageProviderConfig);
+    uploadFile(path: string, content: Buffer | Uint8Array | string, mimeType?: string): Promise<{
+        url: string;
+        size: number;
+    }>;
+    downloadFile(path: string): Promise<Buffer>;
+    deleteFile(path: string): Promise<boolean>;
+    getPublicUrl(path: string): string;
+    listFiles(): Promise<Array<{
         path: string;
         size: number;
         updatedAt: number;
@@ -4590,4 +4872,4 @@ declare class PocerBlock extends krnlSystemEntityBase {
     private _waitForPort;
 }
 
-export { AdminGuard, AsyncKit, type AuthConfig, type AuthCredentials, type AuthSession, type BackendConnectionConfig, type BackendServiceType, CUSTOM_ERROR_CODE, CacheKit, ControlPlaneManager, type DatabaseProviderConfig, type DefaultConnectionBehaviour, DefaultEventRegistrar, DefaultOperationRegistrar, DefaultServiceContainer, type EndpointCategory, Entity, type EntityBackendSettings, type EventRegistrar, FileCache, FileLock, FilesystemStorageProvider, FirebaseDataProvider, FirebaseStorageProvider, type FsmTransitionResult, type FunctionalityBackendConfig, type FunctionalityBackendFlag, FunctionalityTable, GitManager, HostedAccountProvider, type IAccountProvider, type IFunctionalityTable, type IGraph, type IStorageProvider, type IWorkspaceBackend, type IWorkspaceDataProvider, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlCapabilityResolution, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFlowBuilder, type KrnlFlowStep, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, type KrnlFunctionalityManifest, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlJobScheduler, type KrnlJobTicket, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlProtocolAdapter, KrnlPurityRules, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, KrnlSubAppDiscovery, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLifecycle, KrnlSubAppLoader, KrnlSubAppValidator, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, type KrnlWorkspaceRequirements, LRUCache, LocalSQLiteAccountProvider, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, type OperationDefinition, type OperationHandler, type OperationRegistrar, PocerBlock, PocketBaseDataProvider, PocketBaseStorageProvider, PostgresDataProvider, type PurityValidationResult, type ReleaseFn, S3StorageProvider, SQLiteDataProvider, type ServiceContainer, type SiblingMemberEntry, type SpawnHandle, type StorageMode, type StorageProviderConfig, StringKit, type SubAppDescriptor, type SubAppErrorDetail, type SubAppExecutionContext, type SubAppInstance, type SubAppLifecycleState, type SubAppManifest, type SubAppModule, type SubAppRegistration, type SubAppRegistrationContext, type SubAppUIConfig, SupabaseDataProvider, SupabaseStorageProvider, TTLCache, type TelemetrySnapshot, type UserProfile, type ValidationFailure, type ValidationReport, type ValidationResult, type ValidationSuccess, WebSocketTransportAdapter, WorkspaceBackendFactory, type WorkspaceDescriptor, assertSchema, buildEntityIntention, clamp, computeDelta, createEnum, createHttpsAppAdapter, createReducer, deduplicate, deepMerge, defaultConnectionBehaviour, formatZodErrors, groupBy, indexBy, interpolate, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, lens, lerp, magneticStorage, mapRange, paginate, partition, roundTo, sanitize, stats, subappLocalStorage, telemetry, toCase, toSlug, topologicalSort, transitionFSM, traverseGraph, truncate, validateSchema, vectorOp };
+export { AdminGuard, AsyncKit, type AuditLogEntry, AuditLogger, type AuthConfig, type AuthCredentials, type AuthSession, type BackendConnectionConfig, type BackendServiceType, CUSTOM_ERROR_CODE, CacheKit, type ClusterDatabaseRole, ControlPlaneManager, type DatabaseClusterEntry, DatabaseClusterManager, type DatabaseClusterVault, type DatabaseProviderConfig, type DefaultConnectionBehaviour, DefaultEventRegistrar, DefaultOperationRegistrar, DefaultServiceContainer, type EndpointCategory, Entity, type EntityBackendSettings, type EventRegistrar, FileCache, FileLock, FilesystemStorageProvider, FirebaseDataProvider, FirebaseStorageProvider, type FsmTransitionResult, type FunctionalityBackendConfig, type FunctionalityBackendFlag, FunctionalityTable, GitManager, HostedAccountProvider, type IAccountProvider, type IFunctionalityTable, type IGraph, type IStorageProvider, type IWorkspaceBackend, type IWorkspaceDataProvider, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlCapabilityResolution, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFlowBuilder, type KrnlFlowStep, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, type KrnlFunctionalityManifest, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlJobScheduler, type KrnlJobTicket, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlProtocolAdapter, KrnlPurityRules, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, KrnlSubAppDiscovery, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLifecycle, KrnlSubAppLoader, KrnlSubAppValidator, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, type KrnlWorkspaceRequirements, LRUCache, LocalSQLiteAccountProvider, type LogEntry, Logger, MemoryTransportAdapter, MongoAtlasDataProvider, ObjectKit, type OperationDefinition, type OperationHandler, type OperationRegistrar, PocerBlock, PocketBaseDataProvider, PocketBaseStorageProvider, PostgresDataProvider, type PurityValidationResult, type ReleaseFn, S3StorageProvider, SQLiteDataProvider, type ServiceContainer, type SiblingMemberEntry, type SpawnHandle, type StorageMode, type StorageProviderConfig, StringKit, type SubAppDescriptor, type SubAppErrorDetail, type SubAppExecutionContext, type SubAppInstance, type SubAppLifecycleState, type SubAppManifest, type SubAppModule, type SubAppRegistration, type SubAppRegistrationContext, type SubAppUIConfig, SupabaseDataProvider, SupabaseStorageProvider, TTLCache, type TelemetrySnapshot, TursoLibSQLDataProvider, type UserProfile, type UserRole, type ValidationFailure, type ValidationReport, type ValidationResult, type ValidationSuccess, VercelBlobStorageProvider, WebSocketTransportAdapter, WorkspaceBackendFactory, type WorkspaceDescriptor, assertSchema, buildEntityIntention, clamp, computeDelta, createEnum, createHttpsAppAdapter, createReducer, deduplicate, deepMerge, defaultConnectionBehaviour, formatZodErrors, groupBy, indexBy, interpolate, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, lens, lerp, magneticStorage, mapRange, paginate, partition, roundTo, sanitize, stats, subappLocalStorage, telemetry, toCase, toSlug, topologicalSort, transitionFSM, traverseGraph, truncate, validateSchema, vectorOp };

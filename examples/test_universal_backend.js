@@ -11,7 +11,7 @@ import {
   WorkspaceBackendFactory,
   FunctionalityTable,
   FilesystemStorageProvider
-} from "../dist/index.js";
+} from "../packages/core/dist/index.js";
 import fs from "fs";
 import path from "path";
 
