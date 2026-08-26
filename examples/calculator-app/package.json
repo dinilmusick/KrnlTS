@@ -1,0 +1,15 @@
+{
+  "name": "calculator-app",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "krnl dev",
+    "build": "krnl build",
+    "validate": "krnl validate"
+  },
+  "dependencies": {
+    "@dinilmusick/krnl": "^1.0.0",
+    "@dinilmusick/krnl-core": "^1.0.0",
+    "@dinilmusick/krnl-ui": "^1.0.0"
+  }
+}

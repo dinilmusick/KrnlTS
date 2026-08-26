@@ -1,0 +1,10 @@
+{
+  "name": "ecommerce-app",
+  "version": "1.0.0",
+  "entry": "src/entities/StoreSystem/StoreSystem.ts",
+  "port": 10092,
+  "backend": {
+    "controlPlane": "sqlite",
+    "dataPlane": "local"
+  }
+}

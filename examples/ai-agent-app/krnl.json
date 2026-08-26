@@ -1,0 +1,10 @@
+{
+  "name": "ai-agent-app",
+  "version": "1.0.0",
+  "entry": "src/entities/AgentSystem/AgentSystem.ts",
+  "port": 10093,
+  "backend": {
+    "controlPlane": "sqlite",
+    "dataPlane": "local"
+  }
+}

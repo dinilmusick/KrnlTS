@@ -1,0 +1,10 @@
+{
+  "name": "calculator-app",
+  "version": "1.0.0",
+  "entry": "src/entities/CalculatorSystem/CalculatorSystem.ts",
+  "port": 10091,
+  "backend": {
+    "controlPlane": "sqlite",
+    "dataPlane": "local"
+  }
+}

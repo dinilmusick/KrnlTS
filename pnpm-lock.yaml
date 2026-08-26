@@ -26,9 +26,18 @@ importers:
       '@dinilmusick/krnl-core':
         specifier: workspace:*
         version: link:../core
+      '@dinilmusick/krnl-studio':
+        specifier: workspace:*
+        version: link:../studio
       '@dinilmusick/krnl-validate':
         specifier: workspace:*
         version: link:../validate
+      ts-morph:
+        specifier: ^25.0.1
+        version: 25.0.1
+      ws:
+        specifier: ^8.18.0
+        version: 8.20.0
     devDependencies:
       tsup:
         specifier: ^8.4.0

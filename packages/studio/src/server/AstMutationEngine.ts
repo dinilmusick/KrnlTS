@@ -49,84 +49,128 @@ export class AstMutationEngine {
     const nodes: ArchitectureNode[] = [];
     const edges: ArchitectureEdge[] = [];
 
-    // 1. Discover Entities
-    const entitiesDir = path.join(this.projectRoot, 'src', 'entities');
-    if (fs.existsSync(entitiesDir)) {
-      const entityEntries = fs.readdirSync(entitiesDir, { withFileTypes: true });
-      for (const entry of entityEntries) {
-        if (entry.isDirectory()) {
-          const entityName = entry.name;
-          const entityFilePath = path.join(entitiesDir, entityName, `${entityName}.ts`);
-          nodes.push({
-            id: `entity:${entityName}`,
-            type: 'entity',
-            name: entityName,
-            filePath: entityFilePath
-          });
+    // Find entities in src/entities or entities/
+    const possibleEntityDirs = [
+      path.join(this.projectRoot, 'src', 'entities'),
+      path.join(this.projectRoot, 'entities')
+    ];
 
-          // Discover Functionalities for this Entity
-          const funcDir = path.join(entitiesDir, entityName, 'functionalities');
-          if (fs.existsSync(funcDir)) {
-            const funcs = fs.readdirSync(funcDir, { withFileTypes: true });
-            for (const f of funcs) {
-              if (f.isDirectory()) {
-                const funcName = f.name;
-                const funcPath = path.join(funcDir, funcName);
-                const funcNode = this.parseFunctionalityQuadUnit(entityName, funcName, funcPath);
-                nodes.push(funcNode);
-                
-                // Edge: Entity contains Functionality
-                edges.push({
-                  id: `edge:${entityName}->${funcName}`,
-                  source: `entity:${entityName}`,
-                  target: funcNode.id,
-                  type: 'contains',
-                  deletable: true
-                });
-              }
-            }
+    for (const entitiesDir of possibleEntityDirs) {
+      if (fs.existsSync(entitiesDir)) {
+        this.scanEntitiesRecursive(entitiesDir, nodes, edges);
+      }
+    }
+
+    // Find Domain Concept Libraries in src/libraries or libraries/
+    const possibleLibDirs = [
+      path.join(this.projectRoot, 'src', 'libraries'),
+      path.join(this.projectRoot, 'libraries')
+    ];
+
+    for (const libDir of possibleLibDirs) {
+      if (fs.existsSync(libDir)) {
+        const libFiles = fs.readdirSync(libDir, { withFileTypes: true });
+        for (const file of libFiles) {
+          if (file.isFile() && (file.name.endsWith('.ts') || file.name.endsWith('.js'))) {
+            const baseName = file.name.replace(/\.(ts|js)$/, '');
+            const libPath = path.join(libDir, file.name);
+            nodes.push({
+              id: `library:${baseName}`,
+              type: 'library',
+              name: baseName,
+              filePath: libPath
+            });
           }
         }
       }
     }
 
-    // 2. Discover Domain Concept Libraries (Layer 0)
-    const libDir = path.join(this.projectRoot, 'src', 'libraries');
-    if (fs.existsSync(libDir)) {
-      const libFiles = fs.readdirSync(libDir, { withFileTypes: true });
-      for (const file of libFiles) {
-        if (file.isFile() && (file.name.endsWith('Concepts.ts') || file.name.endsWith('.ts'))) {
-          const baseName = file.name.replace(/\.ts$/, '');
-          const libPath = path.join(libDir, file.name);
-          nodes.push({
-            id: `library:${baseName}`,
-            type: 'library',
-            name: baseName,
-            filePath: libPath
-          });
-        }
-      }
-    }
+    // Find SubApps in src/subapps or subapps/
+    const possibleSubappDirs = [
+      path.join(this.projectRoot, 'src', 'subapps'),
+      path.join(this.projectRoot, 'subapps')
+    ];
 
-    // 3. Discover SubApps
-    const subappDir = path.join(this.projectRoot, 'src', 'subapps');
-    if (fs.existsSync(subappDir)) {
-      const subapps = fs.readdirSync(subappDir, { withFileTypes: true });
-      for (const sa of subapps) {
-        if (sa.isDirectory()) {
-          const saName = sa.name;
-          const saPath = path.join(subappDir, saName);
-          nodes.push({
-            id: `subapp:${saName}`,
-            type: 'subapp',
-            name: saName,
-            filePath: saPath
-          });
+    for (const subappDir of possibleSubappDirs) {
+      if (fs.existsSync(subappDir)) {
+        const subapps = fs.readdirSync(subappDir, { withFileTypes: true });
+        for (const sa of subapps) {
+          if (sa.isDirectory()) {
+            const saName = sa.name;
+            const saPath = path.join(subappDir, saName);
+            nodes.push({
+              id: `subapp:${saName}`,
+              type: 'subapp',
+              name: saName,
+              filePath: saPath
+            });
+          }
         }
       }
     }
 
     return { nodes, edges };
+  }
+
+  private scanEntitiesRecursive(entitiesDir: string, nodes: ArchitectureNode[], edges: ArchitectureEdge[], parentEntityName?: string) {
+    const entries = fs.readdirSync(entitiesDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const entityName = entry.name;
+        const entityDir = path.join(entitiesDir, entityName);
+        let entityFile = path.join(entityDir, `${entityName}.ts`);
+        if (!fs.existsSync(entityFile)) {
+          entityFile = path.join(entityDir, `${entityName}.js`);
+        }
+
+        const entityNodeId = `entity:${entityName}`;
+        nodes.push({
+          id: entityNodeId,
+          type: 'entity',
+          name: entityName,
+          parentEntity: parentEntityName,
+          filePath: fs.existsSync(entityFile) ? entityFile : entityDir
+        });
+
+        if (parentEntityName) {
+          edges.push({
+            id: `edge:${parentEntityName}->child:${entityName}`,
+            source: `entity:${parentEntityName}`,
+            target: entityNodeId,
+            type: 'contains',
+            deletable: true
+          });
+        }
+
+        // Scan functionalities
+        const funcDir = path.join(entityDir, 'functionalities');
+        if (fs.existsSync(funcDir)) {
+          const funcs = fs.readdirSync(funcDir, { withFileTypes: true });
+          for (const f of funcs) {
+            if (f.isDirectory()) {
+              const funcName = f.name;
+              const funcPath = path.join(funcDir, funcName);
+              const funcNode = this.parseFunctionalityQuadUnit(entityName, funcName, funcPath);
+              nodes.push(funcNode);
+
+              edges.push({
+                id: `edge:${entityName}->${funcName}`,
+                source: entityNodeId,
+                target: funcNode.id,
+                type: 'contains',
+                deletable: true
+              });
+            }
+          }
+        }
+
+        // Scan nested child entities
+        const childEntitiesDir = path.join(entityDir, 'entities');
+        if (fs.existsSync(childEntitiesDir)) {
+          this.scanEntitiesRecursive(childEntitiesDir, nodes, edges, entityName);
+        }
+      }
+    }
   }
 
   private parseFunctionalityQuadUnit(entityName: string, funcName: string, funcPath: string): ArchitectureNode {
@@ -146,12 +190,23 @@ export class AstMutationEngine {
 
     const hasUi = fs.existsSync(path.join(funcPath, 'ui')) || fs.existsSync(path.join(funcPath, `${funcName}UI.ts`));
 
+    let logicFile = path.join(funcPath, 'main_function', 'logic.ts');
+    if (!fs.existsSync(logicFile)) {
+      logicFile = path.join(funcPath, 'main_function', 'logic.js');
+    }
+    if (!fs.existsSync(logicFile)) {
+      logicFile = path.join(funcPath, `${funcName}.ts`);
+    }
+    if (!fs.existsSync(logicFile)) {
+      logicFile = path.join(funcPath, `${funcName}.js`);
+    }
+
     return {
       id: `functionality:${entityName}:${funcName}`,
       type: 'functionality',
       name: funcName,
       parentEntity: entityName,
-      filePath: path.join(funcPath, 'main_function', 'logic.ts'),
+      filePath: logicFile,
       helpers,
       uiSpec: hasUi
     };

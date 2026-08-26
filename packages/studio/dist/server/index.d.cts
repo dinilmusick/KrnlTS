@@ -41,6 +41,7 @@ declare class AstMutationEngine {
      * Scans the workspace and builds the full visual architecture graph.
      */
     extractArchitectureGraph(): ArchitectureGraph;
+    private scanEntitiesRecursive;
     private parseFunctionalityQuadUnit;
     /**
      * Surgical AST Operation: Create Entity
