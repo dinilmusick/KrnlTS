@@ -1,88 +1,85 @@
-# KrnlTS Framework
+# Krnl Framework
 
-KrnlTS is the core protocol library for building atomic distributed entity systems, unified HTTP/WS/MCP/ACP servers, flows, and agentic orchestration endpoints.
-
----
-
-## 🏛️ Architecture Overview
-
-> **The Entity tree IS the kernel. UI aggregation, capability exposure, manifests, protocols, and flows are projections or behaviors of that tree — not parallel systems.**
-
-### Four Core Rules
-
-1.  **Filesystem is composition**:
-    *   `functionalities/` → Atomic logic units
-    *   `entities/` → Recursive child entities
-    *   `protocol_adapters/` → Potential root server adapters
-2.  **Functionality is the atomic unit**:
-    *   Owns logic, state, helpers, events, UI spec, AI capability spec, and manifest.
-    *   UI is authored strictly at the Functionality level.
-3.  **Entity is composition + orchestration**:
-    *   Owns local functionalities and child entities, controls bubbling, constructs Flows, and can occupy root position.
-4.  **Root is a runtime position, not a type**:
-    *   `Entity + no parent + adapters` → **ROOT** (adapters active, self-hosts servers).
-    *   `Entity + parent` → **CHILD** (adapters dormant, capabilities bubble upward).
+> **Krnl**: High-Performance Full-Stack TypeScript Framework with Direct-DOM VanJS Reactivity, ts-morph AST Purity Gates, Autonomous Code Evolution, and the **Krnl Studio Visual Node IDE**.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quickstart: Starting a Fresh Workspace
 
-### 1. Build Framework
+### 1. Scaffold a New Project
+Run the official interactive project generator:
+
 ```bash
-npm run build
+# Using npm
+npm create krnl my-app
+
+# Using npx
+npx create-krnl my-app
+
+# Using pnpm
+pnpm dlx create-krnl my-app
 ```
 
-### 2. Run Comprehensive Architecture Suite
-```bash
-node examples/test_gross_architecture.js
-```
+This generates a fully configured Krnl workspace:
+- `krnl.json` (Workspace manifest & provider bindings)
+- `package.json` & `tsconfig.json`
+- `src/entities/App/` (Root entity with magnetic auto-discovery)
+- `src/entities/App/functionalities/Hello/` (Sample Quad-Unit functionality)
+- `src/libraries/AppConcepts.ts` (Layer 0 pure concept library)
+- `docs/HISTORY.md` (Project intent & architectural memory)
 
-### 3. Run Master Example Suite
+---
+
+### 2. Launch Krnl Studio (Visual Node IDE)
+
 ```bash
-node examples/test_all_examples.js
+cd my-app
+krnl dev
+```
+Open **`http://localhost:8080`** in your browser (Brave, Chrome, Safari).
+
+Krnl Studio provides three visual canvases switchable via the bottom dock:
+- **🏗️ Architecture Canvas**: Node graph for visually adding Entities, Quad-Unit Functionalities, and Concept Libraries (surgically writing `.ts` code to disk).
+- **🎨 UI Composer Canvas**: Drag-and-drop palette of KrnlUI atoms (`KrnlButton`, `KrnlTextInput`, `KrnlDropdown`, `KrnlTile`, `KrnlDock`) with real-time **Monaco TypeScript** code generation.
+- **🧪 Live Test Console**: Sandboxed per-function execution in isolated worker threads with **Monaco JSON Editor** inputs and latency benchmarking.
+
+---
+
+### 3. CLI Commands Reference
+
+```bash
+# Start Visual Node IDE and dev server
+krnl dev
+
+# Run deep AST 4-layer function purity audit
+krnl validate
+
+# Validate and build production bundle into dist/
+krnl build
+
+# Generate ambient TypeScript declarations for auto-discovery
+krnl watch
+
+# Scaffold architectural primitives via CLI
+krnl generate entity UserSystem
+krnl generate functionality UserSystem CreateProfile
+krnl generate library BillingConcepts
+krnl generate subapp OrderEngine
 ```
 
 ---
 
-## 💡 Code Example: Entity & Flows
+## 🏛️ Monorepo Framework Packages
 
-```typescript
-import { Entity, krnlUnifiedHttpAdapter } from "@dinilmusick/krnlts";
+- **[`@dinilmusick/krnl-core`](packages/core)**: Entity hierarchy, Flow builder, MagneticLoader, Universal Backend suite.
+- **[`@dinilmusick/krnl-ui`](packages/ui)**: Direct-DOM VanJS reactive atoms with Neo-Brutalist 2.5D theme and Monaco editor.
+- **[`@dinilmusick/krnl-validate`](packages/validate)**: `ts-morph` AST engine enforcing 4-layer function purity and 200-line limits.
+- **[`@dinilmusick/eslint-plugin-krnl`](packages/eslint-plugin)**: 6 ESLint rules with auto-fixers for Krnl paradigms.
+- **[`@dinilmusick/krnl-studio`](packages/studio)**: Visual Node IDE, UI Composer, and Live Test Console.
+- **[`@dinilmusick/krnl-cli`](packages/cli)**: Unified `krnl` binary.
+- **[`create-krnl`](packages/create-krnl)**: Interactive project scaffolder.
 
-// 1. Instantiate Entity
-const app = new Entity("MyApp");
+---
 
-// 2. Add Functionalities
-app.addLocal({
-  id: "validateUser",
-  visibility: "public",
-  api: async (user) => ({ valid: Boolean(user.name), user })
-});
-
-app.addLocal({
-  id: "grantAccess",
-  visibility: "public",
-  api: async ({ user }) => ({ token: "jwt_abc_123", user })
-});
-
-app.addLocal({
-  id: "denyAccess",
-  visibility: "public",
-  api: async () => ({ error: "Access Denied" })
-});
-
-// 3. Compose a Flow as a Functionality
-app.flow("loginFlow")
-  .then("validateUser")
-  .branch((res) => res.valid, "grantAccess", "denyAccess")
-  .register({
-    visibility: "public",
-    description: "User authentication and token issuance pipeline"
-  });
-
-// 4. Attach Protocol Adapter
-app.attachAdapter(new krnlUnifiedHttpAdapter(app, 8080));
-
-// 5. Finalize (activates server if root)
-await app.finalize();
-```
+## 📜 License
+MIT © Dinil Palackal
