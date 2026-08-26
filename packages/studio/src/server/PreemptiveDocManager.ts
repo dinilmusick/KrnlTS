@@ -5,7 +5,7 @@ export interface EndpointMetadata {
   rpcMethod: string;
   title: string;
   description: string;
-  category: 'Workspace' | 'Scaffolding' | 'CodeMutation' | 'Validation' | 'Testing' | 'Documentation';
+  category: 'Workspace' | 'Scaffolding' | 'GraphControls' | 'CodeMutation' | 'Validation' | 'Testing' | 'Documentation';
   payloadSchema: Record<string, string>;
   examplePayload: any;
   nextSuggestedEndpoints: string[];
@@ -51,7 +51,93 @@ export class PreemptiveDocManager {
       nextSuggestedEndpoints: ['entity.create', 'functionality.create', 'validate.audit']
     },
 
-    // 2. Scaffolding
+    // 2. Interactive Graph Controls & Layout
+    'graph.moveNode': {
+      id: 'graph.moveNode',
+      method: 'POST',
+      path: '/api/v1/graph/moveNode',
+      rpcMethod: 'graph.moveNode',
+      title: 'Move Node Coordinates',
+      description: 'Updates and persists the (x, y) canvas coordinates of a specific node in real time.',
+      category: 'GraphControls',
+      payloadSchema: { nodeId: 'string', x: 'number', y: 'number' },
+      examplePayload: { nodeId: 'entity:TradingSystem', x: 250, y: 180 },
+      nextSuggestedEndpoints: ['graph.connectNodes', 'graph.getArchitecture']
+    },
+    'graph.connectNodes': {
+      id: 'graph.connectNodes',
+      method: 'POST',
+      path: '/api/v1/graph/connectNodes',
+      rpcMethod: 'graph.connectNodes',
+      title: 'Establish Wire Connection',
+      description: 'Creates a directional wire connection between two nodes with support for auto-spawn and dataflow.',
+      category: 'GraphControls',
+      payloadSchema: { source: 'string', target: 'string', type: 'string (optional: dataflow/contains/flow_step)' },
+      examplePayload: { source: 'entity:TradingSystem', target: 'functionality:TradingSystem:ExecuteTrade', type: 'contains' },
+      nextSuggestedEndpoints: ['graph.moveNode', 'graph.deleteEdge']
+    },
+    'graph.deleteEdge': {
+      id: 'graph.deleteEdge',
+      method: 'POST',
+      path: '/api/v1/graph/deleteEdge',
+      rpcMethod: 'graph.deleteEdge',
+      title: 'Delete Connection (Via Centered Gizmo)',
+      description: 'Deletes a wire connection identified by its edge ID.',
+      category: 'GraphControls',
+      payloadSchema: { edgeId: 'string' },
+      examplePayload: { edgeId: 'edge:TradingSystem->QuotePrice' },
+      nextSuggestedEndpoints: ['graph.connectNodes', 'graph.alignLayout']
+    },
+    'graph.deleteNode': {
+      id: 'graph.deleteNode',
+      method: 'POST',
+      path: '/api/v1/graph/deleteNode',
+      rpcMethod: 'graph.deleteNode',
+      title: 'Delete Node & Source Assets',
+      description: 'Removes a node from the visual graph and safely cleans up its underlying source files from the workspace.',
+      category: 'GraphControls',
+      payloadSchema: { nodeId: 'string' },
+      examplePayload: { nodeId: 'functionality:TradingSystem:QuotePrice' },
+      nextSuggestedEndpoints: ['graph.getArchitecture', 'validate.audit']
+    },
+    'graph.alignLayout': {
+      id: 'graph.alignLayout',
+      method: 'POST',
+      path: '/api/v1/graph/alignLayout',
+      rpcMethod: 'graph.alignLayout',
+      title: 'Auto-Align Hierarchical Layout',
+      description: 'Re-computes clean hierarchical column-based coordinates for all nodes on the canvas.',
+      category: 'GraphControls',
+      payloadSchema: { algorithm: 'string (optional: hierarchical/grid)' },
+      examplePayload: { algorithm: 'hierarchical' },
+      nextSuggestedEndpoints: ['graph.getArchitecture', 'graph.moveNode']
+    },
+    'graph.undo': {
+      id: 'graph.undo',
+      method: 'POST',
+      path: '/api/v1/graph/undo',
+      rpcMethod: 'graph.undo',
+      title: 'Undo Graph Mutation',
+      description: 'Reverts the previous canvas or node manipulation step.',
+      category: 'GraphControls',
+      payloadSchema: {},
+      examplePayload: {},
+      nextSuggestedEndpoints: ['graph.redo', 'graph.getArchitecture']
+    },
+    'graph.redo': {
+      id: 'graph.redo',
+      method: 'POST',
+      path: '/api/v1/graph/redo',
+      rpcMethod: 'graph.redo',
+      title: 'Redo Graph Mutation',
+      description: 'Re-applies the previously undone canvas action.',
+      category: 'GraphControls',
+      payloadSchema: {},
+      examplePayload: {},
+      nextSuggestedEndpoints: ['graph.undo', 'graph.getArchitecture']
+    },
+
+    // 3. Scaffolding
     'entity.create': {
       id: 'entity.create',
       method: 'POST',
@@ -88,18 +174,6 @@ export class PreemptiveDocManager {
       examplePayload: { name: 'Crypto' },
       nextSuggestedEndpoints: ['file.edit', 'functionality.create', 'validate.audit']
     },
-    'subapp.create': {
-      id: 'subapp.create',
-      method: 'POST',
-      path: '/api/v1/subapp/create',
-      rpcMethod: 'graph.createSubApp',
-      title: 'Scaffold Self-Contained Sub-App',
-      description: 'Creates an isolated sub-application with subapp.json manifest and pure operation handlers.',
-      category: 'Scaffolding',
-      payloadSchema: { name: 'string (e.g. AnalyticsEngine)' },
-      examplePayload: { name: 'AnalyticsEngine' },
-      nextSuggestedEndpoints: ['file.edit', 'graph.getArchitecture']
-    },
     'flow.addStep': {
       id: 'flow.addStep',
       method: 'POST',
@@ -117,7 +191,7 @@ export class PreemptiveDocManager {
       nextSuggestedEndpoints: ['test.executeFunction', 'validate.audit']
     },
 
-    // 3. Code Mutation
+    // 4. Code Mutation
     'file.read': {
       id: 'file.read',
       method: 'POST',
@@ -155,7 +229,7 @@ export class PreemptiveDocManager {
       nextSuggestedEndpoints: ['file.edit', 'validate.audit']
     },
 
-    // 4. Validation & Quality Gates
+    // 5. Validation & Quality Gates
     'validate.audit': {
       id: 'validate.audit',
       method: 'POST',
@@ -169,7 +243,7 @@ export class PreemptiveDocManager {
       nextSuggestedEndpoints: ['test.executeFunction', 'graph.getArchitecture']
     },
 
-    // 5. Sandboxed Testing
+    // 6. Sandboxed Testing
     'test.executeFunction': {
       id: 'test.executeFunction',
       method: 'POST',
@@ -186,7 +260,7 @@ export class PreemptiveDocManager {
       nextSuggestedEndpoints: ['validate.audit', 'flow.addStep']
     },
 
-    // 6. Documentation
+    // 7. Documentation
     'docs.endpoints': {
       id: 'docs.endpoints',
       method: 'GET',

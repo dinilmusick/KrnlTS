@@ -4,6 +4,10 @@ interface ArchitectureNode {
     name: string;
     parentEntity?: string;
     filePath: string;
+    position?: {
+        x: number;
+        y: number;
+    };
     inputs?: Array<{
         name: string;
         type: string;
@@ -36,37 +40,68 @@ interface ArchitectureGraph {
 declare class AstMutationEngine {
     private projectRoot;
     private project;
+    private customEdges;
+    private deletedEdges;
+    private nodePositions;
+    private undoStack;
+    private redoStack;
     constructor(projectRoot?: string);
-    /**
-     * Scans the workspace and builds the full visual architecture graph.
-     */
+    private getGraphStateFilePath;
+    private loadPersistedGraphState;
+    private persistGraphState;
     extractArchitectureGraph(): ArchitectureGraph;
     private scanEntitiesRecursive;
-    private parseFunctionalityQuadUnit;
-    /**
-     * Surgical AST Operation: Create Entity
-     */
-    createEntity(entityName: string): {
+    moveNode(nodeId: string, x: number, y: number): {
+        success: boolean;
+        position: {
+            x: number;
+            y: number;
+        };
+    };
+    moveMultipleNodes(positions: Record<string, {
+        x: number;
+        y: number;
+    }>): {
+        success: boolean;
+    };
+    connectNodes(source: string, target: string, type?: 'contains' | 'dataflow' | 'flow_step' | 'uses_library'): {
+        success: boolean;
+        edge: ArchitectureEdge;
+    };
+    deleteEdge(edgeId: string): {
+        success: boolean;
+        deletedEdgeId: string;
+    };
+    deleteNode(nodeId: string): {
+        success: boolean;
+        deletedNodeId: string;
+    };
+    alignLayout(algorithm?: 'hierarchical' | 'grid'): {
+        success: boolean;
+        positions: Record<string, {
+            x: number;
+            y: number;
+        }>;
+    };
+    private recordHistory;
+    undo(): {
+        success: boolean;
+    };
+    redo(): {
+        success: boolean;
+    };
+    createEntity(name: string): {
         success: boolean;
         filePath: string;
     };
-    /**
-     * Surgical AST Operation: Create Quad-Unit Functionality
-     */
-    createFunctionality(entityName: string, funcName: string): {
+    createFunctionality(entityName: string, name: string): {
         success: boolean;
         filesCreated: string[];
     };
-    /**
-     * Surgical AST Operation: Create Domain Concept Library (Layer 0)
-     */
-    createLibrary(domainName: string): {
+    createLibrary(name: string): {
         success: boolean;
         filePath: string;
     };
-    /**
-     * Surgical AST Operation: Add Flow Connection (entity.flow().then().branch())
-     */
     addFlowStep(entityFilePath: string, flowName: string, stepFunctionName: string): boolean;
 }
 

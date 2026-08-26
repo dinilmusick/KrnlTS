@@ -8,6 +8,7 @@ export interface ArchitectureNode {
   name: string;
   parentEntity?: string;
   filePath: string;
+  position?: { x: number; y: number };
   inputs?: Array<{ name: string; type: string }>;
   outputs?: Array<{ name: string; type: string }>;
   stateFields?: Array<{ name: string; type: string }>;
@@ -31,6 +32,11 @@ export interface ArchitectureGraph {
 export class AstMutationEngine {
   private projectRoot: string;
   private project: Project;
+  private customEdges: ArchitectureEdge[] = [];
+  private deletedEdges: Set<string> = new Set();
+  private nodePositions: Map<string, { x: number; y: number }> = new Map();
+  private undoStack: ArchitectureGraph[] = [];
+  private redoStack: ArchitectureGraph[] = [];
 
   constructor(projectRoot: string = process.cwd()) {
     this.projectRoot = path.resolve(projectRoot);
@@ -40,16 +46,50 @@ export class AstMutationEngine {
     } else {
       this.project = new Project({ compilerOptions: { target: 99 /* ESNext */ } });
     }
+    this.loadPersistedGraphState();
   }
 
-  /**
-   * Scans the workspace and builds the full visual architecture graph.
-   */
+  private getGraphStateFilePath(): string {
+    return path.join(this.projectRoot, '.krnl-graph.json');
+  }
+
+  private loadPersistedGraphState() {
+    try {
+      const p = this.getGraphStateFilePath();
+      if (fs.existsSync(p)) {
+        const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+        if (raw.positions) {
+          for (const [k, v] of Object.entries(raw.positions)) {
+            this.nodePositions.set(k, v as { x: number; y: number });
+          }
+        }
+        if (Array.isArray(raw.customEdges)) {
+          this.customEdges = raw.customEdges;
+        }
+        if (Array.isArray(raw.deletedEdges)) {
+          this.deletedEdges = new Set(raw.deletedEdges);
+        }
+      }
+    } catch (e) {}
+  }
+
+  private persistGraphState() {
+    try {
+      const p = this.getGraphStateFilePath();
+      const posObj: Record<string, { x: number; y: number }> = {};
+      this.nodePositions.forEach((v, k) => { posObj[k] = v; });
+      fs.writeFileSync(p, JSON.stringify({
+        positions: posObj,
+        customEdges: this.customEdges,
+        deletedEdges: Array.from(this.deletedEdges)
+      }, null, 2), 'utf-8');
+    } catch (e) {}
+  }
+
   public extractArchitectureGraph(): ArchitectureGraph {
     const nodes: ArchitectureNode[] = [];
-    const edges: ArchitectureEdge[] = [];
+    let edges: ArchitectureEdge[] = [];
 
-    // Find entities in src/entities or entities/
     const possibleEntityDirs = [
       path.join(this.projectRoot, 'src', 'entities'),
       path.join(this.projectRoot, 'entities')
@@ -61,7 +101,6 @@ export class AstMutationEngine {
       }
     }
 
-    // Find Domain Concept Libraries in src/libraries or libraries/
     const possibleLibDirs = [
       path.join(this.projectRoot, 'src', 'libraries'),
       path.join(this.projectRoot, 'libraries')
@@ -85,7 +124,6 @@ export class AstMutationEngine {
       }
     }
 
-    // Find SubApps in src/subapps or subapps/
     const possibleSubappDirs = [
       path.join(this.projectRoot, 'src', 'subapps'),
       path.join(this.projectRoot, 'subapps')
@@ -109,54 +147,81 @@ export class AstMutationEngine {
       }
     }
 
+    // Attach stored positions if available
+    for (const node of nodes) {
+      if (this.nodePositions.has(node.id)) {
+        node.position = this.nodePositions.get(node.id);
+      }
+    }
+
+    // Merge custom edges and filter deleted edges
+    edges = [...edges, ...this.customEdges].filter(e => !this.deletedEdges.has(e.id));
+
     return { nodes, edges };
   }
 
-  private scanEntitiesRecursive(entitiesDir: string, nodes: ArchitectureNode[], edges: ArchitectureEdge[], parentEntityName?: string) {
+  private scanEntitiesRecursive(entitiesDir: string, nodes: ArchitectureNode[], edges: ArchitectureEdge[], parentName?: string) {
+    if (!fs.existsSync(entitiesDir)) return;
     const entries = fs.readdirSync(entitiesDir, { withFileTypes: true });
+
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const entityName = entry.name;
-        const entityDir = path.join(entitiesDir, entityName);
-        let entityFile = path.join(entityDir, `${entityName}.ts`);
-        if (!fs.existsSync(entityFile)) {
-          entityFile = path.join(entityDir, `${entityName}.js`);
-        }
+        const entityPath = path.join(entitiesDir, entityName);
+        const entityTsFile = path.join(entityPath, `${entityName}.ts`);
 
-        const entityNodeId = `entity:${entityName}`;
-        nodes.push({
-          id: entityNodeId,
+        const entityNode: ArchitectureNode = {
+          id: `entity:${entityName}`,
           type: 'entity',
           name: entityName,
-          parentEntity: parentEntityName,
-          filePath: fs.existsSync(entityFile) ? entityFile : entityDir
-        });
+          parentEntity: parentName,
+          filePath: fs.existsSync(entityTsFile) ? entityTsFile : entityPath
+        };
+        nodes.push(entityNode);
 
-        if (parentEntityName) {
+        if (parentName) {
           edges.push({
-            id: `edge:${parentEntityName}->child:${entityName}`,
-            source: `entity:${parentEntityName}`,
-            target: entityNodeId,
+            id: `edge:${parentName}->child:${entityName}`,
+            source: `entity:${parentName}`,
+            target: `entity:${entityName}`,
             type: 'contains',
             deletable: true
           });
         }
 
-        // Scan functionalities
-        const funcDir = path.join(entityDir, 'functionalities');
-        if (fs.existsSync(funcDir)) {
-          const funcs = fs.readdirSync(funcDir, { withFileTypes: true });
-          for (const f of funcs) {
-            if (f.isDirectory()) {
-              const funcName = f.name;
-              const funcPath = path.join(funcDir, funcName);
-              const funcNode = this.parseFunctionalityQuadUnit(entityName, funcName, funcPath);
-              nodes.push(funcNode);
+        const funcsDir = path.join(entityPath, 'functionalities');
+        if (fs.existsSync(funcsDir)) {
+          const funcs = fs.readdirSync(funcsDir, { withFileTypes: true });
+          for (const fn of funcs) {
+            if (fn.isDirectory()) {
+              const fnName = fn.name;
+              const fnPath = path.join(funcsDir, fnName);
+              const logicFile = path.join(fnPath, 'main_function', 'logic.ts');
+
+              const helpers: Array<{ name: string; filePath: string }> = [];
+              const helpersDir = path.join(fnPath, 'helper_functions');
+              if (fs.existsSync(helpersDir)) {
+                for (const hf of fs.readdirSync(helpersDir)) {
+                  if (hf.endsWith('.ts')) {
+                    helpers.push({ name: hf.replace('.ts', ''), filePath: path.join(helpersDir, hf) });
+                  }
+                }
+              }
+
+              nodes.push({
+                id: `functionality:${entityName}:${fnName}`,
+                type: 'functionality',
+                name: fnName,
+                parentEntity: entityName,
+                filePath: logicFile,
+                helpers,
+                uiSpec: fs.existsSync(path.join(fnPath, `${fnName}View.ts`))
+              });
 
               edges.push({
-                id: `edge:${entityName}->${funcName}`,
-                source: entityNodeId,
-                target: funcNode.id,
+                id: `edge:${entityName}->${fnName}`,
+                source: `entity:${entityName}`,
+                target: `functionality:${entityName}:${fnName}`,
                 type: 'contains',
                 deletable: true
               });
@@ -164,8 +229,7 @@ export class AstMutationEngine {
           }
         }
 
-        // Scan nested child entities
-        const childEntitiesDir = path.join(entityDir, 'entities');
+        const childEntitiesDir = path.join(entityPath, 'entities');
         if (fs.existsSync(childEntitiesDir)) {
           this.scanEntitiesRecursive(childEntitiesDir, nodes, edges, entityName);
         }
@@ -173,182 +237,219 @@ export class AstMutationEngine {
     }
   }
 
-  private parseFunctionalityQuadUnit(entityName: string, funcName: string, funcPath: string): ArchitectureNode {
-    const helpers: Array<{ name: string; filePath: string }> = [];
-    const helpersDir = path.join(funcPath, 'helper_functions');
-    if (fs.existsSync(helpersDir)) {
-      const hFiles = fs.readdirSync(helpersDir);
-      for (const h of hFiles) {
-        if (h.endsWith('.ts') || h.endsWith('.js')) {
-          helpers.push({
-            name: path.basename(h, path.extname(h)),
-            filePath: path.join(helpersDir, h)
-          });
-        }
-      }
-    }
+  // --- Graph Manipulation & Controls ---
 
-    const hasUi = fs.existsSync(path.join(funcPath, 'ui')) || fs.existsSync(path.join(funcPath, `${funcName}UI.ts`));
-
-    let logicFile = path.join(funcPath, 'main_function', 'logic.ts');
-    if (!fs.existsSync(logicFile)) {
-      logicFile = path.join(funcPath, 'main_function', 'logic.js');
-    }
-    if (!fs.existsSync(logicFile)) {
-      logicFile = path.join(funcPath, `${funcName}.ts`);
-    }
-    if (!fs.existsSync(logicFile)) {
-      logicFile = path.join(funcPath, `${funcName}.js`);
-    }
-
-    return {
-      id: `functionality:${entityName}:${funcName}`,
-      type: 'functionality',
-      name: funcName,
-      parentEntity: entityName,
-      filePath: logicFile,
-      helpers,
-      uiSpec: hasUi
-    };
+  public moveNode(nodeId: string, x: number, y: number): { success: boolean; position: { x: number; y: number } } {
+    this.recordHistory();
+    this.nodePositions.set(nodeId, { x, y });
+    this.persistGraphState();
+    return { success: true, position: { x, y } };
   }
 
-  /**
-   * Surgical AST Operation: Create Entity
-   */
-  public createEntity(entityName: string): { success: boolean; filePath: string } {
-    const entityDir = path.join(this.projectRoot, 'src', 'entities', entityName);
+  public moveMultipleNodes(positions: Record<string, { x: number; y: number }>): { success: boolean } {
+    this.recordHistory();
+    for (const [id, pos] of Object.entries(positions)) {
+      this.nodePositions.set(id, pos);
+    }
+    this.persistGraphState();
+    return { success: true };
+  }
+
+  public connectNodes(source: string, target: string, type: 'contains' | 'dataflow' | 'flow_step' | 'uses_library' = 'dataflow'): { success: boolean; edge: ArchitectureEdge } {
+    this.recordHistory();
+    const edgeId = `edge:${source}->${target}:${Date.now()}`;
+    const edge: ArchitectureEdge = { id: edgeId, source, target, type, deletable: true };
+    this.customEdges.push(edge);
+    this.deletedEdges.delete(edgeId);
+    this.persistGraphState();
+    return { success: true, edge };
+  }
+
+  public deleteEdge(edgeId: string): { success: boolean; deletedEdgeId: string } {
+    this.recordHistory();
+    this.deletedEdges.add(edgeId);
+    this.customEdges = this.customEdges.filter(e => e.id !== edgeId);
+    this.persistGraphState();
+    return { success: true, deletedEdgeId: edgeId };
+  }
+
+  public deleteNode(nodeId: string): { success: boolean; deletedNodeId: string } {
+    this.recordHistory();
+    const graph = this.extractArchitectureGraph();
+    const targetNode = graph.nodes.find(n => n.id === nodeId);
+    if (targetNode && fs.existsSync(targetNode.filePath)) {
+      const targetDir = fs.lstatSync(targetNode.filePath).isDirectory()
+        ? targetNode.filePath
+        : path.dirname(targetNode.filePath);
+      
+      // Safety: only delete inside project root src/
+      if (targetDir.startsWith(path.join(this.projectRoot, 'src'))) {
+        fs.rmSync(targetDir, { recursive: true, force: true });
+      }
+    }
+    this.nodePositions.delete(nodeId);
+    this.persistGraphState();
+    return { success: true, deletedNodeId: nodeId };
+  }
+
+  public alignLayout(algorithm: 'hierarchical' | 'grid' = 'hierarchical'): { success: boolean; positions: Record<string, { x: number; y: number }> } {
+    this.recordHistory();
+    const graph = this.extractArchitectureGraph();
+    const positions: Record<string, { x: number; y: number }> = {};
+
+    const entities = graph.nodes.filter(n => n.type === 'entity');
+    entities.forEach((node, idx) => {
+      const col = Math.floor(idx / 5);
+      const row = idx % 5;
+      const x = 60 + col * 360;
+      const y = 60 + row * 220;
+      positions[node.id] = { x, y };
+      this.nodePositions.set(node.id, { x, y });
+    });
+
+    const funcs = graph.nodes.filter(n => n.type === 'functionality');
+    funcs.forEach((node, idx) => {
+      const col = Math.floor(idx / 7);
+      const row = idx % 7;
+      const x = 800 + col * 320;
+      const y = 60 + row * 180;
+      positions[node.id] = { x, y };
+      this.nodePositions.set(node.id, { x, y });
+    });
+
+    const others = graph.nodes.filter(n => n.type === 'library' || n.type === 'subapp');
+    others.forEach((node, idx) => {
+      const x = 1500;
+      const y = 60 + idx * 160;
+      positions[node.id] = { x, y };
+      this.nodePositions.set(node.id, { x, y });
+    });
+
+    this.persistGraphState();
+    return { success: true, positions };
+  }
+
+  private recordHistory() {
+    this.undoStack.push(this.extractArchitectureGraph());
+    if (this.undoStack.length > 50) this.undoStack.shift();
+    this.redoStack = [];
+  }
+
+  public undo(): { success: boolean } {
+    if (this.undoStack.length === 0) return { success: false };
+    const prev = this.undoStack.pop()!;
+    this.redoStack.push(this.extractArchitectureGraph());
+    this.nodePositions.clear();
+    for (const node of prev.nodes) {
+      if (node.position) this.nodePositions.set(node.id, node.position);
+    }
+    this.persistGraphState();
+    return { success: true };
+  }
+
+  public redo(): { success: boolean } {
+    if (this.redoStack.length === 0) return { success: false };
+    const next = this.redoStack.pop()!;
+    this.undoStack.push(this.extractArchitectureGraph());
+    this.nodePositions.clear();
+    for (const node of next.nodes) {
+      if (node.position) this.nodePositions.set(node.id, node.position);
+    }
+    this.persistGraphState();
+    return { success: true };
+  }
+
+  public createEntity(name: string): { success: boolean; filePath: string } {
+    this.recordHistory();
+    const entitiesDir = path.join(this.projectRoot, 'src', 'entities');
+    const entityDir = path.join(entitiesDir, name);
     fs.mkdirSync(entityDir, { recursive: true });
-    fs.mkdirSync(path.join(entityDir, 'functionalities'), { recursive: true });
 
-    const entityFile = path.join(entityDir, `${entityName}.ts`);
-    const content = `import { Entity, KrnlMagneticLoader } from '@dinilmusick/krnl-core';
+    const entityFile = path.join(entityDir, `${name}.ts`);
+    const code = `import { Entity, KrnlMagneticLoader } from '@dinilmusick/krnl-core';
 
-export class ${entityName} extends Entity {
+export class ${name} extends Entity {
   constructor() {
     super({
-      id: '${entityName}',
+      id: '${name}',
       version: '1.0.0',
-      description: '${entityName} root entity'
+      description: '${name} Auto-Scaffolded System Entity'
     });
   }
 
   async boot(): Promise<void> {
-    // Magnetic auto-discovery of functionalities, child entities, and subapps
     await KrnlMagneticLoader.loadAll(this, import.meta.url);
   }
 }
-
-export default ${entityName};
+export default ${name};
 `;
-    fs.writeFileSync(entityFile, content);
+    fs.writeFileSync(entityFile, code, 'utf-8');
     return { success: true, filePath: entityFile };
   }
 
-  /**
-   * Surgical AST Operation: Create Quad-Unit Functionality
-   */
-  public createFunctionality(entityName: string, funcName: string): { success: boolean; filesCreated: string[] } {
-    const funcDir = path.join(this.projectRoot, 'src', 'entities', entityName, 'functionalities', funcName);
-    fs.mkdirSync(path.join(funcDir, 'main_function'), { recursive: true });
-    fs.mkdirSync(path.join(funcDir, 'state_data'), { recursive: true });
-    fs.mkdirSync(path.join(funcDir, 'helper_functions'), { recursive: true });
-    fs.mkdirSync(path.join(funcDir, 'events'), { recursive: true });
+  public createFunctionality(entityName: string, name: string): { success: boolean; filesCreated: string[] } {
+    this.recordHistory();
+    const fnDir = path.join(this.projectRoot, 'src', 'entities', entityName, 'functionalities', name);
+    fs.mkdirSync(path.join(fnDir, 'main_function'), { recursive: true });
+    fs.mkdirSync(path.join(fnDir, 'state_data'), { recursive: true });
+    fs.mkdirSync(path.join(fnDir, 'helper_functions'), { recursive: true });
 
-    const atomFile = path.join(funcDir, `${funcName}Atom.ts`);
-    fs.writeFileSync(atomFile, `export interface ${funcName}Input {
-  payload?: any;
-}
+    const atomFile = path.join(fnDir, `${name}Atom.ts`);
+    const logicFile = path.join(fnDir, 'main_function', 'logic.ts');
+    const stateFile = path.join(fnDir, 'state_data', 'state.ts');
+    const helperFile = path.join(fnDir, 'helper_functions', 'executeStep.ts');
 
-export interface ${funcName}Output {
-  success: boolean;
-  timestamp: number;
-}
-`);
+    fs.writeFileSync(atomFile, `export interface ${name}Input { payload?: any; }\nexport interface ${name}Output { success: boolean; timestamp: number; }\n`);
+    fs.writeFileSync(stateFile, `export interface ${name}State { invocationCount: number; }\nexport const initialState: ${name}State = { invocationCount: 0 };\n`);
+    fs.writeFileSync(helperFile, `export function executeStep(payload: any) { return { processed: true, data: payload }; }\n`);
+    fs.writeFileSync(logicFile, `import { ${name}Input, ${name}Output } from '../${name}Atom.js';\nimport { executeStep } from '../helper_functions/executeStep.js';\n\nexport const main = async (input: ${name}Input, { state }: any): Promise<${name}Output> => {\n  executeStep(input.payload);\n  return { success: true, timestamp: Date.now() };\n};\n`);
 
-    const logicFile = path.join(funcDir, 'main_function', 'logic.ts');
-    fs.writeFileSync(logicFile, `import { ${funcName}Input, ${funcName}Output } from '../${funcName}Atom.js';
-import { executeStep } from '../helper_functions/executeStep.js';
-
-export const main = async (input: ${funcName}Input, { state, entity }: any): Promise<${funcName}Output> => {
-  const timestamp = executeStep();
-  return {
-    success: true,
-    timestamp
-  };
-};
-`);
-
-    const stateFile = path.join(funcDir, 'state_data', 'state.ts');
-    fs.writeFileSync(stateFile, `export interface ${funcName}State {
-  executionCount: number;
-}
-
-export const initialState: ${funcName}State = {
-  executionCount: 0
-};
-`);
-
-    const helperFile = path.join(funcDir, 'helper_functions', 'executeStep.ts');
-    fs.writeFileSync(helperFile, `export function executeStep(): number {
-  return Date.now();
-}
-`);
-
-    return {
-      success: true,
-      filesCreated: [atomFile, logicFile, stateFile, helperFile]
-    };
+    return { success: true, filesCreated: [atomFile, logicFile, stateFile, helperFile] };
   }
 
-  /**
-   * Surgical AST Operation: Create Domain Concept Library (Layer 0)
-   */
-  public createLibrary(domainName: string): { success: boolean; filePath: string } {
+  public createLibrary(name: string): { success: boolean; filePath: string } {
+    this.recordHistory();
+    const cleanName = name.replace(/Concepts$/, '');
+    const fullLibName = `${cleanName}Concepts`;
     const libDir = path.join(this.projectRoot, 'src', 'libraries');
     fs.mkdirSync(libDir, { recursive: true });
+    const libFile = path.join(libDir, `${fullLibName}.ts`);
 
-    const fileName = `${domainName}Concepts.ts`;
-    const filePath = path.join(libDir, fileName);
-    const content = `/**
- * @file ${fileName}
- * @role component
- * @description Layer 0 pure domain concept library for ${domainName}.
- */
-
-export class ${domainName}Concepts {
-  static pureTransform<T>(data: T): T {
-    return data;
-  }
-}
-`;
-    fs.writeFileSync(filePath, content);
-    return { success: true, filePath };
+    const code = `/**\n * Layer 0: Pure Domain Concept Library\n */\nexport class ${fullLibName} {\n  static process(data: any): any {\n    return { valid: true, timestamp: Date.now() };\n  }\n}\n`;
+    fs.writeFileSync(libFile, code, 'utf-8');
+    return { success: true, filePath: libFile };
   }
 
-  /**
-   * Surgical AST Operation: Add Flow Connection (entity.flow().then().branch())
-   */
   public addFlowStep(entityFilePath: string, flowName: string, stepFunctionName: string): boolean {
-    if (!fs.existsSync(entityFilePath)) return false;
-    const sf = this.project.addSourceFileAtPath(entityFilePath);
-    
-    let modified = false;
-    sf.forEachDescendant(node => {
-      if (Node.isMethodDeclaration(node) && node.getName() === 'boot') {
-        const body = node.getBody();
-        if (body && Node.isBlock(body)) {
-          const stmts = body.getStatements();
-          const insertIdx = Math.max(0, stmts.length - 1);
-          body.insertStatements(insertIdx, `this.flow('${flowName}').then('${stepFunctionName}').register({ visibility: 'public' });`);
-          modified = true;
-        }
-      }
-    });
+    this.recordHistory();
+    const absPath = path.resolve(this.projectRoot, entityFilePath);
+    if (!fs.existsSync(absPath)) return false;
 
-    if (modified) {
-      sf.formatText({ indentSize: 2 });
-      sf.saveSync();
+    const sourceFile = this.project.addSourceFileAtPath(absPath);
+    const classDec = sourceFile.getClasses()[0];
+    if (!classDec) return false;
+
+    const bootMethod = classDec.getMethod('boot');
+    if (!bootMethod) return false;
+
+    const body = bootMethod.getBody();
+    if (!body || !Node.isBlock(body)) return false;
+
+    const text = body.getText();
+    if (text.includes(`this.flow('${flowName}')`)) {
+      const lines = text.split('\n');
+      const newLines = lines.map(line => {
+        if (line.includes(`this.flow('${flowName}')`)) {
+          return line.replace(`this.flow('${flowName}')`, `this.flow('${flowName}')\n      .then('${stepFunctionName}')`);
+        }
+        return line;
+      });
+      body.replaceWithText(newLines.join('\n'));
+    } else {
+      bootMethod.addStatements(`this.flow('${flowName}')\n  .then('${stepFunctionName}')\n  .register({ visibility: 'public' });`);
     }
-    return modified;
+
+    sourceFile.saveSync();
+    return true;
   }
 }

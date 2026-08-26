@@ -1,0 +1,20 @@
+{
+  "positions": {
+    "entity:TradingSystem": {
+      "x": 120,
+      "y": 340
+    }
+  },
+  "customEdges": [
+    {
+      "id": "edge:entity:TradingSystem->library:TradingConcepts:1787776852038",
+      "source": "entity:TradingSystem",
+      "target": "library:TradingConcepts",
+      "type": "uses_library",
+      "deletable": true
+    }
+  ],
+  "deletedEdges": [
+    "edge:TradingSystem->QuotePrice"
+  ]
+}

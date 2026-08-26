@@ -88,7 +88,81 @@ export class JsonRpcRouter {
           return { jsonrpc: '2.0', id, result: decorated };
         }
 
-        // 2. Scaffolding
+        // 2. Interactive Graph Controls & Layout
+        case 'graph.moveNode': {
+          const { nodeId, x, y } = params;
+          if (!nodeId || x === undefined || y === undefined) throw new Error('nodeId, x, and y are required');
+          const res = this.astEngine.moveNode(nodeId, x, y);
+          this.notifyMutation('graph.moveNode', { nodeId, x, y });
+          const decorated = PreemptiveDocManager.decorateResponse('graph.moveNode', res);
+          return { jsonrpc: '2.0', id, result: decorated };
+        }
+
+        case 'graph.moveMultipleNodes': {
+          const { positions } = params;
+          if (!positions) throw new Error('positions map is required');
+          const res = this.astEngine.moveMultipleNodes(positions);
+          this.notifyMutation('graph.moveMultipleNodes', { count: Object.keys(positions).length });
+          const decorated = PreemptiveDocManager.decorateResponse('graph.moveNode', res);
+          return { jsonrpc: '2.0', id, result: decorated };
+        }
+
+        case 'graph.connectNodes': {
+          const { source, target, type } = params;
+          if (!source || !target) throw new Error('source and target node IDs are required');
+          const res = this.astEngine.connectNodes(source, target, type);
+          const graph = this.astEngine.extractArchitectureGraph();
+          this.notifyMutation('graph.connectNodes', { source, target, ...res });
+          const decorated = PreemptiveDocManager.decorateResponse('graph.connectNodes', { ...res, graph });
+          return { jsonrpc: '2.0', id, result: decorated };
+        }
+
+        case 'graph.deleteEdge': {
+          const { edgeId } = params;
+          if (!edgeId) throw new Error('edgeId is required');
+          const res = this.astEngine.deleteEdge(edgeId);
+          const graph = this.astEngine.extractArchitectureGraph();
+          this.notifyMutation('graph.deleteEdge', { edgeId });
+          const decorated = PreemptiveDocManager.decorateResponse('graph.deleteEdge', { ...res, graph });
+          return { jsonrpc: '2.0', id, result: decorated };
+        }
+
+        case 'graph.deleteNode': {
+          const { nodeId } = params;
+          if (!nodeId) throw new Error('nodeId is required');
+          const res = this.astEngine.deleteNode(nodeId);
+          const graph = this.astEngine.extractArchitectureGraph();
+          this.notifyMutation('graph.deleteNode', { nodeId });
+          const decorated = PreemptiveDocManager.decorateResponse('graph.deleteNode', { ...res, graph });
+          return { jsonrpc: '2.0', id, result: decorated };
+        }
+
+        case 'graph.alignLayout': {
+          const { algorithm } = params;
+          const res = this.astEngine.alignLayout(algorithm);
+          const graph = this.astEngine.extractArchitectureGraph();
+          this.notifyMutation('graph.alignLayout', { algorithm: algorithm || 'hierarchical' });
+          const decorated = PreemptiveDocManager.decorateResponse('graph.alignLayout', { ...res, graph });
+          return { jsonrpc: '2.0', id, result: decorated };
+        }
+
+        case 'graph.undo': {
+          const res = this.astEngine.undo();
+          const graph = this.astEngine.extractArchitectureGraph();
+          this.notifyMutation('graph.undo', {});
+          const decorated = PreemptiveDocManager.decorateResponse('graph.undo', { ...res, graph });
+          return { jsonrpc: '2.0', id, result: decorated };
+        }
+
+        case 'graph.redo': {
+          const res = this.astEngine.redo();
+          const graph = this.astEngine.extractArchitectureGraph();
+          this.notifyMutation('graph.redo', {});
+          const decorated = PreemptiveDocManager.decorateResponse('graph.redo', { ...res, graph });
+          return { jsonrpc: '2.0', id, result: decorated };
+        }
+
+        // 3. Scaffolding
         case 'entity.create':
         case 'graph.createEntity': {
           const { name } = params;
@@ -132,7 +206,7 @@ export class JsonRpcRouter {
           return { jsonrpc: '2.0', id, result: decorated };
         }
 
-        // 3. Code Mutation
+        // 4. Code Mutation
         case 'file.read': {
           const { filePath } = params;
           const abs = path.resolve(this.projectRoot, filePath);
@@ -164,7 +238,7 @@ export class JsonRpcRouter {
           return { jsonrpc: '2.0', id, result: decorated };
         }
 
-        // 4. Validation
+        // 5. Validation
         case 'validate.audit':
         case 'validate.runPurityAudit': {
           const summary = this.validator.validateAll();
@@ -172,7 +246,7 @@ export class JsonRpcRouter {
           return { jsonrpc: '2.0', id, result: decorated };
         }
 
-        // 5. Sandboxed Testing
+        // 6. Sandboxed Testing
         case 'test.executeFunction': {
           const result = await FunctionExecutor.execute(params);
           this.notifyMutation('test.executeFunction', { filePath: params.filePath, success: result.success, durationMs: result.durationMs });
@@ -180,7 +254,7 @@ export class JsonRpcRouter {
           return { jsonrpc: '2.0', id, result: decorated };
         }
 
-        // 6. Documentation
+        // 7. Documentation
         case 'docs.endpoints': {
           const all = PreemptiveDocManager.getAllEndpoints();
           const decorated = PreemptiveDocManager.decorateResponse('docs.endpoints', all);

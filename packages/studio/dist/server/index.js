@@ -4,7 +4,7 @@ import {
   JsonRpcRouter,
   StudioFileWatcher,
   StudioServer
-} from "../chunk-GRFE42EK.js";
+} from "../chunk-XQGBU2ZR.js";
 export {
   AstMutationEngine,
   FunctionExecutor,

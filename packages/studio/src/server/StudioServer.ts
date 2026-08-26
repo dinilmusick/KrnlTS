@@ -82,7 +82,7 @@ export class StudioServer {
           const res = await this.router.handle(req);
           ws.send(JSON.stringify(res));
 
-          if (req.method && req.method.startsWith('graph.create')) {
+          if (req.method && (req.method.startsWith('graph.') || req.method.startsWith('entity.') || req.method.startsWith('functionality.') || req.method.startsWith('library.'))) {
             this.broadcastGraphUpdate();
           }
         } catch (e: any) {
@@ -165,6 +165,13 @@ export class StudioServer {
         else if (url === '/api/v1/project/load') method = 'project.load';
         else if (url === '/api/v1/project/graph') method = 'graph.getArchitecture';
         else if (url === '/api/v1/project/status') method = 'project.getStatus';
+        else if (url === '/api/v1/graph/moveNode') method = 'graph.moveNode';
+        else if (url === '/api/v1/graph/connectNodes') method = 'graph.connectNodes';
+        else if (url === '/api/v1/graph/deleteEdge') method = 'graph.deleteEdge';
+        else if (url === '/api/v1/graph/deleteNode') method = 'graph.deleteNode';
+        else if (url === '/api/v1/graph/alignLayout') method = 'graph.alignLayout';
+        else if (url === '/api/v1/graph/undo') method = 'graph.undo';
+        else if (url === '/api/v1/graph/redo') method = 'graph.redo';
         else if (url === '/api/v1/entity/create') method = 'entity.create';
         else if (url === '/api/v1/functionality/create') method = 'functionality.create';
         else if (url === '/api/v1/library/create') method = 'library.create';
@@ -206,7 +213,7 @@ export class StudioServer {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Krnl Studio — AI-Agent Visual Node IDE</title>
+  <title>Krnl Studio — Interactive Visual Node IDE</title>
   
   <!-- Monaco Editor AMD Loader -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
@@ -245,7 +252,7 @@ export class StudioServer {
     }
     .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #98c379; box-shadow: 0 0 10px #98c379; }
 
-    /* Live Agent Activity HUD Badge */
+    /* Live Agent Activity Toast */
     #agent-activity-hud {
       position: fixed; top: 60px; left: 16px; z-index: 1500;
       background: rgba(22, 22, 30, 0.98); border: 2px solid #d4af37;
@@ -259,32 +266,41 @@ export class StudioServer {
       width: 100%; height: 100%; position: relative; overflow: hidden;
       background-color: #0e0e12;
       background-image: radial-gradient(rgba(212, 175, 55, 0.15) 1px, transparent 1px);
-      background-size: 24px 24px; cursor: grab;
+      background-size: 24px 24px; cursor: default;
     }
-    #graph-viewport:active { cursor: grabbing; }
     #graph-container { position: absolute; top: 0; left: 0; width: 6000px; height: 6000px; transform-origin: 0 0; }
     #svg-wires { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+    #svg-wires path { pointer-events: stroke; }
     #nodes-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: auto; }
+    #gizmos-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 15; pointer-events: auto; }
+
+    /* Selection Box */
+    #selection-box {
+      position: absolute; display: none;
+      border: 1px dashed #d4af37; background: rgba(212, 175, 55, 0.12);
+      pointer-events: none; z-index: 999;
+    }
 
     /* Nodes */
     .krnl-node {
       position: absolute; border-radius: 10px; padding: 14px 18px;
-      font-family: inherit; color: var(--krnl-text); cursor: pointer;
+      font-family: inherit; color: var(--krnl-text); cursor: grab;
       box-shadow: 0 8px 24px rgba(0,0,0,0.7);
-      transition: transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
       z-index: 20;
     }
-    .krnl-node:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 36px rgba(0,0,0,0.9), 0 0 20px var(--krnl-accent-glow);
+    .krnl-node:active { cursor: grabbing; }
+    .krnl-node.selected {
+      border-color: #f5ede4 !important;
+      box-shadow: 0 0 0 2px #f5ede4, 0 12px 36px rgba(0,0,0,0.9), 0 0 24px var(--krnl-accent-glow) !important;
     }
     .krnl-node-entity {
       background: #181822; border: 2px solid #d4af37;
-      min-width: 250px; box-shadow: 0 8px 28px rgba(0,0,0,0.8), 0 0 14px var(--krnl-accent-glow);
+      min-width: 250px;
     }
     .krnl-node-functionality {
       background: #14141e; border: 1px solid rgba(255, 255, 255, 0.35);
-      min-width: 220px; box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+      min-width: 220px;
     }
     .krnl-node-library {
       background: #221c16; border: 1px solid #e5c07b;
@@ -297,26 +313,39 @@ export class StudioServer {
 
     /* Socket Ports */
     .node-socket {
-      width: 12px; height: 12px; border-radius: 50%;
+      width: 14px; height: 14px; border-radius: 50%;
       background: #d4af37; border: 2px solid #0e0e12;
-      position: absolute;
+      position: absolute; cursor: crosshair; z-index: 25;
+      transition: transform 0.1s ease, background 0.1s ease;
     }
-    .socket-out { right: -6px; top: 50%; transform: translateY(-50%); }
-    .socket-in { left: -6px; top: 50%; transform: translateY(-50%); background: #61afef; }
+    .node-socket:hover {
+      transform: translateY(-50%) scale(1.3);
+      background: #f5ede4;
+      box-shadow: 0 0 10px #d4af37;
+    }
+    .socket-out { right: -7px; top: 50%; transform: translateY(-50%); }
+    .socket-in { left: -7px; top: 50%; transform: translateY(-50%); background: #61afef; }
 
-    /* Monaco Container */
-    .monaco-card {
-      border: 1px solid rgba(212, 175, 55, 0.25);
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    /* Centered Wire Delete Gizmo */
+    .edge-delete-gizmo {
+      position: absolute; width: 20px; height: 20px; border-radius: 50%;
+      background: #16161e; border: 1px solid #e06c75; color: #e06c75;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: bold; cursor: pointer;
+      transform: translate(-50%, -50%); z-index: 30;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      transition: all 0.15s ease;
+    }
+    .edge-delete-gizmo:hover {
+      background: #e06c75; color: #fff; transform: translate(-50%, -50%) scale(1.25);
+      box-shadow: 0 0 12px rgba(224, 108, 117, 0.8);
     }
 
-    /* Context Menu */
-    #context-menu {
+    /* Context Menus */
+    .krnl-context-menu {
       position: fixed; display: none; z-index: 9999;
       background: rgba(22, 22, 30, 0.98); backdrop-filter: blur(16px);
-      border: var(--krnl-border); border-radius: 8px; padding: 6px; min-width: 170px;
+      border: var(--krnl-border); border-radius: 8px; padding: 6px; min-width: 190px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 10px var(--krnl-accent-glow);
     }
     .menu-item {
@@ -324,6 +353,14 @@ export class StudioServer {
       display: flex; align-items: center; gap: 8px; color: var(--krnl-text);
     }
     .menu-item:hover { background: rgba(212, 175, 55, 0.25); color: #d4af37; }
+    .menu-separator { height: 1px; background: rgba(212, 175, 55, 0.15); margin: 4px 0; }
+
+    /* Monaco Container */
+    .monaco-card {
+      border: 1px solid rgba(212, 175, 55, 0.25);
+      border-radius: 8px; overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
   </style>
 </head>
 <body>
@@ -362,8 +399,11 @@ export class StudioServer {
         <div id="graph-container">
           <svg id="svg-wires"></svg>
           <div id="nodes-layer"></div>
+          <div id="gizmos-layer"></div>
+          <div id="selection-box"></div>
         </div>
       </div>
+
       <!-- Source Code Drawer -->
       <div id="code-drawer" style="position: absolute; top: 60px; right: 16px; bottom: 80px; width: 480px; background: rgba(22, 22, 30, 0.96); backdrop-filter: blur(16px); border: var(--krnl-border); border-radius: 10px; display: none; flex-direction: column; z-index: 1500; box-shadow: 0 12px 36px rgba(0,0,0,0.8);">
         <div style="padding: 12px 16px; border-bottom: var(--krnl-border); display: flex; justify-content: space-between; align-items: center;">
@@ -435,19 +475,41 @@ export class StudioServer {
       <button id="dock-btn-test" onclick="switchCanvas('test', '🧪 Test Console')" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 12px;">🧪 Test Console</button>
     </div>
 
-    <!-- Context Menu -->
-    <div id="context-menu">
+    <!-- Canvas Context Menu -->
+    <div id="pane-context-menu" class="krnl-context-menu">
       <div class="menu-item" onclick="contextAddEntity()">📦 New Entity</div>
       <div class="menu-item" onclick="contextAddFunctionality()">⚡ New Functionality</div>
       <div class="menu-item" onclick="contextAddLibrary()">📚 New Domain Library</div>
+      <div class="menu-separator"></div>
+      <div class="menu-item" onclick="apiAlignLayout('hierarchical')">📐 Auto-Align Hierarchical</div>
+      <div class="menu-item" onclick="resetZoomAndFit()">🎯 Fit View / Reset Zoom</div>
+    </div>
+
+    <!-- Node Context Menu -->
+    <div id="node-context-menu" class="krnl-context-menu">
+      <div class="menu-item" onclick="contextOpenSelectedSource()">📄 Inspect Source Code</div>
+      <div class="menu-item" onclick="contextDuplicateSelected()">📋 Duplicate Node</div>
+      <div class="menu-separator"></div>
+      <div class="menu-item" onclick="contextDisconnectSelected()" style="color: #e5c07b;">🔌 Disconnect All Wires</div>
+      <div class="menu-item" onclick="contextDeleteSelected()" style="color: #e06c75;">🗑️ Delete Node</div>
+    </div>
+
+    <!-- Wire Drop Auto-Spawn Menu -->
+    <div id="autospawn-menu" class="krnl-context-menu">
+      <div style="padding: 6px 12px; font-size: 10px; color: #d4af37; font-weight: bold; text-transform: uppercase;">Spawn & Auto-Connect:</div>
+      <div class="menu-item" onclick="spawnAndConnect('functionality')">⚡ New Functionality</div>
+      <div class="menu-item" onclick="spawnAndConnect('entity')">📦 New Entity</div>
+      <div class="menu-item" onclick="spawnAndConnect('library')">📚 New Domain Library</div>
     </div>
   </div>
 
   <script>
     let activeCanvas = 'architecture';
     let currentGraph = { nodes: [], edges: [] };
+    let selectedNodes = new Set();
     let selectedFunction = null;
     let droppedAtoms = [];
+    let clipboardNodes = [];
 
     let monacoUiEditor = null;
     let monacoTestInputEditor = null;
@@ -460,95 +522,316 @@ export class StudioServer {
     const viewport = document.getElementById('graph-viewport');
     const container = document.getElementById('graph-container');
 
+    // Box Selection State
+    let isBoxSelecting = false, boxStartX = 0, boxStartY = 0;
+    const selectionBox = document.getElementById('selection-box');
+
+    // Dragging Nodes State
+    let isDraggingNode = false;
+    let draggedNodeId = null;
+    let dragStartPos = { x: 0, y: 0 };
+    let initialNodePositions = new Map();
+
+    // Wire Dragging State
+    let isDraggingWire = false;
+    let wireSource = null; // { nodeId, socketType: 'out'|'in', x, y }
+    let wireDropLocation = { x: 0, y: 0 };
+
+    // Context Menus
+    const paneMenu = document.getElementById('pane-context-menu');
+    const nodeMenu = document.getElementById('node-context-menu');
+    const spawnMenu = document.getElementById('autospawn-menu');
+    let contextTargetNodeId = null;
+    let contextClickPos = { x: 0, y: 0 };
+
+    function hideContextMenus() {
+      paneMenu.style.display = 'none';
+      nodeMenu.style.display = 'none';
+      spawnMenu.style.display = 'none';
+    }
+    window.addEventListener('click', hideContextMenus);
+
+    // --- Mouse & Pan/Zoom Controls ---
+
     viewport.onmousedown = (e) => {
-      if (e.target === viewport || e.target.id === 'svg-wires' || e.target.id === 'nodes-layer') {
+      hideContextMenus();
+      const rect = viewport.getBoundingClientRect();
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+
+      // 1. Middle Click (button === 1) or Space+LeftClick: Pan canvas
+      if (e.button === 1 || (e.button === 0 && e.spaceKey)) {
         isPanning = true;
         startPanX = e.clientX - panX;
         startPanY = e.clientY - panY;
+        viewport.style.cursor = 'grabbing';
+        e.preventDefault();
+        return;
+      }
+
+      // 2. Left Click on Canvas Background: Start Box Selection
+      if (e.button === 0 && (e.target === viewport || e.target.id === 'svg-wires' || e.target.id === 'nodes-layer' || e.target.id === 'gizmos-layer')) {
+        if (!e.shiftKey && !e.metaKey && !e.ctrlKey) {
+          selectedNodes.clear();
+          updateNodeSelectionStyles();
+        }
+        isBoxSelecting = true;
+        boxStartX = (clientX - panX) / zoom;
+        boxStartY = (clientY - panY) / zoom;
+        selectionBox.style.left = boxStartX + 'px';
+        selectionBox.style.top = boxStartY + 'px';
+        selectionBox.style.width = '0px';
+        selectionBox.style.height = '0px';
+        selectionBox.style.display = 'block';
       }
     };
-    window.onmousemove = (e) => {
+
+    window.addEventListener('mousemove', (e) => {
+      const rect = viewport.getBoundingClientRect();
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+
+      // 1. Pan Viewport
       if (isPanning) {
         panX = e.clientX - startPanX;
         panY = e.clientY - startPanY;
         updateTransform();
+        return;
       }
-    };
-    window.onmouseup = () => { isPanning = false; };
-    viewport.onwheel = (e) => {
+
+      // 2. Box Selection
+      if (isBoxSelecting) {
+        const currentX = (clientX - panX) / zoom;
+        const currentY = (clientY - panY) / zoom;
+        const left = Math.min(boxStartX, currentX);
+        const top = Math.min(boxStartY, currentY);
+        const width = Math.abs(currentX - boxStartX);
+        const height = Math.abs(currentY - boxStartY);
+
+        selectionBox.style.left = left + 'px';
+        selectionBox.style.top = top + 'px';
+        selectionBox.style.width = width + 'px';
+        selectionBox.style.height = height + 'px';
+
+        // Select all nodes within bounding box
+        for (const node of currentGraph.nodes) {
+          const el = document.getElementById('node-' + node.id);
+          if (el) {
+            const nx = parseFloat(el.style.left);
+            const ny = parseFloat(el.style.top);
+            const nw = el.offsetWidth;
+            const nh = el.offsetHeight;
+
+            if (nx + nw >= left && nx <= left + width && ny + nh >= top && ny <= top + height) {
+              selectedNodes.add(node.id);
+            }
+          }
+        }
+        updateNodeSelectionStyles();
+        return;
+      }
+
+      // 3. Dragging Selected Nodes
+      if (isDraggingNode) {
+        const dx = (clientX - dragStartPos.x) / zoom;
+        const dy = (clientY - dragStartPos.y) / zoom;
+
+        selectedNodes.forEach(nodeId => {
+          const init = initialNodePositions.get(nodeId);
+          if (init) {
+            const el = document.getElementById('node-' + nodeId);
+            if (el) {
+              const newX = Math.round(init.x + dx);
+              const newY = Math.round(init.y + dy);
+              el.style.left = newX + 'px';
+              el.style.top = newY + 'px';
+            }
+          }
+        });
+
+        renderWiresAndGizmos();
+        return;
+      }
+
+      // 4. Live Wire Dragging
+      if (isDraggingWire && wireSource) {
+        const currentX = (clientX - panX) / zoom;
+        const currentY = (clientY - panY) / zoom;
+        drawLiveWire(wireSource.x, wireSource.y, currentX, currentY);
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (isPanning) {
+        isPanning = false;
+        viewport.style.cursor = 'default';
+      }
+
+      if (isBoxSelecting) {
+        isBoxSelecting = false;
+        selectionBox.style.display = 'none';
+      }
+
+      if (isDraggingNode) {
+        isDraggingNode = false;
+        // Persist moved positions
+        const positions = {};
+        selectedNodes.forEach(nodeId => {
+          const el = document.getElementById('node-' + nodeId);
+          if (el) {
+            positions[nodeId] = { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
+          }
+        });
+        apiMoveMultipleNodes(positions);
+      }
+
+      if (isDraggingWire) {
+        isDraggingWire = false;
+        removeLiveWire();
+
+        const rect = viewport.getBoundingClientRect();
+        const clientX = e.clientX - rect.left;
+        const clientY = e.clientY - rect.top;
+        const dropX = Math.round((clientX - panX) / zoom);
+        const dropY = Math.round((clientY - panY) / zoom);
+
+        // Check if dropped on another socket
+        const elemUnderCursor = document.elementFromPoint(e.clientX, e.clientY);
+        if (elemUnderCursor && elemUnderCursor.classList.contains('node-socket')) {
+          const targetNodeId = elemUnderCursor.dataset.nodeId;
+          const targetSocketType = elemUnderCursor.dataset.socketType;
+
+          if (targetNodeId && targetNodeId !== wireSource.nodeId && wireSource.socketType !== targetSocketType) {
+            const src = wireSource.socketType === 'out' ? wireSource.nodeId : targetNodeId;
+            const tgt = wireSource.socketType === 'out' ? targetNodeId : wireSource.nodeId;
+            apiConnectNodes(src, tgt);
+            return;
+          }
+        }
+
+        // Dropped on empty canvas space -> Open Auto-Spawn Menu
+        wireDropLocation = { x: dropX, y: dropY };
+        spawnMenu.style.display = 'block';
+        spawnMenu.style.left = e.clientX + 'px';
+        spawnMenu.style.top = e.clientY + 'px';
+      }
+    });
+
+    // Zoom on Scroll Centered at Mouse Cursor
+    viewport.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-      zoom = Math.min(Math.max(0.3, zoom * zoomFactor), 2.5);
+      const rect = viewport.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const graphX = (mouseX - panX) / zoom;
+      const graphY = (mouseY - panY) / zoom;
+
+      const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
+      const newZoom = Math.min(Math.max(0.25, zoom * zoomFactor), 2.5);
+
+      panX = mouseX - graphX * newZoom;
+      panY = mouseY - graphY * newZoom;
+      zoom = newZoom;
+
       updateTransform();
-    };
+    }, { passive: false });
 
     function updateTransform() {
       container.style.transform = \`translate(\${panX}px, \${panY}px) scale(\${zoom})\`;
     }
     updateTransform();
 
+    function resetZoomAndFit() {
+      apiAlignLayout('hierarchical');
+      panX = 40; panY = 70; zoom = 0.85;
+      updateTransform();
+    }
+
+    // --- Context Menu Handlers ---
+
     viewport.oncontextmenu = (e) => {
       e.preventDefault();
-      const menu = document.getElementById('context-menu');
-      menu.style.display = 'block';
-      menu.style.left = e.clientX + 'px';
-      menu.style.top = e.clientY + 'px';
-    };
-    window.onclick = () => { document.getElementById('context-menu').style.display = 'none'; };
+      hideContextMenus();
 
-    // Initial REST Graph Fetch immediately on page load
-    async function initialGraphFetch() {
-      try {
-        const res = await fetch('/api/graph');
-        const data = await res.json();
-        if (data.payload && data.payload.nodes) {
-          currentGraph = data.payload;
-          renderGraphNodes(currentGraph);
-          renderTestFunctions(currentGraph);
+      const rect = viewport.getBoundingClientRect();
+      contextClickPos = {
+        x: Math.round((e.clientX - rect.left - panX) / zoom),
+        y: Math.round((e.clientY - rect.top - panY) / zoom)
+      };
+
+      const nodeEl = e.target.closest('.krnl-node');
+      if (nodeEl) {
+        contextTargetNodeId = nodeEl.dataset.nodeId;
+        if (!selectedNodes.has(contextTargetNodeId)) {
+          selectedNodes.clear();
+          selectedNodes.add(contextTargetNodeId);
+          updateNodeSelectionStyles();
         }
-      } catch (e) {
-        console.error('Initial graph fetch error:', e);
+        nodeMenu.style.display = 'block';
+        nodeMenu.style.left = e.clientX + 'px';
+        nodeMenu.style.top = e.clientY + 'px';
+      } else {
+        paneMenu.style.display = 'block';
+        paneMenu.style.left = e.clientX + 'px';
+        paneMenu.style.top = e.clientY + 'px';
       }
-    }
-    initialGraphFetch();
+    };
 
-    // WebSocket JSON-RPC for Live Push Updates
-    function connectWebSocket() {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(protocol + '//' + window.location.host + '/studio/ws');
+    // --- Hotkeys Matrix ---
 
-      ws.onmessage = (evt) => {
-        const msg = JSON.parse(evt.data);
-        if (msg.method === 'graph.init' || msg.method === 'graph.updated') {
-          currentGraph = msg.params;
-          renderGraphNodes(currentGraph);
-          renderTestFunctions(currentGraph);
-        } else if (msg.method === 'agent.activity') {
-          showAgentHud(msg.params);
-        } else if (msg.result && msg.result.durationMs !== undefined) {
-          renderTestOutput(msg.result);
-        } else if (msg.result && msg.result.content !== undefined) {
-          displaySourceFile(msg.result.filePath, msg.result.content);
-        } else if (msg.result && msg.result.valid !== undefined) {
-          alert(\`AST Purity Audit: \${msg.result.valid ? 'PASSED (Clean)' : 'FAILED (' + (msg.result.errors?.length || 0) + ' errors)'}\`);
-        }
-      };
+    window.addEventListener('keydown', (e) => {
+      // Ignore hotkeys when typing in inputs / Monaco
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.closest('.monaco-editor')) {
+        return;
+      }
 
-      ws.onclose = () => {
-        setTimeout(connectWebSocket, 2000);
-      };
+      // Delete / Backspace: Delete selected nodes
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        selectedNodes.forEach(nodeId => apiDeleteNode(nodeId));
+        selectedNodes.clear();
+      }
 
-      window.studioWs = ws;
-    }
-    connectWebSocket();
+      // Ctrl+A / Cmd+A: Select all
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        currentGraph.nodes.forEach(n => selectedNodes.add(n.id));
+        updateNodeSelectionStyles();
+      }
 
-    function showAgentHud(activity) {
-      const hud = document.getElementById('agent-activity-hud');
-      const text = document.getElementById('agent-hud-text');
-      text.textContent = \`AI Agent executed \${activity.action} (\${new Date(activity.timestamp).toLocaleTimeString()})\`;
-      hud.style.display = 'flex';
-      setTimeout(() => { hud.style.display = 'none'; }, 4000);
-    }
+      // Ctrl+C / Cmd+C: Copy selected nodes
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        clipboardNodes = currentGraph.nodes.filter(n => selectedNodes.has(n.id));
+      }
+
+      // Ctrl+V / Cmd+V: Paste copied nodes
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        clipboardNodes.forEach((node, idx) => {
+          const newName = node.name + 'Copy';
+          if (node.type === 'entity') apiCreateEntity(newName);
+          else if (node.type === 'functionality') apiCreateFunctionality(node.parentEntity || 'App', newName);
+          else if (node.type === 'library') apiCreateLibrary(newName);
+        });
+      }
+
+      // Ctrl+Z / Cmd+Z: Undo / Redo
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) apiRedo();
+        else apiUndo();
+      }
+
+      // Ctrl+Y: Redo
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        apiRedo();
+      }
+    });
+
+    // --- Graph Rendering Engine ---
 
     function renderGraphNodes(graph) {
       const layer = document.getElementById('nodes-layer');
@@ -561,44 +844,39 @@ export class StudioServer {
 
       document.getElementById('node-count-badge').textContent = \`\${graph.nodes.length} Nodes | \${graph.edges?.length || 0} Wires\`;
 
-      const positions = new Map();
+      graph.nodes.forEach((node, idx) => {
+        // Use stored position or fallback layout
+        let x = node.position?.x;
+        let y = node.position?.y;
 
-      // Column 1: Root & Subsystem Entities
-      const entities = graph.nodes.filter(n => n.type === 'entity');
-      entities.forEach((node, idx) => {
-        const col = Math.floor(idx / 5);
-        const row = idx % 5;
-        const x = 60 + col * 360;
-        const y = 60 + row * 220;
-        positions.set(node.id, { x, y });
+        if (x === undefined || y === undefined) {
+          if (node.type === 'entity') {
+            const col = Math.floor(idx / 5);
+            const row = idx % 5;
+            x = 60 + col * 360;
+            y = 60 + row * 220;
+          } else if (node.type === 'functionality') {
+            const col = Math.floor(idx / 7);
+            const row = idx % 7;
+            x = 800 + col * 320;
+            y = 60 + row * 180;
+          } else {
+            x = 1500;
+            y = 60 + idx * 160;
+          }
+        }
+
         createNodeElement(node, x, y, layer);
       });
 
-      // Column 2: Quad-Unit Functionalities
-      const funcs = graph.nodes.filter(n => n.type === 'functionality');
-      funcs.forEach((node, idx) => {
-        const col = Math.floor(idx / 7);
-        const row = idx % 7;
-        const x = 800 + col * 320;
-        const y = 60 + row * 180;
-        positions.set(node.id, { x, y });
-        createNodeElement(node, x, y, layer);
-      });
-
-      // Column 3: Concept Libraries & SubApps
-      const others = graph.nodes.filter(n => n.type === 'library' || n.type === 'subapp');
-      others.forEach((node, idx) => {
-        const x = 1500;
-        const y = 60 + idx * 160;
-        positions.set(node.id, { x, y });
-        createNodeElement(node, x, y, layer);
-      });
-
-      renderWires(graph.edges || [], positions);
+      renderWiresAndGizmos();
+      updateNodeSelectionStyles();
     }
 
     function createNodeElement(node, x, y, layer) {
       const el = document.createElement('div');
+      el.id = 'node-' + node.id;
+      el.dataset.nodeId = node.id;
       el.className = 'krnl-node krnl-node-' + node.type;
       el.style.left = x + 'px';
       el.style.top = y + 'px';
@@ -610,11 +888,39 @@ export class StudioServer {
         <div style="font-size: 15px; font-weight: bold; margin-bottom: 4px;">\${node.name}</div>
         \${parentInfo}
         <div style="font-size: 9px; color: #7f848e; font-family: monospace; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">\${node.filePath ? node.filePath.split('/').slice(-2).join('/') : ''}</div>
-        <div class="node-socket socket-out"></div>
-        <div class="node-socket socket-in"></div>
+        <div class="node-socket socket-out" data-node-id="\${node.id}" data-socket-type="out"></div>
+        <div class="node-socket socket-in" data-node-id="\${node.id}" data-socket-type="in"></div>
       \`;
 
-      el.onclick = () => {
+      // Node Drag Initiation
+      el.onmousedown = (e) => {
+        if (e.target.classList.contains('node-socket')) return;
+        if (e.button === 0) {
+          if (!selectedNodes.has(node.id)) {
+            if (!e.shiftKey && !e.metaKey) selectedNodes.clear();
+            selectedNodes.add(node.id);
+            updateNodeSelectionStyles();
+          }
+
+          isDraggingNode = true;
+          draggedNodeId = node.id;
+          const rect = viewport.getBoundingClientRect();
+          dragStartPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+
+          initialNodePositions.clear();
+          selectedNodes.forEach(nid => {
+            const nEl = document.getElementById('node-' + nid);
+            if (nEl) {
+              initialNodePositions.set(nid, { x: parseFloat(nEl.style.left), y: parseFloat(nEl.style.top) });
+            }
+          });
+          e.stopPropagation();
+        }
+      };
+
+      // Click to open source drawer
+      el.onclick = (e) => {
+        if (e.target.classList.contains('node-socket')) return;
         if (node.filePath && window.studioWs) {
           window.studioWs.send(JSON.stringify({
             jsonrpc: '2.0',
@@ -625,7 +931,295 @@ export class StudioServer {
         }
       };
 
+      // Socket Port Wire Drag Initiation
+      const outSocket = el.querySelector('.socket-out');
+      const inSocket = el.querySelector('.socket-in');
+
+      [outSocket, inSocket].forEach(sock => {
+        if (sock) {
+          sock.onmousedown = (e) => {
+            e.stopPropagation();
+            isDraggingWire = true;
+            const sockRect = sock.getBoundingClientRect();
+            const vpRect = viewport.getBoundingClientRect();
+            wireSource = {
+              nodeId: node.id,
+              socketType: sock.dataset.socketType,
+              x: (sockRect.left + sockRect.width / 2 - vpRect.left - panX) / zoom,
+              y: (sockRect.top + sockRect.height / 2 - vpRect.top - panY) / zoom
+            };
+          };
+        }
+      });
+
       layer.appendChild(el);
+    }
+
+    function updateNodeSelectionStyles() {
+      document.querySelectorAll('.krnl-node').forEach(el => {
+        if (selectedNodes.has(el.dataset.nodeId)) el.classList.add('selected');
+        else el.classList.remove('selected');
+      });
+    }
+
+    function renderWiresAndGizmos() {
+      const svg = document.getElementById('svg-wires');
+      const gizmosLayer = document.getElementById('gizmos-layer');
+      svg.innerHTML = '';
+      gizmosLayer.innerHTML = '';
+
+      for (const edge of currentGraph.edges || []) {
+        const sEl = document.getElementById('node-' + edge.source);
+        const tEl = document.getElementById('node-' + edge.target);
+
+        if (sEl && tEl) {
+          const sx = parseFloat(sEl.style.left) + sEl.offsetWidth;
+          const sy = parseFloat(sEl.style.top) + sEl.offsetHeight / 2;
+          const tx = parseFloat(tEl.style.left);
+          const ty = parseFloat(tEl.style.top) + tEl.offsetHeight / 2;
+
+          const dx = Math.abs(tx - sx) * 0.5;
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', \`M \${sx} \${sy} C \${sx + dx} \${sy}, \${tx - dx} \${ty}, \${tx} \${ty}\`);
+          path.setAttribute('stroke', '#d4af37');
+          path.setAttribute('stroke-width', '2');
+          path.setAttribute('fill', 'none');
+          path.setAttribute('stroke-dasharray', edge.type === 'contains' ? 'none' : '4,4');
+          path.setAttribute('opacity', '0.75');
+          svg.appendChild(path);
+
+          // Render Centered Delete Gizmo on wire midpoint
+          if (edge.deletable !== false) {
+            const midX = (sx + tx) / 2;
+            const midY = (sy + ty) / 2;
+
+            const gizmo = document.createElement('div');
+            gizmo.className = 'edge-delete-gizmo';
+            gizmo.style.left = midX + 'px';
+            gizmo.style.top = midY + 'px';
+            gizmo.innerHTML = '✕';
+            gizmo.title = 'Delete Connection';
+            gizmo.onclick = (e) => {
+              e.stopPropagation();
+              apiDeleteEdge(edge.id);
+            };
+            gizmosLayer.appendChild(gizmo);
+          }
+        }
+      }
+    }
+
+    function drawLiveWire(sx, sy, tx, ty) {
+      let livePath = document.getElementById('live-drag-wire');
+      const svg = document.getElementById('svg-wires');
+      if (!livePath) {
+        livePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        livePath.id = 'live-drag-wire';
+        livePath.setAttribute('stroke', '#61afef');
+        livePath.setAttribute('stroke-width', '3');
+        livePath.setAttribute('stroke-dasharray', '6,6');
+        livePath.setAttribute('fill', 'none');
+        svg.appendChild(livePath);
+      }
+      const dx = Math.abs(tx - sx) * 0.5;
+      livePath.setAttribute('d', \`M \${sx} \${sy} C \${sx + dx} \${sy}, \${tx - dx} \${ty}, \${tx} \${ty}\`);
+    }
+
+    function removeLiveWire() {
+      const livePath = document.getElementById('live-drag-wire');
+      if (livePath) livePath.remove();
+    }
+
+    function spawnAndConnect(nodeType) {
+      hideContextMenus();
+      const defaultName = prompt(\`Enter \${nodeType} name:\`);
+      if (!defaultName) return;
+
+      if (nodeType === 'entity') {
+        apiCreateEntity(defaultName, () => {
+          if (wireSource) apiConnectNodes(wireSource.nodeId, 'entity:' + defaultName);
+        });
+      } else if (nodeType === 'functionality') {
+        const parentEntity = wireSource?.nodeId?.replace(/^entity:/, '') || 'App';
+        apiCreateFunctionality(parentEntity, defaultName, () => {
+          if (wireSource) apiConnectNodes(wireSource.nodeId, \`functionality:\${parentEntity}:\${defaultName}\`);
+        });
+      } else if (nodeType === 'library') {
+        apiCreateLibrary(defaultName, () => {
+          if (wireSource) apiConnectNodes(wireSource.nodeId, 'library:' + defaultName + 'Concepts');
+        });
+      }
+    }
+
+    // --- Programmatic Client API Calls ---
+
+    function apiMoveMultipleNodes(positions) {
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'move-' + Date.now(),
+          method: 'graph.moveMultipleNodes',
+          params: { positions }
+        }));
+      }
+    }
+
+    function apiConnectNodes(source, target) {
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'conn-' + Date.now(),
+          method: 'graph.connectNodes',
+          params: { source, target, type: 'contains' }
+        }));
+      }
+    }
+
+    function apiDeleteEdge(edgeId) {
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'del-edge-' + Date.now(),
+          method: 'graph.deleteEdge',
+          params: { edgeId }
+        }));
+      }
+    }
+
+    function apiDeleteNode(nodeId) {
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'del-node-' + Date.now(),
+          method: 'graph.deleteNode',
+          params: { nodeId }
+        }));
+      }
+    }
+
+    function apiAlignLayout(algorithm = 'hierarchical') {
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'align-' + Date.now(),
+          method: 'graph.alignLayout',
+          params: { algorithm }
+        }));
+      }
+    }
+
+    function apiUndo() {
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'undo-' + Date.now(),
+          method: 'graph.undo',
+          params: {}
+        }));
+      }
+    }
+
+    function apiRedo() {
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'redo-' + Date.now(),
+          method: 'graph.redo',
+          params: {}
+        }));
+      }
+    }
+
+    function apiCreateEntity(name, cb) {
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'create-ent-' + Date.now(),
+          method: 'entity.create',
+          params: { name }
+        }));
+        if (cb) setTimeout(cb, 300);
+      }
+    }
+
+    function apiCreateFunctionality(entityName, name, cb) {
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'create-fn-' + Date.now(),
+          method: 'functionality.create',
+          params: { entityName, name }
+        }));
+        if (cb) setTimeout(cb, 300);
+      }
+    }
+
+    function apiCreateLibrary(name, cb) {
+      if (window.studioWs) {
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: 'create-lib-' + Date.now(),
+          method: 'library.create',
+          params: { name }
+        }));
+        if (cb) setTimeout(cb, 300);
+      }
+    }
+
+    function contextAddEntity() {
+      const name = prompt('Enter Entity Name:');
+      if (name) apiCreateEntity(name);
+    }
+
+    function contextAddFunctionality() {
+      const entityName = prompt('Enter Parent Entity Name:');
+      const name = prompt('Enter Functionality Name:');
+      if (entityName && name) apiCreateFunctionality(entityName, name);
+    }
+
+    function contextAddLibrary() {
+      const name = prompt('Enter Domain Concept Library Name:');
+      if (name) apiCreateLibrary(name);
+    }
+
+    function contextOpenSelectedSource() {
+      if (contextTargetNodeId) {
+        const node = currentGraph.nodes.find(n => n.id === contextTargetNodeId);
+        if (node?.filePath && window.studioWs) {
+          window.studioWs.send(JSON.stringify({
+            jsonrpc: '2.0',
+            id: 'read-' + Date.now(),
+            method: 'file.read',
+            params: { filePath: node.filePath }
+          }));
+        }
+      }
+    }
+
+    function contextDuplicateSelected() {
+      if (contextTargetNodeId) {
+        const node = currentGraph.nodes.find(n => n.id === contextTargetNodeId);
+        if (node) {
+          const newName = node.name + 'Copy';
+          if (node.type === 'entity') apiCreateEntity(newName);
+          else if (node.type === 'functionality') apiCreateFunctionality(node.parentEntity || 'App', newName);
+          else if (node.type === 'library') apiCreateLibrary(newName);
+        }
+      }
+    }
+
+    function contextDisconnectSelected() {
+      if (contextTargetNodeId) {
+        const toDelete = currentGraph.edges.filter(e => e.source === contextTargetNodeId || e.target === contextTargetNodeId);
+        toDelete.forEach(e => apiDeleteEdge(e.id));
+      }
+    }
+
+    function contextDeleteSelected() {
+      if (contextTargetNodeId) {
+        apiDeleteNode(contextTargetNodeId);
+        selectedNodes.delete(contextTargetNodeId);
+      }
     }
 
     function displaySourceFile(filePath, content) {
@@ -644,30 +1238,6 @@ export class StudioServer {
 
     function closeCodeDrawer() {
       document.getElementById('code-drawer').style.display = 'none';
-    }
-
-    function renderWires(edges, positions) {
-      const svg = document.getElementById('svg-wires');
-      svg.innerHTML = '';
-
-      for (const edge of edges) {
-        const sPos = positions.get(edge.source);
-        const tPos = positions.get(edge.target);
-        if (sPos && tPos) {
-          const sx = sPos.x + 250, sy = sPos.y + 40;
-          const tx = tPos.x, ty = tPos.y + 35;
-          const dx = Math.abs(tx - sx) * 0.5;
-
-          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-          path.setAttribute('d', \`M \${sx} \${sy} C \${sx + dx} \${sy}, \${tx - dx} \${ty}, \${tx} \${ty}\`);
-          path.setAttribute('stroke', '#d4af37');
-          path.setAttribute('stroke-width', '2');
-          path.setAttribute('fill', 'none');
-          path.setAttribute('stroke-dasharray', edge.type === 'contains' ? 'none' : '4,4');
-          path.setAttribute('opacity', '0.75');
-          svg.appendChild(path);
-        }
-      }
     }
 
     function renderTestFunctions(graph) {
@@ -762,6 +1332,99 @@ export class StudioServer {
           btn.style.fontWeight = 'normal';
         }
       });
+    }
+
+    // UI Composer Drag & Drop
+    function onDragAtom(e, atomType) {
+      e.dataTransfer.setData('text/plain', atomType);
+    }
+    function onDropAtom(e) {
+      e.preventDefault();
+      const atomType = e.dataTransfer.getData('text/plain');
+      if (atomType) {
+        document.getElementById('ui-empty-hint').style.display = 'none';
+        droppedAtoms.push({ type: atomType });
+        renderDroppedUI();
+      }
+    }
+    function renderDroppedUI() {
+      const target = document.getElementById('ui-drop-target');
+      target.innerHTML = '';
+      for (const atom of droppedAtoms) {
+        const item = document.createElement('div');
+        item.style.cssText = 'padding: 12px; background: #21212b; border: var(--krnl-border); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;';
+        item.innerHTML = \`<span>\${atom.type}</span><span style="color: #7f848e; font-size: 11px;">Bound to Entity</span>\`;
+        target.appendChild(item);
+      }
+
+      const imports = Array.from(new Set(droppedAtoms.map(a => a.type))).join(', ');
+      const code = \`import van from 'vanjs-core';
+import { \${imports} } from '@dinilmusick/krnl-ui';
+
+export function View({ state, entity }: any): HTMLElement {
+  const { div } = van.tags;
+  return div(
+    { class: 'krnl-view-panel' },
+    \${droppedAtoms.map(a => a.type + '({ ... })').join(',\\n    ')}
+  );
+}\`;
+      if (monacoUiEditor) {
+        monacoUiEditor.setValue(code);
+      }
+    }
+
+    // Direct REST Initial Fetch
+    async function initialGraphFetch() {
+      try {
+        const res = await fetch('/api/graph');
+        const data = await res.json();
+        if (data.payload && data.payload.nodes) {
+          currentGraph = data.payload;
+          renderGraphNodes(currentGraph);
+          renderTestFunctions(currentGraph);
+        }
+      } catch (e) {
+        console.error('Initial graph fetch error:', e);
+      }
+    }
+    initialGraphFetch();
+
+    // WebSocket Live Updates
+    function connectWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(protocol + '//' + window.location.host + '/studio/ws');
+
+      ws.onmessage = (evt) => {
+        const msg = JSON.parse(evt.data);
+        if (msg.method === 'graph.init' || msg.method === 'graph.updated') {
+          currentGraph = msg.params;
+          renderGraphNodes(currentGraph);
+          renderTestFunctions(currentGraph);
+        } else if (msg.method === 'agent.activity') {
+          showAgentHud(msg.params);
+        } else if (msg.result && msg.result.durationMs !== undefined) {
+          renderTestOutput(msg.result);
+        } else if (msg.result && msg.result.content !== undefined) {
+          displaySourceFile(msg.result.filePath, msg.result.content);
+        } else if (msg.result && msg.result.valid !== undefined) {
+          alert(\`AST Purity Audit: \${msg.result.valid ? 'PASSED (Clean)' : 'FAILED (' + (msg.result.errors?.length || 0) + ' errors)'}\`);
+        }
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectWebSocket, 2000);
+      };
+
+      window.studioWs = ws;
+    }
+    connectWebSocket();
+
+    function showAgentHud(activity) {
+      const hud = document.getElementById('agent-activity-hud');
+      const text = document.getElementById('agent-hud-text');
+      text.textContent = \`AI Agent executed \${activity.action} (\${new Date(activity.timestamp).toLocaleTimeString()})\`;
+      hud.style.display = 'flex';
+      setTimeout(() => { hud.style.display = 'none'; }, 4000);
     }
 
     // Initialize Monaco instances safely
