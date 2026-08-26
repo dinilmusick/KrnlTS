@@ -40,12 +40,6 @@ interface KrnlTextAreaProps {
 }
 declare function KrnlTextArea({ label: labelText, value, placeholder, onChange, rows }: KrnlTextAreaProps): HTMLElement;
 
-interface KrnlJsonViewerProps {
-    label?: string;
-    data?: any;
-}
-declare function KrnlJsonViewer({ label: labelText, data }: KrnlJsonViewerProps): HTMLElement;
-
 interface KrnlTileProps {
     label?: string;
     value?: any;
@@ -53,11 +47,40 @@ interface KrnlTileProps {
 }
 declare function KrnlTile({ label: labelText, value, subtitle }: KrnlTileProps): HTMLElement;
 
-interface SharedSlot {
-    options: State<any[]>;
-    value: State<any>;
+interface KrnlJsonViewerProps {
+    label?: string;
+    data?: any;
 }
-declare function getSharedSlot(id?: string): SharedSlot;
+declare function KrnlJsonViewer({ label: labelText, data }: KrnlJsonViewerProps): HTMLElement;
+
+interface KrnlDockItem {
+    id: string;
+    icon: string | HTMLElement;
+    label: string;
+    badge?: string | number;
+    onClick: () => void;
+    active?: boolean;
+}
+interface KrnlDockProps {
+    items: KrnlDockItem[];
+    position?: 'bottom' | 'top' | 'left' | 'right';
+    className?: string;
+}
+/**
+ * KrnlDock: macOS-style 4-edge dock window switcher adhering to Skipo Neo-Brutalist UI standard.
+ */
+declare function KrnlDock({ items, position, className }: KrnlDockProps): HTMLElement;
+
+interface KrnlTooltipProps {
+    text: string;
+    placement?: 'auto' | 'top' | 'bottom' | 'left' | 'right';
+    children: HTMLElement | HTMLElement[];
+}
+/**
+ * KrnlTooltip enforces the Skipo UI Invariant:
+ * Elements near the top edge (< 80px) MUST pop downwards to prevent clipping.
+ */
+declare function KrnlTooltip({ text, placement, children }: KrnlTooltipProps): HTMLElement;
 
 /**
  * @file KrnlAgentBridge.ts
@@ -96,35 +119,6 @@ declare class KrnlAgentBridgeManager {
 }
 declare const KrnlAgentBridge: KrnlAgentBridgeManager;
 
-interface KrnlTooltipProps {
-    text: string;
-    placement?: 'auto' | 'top' | 'bottom' | 'left' | 'right';
-    children: HTMLElement | HTMLElement[];
-}
-/**
- * KrnlTooltip enforces the Skipo UI Invariant:
- * Elements near the top edge (< 80px) MUST pop downwards to prevent clipping.
- */
-declare function KrnlTooltip({ text, placement, children }: KrnlTooltipProps): HTMLElement;
-
-interface KrnlDockItem {
-    id: string;
-    icon: string | HTMLElement;
-    label: string;
-    badge?: string | number;
-    onClick: () => void;
-    active?: boolean;
-}
-interface KrnlDockProps {
-    items: KrnlDockItem[];
-    position?: 'bottom' | 'top' | 'left' | 'right';
-    className?: string;
-}
-/**
- * KrnlDock: macOS-style 4-edge dock window switcher adhering to Skipo Neo-Brutalist UI standard.
- */
-declare function KrnlDock({ items, position, className }: KrnlDockProps): HTMLElement;
-
 /**
  * Direct-DOM Reactivity Bridge for KrnlUI.
  * Connects VanJS reactive state directly to Entity state accessors and event streams.
@@ -148,4 +142,29 @@ declare class KrnlReactiveBridge {
     };
 }
 
-export { KrnlAgentBridge, KrnlAgentBridgeManager, KrnlButton, type KrnlButtonProps, type KrnlComponentRegistration, type KrnlComponentState, KrnlDock, type KrnlDockItem, type KrnlDockProps, KrnlDropdown, type KrnlDropdownProps, KrnlJsonViewer, type KrnlJsonViewerProps, KrnlReactiveBridge, KrnlTextArea, type KrnlTextAreaProps, KrnlTextInput, type KrnlTextInputProps, KrnlTile, type KrnlTileProps, KrnlTooltip, type KrnlTooltipProps, type SharedSlot, getSharedSlot };
+interface SharedSlot {
+    options: State<any[]>;
+    value: State<any>;
+}
+declare function getSharedSlot(id?: string): SharedSlot;
+
+interface KrnlMonacoProps {
+    value?: string | State<string>;
+    language?: string;
+    readOnly?: boolean;
+    theme?: string;
+    height?: string;
+    width?: string;
+    lineNumbers?: 'on' | 'off';
+    minimap?: boolean;
+    onChange?: (newValue: string) => void;
+    class?: string;
+    style?: string;
+}
+/**
+ * KrnlMonacoEditor: Embeds a full-featured Monaco Code Editor instance
+ * configured with the locked Neo-Brutalist krnl-dark theme.
+ */
+declare function KrnlMonacoEditor(props?: KrnlMonacoProps): HTMLElement;
+
+export { KrnlAgentBridge, KrnlAgentBridgeManager, KrnlButton, type KrnlButtonProps, type KrnlComponentRegistration, type KrnlComponentState, KrnlDock, type KrnlDockItem, type KrnlDockProps, KrnlDropdown, type KrnlDropdownProps, KrnlJsonViewer, type KrnlJsonViewerProps, KrnlMonacoEditor, type KrnlMonacoProps, KrnlReactiveBridge, KrnlTextArea, type KrnlTextAreaProps, KrnlTextInput, type KrnlTextInputProps, KrnlTile, type KrnlTileProps, KrnlTooltip, type KrnlTooltipProps, type SharedSlot, getSharedSlot };

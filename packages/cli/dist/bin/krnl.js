@@ -574,6 +574,16 @@ var StudioServer = class {
             }
             return;
           }
+          if (req.method === "file.read") {
+            const fPath = req.params.filePath;
+            if (fs3.existsSync(fPath)) {
+              const content = fs3.readFileSync(fPath, "utf-8");
+              ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, result: { content, filePath: fPath } }));
+            } else {
+              ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, error: { code: -32002, message: "File not found" } }));
+            }
+            return;
+          }
           const res = await this.router.handle(req);
           ws.send(JSON.stringify(res));
           if (req.method && req.method.startsWith("graph.create")) {
@@ -627,7 +637,11 @@ var StudioServer = class {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Krnl Studio \u2014 Visual Node IDE & Workflow Engine</title>
+  <title>Krnl Studio \u2014 Monaco-Powered Visual IDE</title>
+  
+  <!-- Monaco Editor AMD Loader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
   <style>
     :root {
       --krnl-bg: #0e0e12;
@@ -655,7 +669,7 @@ var StudioServer = class {
     /* Header */
     .studio-header {
       position: absolute; top: 12px; left: 16px; right: 16px; z-index: 1000;
-      background: rgba(22, 22, 30, 0.88); backdrop-filter: blur(14px);
+      background: rgba(22, 22, 30, 0.90); backdrop-filter: blur(14px);
       border: var(--krnl-border); border-radius: 10px; padding: 8px 16px;
       display: flex; align-items: center; justify-content: space-between;
       font-size: 13px; font-weight: bold; box-shadow: 0 4px 20px rgba(0,0,0,0.6);
@@ -675,7 +689,7 @@ var StudioServer = class {
     /* Nodes */
     .krnl-node {
       position: absolute; border-radius: 10px; padding: 14px 16px;
-      font-family: inherit; color: var(--krnl-text); cursor: move;
+      font-family: inherit; color: var(--krnl-text); cursor: pointer;
       transition: box-shadow 0.15s ease, border-color 0.15s ease;
       z-index: 10;
     }
@@ -703,10 +717,18 @@ var StudioServer = class {
     .node-socket {
       width: 12px; height: 12px; border-radius: 50%;
       background: #d4af37; border: 2px solid #0e0e12;
-      position: absolute; cursor: crosshair;
+      position: absolute;
     }
     .socket-out { right: -6px; top: 50%; transform: translateY(-50%); }
     .socket-in { left: -6px; top: 50%; transform: translateY(-50%); background: #61afef; }
+
+    /* Monaco Container Borders */
+    .monaco-card {
+      border: 1px solid rgba(212, 175, 55, 0.25);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
 
     /* Context Menu */
     #context-menu {
@@ -724,7 +746,7 @@ var StudioServer = class {
 </head>
 <body>
   <div id="app">
-    <!-- Top Header Navigation -->
+    <!-- Header -->
     <div class="studio-header">
       <div style="display: flex; align-items: center; gap: 12px;">
         <span class="status-dot"></span>
@@ -735,18 +757,17 @@ var StudioServer = class {
       <div style="display: flex; align-items: center; gap: 14px;">
         <span style="font-size: 11px; color: #7f848e;">Project:</span>
         <select id="project-selector" onchange="switchProject(this.value)" style="background: #1e1e28; color: #d4af37; border: var(--krnl-border); padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">
-          <option value="examples/unified-workspace" selected>examples/unified-workspace (All Examples Combined)</option>
-          <option value=".">Current Root Project</option>
+          <option value="examples/unified-workspace" selected>examples/unified-workspace (All Combined)</option>
           <option value="examples/calculator-app">examples/calculator-app</option>
           <option value="examples/ecommerce-app">examples/ecommerce-app</option>
           <option value="examples/ai-agent-app">examples/ai-agent-app</option>
-          <option value="examples/example1/CalculatorSystem">examples/example1/CalculatorSystem</option>
+          <option value=".">Framework Root</option>
         </select>
         <button onclick="triggerPurityAudit()" style="background: rgba(212, 175, 55, 0.2); border: 1px solid #d4af37; color: #d4af37; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold;">\u26A1 Run AST Purity Audit</button>
       </div>
     </div>
 
-    <!-- 1. Architecture Node Graph Canvas -->
+    <!-- 1. Architecture Canvas -->
     <div id="canvas-architecture" class="studio-canvas active">
       <div id="graph-viewport">
         <div id="graph-container">
@@ -754,13 +775,21 @@ var StudioServer = class {
           <div id="nodes-layer"></div>
         </div>
       </div>
+      <!-- Side Source Code Drawer -->
+      <div id="code-drawer" style="position: absolute; top: 60px; right: 16px; bottom: 80px; width: 480px; background: rgba(22, 22, 30, 0.96); backdrop-filter: blur(16px); border: var(--krnl-border); border-radius: 10px; display: none; flex-direction: column; z-index: 1500; box-shadow: 0 12px 36px rgba(0,0,0,0.8);">
+        <div style="padding: 12px 16px; border-bottom: var(--krnl-border); display: flex; justify-content: space-between; align-items: center;">
+          <span id="drawer-file-title" style="font-size: 12px; font-weight: bold; color: var(--krnl-accent); font-family: monospace;">Source File</span>
+          <button onclick="closeCodeDrawer()" style="background: transparent; border: none; color: #abb2bf; cursor: pointer; font-size: 14px;">\u2715</button>
+        </div>
+        <div id="drawer-monaco-container" style="flex: 1; width: 100%;"></div>
+      </div>
     </div>
 
-    <!-- 2. UI Composer Canvas -->
+    <!-- 2. UI Composer Canvas with Monaco Code Viewer -->
     <div id="canvas-ui" class="studio-canvas">
       <div style="display: flex; width: 100%; height: 100%; padding-top: 60px;">
         <div style="width: 250px; border-right: var(--krnl-border); padding: 16px; background: var(--krnl-panel);">
-          <h3 style="font-size: 12px; color: var(--krnl-accent); margin-bottom: 12px; letter-spacing: 0.5px;">KRNL UI ATOMS</h3>
+          <h3 style="font-size: 12px; color: var(--krnl-accent); margin-bottom: 12px;">KRNL UI ATOMS</h3>
           <div style="display: flex; flex-direction: column; gap: 8px;">
             <div class="palette-item" draggable="true" ondragstart="onDragAtom(event, 'KrnlButton')" style="padding: 10px; border: var(--krnl-border); background: #21212b; border-radius: 6px; cursor: grab; font-size: 12px;">\u{1F518} KrnlButton</div>
             <div class="palette-item" draggable="true" ondragstart="onDragAtom(event, 'KrnlTextInput')" style="padding: 10px; border: var(--krnl-border); background: #21212b; border-radius: 6px; cursor: grab; font-size: 12px;">\u{1F4DD} KrnlTextInput</div>
@@ -773,15 +802,17 @@ var StudioServer = class {
           <div id="ui-drop-target" ondragover="event.preventDefault()" ondrop="onDropAtom(event)" style="flex: 1; border: 2px dashed rgba(212, 175, 55, 0.4); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto;">
             <div id="ui-empty-hint" style="text-align: center; color: #7f848e; margin: auto;">Drag KrnlUI atoms here to compose live views</div>
           </div>
-          <div style="height: 160px; border-top: var(--krnl-border); padding-top: 12px; display: flex; flex-direction: column;">
-            <div style="font-size: 11px; color: var(--krnl-accent); margin-bottom: 6px;">GENERATED VANJS TYPESCRIPT SOURCE CODE</div>
-            <textarea id="ui-generated-code" readonly style="flex: 1; background: #16161e; border: var(--krnl-border); color: #98c379; font-family: monospace; font-size: 11px; padding: 8px; border-radius: 6px;"></textarea>
+          <div style="height: 220px; display: flex; flex-direction: column;">
+            <div style="font-size: 11px; color: var(--krnl-accent); margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+              <span>\u26A1 GENERATED VANJS TYPESCRIPT CODE (MONACO IDE)</span>
+            </div>
+            <div id="ui-monaco-container" class="monaco-card" style="flex: 1; width: 100%;"></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 3. Test Console Canvas -->
+    <!-- 3. Test Console Canvas with Monaco Input & Output Editors -->
     <div id="canvas-test" class="studio-canvas">
       <div style="display: flex; width: 100%; height: 100%; padding-top: 60px;">
         <div style="width: 280px; border-right: var(--krnl-border); padding: 16px; background: var(--krnl-panel); overflow-y: auto;">
@@ -795,23 +826,22 @@ var StudioServer = class {
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1;">
             <div style="display: flex; flex-direction: column;">
-              <label style="font-size: 11px; color: #abb2bf; margin-bottom: 4px;">INPUT (JSON)</label>
-              <textarea id="test-input-json" style="flex: 1; background: #16161e; border: var(--krnl-border); color: #98c379; font-family: monospace; padding: 12px; border-radius: 6px;">{
-  "payload": "demo_test_value"
-}</textarea>
+              <label style="font-size: 11px; color: #abb2bf; margin-bottom: 4px;">INPUT (MONACO JSON EDITOR)</label>
+              <div id="test-input-monaco" class="monaco-card" style="flex: 1; width: 100%;"></div>
             </div>
             <div style="display: flex; flex-direction: column;">
-              <label style="font-size: 11px; color: #abb2bf; margin-bottom: 4px;">EXECUTION METRICS & OUTPUT</label>
-              <div id="test-output-panel" style="flex: 1; background: #16161e; border: var(--krnl-border); padding: 12px; border-radius: 6px; font-family: monospace; overflow-y: auto;">
-                <div style="color: #7f848e;">Awaiting test execution...</div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label style="font-size: 11px; color: #abb2bf;">EXECUTION OUTPUT & BENCHMARK</label>
+                <span id="test-metrics-badge" style="font-size: 11px; color: #98c379; font-weight: bold;"></span>
               </div>
+              <div id="test-output-monaco" class="monaco-card" style="flex: 1; width: 100%;"></div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Floating Dock Switcher -->
+    <!-- Floating Dock -->
     <div style="position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; background: rgba(22, 22, 30, 0.88); backdrop-filter: blur(14px); border: var(--krnl-border); padding: 8px 14px; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.7); z-index: 2000;">
       <button id="dock-btn-arch" onclick="switchCanvas('architecture', '\u{1F3D7}\uFE0F Architecture Canvas')" style="background: rgba(212, 175, 55, 0.25); border: 1px solid #d4af37; color: #d4af37; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">\u{1F3D7}\uFE0F Architecture</button>
       <button id="dock-btn-ui" onclick="switchCanvas('ui', '\u{1F3A8} UI Composer')" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 12px;">\u{1F3A8} UI Composer</button>
@@ -823,7 +853,6 @@ var StudioServer = class {
       <div class="menu-item" onclick="contextAddEntity()">\u{1F4E6} New Entity</div>
       <div class="menu-item" onclick="contextAddFunctionality()">\u26A1 New Functionality</div>
       <div class="menu-item" onclick="contextAddLibrary()">\u{1F4DA} New Domain Library</div>
-      <div class="menu-item" onclick="autoLayoutNodes()">\u{1F4D0} Auto Align Nodes</div>
     </div>
   </div>
 
@@ -833,7 +862,88 @@ var StudioServer = class {
     let selectedFunction = null;
     let droppedAtoms = [];
 
-    // Viewport Pan & Zoom State
+    // Monaco Editor instances
+    let monacoUiEditor = null;
+    let monacoTestInputEditor = null;
+    let monacoTestOutputEditor = null;
+    let monacoDrawerEditor = null;
+
+    // Initialize Monaco Loader
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+    require(['vs/editor/editor.main'], function () {
+      monaco.editor.defineTheme('krnl-dark', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [
+          { token: 'keyword', foreground: 'd4af37', fontStyle: 'bold' },
+          { token: 'string', foreground: '98c379' },
+          { token: 'number', foreground: 'd19a66' },
+          { token: 'comment', foreground: '5c6370', fontStyle: 'italic' },
+          { token: 'type', foreground: 'e5c07b' },
+          { token: 'identifier', foreground: 'f5ede4' }
+        ],
+        colors: {
+          'editor.background': '#16161e',
+          'editor.foreground': '#f5ede4',
+          'editor.lineHighlightBackground': '#1f1f2a',
+          'editorLineNumber.foreground': '#5c6370',
+          'editorLineNumber.activeForeground': '#d4af37',
+          'editorCursor.foreground': '#d4af37',
+          'editor.selectionBackground': '#2d3139',
+          'editorWidget.background': '#16161e',
+          'editorWidget.border': '#d4af37'
+        }
+      });
+
+      // 1. UI Composer Monaco Editor
+      monacoUiEditor = monaco.editor.create(document.getElementById('ui-monaco-container'), {
+        value: '// Drag KrnlUI atoms into the canvas above to generate VanJS code...',
+        language: 'typescript',
+        theme: 'krnl-dark',
+        readOnly: true,
+        automaticLayout: true,
+        fontSize: 12,
+        fontFamily: 'Fira Code, Menlo, Monaco, monospace',
+        minimap: { enabled: false }
+      });
+
+      // 2. Test Input Monaco Editor
+      monacoTestInputEditor = monaco.editor.create(document.getElementById('test-input-monaco'), {
+        value: '{\\n  "payload": "demo_test_value"\\n}',
+        language: 'json',
+        theme: 'krnl-dark',
+        automaticLayout: true,
+        fontSize: 12,
+        fontFamily: 'Fira Code, Menlo, Monaco, monospace',
+        minimap: { enabled: false }
+      });
+
+      // 3. Test Output Monaco Editor
+      monacoTestOutputEditor = monaco.editor.create(document.getElementById('test-output-monaco'), {
+        value: '// Awaiting execution...',
+        language: 'json',
+        theme: 'krnl-dark',
+        readOnly: true,
+        automaticLayout: true,
+        fontSize: 12,
+        fontFamily: 'Fira Code, Menlo, Monaco, monospace',
+        minimap: { enabled: false }
+      });
+
+      // 4. Source Drawer Monaco Editor
+      monacoDrawerEditor = monaco.editor.create(document.getElementById('drawer-monaco-container'), {
+        value: '// Select a node to view its source code...',
+        language: 'typescript',
+        theme: 'krnl-dark',
+        readOnly: true,
+        automaticLayout: true,
+        fontSize: 12,
+        fontFamily: 'Fira Code, Menlo, Monaco, monospace',
+        minimap: { enabled: true }
+      });
+    });
+
+    // Viewport Pan & Zoom
     let panX = 40, panY = 70, zoom = 1.0;
     let isPanning = false, startPanX = 0, startPanY = 0;
     const viewport = document.getElementById('graph-viewport');
@@ -866,11 +976,9 @@ var StudioServer = class {
     }
     updateTransform();
 
-    // Context Menu Handling
-    let contextClickPos = { x: 100, y: 100 };
+    // Context Menu
     viewport.oncontextmenu = (e) => {
       e.preventDefault();
-      contextClickPos = { x: (e.clientX - panX) / zoom, y: (e.clientY - panY) / zoom };
       const menu = document.getElementById('context-menu');
       menu.style.display = 'block';
       menu.style.left = e.clientX + 'px';
@@ -912,6 +1020,8 @@ var StudioServer = class {
         renderTestFunctions(currentGraph);
       } else if (msg.result && msg.result.durationMs !== undefined) {
         renderTestOutput(msg.result);
+      } else if (msg.result && msg.result.content !== undefined) {
+        displaySourceFile(msg.result.filePath, msg.result.content);
       } else if (msg.result && msg.result.errors !== undefined) {
         alert(\`AST Purity Audit: \${msg.result.valid ? 'PASSED (Clean)' : 'FAILED (' + msg.result.errors.length + ' errors)'}\`);
       }
@@ -921,10 +1031,7 @@ var StudioServer = class {
       const layer = document.getElementById('nodes-layer');
       layer.innerHTML = '';
 
-      let col = 0, row = 0;
       const positions = new Map();
-
-      // Entity Nodes
       const entities = graph.nodes.filter(n => n.type === 'entity');
       entities.forEach((node, idx) => {
         const x = 60 + (idx % 3) * 320;
@@ -933,7 +1040,6 @@ var StudioServer = class {
         createNodeElement(node, x, y, layer);
       });
 
-      // Functionality Nodes
       const funcs = graph.nodes.filter(n => n.type === 'functionality');
       funcs.forEach((node, idx) => {
         const parentPos = node.parentEntity ? positions.get('entity:' + node.parentEntity) : null;
@@ -943,7 +1049,6 @@ var StudioServer = class {
         createNodeElement(node, x, y, layer);
       });
 
-      // Libraries & Subapps
       const others = graph.nodes.filter(n => n.type === 'library' || n.type === 'subapp');
       others.forEach((node, idx) => {
         const x = 740 + (idx % 2) * 240;
@@ -960,7 +1065,6 @@ var StudioServer = class {
       el.className = 'krnl-node krnl-node-' + node.type;
       el.style.left = x + 'px';
       el.style.top = y + 'px';
-      el.id = 'dom-' + node.id.replace(/[:/]/g, '_');
 
       el.innerHTML = \`
         <div style="font-size: 10px; text-transform: uppercase; color: var(--krnl-accent); font-weight: bold; margin-bottom: 4px;">\${node.type}</div>
@@ -970,32 +1074,37 @@ var StudioServer = class {
         <div class="node-socket socket-in"></div>
       \`;
 
-      // Drag node
-      let isDraggingNode = false, startX = 0, startY = 0, nodeX = x, nodeY = y;
-      el.onmousedown = (e) => {
-        if (e.target.classList.contains('node-socket')) return;
-        isDraggingNode = true;
-        startX = e.clientX;
-        startY = e.clientY;
-        e.stopPropagation();
+      // Click node to open source in Monaco Drawer
+      el.onclick = () => {
+        if (node.filePath) {
+          ws.send(JSON.stringify({
+            jsonrpc: '2.0',
+            id: 'read-' + Date.now(),
+            method: 'file.read',
+            params: { filePath: node.filePath }
+          }));
+        }
       };
-      window.addEventListener('mousemove', (e) => {
-        if (isDraggingNode) {
-          const dx = (e.clientX - startX) / zoom;
-          const dy = (e.clientY - startY) / zoom;
-          el.style.left = (nodeX + dx) + 'px';
-          el.style.top = (nodeY + dy) + 'px';
-        }
-      });
-      window.addEventListener('mouseup', () => {
-        if (isDraggingNode) {
-          nodeX = parseFloat(el.style.left);
-          nodeY = parseFloat(el.style.top);
-          isDraggingNode = false;
-        }
-      });
 
       layer.appendChild(el);
+    }
+
+    function displaySourceFile(filePath, content) {
+      const drawer = document.getElementById('code-drawer');
+      document.getElementById('drawer-file-title').textContent = filePath.split('/').slice(-3).join('/');
+      drawer.style.display = 'flex';
+
+      if (monacoDrawerEditor) {
+        monacoDrawerEditor.setValue(content);
+        const model = monacoDrawerEditor.getModel();
+        if (model) {
+          monaco.editor.setModelLanguage(model, filePath.endsWith('.json') ? 'json' : 'typescript');
+        }
+      }
+    }
+
+    function closeCodeDrawer() {
+      document.getElementById('code-drawer').style.display = 'none';
     }
 
     function renderWires(edges, positions) {
@@ -1047,7 +1156,7 @@ var StudioServer = class {
       }
       let inputVal = {};
       try {
-        inputVal = JSON.parse(document.getElementById('test-input-json').value);
+        inputVal = JSON.parse(monacoTestInputEditor ? monacoTestInputEditor.getValue() : '{}');
       } catch (e) {
         alert('Invalid JSON input: ' + e.message);
         return;
@@ -1065,12 +1174,10 @@ var StudioServer = class {
     };
 
     function renderTestOutput(result) {
-      const out = document.getElementById('test-output-panel');
-      const badge = result.success ? '<span style="color: #98c379; font-weight: bold;">[SUCCESS]</span>' : '<span style="color: #e06c75; font-weight: bold;">[ERROR]</span>';
-      out.innerHTML = \`
-        <div style="margin-bottom: 8px;">\${badge} Duration: <b>\${result.durationMs}ms</b></div>
-        <pre style="color: #e5c07b;">\${JSON.stringify(result.output || result.error, null, 2)}</pre>
-      \`;
+      document.getElementById('test-metrics-badge').textContent = \`[\u23F1\uFE0F \${result.durationMs}ms | \${result.success ? 'PASSED' : 'FAILED'}]\`;
+      if (monacoTestOutputEditor) {
+        monacoTestOutputEditor.setValue(JSON.stringify(result.output || result.error, null, 2));
+      }
     }
 
     function switchProject(relPath) {
@@ -1091,7 +1198,7 @@ var StudioServer = class {
     }
 
     function contextAddEntity() {
-      const name = prompt('Enter Entity Name (e.g. OrderSystem):');
+      const name = prompt('Enter Entity Name:');
       if (name) {
         ws.send(JSON.stringify({
           jsonrpc: '2.0',
@@ -1116,7 +1223,7 @@ var StudioServer = class {
     }
 
     function contextAddLibrary() {
-      const name = prompt('Enter Domain Concept Library Name (e.g. Payment):');
+      const name = prompt('Enter Domain Concept Library Name:');
       if (name) {
         ws.send(JSON.stringify({
           jsonrpc: '2.0',
@@ -1150,7 +1257,6 @@ var StudioServer = class {
         target.appendChild(item);
       }
 
-      // Generate VanJS code snippet
       const imports = Array.from(new Set(droppedAtoms.map(a => a.type))).join(', ');
       const code = \`import van from 'vanjs-core';
 import { \${imports} } from '@dinilmusick/krnl-ui';
@@ -1162,7 +1268,9 @@ export function View({ state, entity }: any): HTMLElement {
     \${droppedAtoms.map(a => a.type + '({ ... })').join(',\\n    ')}
   );
 }\`;
-      document.getElementById('ui-generated-code').value = code;
+      if (monacoUiEditor) {
+        monacoUiEditor.setValue(code);
+      }
     }
   </script>
 </body>

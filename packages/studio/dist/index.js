@@ -4,7 +4,7 @@ import {
   JsonRpcRouter,
   StudioFileWatcher,
   StudioServer
-} from "./chunk-53NRO24S.js";
+} from "./chunk-YRRHZKMV.js";
 
 // src/client/plugins/VanJSRenderPlugin.ts
 import van from "vanjs-core";

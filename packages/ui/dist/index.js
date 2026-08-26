@@ -145,27 +145,12 @@ function KrnlTextArea({
   );
 }
 
-// src/atoms/KrnlJsonViewer.ts
-import van5 from "vanjs-core";
-var { div: div5, h4, pre, code } = van5.tags;
-function KrnlJsonViewer({ label: labelText, data }) {
-  const dataState = typeof data === "object" && "val" in data ? data : van5.state(data);
-  return div5(
-    { class: "krnl-json-viewer" },
-    labelText ? h4({ style: "margin-bottom: 0.5rem; color: var(--krnl-accent);" }, labelText) : null,
-    pre(
-      { class: "krnl-json-code" },
-      code(() => JSON.stringify(dataState.val, null, 2))
-    )
-  );
-}
-
 // src/atoms/KrnlTile.ts
-import van6 from "vanjs-core";
-var { div: div6, span: span2 } = van6.tags;
+import van5 from "vanjs-core";
+var { div: div5, span: span2 } = van5.tags;
 function KrnlTile({ label: labelText, value, subtitle }) {
-  const valState = typeof value === "object" && "val" in value ? value : van6.state(value);
-  return div6(
+  const valState = typeof value === "object" && "val" in value ? value : van5.state(value);
+  return div5(
     { class: "krnl-tile" },
     labelText ? span2({ class: "krnl-tile-title" }, labelText) : null,
     span2({ class: "krnl-tile-value" }, () => {
@@ -177,23 +162,134 @@ function KrnlTile({ label: labelText, value, subtitle }) {
   );
 }
 
-// src/atoms/KrnlSharedState.ts
+// src/atoms/KrnlJsonViewer.ts
+import van6 from "vanjs-core";
+var { div: div6, h4, pre, code } = van6.tags;
+function KrnlJsonViewer({ label: labelText, data }) {
+  const dataState = typeof data === "object" && "val" in data ? data : van6.state(data);
+  return div6(
+    { class: "krnl-json-viewer" },
+    labelText ? h4({ style: "margin-bottom: 0.5rem; color: var(--krnl-accent);" }, labelText) : null,
+    pre(
+      { class: "krnl-json-code" },
+      code(() => JSON.stringify(dataState.val, null, 2))
+    )
+  );
+}
+
+// src/atoms/KrnlDock.ts
+import van8 from "vanjs-core";
+
+// src/atoms/KrnlTooltip.ts
 import van7 from "vanjs-core";
-var slotRegistry = /* @__PURE__ */ new Map();
-function getSharedSlot(id) {
-  if (!id) {
-    return {
-      options: van7.state([]),
-      value: van7.state(null)
-    };
-  }
-  if (!slotRegistry.has(id)) {
-    slotRegistry.set(id, {
-      options: van7.state([]),
-      value: van7.state(null)
-    });
-  }
-  return slotRegistry.get(id);
+function KrnlTooltip({ text, placement = "auto", children }) {
+  const { div: div7, span: span3 } = van7.tags;
+  const isVisible = van7.state(false);
+  const calculatedPlacement = van7.state(placement);
+  const wrapper = div7(
+    {
+      class: "krnl-tooltip-wrapper",
+      style: "position: relative; display: inline-flex;",
+      onmouseenter: (e) => {
+        const target = e.currentTarget;
+        const rect = target.getBoundingClientRect();
+        if (placement === "auto") {
+          calculatedPlacement.val = rect.top < 80 ? "bottom" : "top";
+        } else {
+          calculatedPlacement.val = placement;
+        }
+        isVisible.val = true;
+      },
+      onmouseleave: () => {
+        isVisible.val = false;
+      }
+    },
+    Array.isArray(children) ? children : [children],
+    () => {
+      if (!isVisible.val) return span3({ style: "display: none;" });
+      let positionStyle = "position: absolute; z-index: 9999; white-space: nowrap; pointer-events: none;";
+      if (calculatedPlacement.val === "bottom") {
+        positionStyle += " top: calc(100% + 6px); left: 50%; transform: translateX(-50%);";
+      } else if (calculatedPlacement.val === "top") {
+        positionStyle += " bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);";
+      } else if (calculatedPlacement.val === "left") {
+        positionStyle += " right: calc(100% + 6px); top: 50%; transform: translateY(-50%);";
+      } else {
+        positionStyle += " left: calc(100% + 6px); top: 50%; transform: translateY(-50%);";
+      }
+      return div7(
+        {
+          class: "krnl-tooltip-content",
+          style: `${positionStyle} background: rgba(18, 18, 18, 0.95); color: #e5c07b; border: 1px solid #d4af37; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-family: monospace; box-shadow: 0 4px 12px rgba(0,0,0,0.5);`
+        },
+        text
+      );
+    }
+  );
+  return wrapper;
+}
+
+// src/atoms/KrnlDock.ts
+function KrnlDock({ items, position = "bottom", className = "" }) {
+  const { div: div7, button: button2, span: span3 } = van8.tags;
+  const activeId = van8.state(items.find((i) => i.active)?.id || items[0]?.id || "");
+  const dockStyle = `
+    position: fixed;
+    ${position === "bottom" ? "bottom: 16px; left: 50%; transform: translateX(-50%); flex-direction: row;" : ""}
+    ${position === "top" ? "top: 16px; left: 50%; transform: translateX(-50%); flex-direction: row;" : ""}
+    ${position === "left" ? "left: 16px; top: 50%; transform: translateY(-50%); flex-direction: column;" : ""}
+    ${position === "right" ? "right: 16px; top: 50%; transform: translateY(-50%); flex-direction: column;" : ""}
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(24, 24, 28, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 10px rgba(212, 175, 55, 0.15);
+    z-index: 9000;
+  `;
+  return div7(
+    { class: `krnl-dock krnl-dock-${position} ${className}`, style: dockStyle },
+    items.map((item) => {
+      const isItemActive = () => activeId.val === item.id;
+      const btn = button2(
+        {
+          class: "krnl-dock-item",
+          style: () => `
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            background: ${isItemActive() ? "rgba(212, 175, 55, 0.25)" : "rgba(255, 255, 255, 0.05)"};
+            border: 1px solid ${isItemActive() ? "#d4af37" : "rgba(255, 255, 255, 0.1)"};
+            color: ${isItemActive() ? "#d4af37" : "#e0e0e0"};
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+          `,
+          onclick: () => {
+            activeId.val = item.id;
+            item.onClick();
+          }
+        },
+        typeof item.icon === "string" ? span3({ style: "font-size: 20px;" }, item.icon) : item.icon,
+        item.badge ? span3(
+          {
+            style: "position: absolute; top: -4px; right: -4px; background: #e06c75; color: white; border-radius: 8px; font-size: 10px; padding: 2px 5px; font-weight: bold;"
+          },
+          String(item.badge)
+        ) : null
+      );
+      return KrnlTooltip({
+        text: item.label,
+        placement: position === "top" ? "bottom" : "top",
+        children: btn
+      });
+    })
+  );
 }
 
 // src/atoms/KrnlAgentBridge.ts
@@ -346,121 +442,8 @@ var KrnlAgentBridgeManager = class {
 };
 var KrnlAgentBridge = new KrnlAgentBridgeManager();
 
-// src/atoms/KrnlTooltip.ts
-import van8 from "vanjs-core";
-function KrnlTooltip({ text, placement = "auto", children }) {
-  const { div: div7, span: span3 } = van8.tags;
-  const isVisible = van8.state(false);
-  const calculatedPlacement = van8.state(placement);
-  const wrapper = div7(
-    {
-      class: "krnl-tooltip-wrapper",
-      style: "position: relative; display: inline-flex;",
-      onmouseenter: (e) => {
-        const target = e.currentTarget;
-        const rect = target.getBoundingClientRect();
-        if (placement === "auto") {
-          calculatedPlacement.val = rect.top < 80 ? "bottom" : "top";
-        } else {
-          calculatedPlacement.val = placement;
-        }
-        isVisible.val = true;
-      },
-      onmouseleave: () => {
-        isVisible.val = false;
-      }
-    },
-    Array.isArray(children) ? children : [children],
-    () => {
-      if (!isVisible.val) return span3({ style: "display: none;" });
-      let positionStyle = "position: absolute; z-index: 9999; white-space: nowrap; pointer-events: none;";
-      if (calculatedPlacement.val === "bottom") {
-        positionStyle += " top: calc(100% + 6px); left: 50%; transform: translateX(-50%);";
-      } else if (calculatedPlacement.val === "top") {
-        positionStyle += " bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);";
-      } else if (calculatedPlacement.val === "left") {
-        positionStyle += " right: calc(100% + 6px); top: 50%; transform: translateY(-50%);";
-      } else {
-        positionStyle += " left: calc(100% + 6px); top: 50%; transform: translateY(-50%);";
-      }
-      return div7(
-        {
-          class: "krnl-tooltip-content",
-          style: `${positionStyle} background: rgba(18, 18, 18, 0.95); color: #e5c07b; border: 1px solid #d4af37; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-family: monospace; box-shadow: 0 4px 12px rgba(0,0,0,0.5);`
-        },
-        text
-      );
-    }
-  );
-  return wrapper;
-}
-
-// src/atoms/KrnlDock.ts
-import van9 from "vanjs-core";
-function KrnlDock({ items, position = "bottom", className = "" }) {
-  const { div: div7, button: button2, span: span3 } = van9.tags;
-  const activeId = van9.state(items.find((i) => i.active)?.id || items[0]?.id || "");
-  const dockStyle = `
-    position: fixed;
-    ${position === "bottom" ? "bottom: 16px; left: 50%; transform: translateX(-50%); flex-direction: row;" : ""}
-    ${position === "top" ? "top: 16px; left: 50%; transform: translateX(-50%); flex-direction: row;" : ""}
-    ${position === "left" ? "left: 16px; top: 50%; transform: translateY(-50%); flex-direction: column;" : ""}
-    ${position === "right" ? "right: 16px; top: 50%; transform: translateY(-50%); flex-direction: column;" : ""}
-    display: flex;
-    gap: 8px;
-    padding: 8px 12px;
-    background: rgba(24, 24, 28, 0.85);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(212, 175, 55, 0.3);
-    border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 10px rgba(212, 175, 55, 0.15);
-    z-index: 9000;
-  `;
-  return div7(
-    { class: `krnl-dock krnl-dock-${position} ${className}`, style: dockStyle },
-    items.map((item) => {
-      const isItemActive = () => activeId.val === item.id;
-      const btn = button2(
-        {
-          class: "krnl-dock-item",
-          style: () => `
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 44px;
-            height: 44px;
-            border-radius: 10px;
-            background: ${isItemActive() ? "rgba(212, 175, 55, 0.25)" : "rgba(255, 255, 255, 0.05)"};
-            border: 1px solid ${isItemActive() ? "#d4af37" : "rgba(255, 255, 255, 0.1)"};
-            color: ${isItemActive() ? "#d4af37" : "#e0e0e0"};
-            cursor: pointer;
-            transition: all 0.15s ease;
-            position: relative;
-          `,
-          onclick: () => {
-            activeId.val = item.id;
-            item.onClick();
-          }
-        },
-        typeof item.icon === "string" ? span3({ style: "font-size: 20px;" }, item.icon) : item.icon,
-        item.badge ? span3(
-          {
-            style: "position: absolute; top: -4px; right: -4px; background: #e06c75; color: white; border-radius: 8px; font-size: 10px; padding: 2px 5px; font-weight: bold;"
-          },
-          String(item.badge)
-        ) : null
-      );
-      return KrnlTooltip({
-        text: item.label,
-        placement: position === "top" ? "bottom" : "top",
-        children: btn
-      });
-    })
-  );
-}
-
 // src/atoms/KrnlReactive.ts
-import van10 from "vanjs-core";
+import van9 from "vanjs-core";
 var KrnlReactiveBridge = class {
   static states = /* @__PURE__ */ new Map();
   /**
@@ -468,7 +451,7 @@ var KrnlReactiveBridge = class {
    */
   static useEntityState(key, initialValue) {
     if (!this.states.has(key)) {
-      this.states.set(key, van10.state(initialValue));
+      this.states.set(key, van9.state(initialValue));
     }
     return this.states.get(key);
   }
@@ -490,6 +473,111 @@ var KrnlReactiveBridge = class {
     };
   }
 };
+
+// src/atoms/KrnlSharedState.ts
+import van10 from "vanjs-core";
+var slotRegistry = /* @__PURE__ */ new Map();
+function getSharedSlot(id) {
+  if (!id) {
+    return {
+      options: van10.state([]),
+      value: van10.state(null)
+    };
+  }
+  if (!slotRegistry.has(id)) {
+    slotRegistry.set(id, {
+      options: van10.state([]),
+      value: van10.state(null)
+    });
+  }
+  return slotRegistry.get(id);
+}
+
+// src/atoms/KrnlMonacoEditor.ts
+import van11 from "vanjs-core";
+function KrnlMonacoEditor(props = {}) {
+  const container = van11.tags.div({
+    class: `krnl-monaco-wrapper ${props.class || ""}`,
+    style: `
+      width: ${props.width || "100%"};
+      height: ${props.height || "100%"};
+      min-height: 120px;
+      border: 1px solid rgba(212, 175, 55, 0.25);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #16161e;
+      position: relative;
+      ${props.style || ""}
+    `
+  });
+  queueMicrotask(() => {
+    const win = window;
+    const initialVal = typeof props.value === "object" && props.value !== null && "val" in props.value ? props.value.val : props.value || "";
+    const initEditor = () => {
+      if (!win.monaco) return;
+      try {
+        win.monaco.editor.defineTheme("krnl-dark", {
+          base: "vs-dark",
+          inherit: true,
+          rules: [
+            { token: "keyword", foreground: "d4af37", fontStyle: "bold" },
+            { token: "string", foreground: "98c379" },
+            { token: "number", foreground: "d19a66" },
+            { token: "comment", foreground: "5c6370", fontStyle: "italic" },
+            { token: "type", foreground: "e5c07b" },
+            { token: "identifier", foreground: "f5ede4" }
+          ],
+          colors: {
+            "editor.background": "#16161e",
+            "editor.foreground": "#f5ede4",
+            "editor.lineHighlightBackground": "#1f1f2a",
+            "editorLineNumber.foreground": "#5c6370",
+            "editorLineNumber.activeForeground": "#d4af37",
+            "editorCursor.foreground": "#d4af37",
+            "editor.selectionBackground": "#2d3139",
+            "editorWidget.background": "#16161e",
+            "editorWidget.border": "#d4af37"
+          }
+        });
+      } catch (e) {
+      }
+      const editor = win.monaco.editor.create(container, {
+        value: initialVal,
+        language: props.language || "typescript",
+        theme: props.theme || "krnl-dark",
+        readOnly: props.readOnly ?? false,
+        automaticLayout: true,
+        fontSize: 12,
+        fontFamily: 'Fira Code, Menlo, Monaco, "Courier New", monospace',
+        lineNumbers: props.lineNumbers || "on",
+        minimap: { enabled: props.minimap ?? false },
+        scrollBeyondLastLine: false,
+        renderLineHighlight: "all",
+        tabSize: 2
+      });
+      if (props.onChange) {
+        editor.onDidChangeModelContent(() => {
+          props.onChange(editor.getValue());
+        });
+      }
+      if (typeof props.value === "object" && props.value !== null && "val" in props.value) {
+        van11.derive(() => {
+          const currentVal = props.value.val;
+          if (editor.getValue() !== currentVal) {
+            editor.setValue(currentVal);
+          }
+        });
+      }
+      container.__monacoEditor = editor;
+    };
+    if (win.monaco) {
+      initEditor();
+    } else if (win.require) {
+      win.require(["vs/editor/editor.main"], initEditor);
+    }
+  });
+  return container;
+}
 export {
   KrnlAgentBridge,
   KrnlAgentBridgeManager,
@@ -497,6 +585,7 @@ export {
   KrnlDock,
   KrnlDropdown,
   KrnlJsonViewer,
+  KrnlMonacoEditor,
   KrnlReactiveBridge,
   KrnlTextArea,
   KrnlTextInput,
