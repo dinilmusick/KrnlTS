@@ -1,0 +1,20 @@
+{
+  "name": "create-krnl",
+  "version": "1.0.0",
+  "description": "Interactive project scaffolder for the Krnl Framework",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "create-krnl": "dist/index.js"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3"
+  }
+}

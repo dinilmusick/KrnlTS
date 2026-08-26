@@ -1,58 +1,58 @@
 {
-  "name": "@dinilmusick/krnlts",
+  "name": "@dinilmusick/krnl",
   "version": "1.0.0",
-  "description": "The core library for the Krnl ecosystem, providing a uniform syntax and API across JavaScript projects.",
+  "description": "Krnl: Full-Stack Multiplatform Framework with Direct-DOM Reactivity, AST Purity Gates, and Code Evolution",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "packages/core/dist/index.js",
+  "types": "packages/core/dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./packages/core/dist/index.js",
+      "require": "./packages/core/dist/index.cjs"
+    },
+    "./ui": {
+      "import": "./packages/ui/dist/index.js",
+      "require": "./packages/ui/dist/index.cjs"
+    },
+    "./validate": {
+      "import": "./packages/validate/dist/index.js",
+      "require": "./packages/validate/dist/index.cjs"
+    },
+    "./cli": {
+      "import": "./packages/cli/dist/index.js",
+      "require": "./packages/cli/dist/index.cjs"
     }
+  },
+  "bin": {
+    "krnl": "./packages/cli/dist/bin/krnl.js",
+    "krnlts-watch": "./packages/cli/dist/bin/krnl.js",
+    "krnlts-validate": "./packages/cli/dist/bin/krnl.js"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
   },
-  "bin": {
-    "krnlts-watch": "dist/bin/krnlts-watch.js",
-    "krnlts-validate": "dist/bin/krnlts-validate.js"
-  },
   "scripts": {
-    "prepare": "npm run build",
-    "proto": "pbjs -t static-module -w es6 -o src/krnl/core/krnl_pb.js src/krnl/core/krnl.proto && pbts -o src/krnl/core/krnl_pb.d.ts src/krnl/core/krnl_pb.js",
-    "build": "npm run proto && tsup src/index.ts src/bin/krnlts-watch.ts src/bin/krnlts-validate.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema,esbuild && mkdir -p dist/frontend/atoms && cp -R src/krnl/frontend/atoms/ dist/frontend/atoms/ && cp src/krnl/frontend/index.css dist/frontend/index.css",
-    "sync": "pnpm install"
+    "build": "pnpm --filter @dinilmusick/krnl-core run build && pnpm --filter @dinilmusick/krnl-ui run build && pnpm --filter @dinilmusick/krnl-validate run build && pnpm --filter @dinilmusick/eslint-plugin-krnl run build && pnpm --filter @dinilmusick/krnl-cli run build && pnpm --filter create-krnl run build",
+    "validate": "node packages/cli/dist/bin/krnl.js validate",
+    "dev": "node packages/cli/dist/bin/krnl.js dev",
+    "watch": "node packages/cli/dist/bin/krnl.js watch"
   },
-  "files": [
-    "dist",
-    "dist/frontend",
-    "src/krnl/frontend/atoms"
-  ],
   "keywords": [
     "krnl",
     "framework",
-    "messaging",
-    "entities",
+    "full-stack",
+    "multiplatform",
+    "vanjs",
+    "code-evolution",
+    "ast-purity",
     "orchestrator"
   ],
   "author": "Dinil Palackal",
   "license": "MIT",
-  "dependencies": {
-    "esbuild": "^0.25.0",
-    "protobufjs": "^8.7.1",
-    "vanjs-core": "^1.5.3",
-    "ws": "^8.18.0",
-    "zod": "3.24.1",
-    "zod-to-json-schema": "3.24.1"
-  },
   "devDependencies": {
     "@types/node": "^25.6.0",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "@types/ws": "^8.18.1",
-    "protobufjs-cli": "^2.6.1",
     "tsup": "^8.4.0",
+    "turbo": "^2.4.4",
     "typescript": "^5.7.3"
   }
 }

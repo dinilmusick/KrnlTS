@@ -1,0 +1,24 @@
+{
+  "name": "@dinilmusick/eslint-plugin-krnl",
+  "version": "1.0.0",
+  "description": "ESLint plugin enforcing Krnl 4-layer function purity, line limits, and architectural paradigms",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --dts --format esm,cjs"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3"
+  }
+}

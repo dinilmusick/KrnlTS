@@ -1,0 +1,665 @@
+//////////////////////////////////////// CODE OVERVIEW ////////////////////////////////////////////
+/**
+ * @file K_LIB_Krnl_Functionality_Types.ts
+ * @description defines Logic Atoms with Visibility control for Recursive Bubbling.
+ */
+
+import { krnlEmitter } from "./K_LIB_Krnl_Messaging_Concepts.js";
+import { telemetry } from "./K_LIB_Krnl_Telemetry.js";
+import type { KrnlEndpointAccessPolicy, KrnlRequiresSpec } from "./types.js";
+import type { KrnlIntentionFunctionality } from "./K_LIB_Krnl_Intention_Types.js";
+import type { KrnlIntelligenceSpec } from "./K_LIB_Krnl_Ai_Concepts.js";
+import { ObjectKit } from "../tools/ObjectKit.js";
+import {
+  FunctionalityTable,
+  WorkspaceBackendFactory,
+  type IFunctionalityTable,
+  type FunctionalityBackendFlag,
+  type BackendServiceType
+} from "../backend/index.js";
+
+/**
+ * Helper to ensure state isolation.
+ */
+function cloneState(source: any): any {
+  return ObjectKit.deepClone(source);
+}
+
+/**
+ * TRANSPORT ADAPTER INTERFACE
+ */
+export abstract class krnlTransportAdapter {
+  abstract call(targetFunction: string, input: any, opts: any): Promise<any>;
+}
+
+/**
+ * MEMORY TRANSPORT ADAPTER
+ * Default adapter for in-memory entity communication.
+ */
+export class MemoryTransportAdapter extends krnlTransportAdapter {
+  targetEntity: any;
+
+  constructor(targetEntity: any) {
+    super();
+    this.targetEntity = targetEntity;
+  }
+
+  async call(targetFunction: string, input: any, opts: any): Promise<any> {
+    if (!this.targetEntity || typeof this.targetEntity.call !== 'function') {
+      throw new Error("MemoryTransportAdapter: Invalid target entity.");
+    }
+    return await this.targetEntity.call(targetFunction, input, opts);
+  }
+}
+
+export interface KrnlFunctionalityManifest {
+  version?: string;
+  author?: string;
+  tags?: string[];
+  category?: string;
+  /** Runtime npm dependencies this functionality requires: { "axios": "^1.0.0" } */
+  dependencies?: Record<string, string>;
+  /** Dev/build-only npm dependencies */
+  devDependencies?: Record<string, string>;
+  /** Build tool requirements, e.g. ['esbuild', 'typescript'] */
+  buildRequirements?: string[];
+  /** Declared AI capabilities */
+  capabilities?: string[];
+  /** External resources needed: env vars, files */
+  resources?: { type: 'env' | 'file'; name: string; required?: boolean }[];
+}
+
+export interface KrnlWorkspaceRequirements {
+  dependencies: Record<string, string>;
+  devDependencies: Record<string, string>;
+  buildRequirements: string[];
+  resources: { type: 'env' | 'file'; name: string; required?: boolean }[];
+  conflicts?: { package: string; versionA: string; versionB: string; sources: string[] }[];
+}
+
+/**
+ * KRNL LOCAL FUNCTIONALITY
+ * The fundamental unit of logic.
+ */
+export class krnlLocalFunctionality {
+  id: string;
+  visibility: string;
+  initialState: any;
+  api: Function;
+  isLocal: boolean = true;
+  sourcePath: string | null;
+  helpers: Map<string, any>;
+  emitters: Map<string, krnlEmitter>;
+  schema: any;
+  uiSpec?: any;
+  description?: string;
+  method?: string;
+  tests?: any[];
+  examples?: any[];
+  intelligenceSpec?: KrnlIntelligenceSpec;
+  /** Port-based access control policy. Absent = unrestricted. */
+  accessPolicy?: KrnlEndpointAccessPolicy;
+  /** Shared secret for allow_with_key / ask_key_unlisted gates. */
+  accessKey?: string;
+  /** Optional Functionality Manifest declaring dependencies, capabilities, and resources */
+  manifest?: KrnlFunctionalityManifest | null;
+  lifecycle: {
+    beginning?: Function;
+    during?: Function;
+    end?: Function;
+    failure?: Function;
+    teardown?: Function;
+  };
+  state: any;
+  hostEntity: any;
+  intention?: KrnlIntentionFunctionality;
+  ai?: any;
+
+  requires?: KrnlRequiresSpec;
+  _hasBeenExecuted: boolean = false;
+  backend?: FunctionalityBackendFlag | null;
+  table?: IFunctionalityTable | null;
+
+  constructor(config: any = {}) {
+    const {
+      id,
+      visibility = 'public', // Default: public (bubbles up)
+      initialState = {},
+      api = (input: any) => input,
+      helpers = {},
+      emitters = {},
+      events = {},
+      schema = null,
+      onMount = null,
+      onTeardown = null,
+      sourcePath = null,
+      accessPolicy = null,
+      accessKey = null,
+      tests = [],
+      requires = null,
+      manifest = null,
+      backend = null,
+    } = config;
+
+    if (!id) throw new Error("LocalFunctionality requires an ID.");
+
+    this.id = id;
+    this.visibility = visibility;
+    this.initialState = initialState;
+    this.api = api;
+    this.sourcePath = sourcePath;
+    if (requires) this.requires = requires;
+    this.manifest = manifest || config.manifest || null;
+    this.backend = backend || config.backend || null;
+    this.table = null;
+    this.helpers = new Map(Object.entries(helpers));
+    this.emitters = new Map();
+    this.schema = schema;
+    this.description = config.description || '';
+    this.method = config.method || 'POST';
+    this.tests = tests;
+    this.examples = config.examples || null;
+    this.uiSpec = config.uiSpec || null;
+    this.intention = config.intention || null;
+    this.intelligenceSpec = config.intelligenceSpec || null;
+    if (accessPolicy) this.accessPolicy = accessPolicy;
+    if (accessKey)    this.accessKey    = accessKey;
+
+    this.lifecycle = {
+      beginning: onMount || events.beginning,
+      during: events.during,
+      end: events.end,
+      failure: events.failure,
+      teardown: onTeardown || events.teardown
+    };
+
+    // Ensure state:changed emitter exists if not provided
+    if (!emitters['state:changed']) {
+      this.emitters.set('state:changed', new krnlEmitter());
+    }
+
+    Object.entries(emitters).forEach(([eid, e]) => {
+      this.emitters.set(eid, e instanceof krnlEmitter ? e : new krnlEmitter());
+    });
+
+    this.state = this._createObservedState(cloneState(initialState));
+  }
+
+  _createObservedState(initialState: any): any {
+    const self = this;
+    const proxyCache = new WeakMap();
+    const handler: ProxyHandler<any> = {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        if (typeof value === 'object' && value !== null) {
+          if (!proxyCache.has(value)) {
+            proxyCache.set(value, new Proxy(value, handler));
+          }
+          return proxyCache.get(value);
+        }
+        return value;
+      },
+      set(target, prop, value, receiver) {
+        const result = Reflect.set(target, prop, value, receiver);
+        if (result) {
+          self._notifyStateChanged(prop as string, value);
+        }
+        return result;
+      },
+      deleteProperty(target, prop) {
+        const result = Reflect.deleteProperty(target, prop);
+        if (result) {
+          self._notifyStateChanged(prop as string, undefined);
+        }
+        return result;
+      }
+    };
+    return new Proxy(initialState, handler);
+  }
+
+  _notifyStateChanged(prop: string, value: any): void {
+    const stateEmitter = this.emitters.get('state:changed');
+    if (stateEmitter) {
+      (stateEmitter as any).pushDataStreamToEmitter({
+        prop,
+        value,
+        state: this.state, // This is the proxied state
+        functionalityId: this.id
+      });
+    }
+  }
+
+  /**
+   * Updates the visibility and handles interface registration/deregistration.
+   * This is the mechanism used to STOP bubbling at a certain level.
+   */
+  setVisibility(v: string): void {
+    const oldVisibility = this.visibility;
+    this.visibility = v;
+
+    if (!this.hostEntity) return;
+
+    if (oldVisibility === 'private' && v === 'public') {
+      // Transition to Public: Register in interface
+      this._registerInInterface();
+      // Notify owner to bubble it up
+      const owner = (this.hostEntity as any).hierarchyManager.getOwnerEntity();
+      if (owner) (owner as any)._onComponentFunctionalityAdded(this.hostEntity, this);
+    } else if (oldVisibility === 'public' && v === 'private') {
+      this._unregisterFromInterface();
+      const owner = (this.hostEntity as any).hierarchyManager.getOwnerEntity();
+      if (owner && (owner as any)._onComponentFunctionalityRemoved) {
+        (owner as any)._onComponentFunctionalityRemoved(this.hostEntity, this.id);
+      }
+    }
+  }
+
+  _unregisterFromInterface(): void {
+    const entity = this.hostEntity;
+    if (!entity) return;
+    (entity as any).interface.removeCollector(this.id);
+    this.emitters.forEach((_, eid) => {
+      (entity as any).interface.removeEmitter(`${this.id}:${eid}`);
+    });
+  }
+
+  _registerInInterface(): void {
+    const entity = this.hostEntity;
+    // Register API as input
+    const mainCollector = (entity as any).interface.createCollector(this.id);
+    mainCollector._directHandler = async (msg: any) => {
+      const caller = msg.metadata?.caller || 'anonymous';
+      return await this.execute(msg.data, { caller });
+    };
+
+    // Register Emitters as outputs
+    this.emitters.forEach((emitter, eid) => {
+      const interfaceEmitter = (entity as any).interface.createEmitter(`${this.id}:${eid}`);
+      emitter.subscribe((msg: any) => (interfaceEmitter as any).pushDataStreamToEmitter(msg.data, msg.time));
+    });
+  }
+
+  /**
+   * checkAccess — port-based access gate.
+   *
+   * f(p, k) ∈ { PASS, REJECT }
+   *   FORBID  if p ∈ P_forbid
+   *   PASS    if p ∈ P_allow
+   *   KEY(k)  if p ∈ P_allow_with_key
+   *   default_connection_behaviour(p, k)   otherwise (unlisted)
+   */
+  checkAccess(callerPort: number, key?: string): { allowed: boolean; reason?: string } {
+    const p = this.accessPolicy;
+    // If no policy is defined, access is unrestricted (free).
+    if (!p) return { allowed: true };
+
+    if (p.forbid.includes(callerPort))
+      return { allowed: false, reason: `Port ${callerPort} is explicitly forbidden from accessing this endpoint.` };
+
+    if (p.allow.includes(callerPort))
+      return { allowed: true };
+
+    if (p.allow_with_key.includes(callerPort)) {
+      if (key && key === this.accessKey) return { allowed: true };
+      return {
+        allowed: false,
+        reason: key
+          ? `Invalid access key for port ${callerPort}.`
+          : `Port ${callerPort} requires an access key (x-krnl-access-key header).`
+      };
+    }
+
+    // Unlisted port — apply default behaviour
+    switch (p.default_connection_behaviour) {
+      case 'allow_unlisted':
+        return { allowed: true };
+      case 'ask_key_unlisted':
+        if (key && key === this.accessKey) return { allowed: true };
+        return {
+          allowed: false,
+          reason: key
+            ? `Invalid access key for this endpoint.`
+            : `This endpoint requires an access key. Provide it via the 'x-krnl-access-key' header.`
+        };
+      case 'forbid_unlisted':
+        return { allowed: false, reason: `Port ${callerPort} is not permitted. This is a restricted (internal) endpoint.` };
+    }
+  }
+
+  bindToEntity(entity: any): this {
+    this.hostEntity = entity;
+
+    // Initialize backend & dedicated table if configured or flag enabled
+    if (this.backend) {
+      this._initializeBackendTable(entity);
+    }
+
+    if (this.visibility === 'public') {
+      this._registerInInterface();
+    }
+    if (typeof this.lifecycle.beginning === "function") {
+      this.lifecycle.beginning({
+        state: this.state,
+        emitters: this.emitters,
+        helpers: this.helpers,
+        entity: this.hostEntity,
+        functionality: this,
+        table: this.table,
+        backend: this.table?.provider
+      });
+    }
+    return this;
+  }
+
+  private _initializeBackendTable(entity: any): void {
+    try {
+      let service: BackendServiceType = "sqlite";
+      let tableName = this.id;
+      let credentials: any = undefined;
+
+      if (typeof this.backend === "string") {
+        service = this.backend as BackendServiceType;
+      } else if (typeof this.backend === "object" && this.backend !== null) {
+        if (this.backend.service) service = this.backend.service;
+        if (this.backend.table) tableName = this.backend.table;
+        if (this.backend.credentials) credentials = this.backend.credentials;
+      }
+
+      // Cascade credentials from host entity if not explicitly specified on functionality
+      if (!credentials && entity && typeof entity.getBackendCredentials === "function") {
+        credentials = entity.getBackendCredentials(service);
+      }
+
+      const provider = WorkspaceBackendFactory.resolveDataProvider({
+        id: `provider-${this.id}`,
+        provider: service,
+        mode: "local",
+        database: {
+          type: service as any,
+          filePath: credentials?.filePath || `./${tableName}.sqlite`,
+          enableWAL: credentials?.enableWAL ?? true,
+          ...credentials
+        }
+      });
+
+      this.table = new FunctionalityTable(tableName, provider);
+    } catch (err: any) {
+      console.warn(`[KrnlBackendWarning] Failed to initialize table for functionality "${this.id}":`, err.message);
+    }
+  }
+
+  teardown(): void {
+    if (typeof this.lifecycle.teardown === "function") {
+      this.lifecycle.teardown({
+        state: this.state,
+        emitters: this.emitters,
+        helpers: this.helpers,
+        entity: this.hostEntity,
+        functionality: this,
+        table: this.table,
+        backend: this.table?.provider
+      });
+    }
+  }
+
+  async execute(input: any, opts: any = {}): Promise<any> {
+    const caller = opts.caller || 'default';
+    const activeState = this.state;
+    const activeTelemetry = this.hostEntity?.telemetry || telemetry;
+    const trace = (activeTelemetry.enabled) 
+      ? activeTelemetry.startTrace(this.id) 
+      : null;
+
+    // ── ACCESS CONTROL GATE ──────────────────────────────────────────
+    // Enforced only when callerPort is provided (HTTP / WS transports).
+    // In-memory local calls bypass the gate (trusted internal path).
+    if (this.accessPolicy && opts.callerPort !== undefined) {
+      const access = this.checkAccess(opts.callerPort as number, opts.accessKey as string | undefined);
+      if (!access.allowed) {
+        if (trace) activeTelemetry.endTrace(this.id, trace, false);
+        return { status: 'error', message: `[AccessDenied] ${access.reason}`, payload: null };
+      }
+    }
+
+    // ── DEPENDENCY GATE ──────────────────────────────────────────────
+    if (this.requires) {
+      const gateError = await this._checkRequires();
+      if (gateError) {
+        if (trace) activeTelemetry.endTrace(this.id, trace, false);
+        return { status: 'error', message: `[DependencyGate] ${gateError}`, payload: null };
+      }
+    }
+
+    // --- INPUT VALIDATION ---
+    if (this.schema && this.schema.input) {
+      try {
+        if (typeof this.schema.input.verify === 'function') {
+          const verifyError = this.schema.input.verify(input);
+          if (verifyError) {
+            throw new Error(`Protobuf verification failed: ${verifyError}`);
+          }
+        } else if (typeof this.schema.input.parse === 'function') {
+          // Zod-like
+          input = this.schema.input.parse(input);
+        } else if (typeof this.schema.input === 'function') {
+          // Custom validator function
+          if (!this.schema.input(input)) {
+            throw new Error(`Input validation failed.`);
+          }
+        }
+      } catch (err: any) {
+        const msg = err.errors ? JSON.stringify(err.errors) : err.message;
+        throw new Error(`[KrnlSchemaError] Input validation failed for "${this.id}": ${msg}`);
+      }
+    }
+
+    try {
+      if (typeof this.lifecycle.during === "function") {
+        this.lifecycle.during({ input, opts, state: activeState, entity: this.hostEntity });
+      }
+
+      let result = await this.api(input, {
+        state: activeState,
+        emitters: this.emitters,
+        helpers: this.helpers,
+        entity: this.hostEntity,
+        functionality: this,
+        caller: caller,
+        table: this.table,
+        backend: this.table?.provider
+      });
+
+      // --- OUTPUT VALIDATION ---
+      if (this.schema && this.schema.output) {
+        try {
+          if (typeof this.schema.output.verify === 'function') {
+            const verifyError = this.schema.output.verify(result);
+            if (verifyError) {
+              console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}": Protobuf verification failed: ${verifyError}`);
+            }
+          } else if (typeof this.schema.output.parse === 'function') {
+            this.schema.output.parse(result);
+          } else if (typeof this.schema.output === 'function') {
+            if (!this.schema.output(result)) {
+              console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}".`);
+            }
+          }
+        } catch (err: any) {
+          const msg = err.errors ? JSON.stringify(err.errors) : err.message;
+          console.warn(`[KrnlSchemaWarning] Output validation failed for "${this.id}": ${msg}`);
+        }
+      }
+
+      // --- TELEMETRY END (SUCCESS) ---
+      if (trace) activeTelemetry.endTrace(this.id, trace, true);
+
+      // --- RECORD & BROADCAST INTERACTION ---
+      const interactionEvent = {
+        type: 'frontend:interaction',
+        fid: this.id,
+        timestamp: Date.now(),
+        input,
+        output: result
+      };
+      const stateEmitter = this.emitters.get('state:changed');
+      stateEmitter?.pushDataStreamToEmitter(interactionEvent);
+
+      let rootSystem: any = this.hostEntity;
+      while (rootSystem && !rootSystem._frontend) {
+        rootSystem = rootSystem.hierarchyManager?.getOwnerEntity?.();
+      }
+      const frontend = rootSystem?._frontend;
+      if (frontend) {
+        frontend.interactionsHistory.push(interactionEvent);
+        if (frontend.interactionsHistory.length > 50) {
+          frontend.interactionsHistory.shift();
+        }
+      }
+
+      this._hasBeenExecuted = true;
+      return {
+        status: 'success',
+        payload: result
+      };
+    } catch (err: any) {
+      // --- TELEMETRY END (ERROR) ---
+      if (trace) activeTelemetry.endTrace(this.id, trace, false);
+
+      // --- RECORD & BROADCAST ERROR INTERACTION ---
+      const interactionEvent = {
+        type: 'frontend:interaction',
+        fid: this.id,
+        timestamp: Date.now(),
+        input,
+        output: { status: 'error', message: err.message, payload: null }
+      };
+      const stateEmitter = this.emitters.get('state:changed');
+      stateEmitter?.pushDataStreamToEmitter(interactionEvent);
+
+      let rootSystem: any = this.hostEntity;
+      while (rootSystem && !rootSystem._frontend) {
+        rootSystem = rootSystem.hierarchyManager?.getOwnerEntity?.();
+      }
+      const frontend = rootSystem?._frontend;
+      if (frontend) {
+        frontend.interactionsHistory.push(interactionEvent);
+        if (frontend.interactionsHistory.length > 50) {
+          frontend.interactionsHistory.shift();
+        }
+      }
+
+      if (typeof this.lifecycle.failure === "function") {
+        this.lifecycle.failure({ error: err, input, caller });
+      }
+
+      return {
+        status: 'error',
+        message: err.message,
+        payload: null
+      };
+    }
+  }
+
+  private async _checkRequires(): Promise<string | null> {
+    const r = this.requires!;
+    const entity = this.hostEntity as any;
+
+    // 1. Check sibling functionalities executed
+    for (const fid of (r.functionalitiesExecuted ?? [])) {
+      const sibling = entity?.localFunctionalities?.get(fid);
+      if (!sibling?._hasBeenExecuted) {
+        return `Requires functionality '${fid}' to have been executed first.`;
+      }
+    }
+
+    // 2. Check named entity flags
+    for (const flag of (r.flags ?? [])) {
+      if (!entity?._krnlFlags?.has(flag)) {
+        return `Requires flag '${flag}' to be set. Check boot sequence or entity initialization.`;
+      }
+    }
+
+    // 3. Custom evaluation check
+    if (typeof r.check === 'function') {
+      const result = await r.check(entity);
+      if (result) return result;
+    }
+
+    return null;
+  }
+}
+
+/**
+ * KRNL REMOTE FUNCTIONALITY
+ * Proxy for recursive bubbling.
+ */
+export class krnlRemoteFunctionality {
+  id: string;
+  targetFunction: string;
+  targetEntity: any;
+  visibility: string;
+  uiSpec?: any;
+  schema?: any;
+  isLocal: boolean = false;
+  transport: krnlTransportAdapter;
+  hostEntity: any;
+
+  constructor(config: any = {}) {
+    const { id, targetEntity, targetFunction, transport, visibility = 'public', uiSpec, schema } = config;
+    this.id = id;
+    this.targetFunction = targetFunction || id;
+    this.targetEntity = targetEntity; 
+    this.visibility = visibility;
+    const targetLocalAtom = targetEntity?.localFunctionalities?.get?.(this.targetFunction);
+    this.uiSpec = uiSpec || targetLocalAtom?.uiSpec || targetLocalAtom?.ui_spec;
+    this.schema = schema || targetLocalAtom?.schema;
+
+    if (transport) {
+      this.transport = transport;
+    } else if (targetEntity) {
+      this.transport = new MemoryTransportAdapter(targetEntity);
+    } else {
+      throw new Error("RemoteFunctionality requires either a transport or a targetEntity.");
+    }
+  }
+
+  setVisibility(v: string): void {
+    const oldVisibility = this.visibility;
+    this.visibility = v;
+    if (this.hostEntity && oldVisibility === 'private' && v === 'public') {
+      this._registerInInterface();
+      const owner = (this.hostEntity as any).hierarchyManager.getOwnerEntity();
+      if (owner) (owner as any)._onComponentFunctionalityAdded(this.hostEntity, this);
+    } else if (this.hostEntity && oldVisibility === 'public' && v === 'private') {
+      this._unregisterFromInterface();
+      const owner = (this.hostEntity as any).hierarchyManager.getOwnerEntity();
+      if (owner && (owner as any)._onComponentFunctionalityRemoved) {
+        (owner as any)._onComponentFunctionalityRemoved(this.hostEntity, this.id);
+      }
+    }
+  }
+
+  _unregisterFromInterface(): void {
+    if (!this.hostEntity) return;
+    (this.hostEntity as any).interface.removeCollector(this.id);
+  }
+
+  _registerInInterface(): void {
+    const mainCollector = (this.hostEntity as any).interface.createCollector(this.id);
+    mainCollector._directHandler = async (msg: any) => {
+      const caller = msg.metadata?.caller || 'anonymous';
+      return await this.execute(msg.data, { caller });
+    };
+  }
+
+  bindToEntity(entity: any): void {
+    this.hostEntity = entity;
+    if (this.visibility === 'public') {
+      this._registerInInterface();
+    }
+  }
+
+  async execute(input: any, opts: any = {}): Promise<any> {
+    return await this.transport.call(this.targetFunction, input, { ...opts, caller: this.hostEntity.entityName });
+  }
+}

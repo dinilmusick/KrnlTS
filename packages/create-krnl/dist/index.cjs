@@ -1,0 +1,176 @@
+#!/usr/bin/env node
+"use strict";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+
+// src/index.ts
+var fs = __toESM(require("fs"), 1);
+var path = __toESM(require("path"), 1);
+var projectName = process.argv[2] || "my-krnl-app";
+var targetDir = path.resolve(process.cwd(), projectName);
+console.log(`
+\u{1F680} [create-krnl] Scaffolding new Krnl project in: ${targetDir}
+`);
+if (fs.existsSync(targetDir)) {
+  console.error(`\u274C Directory '${projectName}' already exists.`);
+  process.exit(1);
+}
+fs.mkdirSync(targetDir, { recursive: true });
+fs.mkdirSync(path.join(targetDir, "src", "entities", "App", "functionalities", "Hello", "main_function"), { recursive: true });
+fs.mkdirSync(path.join(targetDir, "src", "entities", "App", "functionalities", "Hello", "state_data"), { recursive: true });
+fs.mkdirSync(path.join(targetDir, "src", "entities", "App", "functionalities", "Hello", "helper_functions"), { recursive: true });
+fs.mkdirSync(path.join(targetDir, "src", "entities", "App", "functionalities", "Hello", "events"), { recursive: true });
+fs.mkdirSync(path.join(targetDir, "src", "libraries"), { recursive: true });
+fs.mkdirSync(path.join(targetDir, "src", "subapps"), { recursive: true });
+fs.mkdirSync(path.join(targetDir, "storage", "media"), { recursive: true });
+fs.mkdirSync(path.join(targetDir, "docs"), { recursive: true });
+fs.writeFileSync(path.join(targetDir, "package.json"), JSON.stringify({
+  name: projectName,
+  version: "1.0.0",
+  description: "Full-stack application powered by Krnl",
+  type: "module",
+  main: "dist/index.js",
+  scripts: {
+    dev: "krnl dev",
+    build: "krnl build",
+    validate: "krnl validate",
+    watch: "krnl watch --watch"
+  },
+  dependencies: {
+    "@dinilmusick/krnl": "^1.0.0",
+    "@dinilmusick/krnl-core": "^1.0.0",
+    "@dinilmusick/krnl-ui": "^1.0.0"
+  },
+  devDependencies: {
+    "@dinilmusick/krnl-cli": "^1.0.0",
+    "@dinilmusick/krnl-validate": "^1.0.0",
+    "@dinilmusick/eslint-plugin-krnl": "^1.0.0",
+    typescript: "^5.7.3"
+  }
+}, null, 2));
+fs.writeFileSync(path.join(targetDir, "tsconfig.json"), JSON.stringify({
+  compilerOptions: {
+    target: "ESNext",
+    module: "NodeNext",
+    moduleResolution: "NodeNext",
+    lib: ["ESNext", "DOM"],
+    strict: true,
+    outDir: "./dist",
+    skipLibCheck: true,
+    resolveJsonModule: true,
+    paths: {
+      "@/*": ["./src/*"]
+    }
+  },
+  include: ["src/**/*", "krnl-magnetic.d.ts"],
+  exclude: ["node_modules", "dist"]
+}, null, 2));
+fs.writeFileSync(path.join(targetDir, "krnl.json"), JSON.stringify({
+  name: projectName,
+  version: "1.0.0",
+  entry: "src/entities/App/App.ts",
+  port: 8080,
+  backend: {
+    controlPlane: "sqlite",
+    dataPlane: "local"
+  }
+}, null, 2));
+fs.writeFileSync(path.join(targetDir, "src", "entities", "App", "App.ts"), `import { Entity, KrnlMagneticLoader } from '@dinilmusick/krnl-core';
+
+export class App extends Entity {
+  constructor() {
+    super({
+      id: 'App',
+      version: '1.0.0',
+      description: 'Root application entity'
+    });
+  }
+
+  async boot(): Promise<void> {
+    // Magnetic auto-discovery of functionalities and subapps
+    await KrnlMagneticLoader.loadAll(this, import.meta.url);
+  }
+}
+
+export default App;
+`);
+var helloDir = path.join(targetDir, "src", "entities", "App", "functionalities", "Hello");
+fs.writeFileSync(path.join(helloDir, "HelloAtom.ts"), `export interface HelloInput {
+  name?: string;
+}
+
+export interface HelloOutput {
+  greeting: string;
+  timestamp: number;
+}
+`);
+fs.writeFileSync(path.join(helloDir, "main_function", "logic.ts"), `import { HelloInput, HelloOutput } from '../HelloAtom.js';
+import { formatGreeting } from '../helper_functions/formatGreeting.js';
+
+export const main = async (input: HelloInput, { state, entity }: any): Promise<HelloOutput> => {
+  const greeting = formatGreeting(input.name || 'World');
+  return {
+    greeting,
+    timestamp: Date.now()
+  };
+};
+`);
+fs.writeFileSync(path.join(helloDir, "state_data", "state.ts"), `export interface HelloState {
+  callCount: number;
+}
+
+export const initialState: HelloState = {
+  callCount: 0
+};
+`);
+fs.writeFileSync(path.join(helloDir, "helper_functions", "formatGreeting.ts"), `export function formatGreeting(name: string): string {
+  return \`Hello, \${name}! Welcome to Krnl.\`;
+}
+`);
+fs.writeFileSync(path.join(targetDir, "src", "libraries", "AppConcepts.ts"), `/**
+ * @file AppConcepts.ts
+ * @role component
+ * @description Layer 0 pure domain concept library for App.
+ */
+
+export class AppConcepts {
+  static pureTransform<T>(data: T): T {
+    return data;
+  }
+}
+`);
+fs.writeFileSync(path.join(targetDir, "docs", "HISTORY.md"), `# ${projectName} - Project History & Invariants
+
+## Initial Scaffolding
+- Initialized Krnl full-stack workspace.
+- Configured 4-layer function purity gates.
+- Setup App root entity and Hello functionality.
+`);
+console.log(`
+\u{1F389} Project successfully scaffolded at: ${targetDir}`);
+console.log(`
+To get started:
+  cd ${projectName}
+  pnpm install
+  krnl dev
+`);
