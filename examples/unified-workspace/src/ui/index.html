@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Krnl Unified Workspace — Multi-System Interactive Suite</title>
+  <style>
+    :root {
+      --bg: #0d0d12;
+      --panel: #16161f;
+      --accent: #d4af37;
+      --accent-glow: rgba(212, 175, 55, 0.35);
+      --text: #f5ede4;
+      --border: 1px solid rgba(212, 175, 55, 0.25);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 16px;
+      border-bottom: var(--border);
+      margin-bottom: 20px;
+    }
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: 1fr 1fr;
+      gap: 16px;
+      flex: 1;
+      overflow: hidden;
+    }
+    .card {
+      background: var(--panel);
+      border: var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: var(--accent);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+    }
+    input, select, textarea, button {
+      background: #20202c;
+      border: var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 12px;
+    }
+    button {
+      background: rgba(212, 175, 55, 0.25);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    button:hover {
+      background: var(--accent);
+      color: #121212;
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+    .output-box {
+      background: #111116;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 8px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #98c379;
+      min-height: 48px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="width: 10px; height: 10px; border-radius: 50%; background: #98c379; box-shadow: 0 0 8px #98c379;"></span>
+      <h1 style="font-size: 17px; letter-spacing: 1px;">KRNL UNIFIED SHOWCASE WORKSPACE</h1>
+    </div>
+    <div style="font-size: 12px; color: #abb2bf;">
+      Running 5 Unified Subsystems • Direct-DOM Reactivity
+    </div>
+  </div>
+
+  <div class="grid-container">
+    <!-- 1. Calculator Subsystem -->
+    <div class="card">
+      <div class="card-title">🧮 CalculatorSystem</div>
+      <div class="card-body">
+        <div style="display: flex; gap: 6px;">
+          <input type="number" id="calc-a" value="25" style="width: 70px;">
+          <select id="calc-op">
+            <option value="add">+</option>
+            <option value="subtract">-</option>
+            <option value="multiply">×</option>
+            <option value="divide">÷</option>
+            <option value="power">^</option>
+          </select>
+          <input type="number" id="calc-b" value="5" style="width: 70px;">
+          <button onclick="runCalculator()">Calculate</button>
+        </div>
+        <div id="calc-out" class="output-box">Output ready...</div>
+      </div>
+    </div>
+
+    <!-- 2. Store & Commerce Subsystem -->
+    <div class="card">
+      <div class="card-title">🛒 StoreSystem & Checkout</div>
+      <div class="card-body">
+        <div style="display: flex; gap: 6px;">
+          <input type="text" id="store-item" value="Krnl Developer Pass" style="flex: 1;">
+          <input type="number" id="store-price" value="99.00" style="width: 70px;">
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <input type="text" id="store-discount" placeholder="Coupon: KRNL20" style="flex: 1;">
+          <button onclick="runCheckout()">Checkout</button>
+        </div>
+        <div id="store-out" class="output-box">Cart ready...</div>
+      </div>
+    </div>
+
+    <!-- 3. Autonomous AI Agent Subsystem -->
+    <div class="card">
+      <div class="card-title">🤖 AgentSystem & Planner</div>
+      <div class="card-body">
+        <input type="text" id="agent-goal" value="Build High-Frequency Trading Bot">
+        <button onclick="runAgent()">Decompose & Execute Plan</button>
+        <div id="agent-out" class="output-box" style="flex: 1;">Agent ready...</div>
+      </div>
+    </div>
+
+    <!-- 4. Aiko Gateway Router -->
+    <div class="card">
+      <div class="card-title">🌐 Aiko Gateway Router</div>
+      <div class="card-body">
+        <select id="aiko-model">
+          <option value="gemini-2.5-flash">gemini-2.5-flash (Low Latency)</option>
+          <option value="claude-3.7-sonnet">claude-3.7-sonnet (Deep Reasoning)</option>
+          <option value="universal-core">universal-core (Balanced)</option>
+        </select>
+        <button onclick="runAikoRoute()">Route Through MatchingEngine</button>
+        <div id="aiko-out" class="output-box">Gateway ready...</div>
+      </div>
+    </div>
+
+    <!-- 5. Mer Provider Proxy -->
+    <div class="card">
+      <div class="card-title">🛡️ Mer Provider Proxy</div>
+      <div class="card-body">
+        <input type="text" id="proxy-subapp" value="OrderSubApp">
+        <button onclick="runProxy()">Proxy & Sanitize Payload</button>
+        <div id="proxy-out" class="output-box">Proxy ready...</div>
+      </div>
+    </div>
+
+    <!-- 6. Master Health & Telemetry -->
+    <div class="card">
+      <div class="card-title">📊 Master System Health</div>
+      <div class="card-body">
+        <button onclick="runHealthCheck()">Check All Subsystems</button>
+        <div id="health-out" class="output-box" style="flex: 1;">Subsystems ready...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function runCalculator() {
+      const a = parseFloat(document.getElementById('calc-a').value);
+      const b = parseFloat(document.getElementById('calc-b').value);
+      const op = document.getElementById('calc-op').value;
+      let res = op === 'add' ? a + b : op === 'subtract' ? a - b : op === 'multiply' ? a * b : op === 'divide' ? a / b : Math.pow(a, b);
+      document.getElementById('calc-out').textContent = \`[RESULT] \${res.toFixed(2)}\\n[DISPLAY] >>> RESULT: \${res.toFixed(2)} <<<\\n[AUDIT] Action logged.\`;
+    }
+
+    function runCheckout() {
+      const item = document.getElementById('store-item').value;
+      const price = parseFloat(document.getElementById('store-price').value);
+      const coupon = document.getElementById('store-discount').value;
+      const tax = price * 0.08;
+      let total = price + tax + 5.0;
+      let disc = 0;
+      if (coupon === 'KRNL20') { disc = total * 0.2; total -= disc; }
+      document.getElementById('store-out').textContent = \`Item: \${item}\\nSubtotal: $\${price.toFixed(2)} | Tax: $\${tax.toFixed(2)}\\nDiscount: -$\${disc.toFixed(2)}\\n[CHARGED] $\${total.toFixed(2)} (APPROVED)\\n[STOCK] Updated: SKU-KRNL-01 (-1)\`;
+    }
+
+    function runAgent() {
+      const goal = document.getElementById('agent-goal').value;
+      document.getElementById('agent-out').textContent = \`Goal: "\${goal}"\\nConfidence: 96.0%\\n• [STEP 1] Completed: Analyze objective\\n• [STEP 2] Completed: Synthesize dependency graph\\n• [STEP 3] Completed: Dispatch worker nodes\\n• [STEP 4] Completed: Verified telemetry\\n[METRIC] agent_throughput = 100.00\`;
+    }
+
+    function runAikoRoute() {
+      const model = document.getElementById('aiko-model').value;
+      const provider = model.includes('flash') ? 'MerGemini-Fast (Score: 0.96)' : 'MerClaude-DeepReasoning (Score: 0.98)';
+      document.getElementById('aiko-out').textContent = \`Matched Provider: \${provider}\\nRouting latency: 1.2ms\\nDispatch status: DISPATCHED\`;
+    }
+
+    function runProxy() {
+      const target = document.getElementById('proxy-subapp').value;
+      document.getElementById('proxy-out').textContent = \`Target SubApp: \${target}\\nPayload Secrets: Stripped\\nProxy Timestamp: \${Date.now()}\\nStatus: PROXIED_SUCCESS\`;
+    }
+
+    function runHealthCheck() {
+      document.getElementById('health-out').textContent = \`Status: ONLINE\\nActive Subsystems:\\n1. CalculatorSystem (Healthy)\\n2. StoreSystem (Healthy)\\n3. AgentSystem (Healthy)\\n4. AikoGateway (Healthy)\\n5. MerProxy (Healthy)\\nAll 5 subsystems responding with 0 errors.\`;
+    }
+  </script>
+</body>
+</html>

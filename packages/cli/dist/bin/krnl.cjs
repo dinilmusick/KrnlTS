@@ -1217,6 +1217,7 @@ var StudioServer = class {
       <div style="display: flex; align-items: center; gap: 14px;">
         <span style="font-size: 11px; color: #7f848e;">Project:</span>
         <select id="project-selector" onchange="switchProject(this.value)" style="background: #1e1e28; color: #d4af37; border: var(--krnl-border); padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">
+          <option value="examples/unified-workspace" selected>examples/unified-workspace (All Examples Combined)</option>
           <option value=".">Current Root Project</option>
           <option value="examples/calculator-app">examples/calculator-app</option>
           <option value="examples/ecommerce-app">examples/ecommerce-app</option>
