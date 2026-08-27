@@ -1737,13 +1737,350 @@
       if (viewer.selectedAtomId === 'root-tile') {
         selectedAtom = tree;
       } else {
+    // ==========================================
+    // SMART COMPONENT EVENT & PAYLOAD SYSTEM
+    // ==========================================
+    const COMPONENT_EVENT_DEFINITIONS = {
+      KrnlButton: {
+        events: [
+          { id: 'onClick', label: 'onClick (Primary Click)', desc: 'Fires on button click / tap' },
+          { id: 'onDoubleClick', label: 'onDoubleClick (Double Click)', desc: 'Fires on rapid double-click' }
+        ],
+        defaultEvent: 'onClick'
+      },
+      KrnlTextInput: {
+        events: [
+          { id: 'onEnter', label: 'onKeyDown: Enter (Press Enter)', desc: 'Fires when user presses Enter key' },
+          { id: 'onSpace', label: 'onKeyDown: Space (Press Space)', desc: 'Fires when user presses Spacebar' },
+          { id: 'onInput', label: 'onInput (Every keystroke)', desc: 'Fires on each character change' },
+          { id: 'onBlur', label: 'onBlur (Lose Focus)', desc: 'Fires when input field unfocuses' }
+        ],
+        defaultEvent: 'onEnter'
+      },
+      KrnlDropdown: {
+        events: [
+          { id: 'onChange', label: 'onChange (Select Option)', desc: 'Fires when user selects a different option' },
+          { id: 'onBlur', label: 'onBlur (Lose Focus)', desc: 'Fires when dropdown loses focus' }
+        ],
+        defaultEvent: 'onChange'
+      },
+      KrnlTile: {
+        events: [
+          { id: 'onMount', label: 'onMount (Mount DOM)', desc: 'Fires once when component is rendered' },
+          { id: 'onClick', label: 'onClick (Card Click)', desc: 'Fires when container card is clicked' }
+        ],
+        defaultEvent: 'onMount'
+      },
+      KrnlBadge: {
+        events: [
+          { id: 'onClick', label: 'onClick (Badge Click)', desc: 'Fires when badge pill is clicked' }
+        ],
+        defaultEvent: 'onClick'
+      },
+      Container: {
+        events: [
+          { id: 'onClick', label: 'onClick (Box Click)', desc: 'Fires when container is clicked' }
+        ],
+        defaultEvent: 'onClick'
+      }
+    };
+
+    /**
+     * Introspects the AST graph to find all callable features for the given code asset.
+     */
+    function getCallableTargetsForAsset(sourceNode) {
+      const targets = [];
+      const entityName = sourceNode.parentEntity || (sourceNode.type === 'entity' ? sourceNode.name : null);
+
+      // 1. Entity Functionalities
+      if (entityName) {
+        const funcs = currentGraph.nodes.filter(n => n.type === 'functionality' && n.parentEntity === entityName);
+        for (const f of funcs) {
+          targets.push({
+            id: `entity.call:${f.name}`,
+            category: `Entity (${entityName}) Functionalities`,
+            label: `⚡ ${entityName}.${f.name}`,
+            kind: 'functionality',
+            targetName: f.name,
+            inputs: f.inputs || [],
+            examplePayload: f.examplePayload,
+            snippetTemplate: (payloadStr) => `await entity.call('${f.name}', ${payloadStr});`
+          });
+        }
+        targets.push({
+          id: 'entity.boot',
+          category: `Entity (${entityName}) Lifecycle`,
+          label: `⚡ ${entityName}.boot()`,
+          kind: 'lifecycle',
+          targetName: 'boot',
+          inputs: [],
+          examplePayload: {},
+          snippetTemplate: () => `await entity.boot();`
+        });
+        targets.push({
+          id: 'entity.reset',
+          category: `Entity (${entityName}) Lifecycle`,
+          label: `⚡ ${entityName}.reset()`,
+          kind: 'lifecycle',
+          targetName: 'reset',
+          inputs: [],
+          examplePayload: {},
+          snippetTemplate: () => `await entity.reset();`
+        });
+      }
+
+      // 2. Direct Functionality Main & Helpers
+      if (sourceNode.type === 'functionality') {
+        targets.push({
+          id: 'func.main',
+          category: 'Functionality Logic',
+          label: `⚡ main(${sourceNode.name})`,
+          kind: 'main',
+          targetName: 'main',
+          inputs: sourceNode.inputs || [],
+          examplePayload: sourceNode.examplePayload,
+          snippetTemplate: (payloadStr) => `await main(${payloadStr}, context);`
+        });
+        if (sourceNode.helpers && sourceNode.helpers.length > 0) {
+          for (const h of sourceNode.helpers) {
+            targets.push({
+              id: `func.helper:${h.name}`,
+              category: 'Helper Functions',
+              label: `⚡ ${h.name}()`,
+              kind: 'helper',
+              targetName: h.name,
+              inputs: [],
+              examplePayload: {},
+              snippetTemplate: (payloadStr) => `await ${h.name}(${payloadStr});`
+            });
+          }
+        }
+      }
+
+      // 3. Concept Library Methods
+      const libs = currentGraph.nodes.filter(n => n.type === 'library');
+      for (const lib of libs) {
+        if (lib.methods && lib.methods.length > 0) {
+          for (const m of lib.methods) {
+            targets.push({
+              id: `lib:${lib.name}:${m.name}`,
+              category: `Concept Library: ${lib.name}`,
+              label: `⚡ ${lib.name}.${m.name}(${m.params.join(', ')})`,
+              kind: 'library_method',
+              targetName: m.name,
+              libraryName: lib.name,
+              inputs: m.params.map(p => ({ name: p, type: 'any' })),
+              examplePayload: lib.examplePayload,
+              snippetTemplate: (payloadStr) => `${lib.name}.${m.name}(${payloadStr});`
+            });
+          }
+        } else {
+          targets.push({
+            id: `lib:${lib.name}:compute`,
+            category: `Concept Library: ${lib.name}`,
+            label: `⚡ ${lib.name}.compute()`,
+            kind: 'library_method',
+            targetName: 'compute',
+            libraryName: lib.name,
+            inputs: [{ name: 'op', type: 'string' }, { name: 'a', type: 'number' }, { name: 'b', type: 'number' }],
+            examplePayload: lib.examplePayload,
+            snippetTemplate: (payloadStr) => `${lib.name}.compute(${payloadStr});`
+          });
+        }
+      }
+
+      // 4. Sibling / Connected Entities in Graph
+      const otherEntities = currentGraph.nodes.filter(n => n.type === 'entity' && n.name !== entityName);
+      for (const ent of otherEntities) {
+        targets.push({
+          id: `ext_entity:${ent.name}`,
+          category: 'Connected Entities',
+          label: `⚡ ${ent.name}.boot()`,
+          kind: 'ext_entity',
+          targetName: ent.name,
+          inputs: [],
+          examplePayload: {},
+          snippetTemplate: () => `await ${ent.name}.boot();`
+        });
+      }
+
+      // 5. Reactive State & Sandbox
+      targets.push({
+        id: 'state.mutate',
+        category: 'Reactive State',
+        label: `⚡ Mutate State (state.<field>)`,
+        kind: 'state_mutate',
+        targetName: 'state',
+        inputs: [],
+        examplePayload: {},
+        snippetTemplate: (payloadStr) => `state.${sourceNode.inputs?.[0]?.name || 'field'} = ${payloadStr};`
+      });
+
+      targets.push({
+        id: 'test_runner',
+        category: 'Tooling & Sandbox',
+        label: `⚡ Open Sandboxed Test Bench`,
+        kind: 'test_runner',
+        targetName: 'test_runner',
+        inputs: [],
+        examplePayload: {},
+        snippetTemplate: () => `// Opens Test Sandbox Bench`
+      });
+
+      return targets;
+    }
+
+    /**
+     * Real-time Schema Validator: checks compatibility between target inputs and payload.
+     */
+    function validatePayloadCompatibility(target, payloadMode, customPayloadStr, atom, sourceNode) {
+      if (!target) return { isValid: true, statusText: 'Ready', badgeColor: '#7f848e', fieldChecks: [] };
+
+      const expectedInputs = target.inputs || [];
+      const fieldChecks = [];
+
+      if (expectedInputs.length === 0) {
+        return {
+          isValid: true,
+          statusText: 'Void / No Parameters Expected (Valid)',
+          badgeColor: '#98c379',
+          fieldChecks: []
+        };
+      }
+
+      if (payloadMode === 'void') {
+        return {
+          isValid: false,
+          statusText: `Schema Mismatch: Target expects ${expectedInputs.length} argument(s) [${expectedInputs.map(i => i.name).join(', ')}]`,
+          badgeColor: '#e06c75',
+          fieldChecks: expectedInputs.map(i => ({ name: i.name, type: i.type, matched: false, reason: 'Missing in void payload' }))
+        };
+      }
+
+      if (payloadMode === 'component_val') {
+        const first = expectedInputs[0];
+        return {
+          isValid: expectedInputs.length === 1,
+          statusText: expectedInputs.length === 1
+            ? `Compatible: Component value maps to '${first.name}' (${first.type})`
+            : `Partial: Component supplies 1 value, target expects ${expectedInputs.length} fields`,
+          badgeColor: expectedInputs.length === 1 ? '#98c379' : '#e5c07b',
+          fieldChecks: expectedInputs.map((i, idx) => ({
+            name: i.name,
+            type: i.type,
+            matched: idx === 0,
+            reason: idx === 0 ? 'Mapped from component value' : 'Missing additional fields'
+          }))
+        };
+      }
+
+      if (payloadMode === 'state_sync') {
+        const availableInState = new Set([
+          ...(sourceNode.inputs || []).map(i => i.name),
+          ...(sourceNode.stateFields || []).map(f => f.name)
+        ]);
+
+        let matchedCount = 0;
+        for (const exp of expectedInputs) {
+          const has = availableInState.has(exp.name);
+          if (has) matchedCount++;
+          fieldChecks.push({
+            name: exp.name,
+            type: exp.type,
+            matched: has,
+            reason: has ? 'Found in state schema' : 'Not declared in state'
+          });
+        }
+
+        const isFullyCompatible = matchedCount === expectedInputs.length;
+        return {
+          isValid: isFullyCompatible,
+          statusText: isFullyCompatible
+            ? `Fully Compatible: All ${matchedCount}/${expectedInputs.length} state fields match`
+            : `Schema Warning: ${matchedCount}/${expectedInputs.length} fields found in state`,
+          badgeColor: isFullyCompatible ? '#98c379' : '#e5c07b',
+          fieldChecks
+        };
+      }
+
+      if (payloadMode === 'custom_payload') {
+        try {
+          const parsed = JSON.parse(customPayloadStr || '{}');
+          let matchedCount = 0;
+          for (const exp of expectedInputs) {
+            const val = parsed[exp.name];
+            const has = val !== undefined;
+            if (has) matchedCount++;
+            fieldChecks.push({
+              name: exp.name,
+              type: exp.type,
+              matched: has,
+              reason: has ? `Provided: ${JSON.stringify(val)}` : 'Missing key in JSON payload'
+            });
+          }
+
+          const isFullyCompatible = matchedCount === expectedInputs.length;
+          return {
+            isValid: isFullyCompatible,
+            statusText: isFullyCompatible
+              ? `Fully Compatible: Custom JSON matches all ${matchedCount}/${expectedInputs.length} inputs`
+              : `Schema Warning: Missing ${expectedInputs.length - matchedCount} required field(s)`,
+            badgeColor: isFullyCompatible ? '#98c379' : '#e06c75',
+            fieldChecks
+          };
+        } catch (e) {
+          return {
+            isValid: false,
+            statusText: `Invalid JSON Syntax: ${e.message}`,
+            badgeColor: '#e06c75',
+            fieldChecks: expectedInputs.map(i => ({ name: i.name, type: i.type, matched: false, reason: 'Invalid JSON' }))
+          };
+        }
+      }
+
+      return { isValid: true, statusText: 'Payload Configured', badgeColor: '#98c379', fieldChecks: [] };
+    }
+
+    function renderAtomInspector(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      const inspectorEl = document.getElementById(`inspector-content-${viewerId}`);
+      if (!inspectorEl) return;
+
+      const tree = viewer.componentTree;
+      if (!tree) return;
+
+      let selectedAtom = null;
+      if (viewer.selectedAtomId === 'root-tile') {
+        selectedAtom = tree;
+      } else {
         selectedAtom = tree.children.find(c => c.id === viewer.selectedAtomId) || tree;
       }
 
       const node = viewer.sourceNode;
-      const entityName = node.parentEntity || (node.type === 'entity' ? node.name : null);
-      const availableFuncs = node.functionalities || currentGraph.nodes.filter(n => n.type === 'functionality' && n.parentEntity === entityName).map(n => n.name);
-      const availableState = (node.stateFields || []).map(f => f.name).concat((node.inputs || []).map(i => i.name));
+      const eventDefs = COMPONENT_EVENT_DEFINITIONS[selectedAtom.type] || COMPONENT_EVENT_DEFINITIONS.KrnlButton;
+      const callableTargets = getCallableTargetsForAsset(node);
+
+      // Default atom event config if not set
+      if (!selectedAtom.eventConfig) {
+        selectedAtom.eventConfig = {
+          triggerEvent: eventDefs.defaultEvent || 'onClick',
+          targetId: callableTargets[0]?.id || 'entity.boot',
+          payloadMode: selectedAtom.type === 'KrnlTextInput' ? 'state_sync' : 'state_sync',
+          customPayload: JSON.stringify(callableTargets[0]?.examplePayload || {}, null, 2)
+        };
+      }
+
+      const cfg = selectedAtom.eventConfig;
+      const activeTarget = callableTargets.find(t => t.id === cfg.targetId) || callableTargets[0];
+      const validation = validatePayloadCompatibility(activeTarget, cfg.payloadMode, cfg.customPayload, selectedAtom, node);
+
+      // Group callable targets by category
+      const categories = {};
+      callableTargets.forEach(t => {
+        if (!categories[t.category]) categories[t.category] = [];
+        categories[t.category].push(t);
+      });
 
       inspectorEl.innerHTML = `
         <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(212,175,55,0.3); padding-bottom: 8px;">
@@ -1754,9 +2091,13 @@
           ${selectedAtom.id !== 'root-tile' ? `<button onclick="deleteAtomComponent('${viewerId}', '${selectedAtom.id}')" title="Delete component" style="background: transparent; color: #e06c75; border: 1px solid rgba(224,108,117,0.4); padding: 2px 6px; border-radius: 4px; font-size: 9px; cursor: pointer;">✕ Delete</button>` : ''}
         </div>
 
-        <!-- Component Properties Section -->
+        <!-- 1. Component Properties Section (Dynamic based on Component Type) -->
         <div style="display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 6px;">
-          <span style="font-size: 10px; font-weight: bold; color: #c678dd; letter-spacing: 0.5px;">PROPERTIES</span>
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 10px; font-weight: bold; color: #c678dd; letter-spacing: 0.5px;">PROPERTIES</span>
+            <span style="font-size: 9px; color: #7f848e;">${selectedAtom.type}</span>
+          </div>
+
           ${selectedAtom.id === 'root-tile' ? `
             <div style="display: flex; flex-direction: column; gap: 3px;">
               <label style="font-size: 10px; color: #abb2bf;">Tile Title:</label>
@@ -1766,78 +2107,145 @@
               <label style="font-size: 10px; color: #abb2bf;">Description:</label>
               <input type="text" value="${selectedAtom.props.description || ''}" oninput="updateAtomProp('${viewerId}', 'description', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
             </div>
-          ` : `
+          ` : selectedAtom.type === 'KrnlButton' ? `
             <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Label / Title:</label>
-              <input type="text" value="${selectedAtom.props.label || selectedAtom.props.text || selectedAtom.props.title || ''}" oninput="updateAtomProp('${viewerId}', 'label', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+              <label style="font-size: 10px; color: #abb2bf;">Button Label:</label>
+              <input type="text" value="${selectedAtom.props.label || 'Action Button'}" oninput="updateAtomProp('${viewerId}', 'label', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
             </div>
-            ${selectedAtom.type === 'KrnlTextInput' ? `
-              <div style="display: flex; flex-direction: column; gap: 3px;">
-                <label style="font-size: 10px; color: #abb2bf;">Placeholder / Type:</label>
-                <input type="text" value="${selectedAtom.props.placeholder || ''}" oninput="updateAtomProp('${viewerId}', 'placeholder', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 3px;">
-                <label style="font-size: 10px; color: #abb2bf;">Default Value:</label>
-                <input type="text" value="${selectedAtom.props.value || ''}" oninput="updateAtomProp('${viewerId}', 'value', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
-              </div>
-            ` : ''}
-            ${selectedAtom.type === 'KrnlButton' || selectedAtom.type === 'KrnlBadge' ? `
-              <div style="display: flex; flex-direction: column; gap: 3px;">
-                <label style="font-size: 10px; color: #abb2bf;">Variant Style:</label>
-                <select onchange="updateAtomProp('${viewerId}', 'variant', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
-                  <option value="primary" ${selectedAtom.props.variant === 'primary' ? 'selected' : ''}>Primary Gold</option>
-                  <option value="secondary" ${selectedAtom.props.variant === 'secondary' ? 'selected' : ''}>Secondary Dark</option>
-                  <option value="success" ${selectedAtom.props.variant === 'success' ? 'selected' : ''}>Success Green</option>
-                  <option value="danger" ${selectedAtom.props.variant === 'danger' ? 'selected' : ''}>Danger Red</option>
-                </select>
-              </div>
-            ` : ''}
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Variant Style:</label>
+              <select onchange="updateAtomProp('${viewerId}', 'variant', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
+                <option value="primary" ${selectedAtom.props.variant === 'primary' ? 'selected' : ''}>Primary Gold</option>
+                <option value="secondary" ${selectedAtom.props.variant === 'secondary' ? 'selected' : ''}>Secondary Dark</option>
+                <option value="success" ${selectedAtom.props.variant === 'success' ? 'selected' : ''}>Success Green</option>
+                <option value="danger" ${selectedAtom.props.variant === 'danger' ? 'selected' : ''}>Danger Red</option>
+              </select>
+            </div>
+          ` : selectedAtom.type === 'KrnlTextInput' ? `
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Field Label:</label>
+              <input type="text" value="${selectedAtom.props.label || 'Input'}" oninput="updateAtomProp('${viewerId}', 'label', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Bound State Field (name):</label>
+              <input type="text" value="${selectedAtom.props.name || 'field'}" oninput="updateAtomProp('${viewerId}', 'name', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Placeholder / Type:</label>
+              <input type="text" value="${selectedAtom.props.placeholder || 'string'}" oninput="updateAtomProp('${viewerId}', 'placeholder', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Initial / Default Value:</label>
+              <input type="text" value="${selectedAtom.props.value || ''}" oninput="updateAtomProp('${viewerId}', 'value', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+            </div>
+          ` : selectedAtom.type === 'KrnlDropdown' ? `
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Dropdown Label:</label>
+              <input type="text" value="${selectedAtom.props.label || 'Select'}" oninput="updateAtomProp('${viewerId}', 'label', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Options (comma-separated):</label>
+              <input type="text" value="${(selectedAtom.props.options || ['Option 1', 'Option 2']).join(', ')}" oninput="updateAtomProp('${viewerId}', 'options', this.value.split(',').map(s=>s.trim()))" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+            </div>
+          ` : selectedAtom.type === 'KrnlBadge' ? `
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Badge Text:</label>
+              <input type="text" value="${selectedAtom.props.text || 'ACTIVE'}" oninput="updateAtomProp('${viewerId}', 'text', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Variant Style:</label>
+              <select onchange="updateAtomProp('${viewerId}', 'variant', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
+                <option value="success" ${selectedAtom.props.variant === 'success' ? 'selected' : ''}>Success Green</option>
+                <option value="primary" ${selectedAtom.props.variant === 'primary' ? 'selected' : ''}>Primary Gold</option>
+                <option value="danger" ${selectedAtom.props.variant === 'danger' ? 'selected' : ''}>Danger Red</option>
+              </select>
+            </div>
+          ` : `
+            <div style="font-size: 11px; color: #abb2bf;">Generic Box Container</div>
           `}
         </div>
 
-        <!-- Action Binder & Connectivity -->
-        ${selectedAtom.type === 'KrnlButton' || selectedAtom.type === 'KrnlTextInput' ? `
-          <div style="display: flex; flex-direction: column; gap: 8px; background: rgba(212,175,55,0.04); border: 1px solid rgba(212,175,55,0.2); padding: 10px; border-radius: 6px;">
+        <!-- 2. Smart Event & Feature Connectivity Binder -->
+        ${selectedAtom.id !== 'root-tile' ? `
+          <div style="display: flex; flex-direction: column; gap: 10px; background: rgba(212,175,55,0.04); border: 1px solid rgba(212,175,55,0.25); padding: 10px; border-radius: 6px;">
             <div style="display: flex; align-items: center; justify-content: space-between;">
-              <span style="font-size: 10px; font-weight: bold; color: #d4af37; letter-spacing: 0.5px;">⚡ ACTION & BINDINGS</span>
-              <span style="font-size: 9px; color: #7f848e;">Reactive Link</span>
+              <span style="font-size: 10px; font-weight: bold; color: #d4af37; letter-spacing: 0.5px;">⚡ EVENT & CALLABLE FEATURE LINK</span>
+              <span style="font-size: 9px; color: #7f848e;">Reactive</span>
             </div>
 
+            <!-- A. Component Trigger Event -->
             <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Trigger / Binding Type:</label>
-              <select id="action-type-sel-${viewerId}" onchange="updateAtomProp('${viewerId}', 'actionType', this.value)" style="background: #0e0e12; border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
-                <option value="call_functionality" ${selectedAtom.props.actionType === 'call_functionality' ? 'selected' : ''}>⚡ Call Entity Functionality (entity.call)</option>
-                <option value="boot" ${selectedAtom.props.actionType === 'boot' ? 'selected' : ''}>⚡ Boot Entity (entity.boot)</option>
-                <option value="main" ${selectedAtom.props.actionType === 'main' ? 'selected' : ''}>⚡ Trigger Main Function (main)</option>
-                <option value="state_bind" ${selectedAtom.props.actionType === 'state_bind' ? 'selected' : ''}>⚡ Bind State Field (state.field)</option>
-                <option value="subscribe_event" ${selectedAtom.props.actionType === 'subscribe_event' ? 'selected' : ''}>⚡ Subscribe to Event (entity.on)</option>
-                <option value="test_runner" ${selectedAtom.props.actionType === 'test_runner' ? 'selected' : ''}>⚡ Open Sandboxed Test Bench</option>
+              <label style="font-size: 10px; color: #abb2bf;">Component Event Trigger:</label>
+              <select onchange="updateAtomEventConfig('${viewerId}', 'triggerEvent', this.value)" style="background: #0e0e12; border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
+                ${eventDefs.events.map(ev => `
+                  <option value="${ev.id}" ${cfg.triggerEvent === ev.id ? 'selected' : ''}>${ev.label}</option>
+                `).join('')}
               </select>
             </div>
 
-            ${availableFuncs.length > 0 ? `
-              <div style="display: flex; flex-direction: column; gap: 3px;">
-                <label style="font-size: 10px; color: #abb2bf;">Target Functionality:</label>
-                <select onchange="updateAtomProp('${viewerId}', 'targetFunction', this.value)" style="background: #0e0e12; border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
-                  ${availableFuncs.map(fn => `<option value="${fn}" ${selectedAtom.props.targetFunction === fn ? 'selected' : ''}>${fn}</option>`).join('')}
-                </select>
+            <!-- B. Dynamic Feature Suggestor (Introspected from Code Asset & Graph) -->
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Target Callable Feature / Operation:</label>
+              <select onchange="updateAtomEventConfig('${viewerId}', 'targetId', this.value)" style="background: #0e0e12; border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
+                ${Object.entries(categories).map(([cat, list]) => `
+                  <optgroup label="${cat}">
+                    ${list.map(t => `
+                      <option value="${t.id}" ${cfg.targetId === t.id ? 'selected' : ''}>${t.label}</option>
+                    `).join('')}
+                  </optgroup>
+                `).join('')}
+              </select>
+            </div>
+
+            <!-- C. Payload Syntax & Mode Selector -->
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="font-size: 10px; color: #abb2bf;">Payload Dispatch Mode:</label>
+                <span style="font-size: 9px; color: #d4af37;">Argument Source</span>
+              </div>
+              <select onchange="updateAtomEventConfig('${viewerId}', 'payloadMode', this.value)" style="background: #0e0e12; border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
+                <option value="state_sync" ${cfg.payloadMode === 'state_sync' ? 'selected' : ''}>Form / State Data (state object)</option>
+                <option value="component_val" ${cfg.payloadMode === 'component_val' ? 'selected' : ''}>Component Value (event.target.value)</option>
+                <option value="custom_payload" ${cfg.payloadMode === 'custom_payload' ? 'selected' : ''}>Custom Static / Template Payload (JSON)</option>
+                <option value="void" ${cfg.payloadMode === 'void' ? 'selected' : ''}>Void / No Arguments ()</option>
+              </select>
+            </div>
+
+            <!-- Custom Payload Editor if mode is custom_payload -->
+            ${cfg.payloadMode === 'custom_payload' ? `
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <label style="font-size: 10px; color: #abb2bf;">Custom JSON Payload:</label>
+                  <button onclick="autofillCustomPayload('${viewerId}')" title="Auto-fill target schema example" style="background: rgba(212,175,55,0.15); color: #d4af37; border: 1px solid rgba(212,175,55,0.4); padding: 2px 6px; border-radius: 3px; font-size: 9px; cursor: pointer;">↺ Auto-fill Example</button>
+                </div>
+                <textarea id="custom-payload-txt-${viewerId}" oninput="updateAtomEventConfig('${viewerId}', 'customPayload', this.value)" rows="4" style="background: #0a0a0e; border: 1px solid #4b5263; border-radius: 4px; color: #98c379; font-family: monospace; font-size: 10px; padding: 6px; outline: none; width: 100%; box-sizing: border-box; resize: vertical;">${cfg.customPayload || '{}'}</textarea>
               </div>
             ` : ''}
 
-            ${availableState.length > 0 ? `
-              <div style="display: flex; flex-direction: column; gap: 3px;">
-                <label style="font-size: 10px; color: #abb2bf;">Target State Property:</label>
-                <select onchange="updateAtomProp('${viewerId}', 'targetState', this.value)" style="background: #0e0e12; border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
-                  ${availableState.map(st => `<option value="${st}" ${selectedAtom.props.targetState === st ? 'selected' : ''}>state.${st}</option>`).join('')}
-                </select>
+            <!-- D. Real-Time Schema Compatibility Validator & Checker -->
+            <div style="background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.06); border-radius: 5px; padding: 8px; display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 10px; font-weight: bold; color: #abb2bf;">SCHEMA VALIDATION:</span>
+                <span style="font-size: 9px; font-weight: bold; color: ${validation.badgeColor}; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 3px;">${validation.isValid ? '✓ MATCHED' : '⚠ ATTENTION'}</span>
               </div>
-            ` : ''}
+              <div style="font-size: 10px; color: ${validation.badgeColor}; font-family: monospace;">${validation.statusText}</div>
 
-            <button onclick="applyAtomActionBinding('${viewerId}')" style="background: #d4af37; color: #121212; border: none; border-radius: 4px; padding: 6px 12px; font-weight: bold; font-size: 10px; cursor: pointer; margin-top: 4px;">⚡ Apply Action to Component</button>
+              ${validation.fieldChecks.length > 0 ? `
+                <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px;">
+                  ${validation.fieldChecks.map(chk => `
+                    <span style="font-size: 9px; padding: 2px 5px; border-radius: 3px; border: 1px solid ${chk.matched ? '#98c379' : '#e06c75'}; color: ${chk.matched ? '#98c379' : '#e06c75'}; background: rgba(0,0,0,0.4);" title="${chk.reason}">
+                      ${chk.matched ? '✓' : '✕'} ${chk.name} (${chk.type})
+                    </span>
+                  `).join('')}
+                </div>
+              ` : ''}
+            </div>
+
+            <button onclick="applyAtomActionBinding('${viewerId}')" style="background: #d4af37; color: #121212; border: none; border-radius: 4px; padding: 6px 12px; font-weight: bold; font-size: 10px; cursor: pointer; transition: transform 0.1s ease; box-shadow: 0 2px 8px rgba(212,175,55,0.3);">⚡ Apply Action & Bindings</button>
           </div>
         ` : ''}
 
-        <!-- Isolated Component Code Snippet -->
+        <!-- 3. Smart Isolated Component Code Snippet -->
         <div style="display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 6px;">
           <div style="display: flex; align-items: center; justify-content: space-between;">
             <span style="font-size: 10px; font-weight: bold; color: #abb2bf;">COMPONENT CODE SNIPPET</span>
@@ -1881,12 +2289,55 @@
 
       const feedback = document.getElementById('ui-file-badge-' + viewerId);
       if (feedback) {
-        feedback.textContent = '⚡ Action Applied!';
+        feedback.textContent = '⚡ Action & Bindings Applied!';
         feedback.style.color = '#98c379';
         setTimeout(() => {
           feedback.textContent = viewer.sourceNode.uiFilePath ? viewer.sourceNode.uiFilePath.split('/').slice(-3).join('/') : 'New UI View';
           feedback.style.color = '';
         }, 1500);
+      }
+    }
+
+    function updateAtomEventConfig(viewerId, field, value) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.componentTree) return;
+
+      let atom = null;
+      if (viewer.selectedAtomId === 'root-tile') {
+        atom = viewer.componentTree;
+      } else {
+        atom = viewer.componentTree.children.find(c => c.id === viewer.selectedAtomId);
+      }
+
+      if (!atom) return;
+      if (!atom.eventConfig) atom.eventConfig = {};
+      atom.eventConfig[field] = value;
+
+      if (field === 'targetId') {
+        const callableTargets = getCallableTargetsForAsset(viewer.sourceNode);
+        const tgt = callableTargets.find(t => t.id === value);
+        if (tgt && tgt.examplePayload) {
+          atom.eventConfig.customPayload = JSON.stringify(tgt.examplePayload, null, 2);
+        }
+      }
+
+      renderAtomInspector(viewerId);
+      syncTreeToMonaco(viewerId);
+    }
+
+    function autofillCustomPayload(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.componentTree) return;
+
+      let atom = viewer.componentTree.children.find(c => c.id === viewer.selectedAtomId);
+      if (!atom || !atom.eventConfig) return;
+
+      const callableTargets = getCallableTargetsForAsset(viewer.sourceNode);
+      const tgt = callableTargets.find(t => t.id === atom.eventConfig.targetId);
+      if (tgt) {
+        atom.eventConfig.customPayload = JSON.stringify(tgt.examplePayload || {}, null, 2);
+        renderAtomInspector(viewerId);
+        syncTreeToMonaco(viewerId);
       }
     }
 
@@ -1896,28 +2347,66 @@
         return `KrnlTile({\n  title: '${atom.props.title || node.name}',\n  description: '${atom.props.description || ''}',\n  children: [ ... ]\n})`;
       }
 
-      if (atom.type === 'KrnlButton') {
-        let actionCode = `console.log('Clicked ${atom.props.label}');`;
-        if (atom.props.actionType === 'call_functionality') {
-          const fn = atom.props.targetFunction || node.name;
-          actionCode = `await entity.call('${fn}', state);`;
-        } else if (atom.props.actionType === 'boot') {
-          actionCode = `await entity.boot();`;
-        } else if (atom.props.actionType === 'main') {
-          actionCode = `await main(state, context);`;
-        } else if (atom.props.actionType === 'subscribe_event') {
-          actionCode = `entity.on('event', (data) => { console.log('Event received:', data); });`;
-        }
+      const cfg = atom.eventConfig || {
+        triggerEvent: 'onClick',
+        targetId: 'entity.boot',
+        payloadMode: 'state_sync',
+        customPayload: '{}'
+      };
 
-        return `KrnlButton({\n  label: '${atom.props.label || 'Action'}',\n  variant: '${atom.props.variant || 'primary'}',\n  onClick: async () => {\n    ${actionCode}\n  }\n})`;
-      } else if (atom.type === 'KrnlTextInput') {
-        return `KrnlTextInput({\n  label: '${atom.props.label || 'Input'}',\n  placeholder: '${atom.props.placeholder || 'string'}',\n  value: state.${atom.props.name || 'field'} || '${atom.props.value || ''}'\n})`;
-      } else if (atom.type === 'KrnlBadge') {
-        return `KrnlBadge({\n  text: '${atom.props.text || 'ACTIVE'}',\n  variant: '${atom.props.variant || 'success'}'\n})`;
-      } else if (atom.type === 'KrnlDropdown') {
-        return `KrnlDropdown({\n  label: '${atom.props.label || 'Select'}',\n  options: ${JSON.stringify(atom.props.options || ['Option 1', 'Option 2'])}\n})`;
+      const callableTargets = getCallableTargetsForAsset(node);
+      const target = callableTargets.find(t => t.id === cfg.targetId) || callableTargets[0];
+
+      // Formulate payload expression
+      let payloadExpr = 'state';
+      if (cfg.payloadMode === 'void') {
+        payloadExpr = '';
+      } else if (cfg.payloadMode === 'component_val') {
+        payloadExpr = '(e.target as any).value';
+      } else if (cfg.payloadMode === 'custom_payload') {
+        try {
+          const parsed = JSON.parse(cfg.customPayload || '{}');
+          payloadExpr = JSON.stringify(parsed, null, 2).split('\n').join('\n    ');
+        } catch (e) {
+          payloadExpr = cfg.customPayload || '{}';
+        }
       } else {
-        return `div({ class: 'krnl-box' }, ... )`;
+        // state_sync
+        payloadExpr = 'state';
+      }
+
+      // Generate target invocation code
+      let actionCallCode = 'console.log("Action triggered");';
+      if (target) {
+        if (target.kind === 'test_runner') {
+          actionCallCode = `// Open Sandboxed Test Bench`;
+        } else if (target.snippetTemplate) {
+          actionCallCode = target.snippetTemplate(payloadExpr);
+        }
+      }
+
+      if (atom.type === 'KrnlButton') {
+        const handlerName = cfg.triggerEvent === 'onDoubleClick' ? 'onDoubleClick' : 'onClick';
+        return `KrnlButton({\n  label: '${atom.props.label || 'Action'}',\n  variant: '${atom.props.variant || 'primary'}',\n  ${handlerName}: async (e: Event) => {\n    ${actionCallCode}\n  }\n})`;
+      } else if (atom.type === 'KrnlTextInput') {
+        const fieldName = atom.props.name || 'field';
+        if (cfg.triggerEvent === 'onEnter') {
+          return `KrnlTextInput({\n  label: '${atom.props.label || 'Input'}',\n  placeholder: '${atom.props.placeholder || 'string'}',\n  value: state.${fieldName} || '',\n  onInput: (e: Event) => {\n    state.${fieldName} = (e.target as HTMLInputElement).value;\n  },\n  onKeyDown: async (e: KeyboardEvent) => {\n    if (e.key === 'Enter') {\n      ${actionCallCode}\n    }\n  }\n})`;
+        } else if (cfg.triggerEvent === 'onSpace') {
+          return `KrnlTextInput({\n  label: '${atom.props.label || 'Input'}',\n  placeholder: '${atom.props.placeholder || 'string'}',\n  value: state.${fieldName} || '',\n  onInput: (e: Event) => {\n    state.${fieldName} = (e.target as HTMLInputElement).value;\n  },\n  onKeyDown: async (e: KeyboardEvent) => {\n    if (e.key === ' ') {\n      ${actionCallCode}\n    }\n  }\n})`;
+        } else if (cfg.triggerEvent === 'onBlur') {
+          return `KrnlTextInput({\n  label: '${atom.props.label || 'Input'}',\n  placeholder: '${atom.props.placeholder || 'string'}',\n  value: state.${fieldName} || '',\n  onInput: (e: Event) => {\n    state.${fieldName} = (e.target as HTMLInputElement).value;\n  },\n  onBlur: async (e: FocusEvent) => {\n    ${actionCallCode}\n  }\n})`;
+        } else {
+          // onInput instant
+          return `KrnlTextInput({\n  label: '${atom.props.label || 'Input'}',\n  placeholder: '${atom.props.placeholder || 'string'}',\n  value: state.${fieldName} || '',\n  onInput: async (e: Event) => {\n    state.${fieldName} = (e.target as HTMLInputElement).value;\n    ${actionCallCode}\n  }\n})`;
+        }
+      } else if (atom.type === 'KrnlDropdown') {
+        const fieldName = atom.props.name || 'selectedOption';
+        return `KrnlDropdown({\n  label: '${atom.props.label || 'Select'}',\n  options: ${JSON.stringify(atom.props.options || ['Option 1', 'Option 2'])},\n  onChange: async (e: Event) => {\n    state.${fieldName} = (e.target as HTMLSelectElement).value;\n    ${actionCallCode}\n  }\n})`;
+      } else if (atom.type === 'KrnlBadge') {
+        return `KrnlBadge({\n  text: '${atom.props.text || 'ACTIVE'}',\n  variant: '${atom.props.variant || 'success'}',\n  onClick: async (e: Event) => {\n    ${actionCallCode}\n  }\n})`;
+      } else {
+        return `div({ class: 'krnl-box', onClick: async () => { ${actionCallCode} } }, 'Container')`;
       }
     }
 

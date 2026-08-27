@@ -14,6 +14,7 @@ export interface ArchitectureNode {
   stateFields?: Array<{ name: string; type: string }>;
   functionalities?: string[];
   events?: string[];
+  methods?: Array<{ name: string; params: string[] }>;
   helpers?: Array<{ name: string; filePath: string }>;
   uiSpec?: boolean;
   uiFilePath?: string;
@@ -125,6 +126,7 @@ export class AstMutationEngine {
               filePath: libPath,
               uiSpec: libMeta.uiSpec,
               uiFilePath: libMeta.uiFilePath,
+              methods: libMeta.methods,
               examplePayload: libMeta.examplePayload
             });
           }
@@ -390,9 +392,11 @@ export class AstMutationEngine {
     examplePayload: any;
     uiSpec: boolean;
     uiFilePath?: string;
+    methods?: Array<{ name: string; params: string[] }>;
   } {
     const ui = this.findUiFile(path.dirname(libPath), baseName);
     let examplePayload: any = null;
+    let extractedMethods: Array<{ name: string; params: string[] }> = [];
 
     try {
       const content = fs.readFileSync(libPath, 'utf-8');
@@ -408,6 +412,7 @@ export class AstMutationEngine {
         const paramNames = rawParams ? rawParams.split(',').map(p => p.trim().split(':')[0].trim()) : [];
         methods.push({ name: mName, params: paramNames });
       }
+      extractedMethods = methods;
 
       if (methods.length > 0) {
         const primary = methods[0];
@@ -436,7 +441,7 @@ export class AstMutationEngine {
       }
     }
 
-    return { examplePayload, uiSpec: ui.uiSpec, uiFilePath: ui.uiFilePath };
+    return { examplePayload, uiSpec: ui.uiSpec, uiFilePath: ui.uiFilePath, methods: extractedMethods };
   }
 
   /**

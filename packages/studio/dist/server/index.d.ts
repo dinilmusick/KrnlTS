@@ -22,6 +22,10 @@ interface ArchitectureNode {
     }>;
     functionalities?: string[];
     events?: string[];
+    methods?: Array<{
+        name: string;
+        params: string[];
+    }>;
     helpers?: Array<{
         name: string;
         filePath: string;
