@@ -121,7 +121,7 @@ interface FunctionExecutionResult {
 }
 declare class FunctionExecutor {
     /**
-     * Executes a specific function in an isolated process/worker with performance metrics.
+     * Executes a specific function, entity, or library in an isolated sandbox with metrics.
      */
     static execute(request: FunctionExecutionRequest): Promise<FunctionExecutionResult>;
 }

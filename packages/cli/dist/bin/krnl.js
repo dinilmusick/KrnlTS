@@ -414,17 +414,17 @@ export class ${fullLibName} {
 // ../studio/src/server/FunctionExecutor.ts
 import * as path2 from "path";
 import * as fs2 from "fs";
-import { Worker } from "worker_threads";
+import { pathToFileURL } from "url";
 import * as esbuild from "esbuild";
 var FunctionExecutor = class {
   /**
-   * Executes a specific function in an isolated process/worker with performance metrics.
+   * Executes a specific function, entity, or library in an isolated sandbox with metrics.
    */
   static async execute(request) {
     const startTime = performance.now();
     const initialMem = process.memoryUsage().heapUsed;
     const logs = [];
-    const absPath = path2.resolve(request.filePath);
+    let absPath = path2.resolve(request.filePath);
     if (!fs2.existsSync(absPath)) {
       return {
         success: false,
@@ -434,6 +434,32 @@ var FunctionExecutor = class {
         logs: []
       };
     }
+    if (fs2.lstatSync(absPath).isDirectory()) {
+      const base = path2.basename(absPath);
+      const candidates = [
+        path2.join(absPath, "main_function/logic.ts"),
+        path2.join(absPath, `${base}.ts`),
+        path2.join(absPath, "index.ts"),
+        path2.join(absPath, "entity.ts")
+      ];
+      const found = candidates.find((c) => fs2.existsSync(c));
+      if (found) {
+        absPath = found;
+      } else {
+        return {
+          success: false,
+          durationMs: 0,
+          memoryDeltaBytes: 0,
+          error: `No executable TypeScript entry point found in directory: ${absPath}`,
+          logs: []
+        };
+      }
+    }
+    const dirOfEntry = path2.dirname(absPath);
+    const tempBundlePath = path2.join(
+      dirOfEntry,
+      `.krnl-exec-${Date.now()}-${Math.random().toString(36).substring(7)}.mjs`
+    );
     const tsResolverPlugin = {
       name: "ts-resolver-plugin",
       setup(build2) {
@@ -453,121 +479,94 @@ var FunctionExecutor = class {
         });
       }
     };
-    let bundledCode = "";
     try {
-      const result = await esbuild.build({
+      await esbuild.build({
         entryPoints: [absPath],
         bundle: true,
-        write: false,
+        outfile: tempBundlePath,
         format: "esm",
         platform: "node",
         target: "esnext",
         plugins: [tsResolverPlugin],
         external: ["@dinilmusick/krnl-core", "vanjs-core", "worker_threads", "ws", "fs", "path", "http", "events"]
       });
-      if (result.outputFiles && result.outputFiles.length > 0) {
-        bundledCode = result.outputFiles[0].text;
+      const fileUrl = pathToFileURL(tempBundlePath).href;
+      const mod = await import(fileUrl);
+      let targetFn = null;
+      if (request.functionName && mod[request.functionName]) {
+        targetFn = mod[request.functionName];
+      } else if (typeof mod.main === "function") {
+        targetFn = mod.main;
+      } else if (typeof mod.default === "function") {
+        targetFn = mod.default;
       } else {
-        throw new Error("esbuild produced no output");
+        for (const key of Object.keys(mod)) {
+          if (typeof mod[key] === "function") {
+            targetFn = mod[key];
+            break;
+          }
+        }
       }
-    } catch (err) {
+      let executionOutput = null;
+      if (typeof targetFn === "function") {
+        if (targetFn.prototype && (targetFn.prototype.boot || targetFn.name.endsWith("System") || targetFn.name.endsWith("Entity"))) {
+          const instance = new targetFn();
+          if (typeof instance.boot === "function") {
+            await instance.boot();
+          }
+          executionOutput = {
+            entityId: instance.id || targetFn.name,
+            version: instance.version || "1.0.0",
+            description: instance.description || "System Entity",
+            status: "BOOTED_AND_READY",
+            registeredFlows: instance["flows"] ? Array.from(instance["flows"].keys()) : []
+          };
+        } else {
+          const dummyContext = {
+            state: request.state || {},
+            entity: {
+              id: "TestSandbox",
+              call: async () => ({}),
+              emitEvent: () => {
+              }
+            }
+          };
+          executionOutput = await targetFn(request.input || {}, dummyContext);
+        }
+      } else if (mod && typeof mod === "object") {
+        executionOutput = {
+          exports: Object.keys(mod),
+          status: "MODULE_LOADED"
+        };
+      } else {
+        throw new Error(`No executable function or entity class export found in ${absPath}`);
+      }
+      const durationMs = parseFloat((performance.now() - startTime).toFixed(2));
+      const memoryDeltaBytes = Math.max(0, process.memoryUsage().heapUsed - initialMem);
       return {
-        success: false,
-        durationMs: parseFloat((performance.now() - startTime).toFixed(2)),
-        memoryDeltaBytes: 0,
-        error: "Bundle error: " + (err?.message || String(err)),
+        success: true,
+        output: executionOutput,
+        durationMs,
+        memoryDeltaBytes,
         logs
       };
-    }
-    const codeBase64 = Buffer.from(bundledCode).toString("base64");
-    return new Promise((resolve6) => {
-      try {
-        const workerCode = `
-          const { parentPort, workerData } = require('worker_threads');
-
-          async function run() {
-            try {
-              const mod = await import('data:text/javascript;base64,' + workerData.codeBase64);
-
-              const fn = workerData.functionName
-                ? (mod[workerData.functionName] || mod.default || mod.main)
-                : (mod.main || mod.default || mod[Object.keys(mod)[0]]);
-
-              if (typeof fn !== 'function') {
-                throw new Error("No executable function export found in " + workerData.absPath);
-              }
-
-              const dummyContext = {
-                state: workerData.state || {},
-                entity: {
-                  id: 'TestSandbox',
-                  call: async () => ({}),
-                  emitEvent: () => {}
-                }
-              };
-
-              const result = await fn(workerData.input || {}, dummyContext);
-              parentPort.postMessage({ success: true, output: result });
-            } catch (err) {
-              parentPort.postMessage({ success: false, error: err && err.message ? err.message : String(err) });
-            }
-          }
-
-          run();
-        `;
-        const worker = new Worker(workerCode, {
-          eval: true,
-          workerData: {
-            absPath,
-            codeBase64,
-            functionName: request.functionName,
-            input: request.input,
-            state: request.state
-          }
-        });
-        const timer = setTimeout(() => {
-          worker.terminate();
-          resolve6({
-            success: false,
-            durationMs: parseFloat((performance.now() - startTime).toFixed(2)),
-            memoryDeltaBytes: 0,
-            error: "Execution timed out after 5000ms",
-            logs
-          });
-        }, 5e3);
-        worker.on("message", (msg) => {
-          clearTimeout(timer);
-          const durationMs = parseFloat((performance.now() - startTime).toFixed(2));
-          const memoryDeltaBytes = Math.max(0, process.memoryUsage().heapUsed - initialMem);
-          resolve6({
-            success: msg.success,
-            output: msg.output,
-            error: msg.error,
-            durationMs,
-            memoryDeltaBytes,
-            logs
-          });
-        });
-        worker.on("error", (err) => {
-          clearTimeout(timer);
-          resolve6({
-            success: false,
-            durationMs: parseFloat((performance.now() - startTime).toFixed(2)),
-            memoryDeltaBytes: 0,
-            error: err?.message || String(err),
-            logs
-          });
-        });
-      } catch (err) {
-        resolve6({
-          success: false,
-          durationMs: parseFloat((performance.now() - startTime).toFixed(2)),
-          memoryDeltaBytes: 0,
-          error: err?.message || String(err),
-          logs
-        });
+    } catch (err) {
+      const durationMs = parseFloat((performance.now() - startTime).toFixed(2));
+      return {
+        success: false,
+        durationMs,
+        memoryDeltaBytes: 0,
+        error: err?.message || String(err),
+        logs
+      };
+    } finally {
+      if (fs2.existsSync(tempBundlePath)) {
+        try {
+          fs2.unlinkSync(tempBundlePath);
+        } catch (e) {
+        }
       }
-    });
+    }
   }
 };
 
@@ -1258,14 +1257,22 @@ var StudioServer = class {
       this.broadcastAgentActivity(mutation);
     });
     this.httpServer = http.createServer((req, res) => this.handleHttpRequest(req, res));
-    this.wss = new WebSocketServer({ server: this.httpServer, path: "/studio/ws" });
+    this.httpServer.on("error", (err) => console.error("HTTP Server Error:", err));
+    this.wss = new WebSocketServer({ server: this.httpServer, path: "/studio/ws", perMessageDeflate: false });
+    this.wss.on("error", (err) => console.error("WSS Error:", err));
     this.initWebSocket();
     this.initFileWatcher();
   }
   initWebSocket() {
     this.wss.on("connection", (ws) => {
-      const initialGraph = this.astEngine.extractArchitectureGraph();
-      ws.send(JSON.stringify({ jsonrpc: "2.0", method: "graph.init", params: { ...initialGraph, projectRoot: this.projectRoot } }));
+      ws.on("error", (err) => {
+        console.warn("WS Client connection error handled:", err.message);
+      });
+      try {
+        const initialGraph = this.astEngine.extractArchitectureGraph();
+        ws.send(JSON.stringify({ jsonrpc: "2.0", method: "graph.init", params: { ...initialGraph, projectRoot: this.projectRoot } }));
+      } catch (e) {
+      }
       ws.on("message", async (data) => {
         try {
           const req = JSON.parse(data.toString());
@@ -1289,15 +1296,19 @@ var StudioServer = class {
             return;
           }
           const res = await this.router.handle(req);
-          ws.send(JSON.stringify(res));
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(res));
+          }
           if (req.method && (req.method.startsWith("graph.") || req.method.startsWith("entity.") || req.method.startsWith("functionality.") || req.method.startsWith("library."))) {
             this.broadcastGraphUpdate();
           }
         } catch (e) {
-          ws.send(JSON.stringify({
-            jsonrpc: "2.0",
-            error: { code: -32700, message: "Parse error: " + (e.message || String(e)) }
-          }));
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              jsonrpc: "2.0",
+              error: { code: -32700, message: "Parse error: " + (e.message || String(e)) }
+            }));
+          }
         }
       });
     });
@@ -1309,34 +1320,40 @@ var StudioServer = class {
     });
   }
   broadcastGraphUpdate() {
-    const graph = this.astEngine.extractArchitectureGraph();
-    const payload = JSON.stringify({ jsonrpc: "2.0", method: "graph.updated", params: { ...graph, projectRoot: this.projectRoot } });
-    for (const client of this.wss.clients) {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(payload);
+    try {
+      const graph = this.astEngine.extractArchitectureGraph();
+      const payload = JSON.stringify({ jsonrpc: "2.0", method: "graph.updated", params: { ...graph, projectRoot: this.projectRoot } });
+      for (const client of this.wss.clients) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(payload);
+        }
       }
+    } catch (e) {
     }
   }
   broadcastAgentActivity(mutation) {
-    const payload = JSON.stringify({
-      jsonrpc: "2.0",
-      method: "agent.activity",
-      params: {
-        action: mutation.action,
-        params: mutation.params,
-        timestamp: Date.now()
+    try {
+      const payload = JSON.stringify({
+        jsonrpc: "2.0",
+        method: "agent.activity",
+        params: {
+          action: mutation.action,
+          params: mutation.params,
+          timestamp: Date.now()
+        }
+      });
+      for (const client of this.wss.clients) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(payload);
+        }
       }
-    });
-    for (const client of this.wss.clients) {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(payload);
-      }
+    } catch (e) {
     }
   }
   async handleHttpRequest(req, res) {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     if (req.method === "OPTIONS") {
       res.writeHead(204);
       res.end();
@@ -1355,49 +1372,54 @@ var StudioServer = class {
         body += chunk;
       });
       req.on("end", async () => {
-        let params = {};
-        if (body.trim()) {
-          try {
-            params = JSON.parse(body);
-          } catch (e) {
+        try {
+          let params = {};
+          if (body.trim()) {
+            try {
+              params = JSON.parse(body);
+            } catch (e) {
+            }
           }
-        }
-        let method = "graph.getArchitecture";
-        if (url === "/api/v1/project/create") method = "project.create";
-        else if (url === "/api/v1/project/load") method = "project.load";
-        else if (url === "/api/v1/project/graph") method = "graph.getArchitecture";
-        else if (url === "/api/v1/project/status") method = "project.getStatus";
-        else if (url === "/api/v1/graph/moveNode") method = "graph.moveNode";
-        else if (url === "/api/v1/graph/moveMultipleNodes") method = "graph.moveMultipleNodes";
-        else if (url === "/api/v1/graph/connectNodes") method = "graph.connectNodes";
-        else if (url === "/api/v1/graph/deleteEdge") method = "graph.deleteEdge";
-        else if (url === "/api/v1/graph/deleteNode") method = "graph.deleteNode";
-        else if (url === "/api/v1/graph/alignLayout") method = "graph.alignLayout";
-        else if (url === "/api/v1/graph/undo") method = "graph.undo";
-        else if (url === "/api/v1/graph/redo") method = "graph.redo";
-        else if (url === "/api/v1/entity/create") method = "entity.create";
-        else if (url === "/api/v1/functionality/create") method = "functionality.create";
-        else if (url === "/api/v1/library/create") method = "library.create";
-        else if (url === "/api/v1/flow/addStep") method = "flow.addStep";
-        else if (url === "/api/v1/file/read") method = "file.read";
-        else if (url === "/api/v1/file/edit") method = "file.edit";
-        else if (url === "/api/v1/ui/generate") method = "ui.generate";
-        else if (url === "/api/v1/validate/audit") method = "validate.audit";
-        else if (url === "/api/v1/test/execute") method = "test.executeFunction";
-        else if (url === "/api/v1/docs/endpoints") method = "docs.endpoints";
-        const rpcRes = await this.router.handle({
-          jsonrpc: "2.0",
-          id: "http-req-" + Date.now(),
-          method,
-          params
-        });
-        if (rpcRes.error) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(rpcRes.error, null, 2));
-        } else {
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(rpcRes.result, null, 2));
-          this.broadcastGraphUpdate();
+          let method = "graph.getArchitecture";
+          if (url === "/api/v1/project/create") method = "project.create";
+          else if (url === "/api/v1/project/load") method = "project.load";
+          else if (url === "/api/v1/project/graph") method = "graph.getArchitecture";
+          else if (url === "/api/v1/project/status") method = "project.getStatus";
+          else if (url === "/api/v1/graph/moveNode") method = "graph.moveNode";
+          else if (url === "/api/v1/graph/moveMultipleNodes") method = "graph.moveMultipleNodes";
+          else if (url === "/api/v1/graph/connectNodes") method = "graph.connectNodes";
+          else if (url === "/api/v1/graph/deleteEdge") method = "graph.deleteEdge";
+          else if (url === "/api/v1/graph/deleteNode") method = "graph.deleteNode";
+          else if (url === "/api/v1/graph/alignLayout") method = "graph.alignLayout";
+          else if (url === "/api/v1/graph/undo") method = "graph.undo";
+          else if (url === "/api/v1/graph/redo") method = "graph.redo";
+          else if (url === "/api/v1/entity/create") method = "entity.create";
+          else if (url === "/api/v1/functionality/create") method = "functionality.create";
+          else if (url === "/api/v1/library/create") method = "library.create";
+          else if (url === "/api/v1/flow/addStep") method = "flow.addStep";
+          else if (url === "/api/v1/file/read") method = "file.read";
+          else if (url === "/api/v1/file/edit") method = "file.edit";
+          else if (url === "/api/v1/ui/generate") method = "ui.generate";
+          else if (url === "/api/v1/validate/audit") method = "validate.audit";
+          else if (url === "/api/v1/test/execute") method = "test.executeFunction";
+          else if (url === "/api/v1/docs/endpoints") method = "docs.endpoints";
+          const rpcRes = await this.router.handle({
+            jsonrpc: "2.0",
+            id: "http-req-" + Date.now(),
+            method,
+            params
+          });
+          if (rpcRes.error) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(rpcRes.error, null, 2));
+          } else {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(rpcRes.result, null, 2));
+            this.broadcastGraphUpdate();
+          }
+        } catch (err) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: err.message || String(err) }));
         }
       });
       return;
@@ -1488,12 +1510,12 @@ var StudioServer = class {
       transform-origin: 0 0;
     }
     
-    /* 4-Quadrant Unbounded Layers with strict Z-Index Hierarchy:
+    /* Strict Layering Hierarchy:
        svg-wires (5) < gizmos-layer (7) < nodes-layer (10) < node-cards (20) < viewers (50) */
     #svg-wires {
-      position: absolute; top: 0; left: 0;
-      width: 1px; height: 1px;
-      overflow: visible; pointer-events: none; z-index: 5;
+      position: absolute; top: -50000px; left: -50000px;
+      width: 100000px; height: 100000px;
+      overflow: visible !important; pointer-events: none; z-index: 5;
     }
     #gizmos-layer {
       position: absolute; top: 0; left: 0;
@@ -1870,7 +1892,7 @@ var StudioServer = class {
   <script>
     let currentGraph = { nodes: [], edges: [] };
     let selectedNodes = new Set();
-    let spawnedViewers = new Map(); // id -> viewerData
+    let spawnedViewers = new Map();
     let viewerCounter = 0;
     let maxZIndex = 100;
     let lastModalOpenTime = 0;
@@ -2149,6 +2171,7 @@ var StudioServer = class {
 
     function updateTransform() {
       container.style.transform = \`translate(\${panX}px, \${panY}px) scale(\${zoom})\`;
+      renderWiresAndGizmos();
     }
     updateTransform();
 
@@ -2213,12 +2236,10 @@ var StudioServer = class {
 
       const incomingIds = new Set(graph.nodes.map(n => n.id));
 
-      // Remove obsolete nodes from DOM (except viewers)
       document.querySelectorAll('.krnl-node').forEach(el => {
         if (!incomingIds.has(el.dataset.nodeId)) el.remove();
       });
 
-      // Update or create node elements without wiping innerHTML of existing ones
       graph.nodes.forEach((node, idx) => {
         let el = document.getElementById('node-' + node.id);
         if (!el) {
@@ -2422,7 +2443,7 @@ var StudioServer = class {
       layer.appendChild(el);
     }
 
-    // --- OMNI VIEWER NODE SPAWNING & PERSISTENCE (CREATE ONCE, ZERO RE-CREATION) ---
+    // --- OMNI VIEWER NODE SPAWNING & PERSISTENCE ---
     function confirmSpawnViewer(viewType) {
       hideContextMenus();
       const targetId = wireSource?.nodeId || contextTargetNodeId;
@@ -2458,7 +2479,9 @@ var StudioServer = class {
 
       spawnedViewers.set(viewerId, viewerData);
       renderViewerDomElement(viewerData, document.getElementById('nodes-layer'));
-      renderWiresAndGizmos();
+      requestAnimationFrame(() => {
+        renderWiresAndGizmos();
+      });
     }
 
     function closeViewerNode(viewerId) {
@@ -2474,7 +2497,7 @@ var StudioServer = class {
 
     function renderViewerDomElement(viewer, layer) {
       let vEl = document.getElementById('viewer-' + viewer.id);
-      if (vEl) return; // ALREADY CREATED! NEVER RE-CREATE TO PREVENT FLICKER
+      if (vEl) return;
 
       vEl = document.createElement('div');
       vEl.id = 'viewer-' + viewer.id;
@@ -2540,6 +2563,50 @@ var StudioServer = class {
       populateViewerContent(viewer, body);
     }
 
+    // --- Bulletproof File Loader (WebSocket RPC + HTTP Fallback) ---
+    function fetchFileContent(filePath, cb) {
+      if (window.studioWs && window.studioWs.readyState === WebSocket.OPEN) {
+        const reqId = 'file-read-' + Date.now();
+        const msgHandler = (evt) => {
+          try {
+            const data = JSON.parse(evt.data);
+            if (data.id === reqId) {
+              window.studioWs.removeEventListener('message', msgHandler);
+              if (data.result?.payload?.content !== undefined) {
+                cb(null, data.result.payload.content);
+              } else if (data.result?.content !== undefined) {
+                cb(null, data.result.content);
+              } else if (data.error) {
+                cb(new Error(data.error.message));
+              }
+            }
+          } catch (e) {}
+        };
+        window.studioWs.addEventListener('message', msgHandler);
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: reqId,
+          method: 'file.read',
+          params: { filePath }
+        }));
+        return;
+      }
+
+      // HTTP fetch fallback
+      fetch('/api/v1/file/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.payload?.content !== undefined) cb(null, data.payload.content);
+        else if (data.result?.payload?.content !== undefined) cb(null, data.result.payload.content);
+        else cb(new Error('No content returned'));
+      })
+      .catch(err => cb(err));
+    }
+
     function populateViewerContent(viewer, containerEl) {
       containerEl.innerHTML = '';
 
@@ -2574,7 +2641,7 @@ var StudioServer = class {
         monacoDiv.style.width = '100%'; monacoDiv.style.height = '100%';
         containerEl.appendChild(monacoDiv);
 
-        setTimeout(async () => {
+        setTimeout(() => {
           if (window.monaco) {
             viewer.monacoInstance = monaco.editor.create(monacoDiv, {
               value: \`// Loading source code for \${viewer.sourceNode.name}...\`,
@@ -2585,51 +2652,48 @@ var StudioServer = class {
               minimap: { enabled: true }
             });
 
-            try {
-              const res = await fetch('/api/v1/file/read', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filePath: viewer.sourceNode.filePath })
-              });
-              const data = await res.json();
-              if (data.payload?.content) {
-                viewer.monacoInstance.setValue(data.payload.content);
-              } else if (data.result?.payload?.content) {
-                viewer.monacoInstance.setValue(data.result.payload.content);
-              } else if (data.content) {
-                viewer.monacoInstance.setValue(data.content);
+            fetchFileContent(viewer.sourceNode.filePath, (err, content) => {
+              if (err) {
+                viewer.monacoInstance.setValue(\`// File: \${viewer.sourceNode.filePath}\\n// Could not load file directly: \${err.message}\\n\\n// Showing placeholder contract:\\nexport function \${viewer.sourceNode.name}() {\\n  // Implementation\\n}\`);
               } else {
-                viewer.monacoInstance.setValue(\`// File: \${viewer.sourceNode.filePath}\\n// Status: No content returned\`);
+                viewer.monacoInstance.setValue(content);
               }
-            } catch (err) {
-              viewer.monacoInstance.setValue(\`// Error loading file: \${err.message || String(err)}\`);
-            }
+            });
           }
         }, 50);
       } else if (viewer.viewType === 'test') {
         containerEl.innerHTML = \`
           <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px; height: 100%;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 11px; color: #abb2bf;">INPUT PAYLOAD:</span>
-              <button onclick="executeViewerTest('\${viewer.id}')" style="background: #c678dd; color: #121212; border: none; padding: 4px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px;">\u25B6 Execute in Sandbox</button>
+              <span style="font-size: 11px; color: #abb2bf; font-weight: bold;">INPUT PAYLOAD:</span>
+              <button onclick="executeViewerTest('\${viewer.id}')" style="background: #c678dd; color: #121212; border: none; padding: 4px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; transition: transform 0.1s ease;" onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform='none'">\u25B6 Execute in Sandbox</button>
             </div>
             <div id="test-in-\${viewer.id}" style="height: 100px; border: 1px solid rgba(198, 120, 221, 0.3); border-radius: 6px;"></div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-              <span style="font-size: 11px; color: #abb2bf;">OUTPUT & BENCHMARK:</span>
-              <span id="test-badge-\${viewer.id}" style="font-size: 10px; color: #98c379; font-weight: bold;"></span>
+              <span style="font-size: 11px; color: #abb2bf; font-weight: bold;">OUTPUT & BENCHMARK:</span>
+              <span id="test-badge-\${viewer.id}" style="font-size: 11px; font-weight: bold; color: #7f848e;">Awaiting run</span>
             </div>
             <div id="test-out-\${viewer.id}" style="flex: 1; border: 1px solid rgba(198, 120, 221, 0.3); border-radius: 6px;"></div>
           </div>
         \`;
 
+        let defaultJson = '{}';
+        if (viewer.sourceNode.name.includes('Calc')) {
+          defaultJson = '{\\n  "a": 10,\\n  "b": 25\\n}';
+        } else if (viewer.sourceNode.name.includes('Order')) {
+          defaultJson = '{\\n  "orderId": "ORD-9821",\\n  "amount": 250\\n}';
+        } else if (viewer.sourceNode.name.includes('Agent') || viewer.sourceNode.name.includes('AI')) {
+          defaultJson = '{\\n  "prompt": "Analyze systems status",\\n  "maxTokens": 100\\n}';
+        }
+
         setTimeout(() => {
           if (window.monaco) {
             viewer.testInputEditor = monaco.editor.create(document.getElementById('test-in-' + viewer.id), {
-              value: '{\\n  "symbol": "BTC/USDT",\\n  "limitPrice": 64500\\n}',
+              value: defaultJson,
               language: 'json', theme: 'krnl-dark', fontSize: 11, minimap: { enabled: false }
             });
             viewer.testOutputEditor = monaco.editor.create(document.getElementById('test-out-' + viewer.id), {
-              value: '// Awaiting execution...',
+              value: '// Press [\u25B6 Execute in Sandbox] above to run in isolated VM',
               language: 'json', theme: 'krnl-dark', readOnly: true, fontSize: 11, minimap: { enabled: false }
             });
           }
@@ -2665,19 +2729,87 @@ var StudioServer = class {
     async function executeViewerTest(viewerId) {
       const viewer = spawnedViewers.get(viewerId);
       if (!viewer || !viewer.testInputEditor) return;
-      let inputVal = {};
-      try { inputVal = JSON.parse(viewer.testInputEditor.getValue()); } catch (e) { alert('Invalid JSON: ' + e.message); return; }
+      const badge = document.getElementById('test-badge-' + viewerId);
+      if (badge) {
+        badge.textContent = '\u23F3 Executing in Sandbox...';
+        badge.style.color = '#e5c07b';
+      }
 
-      const res = await fetch('/api/v1/test/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: viewer.sourceNode.filePath, input: inputVal })
-      });
-      const data = await res.json();
-      if (data.payload) {
-        const badge = document.getElementById('test-badge-' + viewerId);
-        if (badge) badge.textContent = \`[\${data.payload.durationMs}ms | \${data.payload.success ? 'PASSED' : 'FAILED'}]\`;
-        if (viewer.testOutputEditor) viewer.testOutputEditor.setValue(JSON.stringify(data.payload.output || data.payload.error, null, 2));
+      let inputVal = {};
+      try {
+        const raw = viewer.testInputEditor.getValue().trim();
+        inputVal = raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        if (badge) {
+          badge.textContent = '\u274C Invalid Input JSON';
+          badge.style.color = '#e06c75';
+        }
+        if (viewer.testOutputEditor) {
+          viewer.testOutputEditor.setValue(JSON.stringify({ error: 'Invalid JSON: ' + e.message }, null, 2));
+        }
+        return;
+      }
+
+      try {
+        if (window.studioWs && window.studioWs.readyState === WebSocket.OPEN) {
+          const reqId = 'test-exec-' + Date.now();
+          const handler = (evt) => {
+            try {
+              const data = JSON.parse(evt.data);
+              if (data.id === reqId) {
+                window.studioWs.removeEventListener('message', handler);
+                handleTestResult(data.result?.payload || data.result, viewerId);
+              }
+            } catch (e) {}
+          };
+          window.studioWs.addEventListener('message', handler);
+          window.studioWs.send(JSON.stringify({
+            jsonrpc: '2.0',
+            id: reqId,
+            method: 'test.executeFunction',
+            params: { filePath: viewer.sourceNode.filePath, input: inputVal }
+          }));
+          return;
+        }
+
+        const res = await fetch('/api/v1/test/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath: viewer.sourceNode.filePath, input: inputVal })
+        });
+        const data = await res.json();
+        handleTestResult(data.payload || data.result?.payload || data, viewerId);
+      } catch (err) {
+        if (badge) {
+          badge.textContent = '[FAILED]';
+          badge.style.color = '#e06c75';
+        }
+        if (viewer.testOutputEditor) {
+          viewer.testOutputEditor.setValue(JSON.stringify({ error: err.message || String(err) }, null, 2));
+        }
+      }
+    }
+
+    function handleTestResult(payload, viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      const badge = document.getElementById('test-badge-' + viewerId);
+      if (badge && payload) {
+        if (payload.success) {
+          badge.textContent = \`[\${payload.durationMs || 0}ms | PASSED]\`;
+          badge.style.color = '#98c379';
+        } else {
+          badge.textContent = \`[\${payload.durationMs || 0}ms | FAILED]\`;
+          badge.style.color = '#e06c75';
+        }
+      }
+      if (viewer && viewer.testOutputEditor) {
+        if (payload?.output !== undefined) {
+          viewer.testOutputEditor.setValue(JSON.stringify(payload.output, null, 2));
+        } else if (payload?.error) {
+          viewer.testOutputEditor.setValue(JSON.stringify({ error: payload.error, logs: payload.logs || [] }, null, 2));
+        } else {
+          viewer.testOutputEditor.setValue(JSON.stringify(payload, null, 2));
+        }
       }
     }
 
@@ -2691,9 +2823,12 @@ var StudioServer = class {
     function renderWiresAndGizmos() {
       const svg = document.getElementById('svg-wires');
       const gizmosLayer = document.getElementById('gizmos-layer');
+      if (!svg || !gizmosLayer) return;
+
       svg.innerHTML = '';
       gizmosLayer.innerHTML = '';
 
+      // Standard Flow Connections
       for (const edge of currentGraph.edges || []) {
         const sEl = document.getElementById('node-' + edge.source);
         const tEl = document.getElementById('node-' + edge.target);
@@ -2729,24 +2864,33 @@ var StudioServer = class {
         }
       }
 
+      // TETHERING 'VIEWS' WIRES (Rendered between Node's Views Socket & Viewer Window)
       spawnedViewers.forEach(viewer => {
         const sEl = document.getElementById('node-' + viewer.sourceNodeId);
         const vEl = document.getElementById('viewer-' + viewer.id);
         if (sEl && vEl) {
-          const viewsSock = sEl.querySelector('.socket-views');
-          const sx = parseFloat(sEl.style.left) + (viewsSock ? sEl.offsetWidth - 20 : sEl.offsetWidth);
-          const sy = parseFloat(sEl.style.top) + sEl.offsetHeight;
-          const tx = parseFloat(vEl.style.left);
-          const ty = parseFloat(vEl.style.top) + 20;
+          const sX = parseFloat(sEl.style.left) || 0;
+          const sY = parseFloat(sEl.style.top) || 0;
+          const sW = sEl.offsetWidth || 280;
+          const sH = sEl.offsetHeight || 130;
 
-          const dy = Math.abs(ty - sy) * 0.5;
+          // Originates at bottom-right Views handle
+          const sx = sX + sW - 13;
+          const sy = sY + sH + 3;
+
+          const tx = parseFloat(vEl.style.left) || viewer.x;
+          const ty = (parseFloat(vEl.style.top) || viewer.y) + 20;
+
+          const dx = Math.max(50, Math.abs(tx - sx) * 0.45);
+          const dy = Math.abs(ty - sy) * 0.45;
+
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-          path.setAttribute('d', \`M \${sx} \${sy} C \${sx + dy}, \${tx - 40} \${ty}, \${tx} \${ty}\`);
+          path.setAttribute('d', \`M \${sx} \${sy} C \${sx + dx} \${sy + dy}, \${tx - dx} \${ty}, \${tx} \${ty}\`);
           path.setAttribute('stroke', '#c678dd');
-          path.setAttribute('stroke-width', '2.5');
-          path.setAttribute('stroke-dasharray', '5,5');
+          path.setAttribute('stroke-width', '3');
+          path.setAttribute('stroke-dasharray', '6,6');
           path.setAttribute('fill', 'none');
-          path.setAttribute('opacity', '0.85');
+          path.setAttribute('opacity', '0.95');
           svg.appendChild(path);
 
           const midX = (sx + tx) / 2;

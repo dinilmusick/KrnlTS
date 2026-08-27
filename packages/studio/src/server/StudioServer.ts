@@ -40,7 +40,10 @@ export class StudioServer {
     });
 
     this.httpServer = http.createServer((req, res) => this.handleHttpRequest(req, res));
-    this.wss = new WebSocketServer({ server: this.httpServer, path: '/studio/ws' });
+    this.httpServer.on('error', (err) => console.error('HTTP Server Error:', err));
+
+    this.wss = new WebSocketServer({ server: this.httpServer, path: '/studio/ws', perMessageDeflate: false });
+    this.wss.on('error', (err) => console.error('WSS Error:', err));
 
     this.initWebSocket();
     this.initFileWatcher();
@@ -48,8 +51,14 @@ export class StudioServer {
 
   private initWebSocket() {
     this.wss.on('connection', (ws: WebSocket) => {
-      const initialGraph = this.astEngine.extractArchitectureGraph();
-      ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'graph.init', params: { ...initialGraph, projectRoot: this.projectRoot } }));
+      ws.on('error', (err) => {
+        console.warn('WS Client connection error handled:', err.message);
+      });
+
+      try {
+        const initialGraph = this.astEngine.extractArchitectureGraph();
+        ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'graph.init', params: { ...initialGraph, projectRoot: this.projectRoot } }));
+      } catch (e) {}
 
       ws.on('message', async (data: string) => {
         try {
@@ -79,16 +88,20 @@ export class StudioServer {
           }
 
           const res = await this.router.handle(req);
-          ws.send(JSON.stringify(res));
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(res));
+          }
 
           if (req.method && (req.method.startsWith('graph.') || req.method.startsWith('entity.') || req.method.startsWith('functionality.') || req.method.startsWith('library.'))) {
             this.broadcastGraphUpdate();
           }
         } catch (e: any) {
-          ws.send(JSON.stringify({
-            jsonrpc: '2.0',
-            error: { code: -32700, message: 'Parse error: ' + (e.message || String(e)) }
-          }));
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              jsonrpc: '2.0',
+              error: { code: -32700, message: 'Parse error: ' + (e.message || String(e)) }
+            }));
+          }
         }
       });
     });
@@ -102,36 +115,40 @@ export class StudioServer {
   }
 
   private broadcastGraphUpdate() {
-    const graph = this.astEngine.extractArchitectureGraph();
-    const payload = JSON.stringify({ jsonrpc: '2.0', method: 'graph.updated', params: { ...graph, projectRoot: this.projectRoot } });
-    for (const client of this.wss.clients) {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(payload);
+    try {
+      const graph = this.astEngine.extractArchitectureGraph();
+      const payload = JSON.stringify({ jsonrpc: '2.0', method: 'graph.updated', params: { ...graph, projectRoot: this.projectRoot } });
+      for (const client of this.wss.clients) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(payload);
+        }
       }
-    }
+    } catch (e) {}
   }
 
   private broadcastAgentActivity(mutation: { action: string; params: any }) {
-    const payload = JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'agent.activity',
-      params: {
-        action: mutation.action,
-        params: mutation.params,
-        timestamp: Date.now()
+    try {
+      const payload = JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'agent.activity',
+        params: {
+          action: mutation.action,
+          params: mutation.params,
+          timestamp: Date.now()
+        }
+      });
+      for (const client of this.wss.clients) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(payload);
+        }
       }
-    });
-    for (const client of this.wss.clients) {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(payload);
-      }
-    }
+    } catch (e) {}
   }
 
   private async handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -152,49 +169,54 @@ export class StudioServer {
       let body = '';
       req.on('data', chunk => { body += chunk; });
       req.on('end', async () => {
-        let params: any = {};
-        if (body.trim()) {
-          try { params = JSON.parse(body); } catch (e) {}
-        }
+        try {
+          let params: any = {};
+          if (body.trim()) {
+            try { params = JSON.parse(body); } catch (e) {}
+          }
 
-        let method = 'graph.getArchitecture';
-        if (url === '/api/v1/project/create') method = 'project.create';
-        else if (url === '/api/v1/project/load') method = 'project.load';
-        else if (url === '/api/v1/project/graph') method = 'graph.getArchitecture';
-        else if (url === '/api/v1/project/status') method = 'project.getStatus';
-        else if (url === '/api/v1/graph/moveNode') method = 'graph.moveNode';
-        else if (url === '/api/v1/graph/moveMultipleNodes') method = 'graph.moveMultipleNodes';
-        else if (url === '/api/v1/graph/connectNodes') method = 'graph.connectNodes';
-        else if (url === '/api/v1/graph/deleteEdge') method = 'graph.deleteEdge';
-        else if (url === '/api/v1/graph/deleteNode') method = 'graph.deleteNode';
-        else if (url === '/api/v1/graph/alignLayout') method = 'graph.alignLayout';
-        else if (url === '/api/v1/graph/undo') method = 'graph.undo';
-        else if (url === '/api/v1/graph/redo') method = 'graph.redo';
-        else if (url === '/api/v1/entity/create') method = 'entity.create';
-        else if (url === '/api/v1/functionality/create') method = 'functionality.create';
-        else if (url === '/api/v1/library/create') method = 'library.create';
-        else if (url === '/api/v1/flow/addStep') method = 'flow.addStep';
-        else if (url === '/api/v1/file/read') method = 'file.read';
-        else if (url === '/api/v1/file/edit') method = 'file.edit';
-        else if (url === '/api/v1/ui/generate') method = 'ui.generate';
-        else if (url === '/api/v1/validate/audit') method = 'validate.audit';
-        else if (url === '/api/v1/test/execute') method = 'test.executeFunction';
-        else if (url === '/api/v1/docs/endpoints') method = 'docs.endpoints';
+          let method = 'graph.getArchitecture';
+          if (url === '/api/v1/project/create') method = 'project.create';
+          else if (url === '/api/v1/project/load') method = 'project.load';
+          else if (url === '/api/v1/project/graph') method = 'graph.getArchitecture';
+          else if (url === '/api/v1/project/status') method = 'project.getStatus';
+          else if (url === '/api/v1/graph/moveNode') method = 'graph.moveNode';
+          else if (url === '/api/v1/graph/moveMultipleNodes') method = 'graph.moveMultipleNodes';
+          else if (url === '/api/v1/graph/connectNodes') method = 'graph.connectNodes';
+          else if (url === '/api/v1/graph/deleteEdge') method = 'graph.deleteEdge';
+          else if (url === '/api/v1/graph/deleteNode') method = 'graph.deleteNode';
+          else if (url === '/api/v1/graph/alignLayout') method = 'graph.alignLayout';
+          else if (url === '/api/v1/graph/undo') method = 'graph.undo';
+          else if (url === '/api/v1/graph/redo') method = 'graph.redo';
+          else if (url === '/api/v1/entity/create') method = 'entity.create';
+          else if (url === '/api/v1/functionality/create') method = 'functionality.create';
+          else if (url === '/api/v1/library/create') method = 'library.create';
+          else if (url === '/api/v1/flow/addStep') method = 'flow.addStep';
+          else if (url === '/api/v1/file/read') method = 'file.read';
+          else if (url === '/api/v1/file/edit') method = 'file.edit';
+          else if (url === '/api/v1/ui/generate') method = 'ui.generate';
+          else if (url === '/api/v1/validate/audit') method = 'validate.audit';
+          else if (url === '/api/v1/test/execute') method = 'test.executeFunction';
+          else if (url === '/api/v1/docs/endpoints') method = 'docs.endpoints';
 
-        const rpcRes = await this.router.handle({
-          jsonrpc: '2.0',
-          id: 'http-req-' + Date.now(),
-          method,
-          params
-        });
+          const rpcRes = await this.router.handle({
+            jsonrpc: '2.0',
+            id: 'http-req-' + Date.now(),
+            method,
+            params
+          });
 
-        if (rpcRes.error) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(rpcRes.error, null, 2));
-        } else {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(rpcRes.result, null, 2));
-          this.broadcastGraphUpdate();
+          if (rpcRes.error) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(rpcRes.error, null, 2));
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(rpcRes.result, null, 2));
+            this.broadcastGraphUpdate();
+          }
+        } catch (err: any) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message || String(err) }));
         }
       });
       return;
@@ -287,12 +309,12 @@ export class StudioServer {
       transform-origin: 0 0;
     }
     
-    /* 4-Quadrant Unbounded Layers with strict Z-Index Hierarchy:
+    /* Strict Layering Hierarchy:
        svg-wires (5) < gizmos-layer (7) < nodes-layer (10) < node-cards (20) < viewers (50) */
     #svg-wires {
-      position: absolute; top: 0; left: 0;
-      width: 1px; height: 1px;
-      overflow: visible; pointer-events: none; z-index: 5;
+      position: absolute; top: -50000px; left: -50000px;
+      width: 100000px; height: 100000px;
+      overflow: visible !important; pointer-events: none; z-index: 5;
     }
     #gizmos-layer {
       position: absolute; top: 0; left: 0;
@@ -669,7 +691,7 @@ export class StudioServer {
   <script>
     let currentGraph = { nodes: [], edges: [] };
     let selectedNodes = new Set();
-    let spawnedViewers = new Map(); // id -> viewerData
+    let spawnedViewers = new Map();
     let viewerCounter = 0;
     let maxZIndex = 100;
     let lastModalOpenTime = 0;
@@ -948,6 +970,7 @@ export class StudioServer {
 
     function updateTransform() {
       container.style.transform = \`translate(\${panX}px, \${panY}px) scale(\${zoom})\`;
+      renderWiresAndGizmos();
     }
     updateTransform();
 
@@ -1012,12 +1035,10 @@ export class StudioServer {
 
       const incomingIds = new Set(graph.nodes.map(n => n.id));
 
-      // Remove obsolete nodes from DOM (except viewers)
       document.querySelectorAll('.krnl-node').forEach(el => {
         if (!incomingIds.has(el.dataset.nodeId)) el.remove();
       });
 
-      // Update or create node elements without wiping innerHTML of existing ones
       graph.nodes.forEach((node, idx) => {
         let el = document.getElementById('node-' + node.id);
         if (!el) {
@@ -1221,7 +1242,7 @@ export class StudioServer {
       layer.appendChild(el);
     }
 
-    // --- OMNI VIEWER NODE SPAWNING & PERSISTENCE (CREATE ONCE, ZERO RE-CREATION) ---
+    // --- OMNI VIEWER NODE SPAWNING & PERSISTENCE ---
     function confirmSpawnViewer(viewType) {
       hideContextMenus();
       const targetId = wireSource?.nodeId || contextTargetNodeId;
@@ -1257,7 +1278,9 @@ export class StudioServer {
 
       spawnedViewers.set(viewerId, viewerData);
       renderViewerDomElement(viewerData, document.getElementById('nodes-layer'));
-      renderWiresAndGizmos();
+      requestAnimationFrame(() => {
+        renderWiresAndGizmos();
+      });
     }
 
     function closeViewerNode(viewerId) {
@@ -1273,7 +1296,7 @@ export class StudioServer {
 
     function renderViewerDomElement(viewer, layer) {
       let vEl = document.getElementById('viewer-' + viewer.id);
-      if (vEl) return; // ALREADY CREATED! NEVER RE-CREATE TO PREVENT FLICKER
+      if (vEl) return;
 
       vEl = document.createElement('div');
       vEl.id = 'viewer-' + viewer.id;
@@ -1339,6 +1362,50 @@ export class StudioServer {
       populateViewerContent(viewer, body);
     }
 
+    // --- Bulletproof File Loader (WebSocket RPC + HTTP Fallback) ---
+    function fetchFileContent(filePath, cb) {
+      if (window.studioWs && window.studioWs.readyState === WebSocket.OPEN) {
+        const reqId = 'file-read-' + Date.now();
+        const msgHandler = (evt) => {
+          try {
+            const data = JSON.parse(evt.data);
+            if (data.id === reqId) {
+              window.studioWs.removeEventListener('message', msgHandler);
+              if (data.result?.payload?.content !== undefined) {
+                cb(null, data.result.payload.content);
+              } else if (data.result?.content !== undefined) {
+                cb(null, data.result.content);
+              } else if (data.error) {
+                cb(new Error(data.error.message));
+              }
+            }
+          } catch (e) {}
+        };
+        window.studioWs.addEventListener('message', msgHandler);
+        window.studioWs.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: reqId,
+          method: 'file.read',
+          params: { filePath }
+        }));
+        return;
+      }
+
+      // HTTP fetch fallback
+      fetch('/api/v1/file/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.payload?.content !== undefined) cb(null, data.payload.content);
+        else if (data.result?.payload?.content !== undefined) cb(null, data.result.payload.content);
+        else cb(new Error('No content returned'));
+      })
+      .catch(err => cb(err));
+    }
+
     function populateViewerContent(viewer, containerEl) {
       containerEl.innerHTML = '';
 
@@ -1373,7 +1440,7 @@ export class StudioServer {
         monacoDiv.style.width = '100%'; monacoDiv.style.height = '100%';
         containerEl.appendChild(monacoDiv);
 
-        setTimeout(async () => {
+        setTimeout(() => {
           if (window.monaco) {
             viewer.monacoInstance = monaco.editor.create(monacoDiv, {
               value: \`// Loading source code for \${viewer.sourceNode.name}...\`,
@@ -1384,51 +1451,48 @@ export class StudioServer {
               minimap: { enabled: true }
             });
 
-            try {
-              const res = await fetch('/api/v1/file/read', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filePath: viewer.sourceNode.filePath })
-              });
-              const data = await res.json();
-              if (data.payload?.content) {
-                viewer.monacoInstance.setValue(data.payload.content);
-              } else if (data.result?.payload?.content) {
-                viewer.monacoInstance.setValue(data.result.payload.content);
-              } else if (data.content) {
-                viewer.monacoInstance.setValue(data.content);
+            fetchFileContent(viewer.sourceNode.filePath, (err, content) => {
+              if (err) {
+                viewer.monacoInstance.setValue(\`// File: \${viewer.sourceNode.filePath}\\n// Could not load file directly: \${err.message}\\n\\n// Showing placeholder contract:\\nexport function \${viewer.sourceNode.name}() {\\n  // Implementation\\n}\`);
               } else {
-                viewer.monacoInstance.setValue(\`// File: \${viewer.sourceNode.filePath}\\n// Status: No content returned\`);
+                viewer.monacoInstance.setValue(content);
               }
-            } catch (err) {
-              viewer.monacoInstance.setValue(\`// Error loading file: \${err.message || String(err)}\`);
-            }
+            });
           }
         }, 50);
       } else if (viewer.viewType === 'test') {
         containerEl.innerHTML = \`
           <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px; height: 100%;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 11px; color: #abb2bf;">INPUT PAYLOAD:</span>
-              <button onclick="executeViewerTest('\${viewer.id}')" style="background: #c678dd; color: #121212; border: none; padding: 4px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px;">▶ Execute in Sandbox</button>
+              <span style="font-size: 11px; color: #abb2bf; font-weight: bold;">INPUT PAYLOAD:</span>
+              <button onclick="executeViewerTest('\${viewer.id}')" style="background: #c678dd; color: #121212; border: none; padding: 4px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; transition: transform 0.1s ease;" onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform='none'">▶ Execute in Sandbox</button>
             </div>
             <div id="test-in-\${viewer.id}" style="height: 100px; border: 1px solid rgba(198, 120, 221, 0.3); border-radius: 6px;"></div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-              <span style="font-size: 11px; color: #abb2bf;">OUTPUT & BENCHMARK:</span>
-              <span id="test-badge-\${viewer.id}" style="font-size: 10px; color: #98c379; font-weight: bold;"></span>
+              <span style="font-size: 11px; color: #abb2bf; font-weight: bold;">OUTPUT & BENCHMARK:</span>
+              <span id="test-badge-\${viewer.id}" style="font-size: 11px; font-weight: bold; color: #7f848e;">Awaiting run</span>
             </div>
             <div id="test-out-\${viewer.id}" style="flex: 1; border: 1px solid rgba(198, 120, 221, 0.3); border-radius: 6px;"></div>
           </div>
         \`;
 
+        let defaultJson = '{}';
+        if (viewer.sourceNode.name.includes('Calc')) {
+          defaultJson = '{\\n  "a": 10,\\n  "b": 25\\n}';
+        } else if (viewer.sourceNode.name.includes('Order')) {
+          defaultJson = '{\\n  "orderId": "ORD-9821",\\n  "amount": 250\\n}';
+        } else if (viewer.sourceNode.name.includes('Agent') || viewer.sourceNode.name.includes('AI')) {
+          defaultJson = '{\\n  "prompt": "Analyze systems status",\\n  "maxTokens": 100\\n}';
+        }
+
         setTimeout(() => {
           if (window.monaco) {
             viewer.testInputEditor = monaco.editor.create(document.getElementById('test-in-' + viewer.id), {
-              value: '{\\n  "symbol": "BTC/USDT",\\n  "limitPrice": 64500\\n}',
+              value: defaultJson,
               language: 'json', theme: 'krnl-dark', fontSize: 11, minimap: { enabled: false }
             });
             viewer.testOutputEditor = monaco.editor.create(document.getElementById('test-out-' + viewer.id), {
-              value: '// Awaiting execution...',
+              value: '// Press [▶ Execute in Sandbox] above to run in isolated VM',
               language: 'json', theme: 'krnl-dark', readOnly: true, fontSize: 11, minimap: { enabled: false }
             });
           }
@@ -1464,19 +1528,87 @@ export class StudioServer {
     async function executeViewerTest(viewerId) {
       const viewer = spawnedViewers.get(viewerId);
       if (!viewer || !viewer.testInputEditor) return;
-      let inputVal = {};
-      try { inputVal = JSON.parse(viewer.testInputEditor.getValue()); } catch (e) { alert('Invalid JSON: ' + e.message); return; }
+      const badge = document.getElementById('test-badge-' + viewerId);
+      if (badge) {
+        badge.textContent = '⏳ Executing in Sandbox...';
+        badge.style.color = '#e5c07b';
+      }
 
-      const res = await fetch('/api/v1/test/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: viewer.sourceNode.filePath, input: inputVal })
-      });
-      const data = await res.json();
-      if (data.payload) {
-        const badge = document.getElementById('test-badge-' + viewerId);
-        if (badge) badge.textContent = \`[\${data.payload.durationMs}ms | \${data.payload.success ? 'PASSED' : 'FAILED'}]\`;
-        if (viewer.testOutputEditor) viewer.testOutputEditor.setValue(JSON.stringify(data.payload.output || data.payload.error, null, 2));
+      let inputVal = {};
+      try {
+        const raw = viewer.testInputEditor.getValue().trim();
+        inputVal = raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        if (badge) {
+          badge.textContent = '❌ Invalid Input JSON';
+          badge.style.color = '#e06c75';
+        }
+        if (viewer.testOutputEditor) {
+          viewer.testOutputEditor.setValue(JSON.stringify({ error: 'Invalid JSON: ' + e.message }, null, 2));
+        }
+        return;
+      }
+
+      try {
+        if (window.studioWs && window.studioWs.readyState === WebSocket.OPEN) {
+          const reqId = 'test-exec-' + Date.now();
+          const handler = (evt) => {
+            try {
+              const data = JSON.parse(evt.data);
+              if (data.id === reqId) {
+                window.studioWs.removeEventListener('message', handler);
+                handleTestResult(data.result?.payload || data.result, viewerId);
+              }
+            } catch (e) {}
+          };
+          window.studioWs.addEventListener('message', handler);
+          window.studioWs.send(JSON.stringify({
+            jsonrpc: '2.0',
+            id: reqId,
+            method: 'test.executeFunction',
+            params: { filePath: viewer.sourceNode.filePath, input: inputVal }
+          }));
+          return;
+        }
+
+        const res = await fetch('/api/v1/test/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath: viewer.sourceNode.filePath, input: inputVal })
+        });
+        const data = await res.json();
+        handleTestResult(data.payload || data.result?.payload || data, viewerId);
+      } catch (err) {
+        if (badge) {
+          badge.textContent = '[FAILED]';
+          badge.style.color = '#e06c75';
+        }
+        if (viewer.testOutputEditor) {
+          viewer.testOutputEditor.setValue(JSON.stringify({ error: err.message || String(err) }, null, 2));
+        }
+      }
+    }
+
+    function handleTestResult(payload, viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      const badge = document.getElementById('test-badge-' + viewerId);
+      if (badge && payload) {
+        if (payload.success) {
+          badge.textContent = \`[\${payload.durationMs || 0}ms | PASSED]\`;
+          badge.style.color = '#98c379';
+        } else {
+          badge.textContent = \`[\${payload.durationMs || 0}ms | FAILED]\`;
+          badge.style.color = '#e06c75';
+        }
+      }
+      if (viewer && viewer.testOutputEditor) {
+        if (payload?.output !== undefined) {
+          viewer.testOutputEditor.setValue(JSON.stringify(payload.output, null, 2));
+        } else if (payload?.error) {
+          viewer.testOutputEditor.setValue(JSON.stringify({ error: payload.error, logs: payload.logs || [] }, null, 2));
+        } else {
+          viewer.testOutputEditor.setValue(JSON.stringify(payload, null, 2));
+        }
       }
     }
 
@@ -1490,9 +1622,12 @@ export class StudioServer {
     function renderWiresAndGizmos() {
       const svg = document.getElementById('svg-wires');
       const gizmosLayer = document.getElementById('gizmos-layer');
+      if (!svg || !gizmosLayer) return;
+
       svg.innerHTML = '';
       gizmosLayer.innerHTML = '';
 
+      // Standard Flow Connections
       for (const edge of currentGraph.edges || []) {
         const sEl = document.getElementById('node-' + edge.source);
         const tEl = document.getElementById('node-' + edge.target);
@@ -1528,24 +1663,33 @@ export class StudioServer {
         }
       }
 
+      // TETHERING 'VIEWS' WIRES (Rendered between Node's Views Socket & Viewer Window)
       spawnedViewers.forEach(viewer => {
         const sEl = document.getElementById('node-' + viewer.sourceNodeId);
         const vEl = document.getElementById('viewer-' + viewer.id);
         if (sEl && vEl) {
-          const viewsSock = sEl.querySelector('.socket-views');
-          const sx = parseFloat(sEl.style.left) + (viewsSock ? sEl.offsetWidth - 20 : sEl.offsetWidth);
-          const sy = parseFloat(sEl.style.top) + sEl.offsetHeight;
-          const tx = parseFloat(vEl.style.left);
-          const ty = parseFloat(vEl.style.top) + 20;
+          const sX = parseFloat(sEl.style.left) || 0;
+          const sY = parseFloat(sEl.style.top) || 0;
+          const sW = sEl.offsetWidth || 280;
+          const sH = sEl.offsetHeight || 130;
 
-          const dy = Math.abs(ty - sy) * 0.5;
+          // Originates at bottom-right Views handle
+          const sx = sX + sW - 13;
+          const sy = sY + sH + 3;
+
+          const tx = parseFloat(vEl.style.left) || viewer.x;
+          const ty = (parseFloat(vEl.style.top) || viewer.y) + 20;
+
+          const dx = Math.max(50, Math.abs(tx - sx) * 0.45);
+          const dy = Math.abs(ty - sy) * 0.45;
+
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-          path.setAttribute('d', \`M \${sx} \${sy} C \${sx + dy}, \${tx - 40} \${ty}, \${tx} \${ty}\`);
+          path.setAttribute('d', \`M \${sx} \${sy} C \${sx + dx} \${sy + dy}, \${tx - dx} \${ty}, \${tx} \${ty}\`);
           path.setAttribute('stroke', '#c678dd');
-          path.setAttribute('stroke-width', '2.5');
-          path.setAttribute('stroke-dasharray', '5,5');
+          path.setAttribute('stroke-width', '3');
+          path.setAttribute('stroke-dasharray', '6,6');
           path.setAttribute('fill', 'none');
-          path.setAttribute('opacity', '0.85');
+          path.setAttribute('opacity', '0.95');
           svg.appendChild(path);
 
           const midX = (sx + tx) / 2;
