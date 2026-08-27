@@ -25,7 +25,6 @@ export class StudioServer {
     this.port = options.port || 8080;
     const initialRoot = path.resolve(options.projectRoot || process.cwd());
     
-    // Auto-select unified-workspace if running from monorepo root
     const unifiedPath = path.join(initialRoot, 'examples/unified-workspace');
     if (!fs.existsSync(path.join(initialRoot, 'src/entities')) && fs.existsSync(unifiedPath)) {
       this.projectRoot = unifiedPath;
@@ -164,6 +163,7 @@ export class StudioServer {
         else if (url === '/api/v1/project/graph') method = 'graph.getArchitecture';
         else if (url === '/api/v1/project/status') method = 'project.getStatus';
         else if (url === '/api/v1/graph/moveNode') method = 'graph.moveNode';
+        else if (url === '/api/v1/graph/moveMultipleNodes') method = 'graph.moveMultipleNodes';
         else if (url === '/api/v1/graph/connectNodes') method = 'graph.connectNodes';
         else if (url === '/api/v1/graph/deleteEdge') method = 'graph.deleteEdge';
         else if (url === '/api/v1/graph/deleteNode') method = 'graph.deleteNode';
@@ -224,6 +224,7 @@ export class StudioServer {
       --krnl-accent-glow: rgba(212, 175, 55, 0.45);
       --krnl-purple: #c678dd;
       --krnl-purple-glow: rgba(198, 120, 221, 0.45);
+      --krnl-blue: #61afef;
       --krnl-text: #f5ede4;
       --krnl-border: 1px solid rgba(212, 175, 55, 0.3);
     }
@@ -259,7 +260,7 @@ export class StudioServer {
     }
 
     /* Tooltip Helper */
-    .tooltip-container { position: relative; display: inline-flex; align-items: center; }
+    .tooltip-container { position: relative; display: inline-flex; align-items: center; justify-content: center; }
     .tooltip-text {
       visibility: hidden; opacity: 0;
       position: absolute; z-index: 10000;
@@ -273,19 +274,35 @@ export class StudioServer {
     .tooltip-bottom { top: 100%; left: 50%; transform: translateX(-50%) translateY(6px); }
     .tooltip-top { bottom: 100%; left: 50%; transform: translateX(-50%) translateY(-6px); }
 
-    /* Omni Canvas Viewport */
+    /* INFINITE 4-QUADRANT CANVASS VIEWPORT (-INF to +INF) */
     #graph-viewport {
       width: 100%; height: 100%; position: relative; overflow: hidden;
       background-color: #0e0e12;
       background-image: radial-gradient(rgba(212, 175, 55, 0.15) 1px, transparent 1px);
       background-size: 24px 24px; cursor: default;
     }
-    #graph-container { position: absolute; top: 0; left: 0; width: 8000px; height: 8000px; transform-origin: 0 0; }
+    #graph-container {
+      position: absolute; top: 0; left: 0;
+      width: 1px; height: 1px;
+      transform-origin: 0 0;
+    }
     
-    /* Layer Isolation */
-    #svg-wires { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
-    #nodes-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
-    #gizmos-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
+    /* 4-Quadrant Unbounded Layers with overflow: visible */
+    #svg-wires {
+      position: absolute; top: 0; left: 0;
+      width: 1px; height: 1px;
+      overflow: visible; pointer-events: none; z-index: 5;
+    }
+    #nodes-layer {
+      position: absolute; top: 0; left: 0;
+      width: 1px; height: 1px;
+      overflow: visible; pointer-events: none; z-index: 10;
+    }
+    #gizmos-layer {
+      position: absolute; top: 0; left: 0;
+      width: 1px; height: 1px;
+      overflow: visible; pointer-events: none; z-index: 25;
+    }
 
     /* Selection Box */
     #selection-box {
@@ -343,7 +360,7 @@ export class StudioServer {
     }
     .quad-pill {
       font-size: 10px; padding: 4px 6px; border-radius: 4px;
-      display: flex; align-items: center; gap: 4px; font-weight: 500;
+      display: flex; align-items: center; gap: 6px; font-weight: 500;
     }
 
     /* 3. Concept Library Nodes */
@@ -411,20 +428,22 @@ export class StudioServer {
     .socket-out { right: -7px; top: 50%; transform: translateY(-50%); }
     .socket-in { left: -7px; top: 50%; transform: translateY(-50%); background: #61afef; }
 
-    /* ICON-ONLY 'VIEWS' SOCKET HANDLE */
+    /* MONOCHROMATIC 'VIEWS' SOCKET HANDLE */
     .socket-views {
       position: absolute; right: 12px; bottom: -10px;
       width: 26px; height: 26px; border-radius: 50%;
-      background: #c678dd; border: 2px solid #0e0e12;
+      background: #1e1e28; border: 2px solid #c678dd;
       display: flex; align-items: center; justify-content: center;
-      font-size: 13px; cursor: crosshair; pointer-events: auto; z-index: 40;
+      cursor: crosshair; pointer-events: auto; z-index: 40;
       box-shadow: 0 2px 10px rgba(0,0,0,0.8), 0 0 10px var(--krnl-purple-glow);
       transition: transform 0.15s ease, background 0.15s ease;
     }
+    .socket-views svg { stroke: #c678dd; transition: stroke 0.15s ease; }
     .socket-views:hover {
-      transform: scale(1.25); background: #f5ede4; color: #16161e;
+      transform: scale(1.25); background: #c678dd;
       box-shadow: 0 0 16px var(--krnl-purple-glow);
     }
+    .socket-views:hover svg { stroke: #0e0e12; }
 
     /* Centered Wire Delete Gizmo */
     .edge-delete-gizmo {
@@ -445,7 +464,7 @@ export class StudioServer {
     .krnl-context-menu {
       position: fixed; display: none; z-index: 9999;
       background: rgba(22, 22, 30, 0.98); backdrop-filter: blur(16px);
-      border: var(--krnl-border); border-radius: 10px; padding: 8px; min-width: 200px;
+      border: var(--krnl-border); border-radius: 10px; padding: 8px; min-width: 210px;
       box-shadow: 0 12px 36px rgba(0,0,0,0.9), 0 0 14px var(--krnl-accent-glow);
     }
     .menu-item {
@@ -456,18 +475,19 @@ export class StudioServer {
     .menu-item:hover { background: rgba(212, 175, 55, 0.25); color: #d4af37; }
     .menu-separator { height: 1px; background: rgba(212, 175, 55, 0.15); margin: 4px 0; }
 
-    /* ICON-ONLY DOCK TOOLBAR */
+    /* STRICT MONOCHROMATIC ICON-ONLY DOCK TOOLBAR */
     .dock-icon-btn {
       width: 38px; height: 38px; border-radius: 8px;
       background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12);
       display: flex; align-items: center; justify-content: center;
-      font-size: 16px; cursor: pointer; color: #f5ede4;
+      cursor: pointer; color: #f5ede4;
       transition: all 0.15s ease;
     }
+    .dock-icon-btn svg { stroke: #d4af37; transition: transform 0.15s ease; }
     .dock-icon-btn:hover {
       background: rgba(212, 175, 55, 0.25); border-color: #d4af37;
-      transform: scale(1.15); color: #d4af37;
-      box-shadow: 0 0 12px var(--krnl-accent-glow);
+      transform: scale(1.12);
+      box-shadow: 0 0 14px var(--krnl-accent-glow);
     }
   </style>
 </head>
@@ -475,7 +495,7 @@ export class StudioServer {
   <div id="app">
     <!-- Live Agent Activity Toast -->
     <div id="agent-activity-hud">
-      <span style="font-size: 18px;">🤖</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
       <span id="agent-hud-text">AI Agent Mutation</span>
     </div>
 
@@ -485,7 +505,7 @@ export class StudioServer {
         <span class="status-dot"></span>
         <span style="letter-spacing: 1px;">KRNL STUDIO</span>
         <span style="color: var(--krnl-accent);">|</span>
-        <span style="color: #abb2bf;">🌌 Omni Canvas IDE</span>
+        <span style="color: #abb2bf;">Omni Canvas IDE</span>
       </div>
       <div style="display: flex; align-items: center; gap: 14px;">
         <span id="node-count-badge" style="background: rgba(212, 175, 55, 0.15); color: #d4af37; padding: 3px 8px; border-radius: 4px; font-size: 11px;">0 Nodes</span>
@@ -498,13 +518,16 @@ export class StudioServer {
           <option value=".">Framework Root</option>
         </select>
         <div class="tooltip-container">
-          <button onclick="triggerPurityAudit()" style="background: rgba(212, 175, 55, 0.2); border: 1px solid #d4af37; color: #d4af37; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold;">⚡ Purity Audit</button>
+          <button onclick="triggerPurityAudit()" style="background: rgba(212, 175, 55, 0.2); border: 1px solid #d4af37; color: #d4af37; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 6px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Purity Audit</span>
+          </button>
           <span class="tooltip-text tooltip-bottom">Run AST 4-Layer Purity Audit</span>
         </div>
       </div>
     </div>
 
-    <!-- Unified Omni Canvas Viewport -->
+    <!-- Infinite 4-Quadrant Canvas Viewport -->
     <div id="graph-viewport">
       <div id="graph-container">
         <svg id="svg-wires"></svg>
@@ -514,54 +537,96 @@ export class StudioServer {
       </div>
     </div>
 
-    <!-- ICON-ONLY FLOATING DOCK TOOLBAR -->
+    <!-- STRICT MONOCHROMATIC ICON-ONLY DOCK TOOLBAR -->
     <div style="position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; background: rgba(22, 22, 30, 0.94); backdrop-filter: blur(16px); border: var(--krnl-border); padding: 8px 14px; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.8); z-index: 2000;">
       <div class="tooltip-container">
-        <button class="dock-icon-btn" onclick="resetZoomAndFit()">🎯</button>
+        <button class="dock-icon-btn" onclick="resetZoomAndFit()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+        </button>
         <span class="tooltip-text tooltip-top">Fit View & Reset Zoom</span>
       </div>
       <div class="tooltip-container">
-        <button class="dock-icon-btn" onclick="apiAlignLayout('hierarchical')">📐</button>
+        <button class="dock-icon-btn" onclick="apiAlignLayout('hierarchical')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        </button>
         <span class="tooltip-text tooltip-top">Auto-Align Hierarchical Layout</span>
       </div>
       <div style="width: 1px; background: rgba(212, 175, 55, 0.2); margin: 4px 0;"></div>
       <div class="tooltip-container">
-        <button class="dock-icon-btn" onclick="contextAddEntity()">🏛️</button>
+        <button class="dock-icon-btn" onclick="contextAddEntity()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        </button>
         <span class="tooltip-text tooltip-top">New System Entity</span>
       </div>
       <div class="tooltip-container">
-        <button class="dock-icon-btn" onclick="contextAddFunctionality()">⚡</button>
+        <button class="dock-icon-btn" onclick="contextAddFunctionality()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#61afef" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </button>
         <span class="tooltip-text tooltip-top">New Quad-Unit Functionality</span>
       </div>
       <div class="tooltip-container">
-        <button class="dock-icon-btn" onclick="contextAddLibrary()">📚</button>
+        <button class="dock-icon-btn" onclick="contextAddLibrary()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e5c07b" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </button>
         <span class="tooltip-text tooltip-top">New Domain Concept Library</span>
       </div>
     </div>
 
     <!-- Canvas Context Menu -->
     <div id="pane-context-menu" class="krnl-context-menu">
-      <div class="menu-item" onclick="contextAddEntity()"><span>🏛️</span><span>New Entity</span></div>
-      <div class="menu-item" onclick="contextAddFunctionality()"><span>⚡</span><span>New Functionality</span></div>
-      <div class="menu-item" onclick="contextAddLibrary()"><span>📚</span><span>New Concept Library</span></div>
+      <div class="menu-item" onclick="contextAddEntity()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        <span>New Entity</span>
+      </div>
+      <div class="menu-item" onclick="contextAddFunctionality()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#61afef" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>New Functionality</span>
+      </div>
+      <div class="menu-item" onclick="contextAddLibrary()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e5c07b" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span>New Concept Library</span>
+      </div>
       <div class="menu-separator"></div>
-      <div class="menu-item" onclick="apiAlignLayout('hierarchical')"><span>📐</span><span>Auto-Align Layout</span></div>
-      <div class="menu-item" onclick="resetZoomAndFit()"><span>🎯</span><span>Fit View</span></div>
+      <div class="menu-item" onclick="apiAlignLayout('hierarchical')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>Auto-Align Layout</span>
+      </div>
+      <div class="menu-item" onclick="resetZoomAndFit()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+        <span>Fit View</span>
+      </div>
     </div>
 
     <!-- Node Context Menu -->
     <div id="node-context-menu" class="krnl-context-menu">
-      <div class="menu-item" onclick="spawnViewerForContext('ui')"><span>🎨</span><span>UI View & Atom Builder</span></div>
-      <div class="menu-item" onclick="spawnViewerForContext('code')"><span>📄</span><span>Monaco Source Code</span></div>
-      <div class="menu-item" onclick="spawnViewerForContext('test')"><span>🧪</span><span>Sandboxed Test Bench</span></div>
-      <div class="menu-item" onclick="spawnViewerForContext('state')"><span>💾</span><span>Reactive State Inspector</span></div>
+      <div class="menu-item" onclick="spawnViewerForContext('ui')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c678dd" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+        <span>UI & Atom Builder</span>
+      </div>
+      <div class="menu-item" onclick="spawnViewerForContext('code')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c678dd" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <span>Monaco Source Code</span>
+      </div>
+      <div class="menu-item" onclick="spawnViewerForContext('test')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c678dd" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <span>Sandboxed Test Bench</span>
+      </div>
+      <div class="menu-item" onclick="spawnViewerForContext('state')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c678dd" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <span>Reactive State Inspector</span>
+      </div>
       <div class="menu-separator"></div>
-      <div class="menu-item" onclick="contextDuplicateSelected()"><span>📋</span><span>Duplicate Node</span></div>
-      <div class="menu-item" onclick="contextDisconnectSelected()" style="color: #e5c07b;"><span>🔌</span><span>Disconnect Wires</span></div>
-      <div class="menu-item" onclick="contextDeleteSelected()" style="color: #e06c75;"><span>🗑️</span><span>Delete Node</span></div>
+      <div class="menu-item" onclick="contextDisconnectSelected()" style="color: #e5c07b;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e5c07b" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <span>Disconnect Wires</span>
+      </div>
+      <div class="menu-item" onclick="contextDeleteSelected()" style="color: #e06c75;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e06c75" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        <span>Delete Node</span>
+      </div>
     </div>
 
-    <!-- ICON-TILED VIEWS SPAWN DIALOGUE (Triggered on Views Wire Drop & Views Click) -->
+    <!-- STRICT MONOCHROMATIC VIEWS SPAWN DIALOGUE -->
     <div id="view-selector-modal" class="krnl-context-menu" style="border-color: #c678dd; box-shadow: 0 12px 36px rgba(0,0,0,0.95), 0 0 20px var(--krnl-purple-glow); min-width: 240px;">
       <div style="padding: 6px 8px 8px 8px; font-size: 11px; color: #c678dd; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(198, 120, 221, 0.25); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
         <span>SPAWN OMNI VIEW</span>
@@ -569,28 +634,28 @@ export class StudioServer {
       </div>
       <div style="display: flex; flex-direction: column; gap: 4px;">
         <div class="menu-item" onclick="confirmSpawnViewer('ui')">
-          <span style="font-size: 16px;">🎨</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c678dd" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
           <div>
             <div style="font-weight: bold; font-size: 12px;">UI & Atom Builder</div>
             <div style="font-size: 10px; color: #7f848e;">Live preview & VanJS editor</div>
           </div>
         </div>
         <div class="menu-item" onclick="confirmSpawnViewer('code')">
-          <span style="font-size: 16px;">📄</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c678dd" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
           <div>
             <div style="font-weight: bold; font-size: 12px;">Monaco Source Code</div>
             <div style="font-size: 10px; color: #7f848e;">TypeScript quad-unit code</div>
           </div>
         </div>
         <div class="menu-item" onclick="confirmSpawnViewer('test')">
-          <span style="font-size: 16px;">🧪</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c678dd" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           <div>
             <div style="font-weight: bold; font-size: 12px;">Sandboxed Test Bench</div>
             <div style="font-size: 10px; color: #7f848e;">Input/output execution & latency</div>
           </div>
         </div>
         <div class="menu-item" onclick="confirmSpawnViewer('state')">
-          <span style="font-size: 16px;">💾</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c678dd" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
           <div>
             <div style="font-weight: bold; font-size: 12px;">Reactive State Inspector</div>
             <div style="font-size: 10px; color: #7f848e;">Live reactive schema viewer</div>
@@ -749,7 +814,7 @@ export class StudioServer {
         return;
       }
 
-      // Drag Nodes
+      // Drag Nodes (Smooth across all negative & positive coordinates)
       if (isDraggingNode) {
         nodeDragMoved = true;
         const dx = (clientX - dragStartPos.x) / zoom;
@@ -1001,16 +1066,16 @@ export class StudioServer {
 
       let innerHtml = '';
 
-      // 1. ENTITY SYSTEM NODES
+      // 1. ENTITY SYSTEM NODES (Monochromatic Hexagon/Cube Vector)
       if (node.type === 'entity') {
         const parentBadge = node.parentEntity
           ? \`<span style="background: rgba(212, 175, 55, 0.2); color: #d4af37; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Subsystem of \${node.parentEntity}</span>\`
-          : \`<span style="background: rgba(152, 195, 121, 0.2); color: #98c379; padding: 2px 6px; border-radius: 4px; font-size: 10px;">👑 Root Entity</span>\`;
+          : \`<span style="background: rgba(152, 195, 121, 0.2); color: #98c379; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Root Entity</span>\`;
 
         innerHtml = \`
           <div class="node-header-entity">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 14px;">🏛️</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
               <span style="font-size: 11px; font-weight: bold; color: #d4af37; text-transform: uppercase;">SYSTEM ENTITY</span>
             </div>
             \${parentBadge}
@@ -1018,19 +1083,19 @@ export class StudioServer {
           <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;">
             <div style="font-size: 16px; font-weight: bold; color: #f5ede4;">\${node.name}</div>
             <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
-              <span style="font-size: 10px; background: #21212b; color: #abb2bf; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">⚡ Magnetic Auto-Boot</span>
+              <span style="font-size: 10px; background: #21212b; color: #abb2bf; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">Auto-Boot</span>
             </div>
           </div>
         \`;
       }
 
-      // 2. QUAD-UNIT FUNCTIONALITY NODES
+      // 2. QUAD-UNIT FUNCTIONALITY NODES (Monochromatic Bolt Vector)
       else if (node.type === 'functionality') {
         const helperCount = node.helpers?.length || 0;
         innerHtml = \`
           <div class="node-header-functionality">
             <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="font-size: 13px;">⚡</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#61afef" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               <span style="font-size: 10px; font-weight: bold; color: #61afef; text-transform: uppercase;">QUAD-UNIT</span>
             </div>
             <span style="font-size: 10px; background: rgba(97, 175, 239, 0.2); color: #61afef; padding: 2px 6px; border-radius: 4px;">\${node.parentEntity}</span>
@@ -1041,46 +1106,48 @@ export class StudioServer {
           </div>
           <div class="quad-layers-grid">
             <div class="quad-pill" style="background: rgba(97, 175, 239, 0.15); color: #61afef; border: 1px solid rgba(97, 175, 239, 0.3);">
-              <span>📝</span><span>Atom</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              <span>Atom</span>
             </div>
             <div class="quad-pill" style="background: rgba(212, 175, 55, 0.15); color: #d4af37; border: 1px solid rgba(212, 175, 55, 0.3);">
-              <span>⚙️</span><span>Logic</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span>Logic</span>
             </div>
             <div class="quad-pill" style="background: rgba(152, 195, 121, 0.15); color: #98c379; border: 1px solid rgba(152, 195, 121, 0.3);">
-              <span>💾</span><span>State</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              <span>State</span>
             </div>
             <div class="quad-pill" style="background: rgba(198, 120, 221, 0.15); color: #c678dd; border: 1px solid rgba(198, 120, 221, 0.3);">
-              <span>🛠️</span><span>\${helperCount} Helpers</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+              <span>\${helperCount} Helpers</span>
             </div>
           </div>
         \`;
       }
 
-      // 3. DOMAIN CONCEPT LIBRARY NODES
+      // 3. DOMAIN CONCEPT LIBRARY NODES (Monochromatic Book Vector)
       else if (node.type === 'library') {
         innerHtml = \`
           <div class="node-header-library">
             <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="font-size: 13px;">📚</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e5c07b" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
               <span style="font-size: 10px; font-weight: bold; color: #e5c07b; text-transform: uppercase;">CONCEPT LIBRARY</span>
             </div>
             <span style="font-size: 10px; background: rgba(229, 192, 123, 0.2); color: #e5c07b; padding: 2px 6px; border-radius: 4px;">Layer 0 Pure</span>
           </div>
           <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;">
             <div style="font-size: 15px; font-weight: bold; color: #f5ede4;">\${node.name}</div>
-            <div style="font-size: 10px; color: #98c379; display: flex; align-items: center; gap: 4px; margin-top: 2px;">
-              <span>🌱</span><span>Zero I/O • Deterministic</span>
-            </div>
+            <div style="font-size: 10px; color: #98c379; margin-top: 2px;">Deterministic Purity</div>
           </div>
         \`;
       }
 
-      // 4. SUB-APP NODES
+      // 4. SUB-APP NODES (Monochromatic Window Vector)
       else if (node.type === 'subapp') {
         innerHtml = \`
           <div class="node-header-subapp">
             <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="font-size: 13px;">🌐</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#56b6c2" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
               <span style="font-size: 10px; font-weight: bold; color: #56b6c2; text-transform: uppercase;">SUB-APP CONTAINER</span>
             </div>
             <span style="font-size: 10px; background: rgba(86, 182, 194, 0.2); color: #56b6c2; padding: 2px 6px; border-radius: 4px;">SPA</span>
@@ -1092,12 +1159,12 @@ export class StudioServer {
         \`;
       }
 
-      // Sockets: In/Out and ICON-ONLY 'VIEWS' SOCKET
+      // Sockets: In/Out and STRICT MONOCHROMATIC 'VIEWS' SOCKET
       innerHtml += \`
         <div class="node-socket socket-out" data-node-id="\${node.id}" data-socket-type="out"></div>
         <div class="node-socket socket-in" data-node-id="\${node.id}" data-socket-type="in"></div>
         <div class="tooltip-container socket-views" data-node-id="\${node.id}" data-socket-type="views">
-          <span>👁️</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
           <span class="tooltip-text tooltip-bottom">Spawn Omni View</span>
         </div>
       \`;
@@ -1149,7 +1216,7 @@ export class StudioServer {
         }
       });
 
-      // 'VIEWS' SOCKET HANDLE (Wire Drag AND Click to Open View Menu)
+      // 'VIEWS' SOCKET HANDLE (Wire Drag AND Click)
       const viewsSocket = el.querySelector('.socket-views');
       if (viewsSocket) {
         viewsSocket.onmousedown = (e) => {
@@ -1238,14 +1305,15 @@ export class StudioServer {
       vEl.style.height = viewer.h + 'px';
 
       const nodeName = viewer.sourceNode.name;
-      const viewTitle = viewer.viewType === 'ui' ? '🎨 UI & Atom Builder'
-        : viewer.viewType === 'code' ? '📄 Monaco Source Code'
-        : viewer.viewType === 'test' ? '🧪 Sandboxed Test Bench'
-        : '💾 Reactive State Inspector';
+      const viewTitle = viewer.viewType === 'ui' ? 'UI & Atom Builder'
+        : viewer.viewType === 'code' ? 'Monaco Source Code'
+        : viewer.viewType === 'test' ? 'Sandboxed Test Bench'
+        : 'Reactive State Inspector';
 
       vEl.innerHTML = \`
         <div class="viewer-titlebar" id="vtb-\${viewer.id}">
           <div style="display: flex; align-items: center; gap: 8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c678dd" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
             <span style="font-size: 13px; font-weight: bold; color: #c678dd;">\${viewTitle}</span>
             <span style="font-size: 11px; background: rgba(198, 120, 221, 0.2); color: #c678dd; padding: 2px 6px; border-radius: 4px;">\${nodeName}</span>
           </div>
@@ -1299,9 +1367,9 @@ export class StudioServer {
           <div style="display: flex; flex: 1; overflow: hidden;">
             <div style="width: 140px; border-right: 1px solid rgba(198, 120, 221, 0.25); padding: 10px; background: rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 6px;">
               <span style="font-size: 10px; color: #c678dd; font-weight: bold;">KRNL ATOMS</span>
-              <div class="palette-item" draggable="true" ondragstart="event.dataTransfer.setData('text', 'KrnlButton')" style="padding: 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: grab; font-size: 11px;">🔘 Button</div>
-              <div class="palette-item" draggable="true" ondragstart="event.dataTransfer.setData('text', 'KrnlTextInput')" style="padding: 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: grab; font-size: 11px;">📝 Input</div>
-              <div class="palette-item" draggable="true" ondragstart="event.dataTransfer.setData('text', 'KrnlTile')" style="padding: 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: grab; font-size: 11px;">📊 Tile</div>
+              <div class="palette-item" draggable="true" ondragstart="event.dataTransfer.setData('text', 'KrnlButton')" style="padding: 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: grab; font-size: 11px;">Button</div>
+              <div class="palette-item" draggable="true" ondragstart="event.dataTransfer.setData('text', 'KrnlTextInput')" style="padding: 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: grab; font-size: 11px;">TextInput</div>
+              <div class="palette-item" draggable="true" ondragstart="event.dataTransfer.setData('text', 'KrnlTile')" style="padding: 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: grab; font-size: 11px;">Tile</div>
             </div>
             <div style="flex: 1; display: flex; flex-direction: column; padding: 12px; gap: 10px; overflow: hidden;">
               <div id="drop-target-\${viewer.id}" ondragover="event.preventDefault()" ondrop="handleViewerAtomDrop(event, '\${viewer.id}')" style="flex: 1; border: 1px dashed rgba(198, 120, 221, 0.4); border-radius: 8px; padding: 12px; background: rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 6px; overflow-y: auto;">
@@ -1322,28 +1390,42 @@ export class StudioServer {
         }, 50);
       }
 
-      // B. MONACO SOURCE CODE
+      // B. MONACO SOURCE CODE (ROBUST DISK LOADING)
       else if (viewer.viewType === 'code') {
         const monacoDiv = document.createElement('div');
         monacoDiv.style.width = '100%'; monacoDiv.style.height = '100%';
         containerEl.appendChild(monacoDiv);
 
         setTimeout(async () => {
-          let codeContent = '// Loading code from disk...';
-          try {
-            const res = await fetch('/api/v1/file/read', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ filePath: viewer.sourceNode.filePath })
-            });
-            const data = await res.json();
-            if (data.payload?.content) codeContent = data.payload.content;
-          } catch (e) {}
-
           if (window.monaco) {
             viewer.monacoInstance = monaco.editor.create(monacoDiv, {
-              value: codeContent, language: 'typescript', theme: 'krnl-dark', automaticLayout: true, fontSize: 12, minimap: { enabled: true }
+              value: \`// Loading source code for \${viewer.sourceNode.name}...\`,
+              language: 'typescript',
+              theme: 'krnl-dark',
+              automaticLayout: true,
+              fontSize: 12,
+              minimap: { enabled: true }
             });
+
+            try {
+              const res = await fetch('/api/v1/file/read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filePath: viewer.sourceNode.filePath })
+              });
+              const data = await res.json();
+              if (data.payload?.content) {
+                viewer.monacoInstance.setValue(data.payload.content);
+              } else if (data.result?.payload?.content) {
+                viewer.monacoInstance.setValue(data.result.payload.content);
+              } else if (data.content) {
+                viewer.monacoInstance.setValue(data.content);
+              } else {
+                viewer.monacoInstance.setValue(\`// File: \${viewer.sourceNode.filePath}\\n// Status: No content returned\`);
+              }
+            } catch (err) {
+              viewer.monacoInstance.setValue(\`// Error loading file: \${err.message || String(err)}\`);
+            }
           }
         }, 50);
       }
@@ -1422,7 +1504,7 @@ export class StudioServer {
       const data = await res.json();
       if (data.payload) {
         const badge = document.getElementById('test-badge-' + viewerId);
-        if (badge) badge.textContent = \`[⏱️ \${data.payload.durationMs}ms | \${data.payload.success ? 'PASSED' : 'FAILED'}]\`;
+        if (badge) badge.textContent = \`[\${data.payload.durationMs}ms | \${data.payload.success ? 'PASSED' : 'FAILED'}]\`;
         if (viewer.testOutputEditor) viewer.testOutputEditor.setValue(JSON.stringify(data.payload.output || data.payload.error, null, 2));
       }
     }

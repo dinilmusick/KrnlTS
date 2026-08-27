@@ -206,12 +206,31 @@ export class JsonRpcRouter {
           return { jsonrpc: '2.0', id, result: decorated };
         }
 
-        // 4. Code Mutation
+        // 4. Code Mutation & Robust File Reading
         case 'file.read': {
           const { filePath } = params;
-          const abs = path.resolve(this.projectRoot, filePath);
+          let abs = path.isAbsolute(filePath) ? filePath : path.resolve(this.projectRoot, filePath);
           if (!fs.existsSync(abs)) throw new Error(`File not found: ${filePath}`);
-          const content = fs.readFileSync(abs, 'utf-8');
+
+          let content = '';
+          if (fs.lstatSync(abs).isDirectory()) {
+            const base = path.basename(abs);
+            const candidateTs = path.join(abs, `${base}.ts`);
+            const candidateIndex = path.join(abs, 'index.ts');
+            if (fs.existsSync(candidateTs)) {
+              abs = candidateTs;
+              content = fs.readFileSync(candidateTs, 'utf-8');
+            } else if (fs.existsSync(candidateIndex)) {
+              abs = candidateIndex;
+              content = fs.readFileSync(candidateIndex, 'utf-8');
+            } else {
+              const files = fs.readdirSync(abs);
+              content = `// Directory: ${base}\n// Files in directory:\n` + files.map(f => `// - ${f}`).join('\n');
+            }
+          } else {
+            content = fs.readFileSync(abs, 'utf-8');
+          }
+
           const decorated = PreemptiveDocManager.decorateResponse('file.read', { filePath: abs, content });
           return { jsonrpc: '2.0', id, result: decorated };
         }
