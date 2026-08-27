@@ -1158,11 +1158,13 @@
             <!-- UI Top Toolbar -->
             <div style="background: rgba(14, 14, 18, 0.9); border-bottom: 1px solid rgba(198, 120, 221, 0.25); padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
               <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
-                <span id="ui-file-badge-${viewer.id}" style="color: #abb2bf; font-family: monospace; font-size: 10px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 320px;">
+                <span id="ui-file-badge-${viewer.id}" style="color: #abb2bf; font-family: monospace; font-size: 10px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 300px;">
                   📄 ${filePathText}
                 </span>
               </div>
               <div style="display: flex; align-items: center; gap: 6px;">
+                <button onclick="copyMonacoEditor('${viewer.id}')" title="Copy UI code" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📋 Copy</button>
+                <button onclick="pasteMonacoEditor('${viewer.id}')" title="Paste UI code" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📥 Paste</button>
                 <button onclick="refreshViewerUiPreview('${viewer.id}')" title="Re-render preview" style="background: rgba(97, 175, 239, 0.18); color: #61afef; border: 1px solid rgba(97, 175, 239, 0.4); padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: bold;">🔄 Re-render</button>
                 <button onclick="saveViewerUiCode('${viewer.id}')" title="Save file to disk (Ctrl+S / Cmd+S)" style="background: #d4af37; color: #121212; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; transition: transform 0.1s ease; box-shadow: 0 0 10px rgba(212,175,55,0.3);" onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform='none'">💾 Save UI</button>
               </div>
@@ -1171,7 +1173,7 @@
             <!-- UI Split Body: Left = Palette & Live Preview, Right = Monaco Editor -->
             <div style="display: flex; flex: 1; height: calc(100% - 35px); overflow: hidden;">
               <!-- Left Column: Atom Palette & Interactive Live Preview -->
-              <div style="width: 290px; border-right: 1px solid rgba(198, 120, 221, 0.25); background: rgba(10, 10, 14, 0.7); display: flex; flex-direction: column; overflow: hidden;">
+              <div style="width: 320px; border-right: 1px solid rgba(198, 120, 221, 0.25); background: rgba(10, 10, 14, 0.7); display: flex; flex-direction: column; overflow: hidden;">
                 <div style="padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between;">
                   <span style="font-size: 10px; color: #c678dd; font-weight: bold; letter-spacing: 0.5px;">KRNL ATOMS PALETTE</span>
                   <span style="font-size: 9px; color: #7f848e;">Click to insert</span>
@@ -1189,7 +1191,7 @@
                   <span style="font-size: 9px; color: #98c379;">Interactive DOM</span>
                 </div>
                 <div id="ui-preview-${viewer.id}" style="flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
-                  <!-- Dynamic live preview mounts here -->
+                  <!-- Dynamic live interactive preview mounts here -->
                 </div>
               </div>
 
@@ -1238,21 +1240,49 @@
             saveViewerUiCode(viewer.id);
           });
 
+          // Debounced live preview re-rendering as the user types
+          let liveRenderTimer = null;
+          viewer.monacoInstance.onDidChangeModelContent(() => {
+            if (liveRenderTimer) clearTimeout(liveRenderTimer);
+            liveRenderTimer = setTimeout(() => {
+              refreshViewerUiPreview(viewer.id);
+            }, 300);
+          });
+
           refreshViewerUiPreview(viewer.id);
         });
       } else if (viewer.viewType === 'code') {
-        const monacoDiv = document.createElement('div');
-        monacoDiv.style.width = '100%'; monacoDiv.style.height = '100%';
-        containerEl.appendChild(monacoDiv);
+        const filePathText = viewer.sourceNode.filePath.split('/').slice(-3).join('/');
+
+        containerEl.innerHTML = `
+          <div style="display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden;">
+            <div style="background: rgba(14, 14, 18, 0.9); border-bottom: 1px solid rgba(198, 120, 221, 0.25); padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
+              <span id="code-file-badge-${viewer.id}" style="color: #abb2bf; font-family: monospace; font-size: 10px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 320px;">
+                📄 ${filePathText}
+              </span>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <button onclick="copyMonacoEditor('${viewer.id}')" title="Copy code" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📋 Copy</button>
+                <button onclick="pasteMonacoEditor('${viewer.id}')" title="Paste code" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📥 Paste</button>
+                <button onclick="saveCodeViewer('${viewer.id}')" title="Save file to disk (Ctrl+S / Cmd+S)" style="background: #d4af37; color: #121212; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; transition: transform 0.1s ease; box-shadow: 0 0 10px rgba(212,175,55,0.3);" onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform='none'">💾 Save</button>
+              </div>
+            </div>
+            <div id="monaco-code-${viewer.id}" style="flex: 1; width: 100%; height: calc(100% - 35px);"></div>
+          </div>
+        `;
 
         ensureMonacoReady(async () => {
-          viewer.monacoInstance = monaco.editor.create(monacoDiv, {
+          viewer.monacoInstance = monaco.editor.create(document.getElementById('monaco-code-' + viewer.id), {
             value: `// Loading ${viewer.sourceNode.name} source code...`,
             language: 'typescript',
             theme: 'krnl-dark',
             automaticLayout: true,
             fontSize: 12,
             minimap: { enabled: true }
+          });
+
+          // Add Ctrl+S / Cmd+S save command
+          viewer.monacoInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+            saveCodeViewer(viewer.id);
           });
 
           try {
@@ -1281,16 +1311,24 @@
                 <span style="font-size: 10px; color: #7f848e; font-family: monospace;">(JSON)</span>
               </div>
               <div style="display: flex; align-items: center; gap: 6px;">
-                <button onclick="resetViewerTestPayload('${viewer.id}')" title="Reset to auto-synthesized asset payload" style="background: rgba(212, 175, 55, 0.15); color: #d4af37; border: 1px solid rgba(212, 175, 55, 0.4); padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: 500;">↺ Reset Example</button>
-                <button onclick="copyViewerTestPayload('${viewer.id}')" title="Copy input JSON" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📋 Copy</button>
+                <button onclick="copyTestInput('${viewer.id}')" title="Copy input JSON" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📋 Copy</button>
+                <button onclick="pasteTestInput('${viewer.id}')" title="Paste input JSON" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📥 Paste</button>
+                <button onclick="resetViewerTestPayload('${viewer.id}')" title="Reset to auto-synthesized asset payload" style="background: rgba(212, 175, 55, 0.15); color: #d4af37; border: 1px solid rgba(212, 175, 55, 0.4); padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: 500;">↺ Reset</button>
                 <button onclick="clearViewerTestPayload('${viewer.id}')" title="Clear input" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">🧹 Clear</button>
-                <button onclick="executeViewerTest('${viewer.id}')" style="background: #c678dd; color: #121212; border: none; padding: 4px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; transition: transform 0.1s ease; box-shadow: 0 0 10px rgba(198, 120, 221, 0.3);" onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform='none'">▶ Execute in Sandbox</button>
+                <button onclick="executeViewerTest('${viewer.id}')" style="background: #c678dd; color: #121212; border: none; padding: 4px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; transition: transform 0.1s ease; box-shadow: 0 0 10px rgba(198, 120, 221, 0.3);" onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform='none'">▶ Execute</button>
               </div>
             </div>
             <div id="test-in-${viewer.id}" style="height: 120px; border: 1px solid rgba(198, 120, 221, 0.3); border-radius: 6px; overflow: hidden;"></div>
+            
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
-              <span style="font-size: 11px; color: #abb2bf; font-weight: bold;">OUTPUT & BENCHMARK:</span>
-              <span id="test-badge-${viewer.id}" style="font-size: 11px; font-weight: bold; color: #7f848e;">Awaiting run</span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 11px; color: #abb2bf; font-weight: bold;">OUTPUT & BENCHMARK:</span>
+                <span id="test-badge-${viewer.id}" style="font-size: 11px; font-weight: bold; color: #7f848e;">Awaiting run</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <button onclick="copyTestOutput('${viewer.id}')" title="Copy output JSON" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📋 Copy</button>
+                <button onclick="clearTestOutput('${viewer.id}')" title="Clear output" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">🧹 Clear</button>
+              </div>
             </div>
             <div id="test-out-${viewer.id}" style="flex: 1; border: 1px solid rgba(198, 120, 221, 0.3); border-radius: 6px; overflow: hidden;"></div>
           </div>
@@ -1311,21 +1349,152 @@
             language: 'json', theme: 'krnl-dark', fontSize: 11, minimap: { enabled: false }, automaticLayout: true
           });
           viewer.testOutputEditor = monaco.editor.create(document.getElementById('test-out-' + viewer.id), {
-            value: '// Press [▶ Execute in Sandbox] above to run in isolated VM sandbox',
+            value: '// Press [▶ Execute] above to run in isolated VM sandbox',
             language: 'json', theme: 'krnl-dark', readOnly: true, fontSize: 11, minimap: { enabled: false }, automaticLayout: true
           });
         });
       } else if (viewer.viewType === 'state') {
-        const monacoDiv = document.createElement('div');
-        monacoDiv.style.width = '100%'; monacoDiv.style.height = '100%';
-        containerEl.appendChild(monacoDiv);
+        containerEl.innerHTML = `
+          <div style="display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden;">
+            <div style="background: rgba(14, 14, 18, 0.9); border-bottom: 1px solid rgba(198, 120, 221, 0.25); padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
+              <span id="state-file-badge-${viewer.id}" style="color: #abb2bf; font-family: monospace; font-size: 10px;">
+                ⚡ Reactive State for ${viewer.sourceNode.name}
+              </span>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <button onclick="copyMonacoEditor('${viewer.id}')" title="Copy state" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📋 Copy</button>
+                <button onclick="pasteMonacoEditor('${viewer.id}')" title="Paste state" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📥 Paste</button>
+              </div>
+            </div>
+            <div id="monaco-state-${viewer.id}" style="flex: 1; width: 100%; height: calc(100% - 35px);"></div>
+          </div>
+        `;
 
         ensureMonacoReady(() => {
-          viewer.monacoInstance = monaco.editor.create(monacoDiv, {
+          viewer.monacoInstance = monaco.editor.create(document.getElementById('monaco-state-' + viewer.id), {
             value: JSON.stringify({ active: true, invocationCount: 14, lastUpdated: Date.now() }, null, 2),
-            language: 'json', theme: 'krnl-dark', fontSize: 12, minimap: { enabled: false }
+            language: 'json', theme: 'krnl-dark', fontSize: 12, minimap: { enabled: false }, automaticLayout: true
           });
         });
+      }
+    }
+
+    // --- Clipboard & Editor Persistence Helpers ---
+    async function copyEditorContent(editorInstance, feedbackEl) {
+      if (!editorInstance) return;
+      const code = editorInstance.getValue();
+      try {
+        await navigator.clipboard.writeText(code);
+        if (feedbackEl) {
+          const orig = feedbackEl.textContent;
+          feedbackEl.textContent = '📋 Copied to Clipboard!';
+          feedbackEl.style.color = '#98c379';
+          setTimeout(() => {
+            feedbackEl.textContent = orig;
+            feedbackEl.style.color = '';
+          }, 1500);
+        }
+      } catch (e) {
+        editorInstance.focus();
+        editorInstance.setSelection(editorInstance.getModel().getFullModelRange());
+        document.execCommand('copy');
+      }
+    }
+
+    async function pasteEditorContent(editorInstance, feedbackEl) {
+      if (!editorInstance) return;
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          editorInstance.setValue(text);
+          if (feedbackEl) {
+            const orig = feedbackEl.textContent;
+            feedbackEl.textContent = '📥 Pasted from Clipboard!';
+            feedbackEl.style.color = '#98c379';
+            setTimeout(() => {
+              feedbackEl.textContent = orig;
+              feedbackEl.style.color = '';
+            }, 1500);
+          }
+          return;
+        }
+      } catch (e) {
+        const text = prompt('Paste your code/JSON here:');
+        if (text !== null) {
+          editorInstance.setValue(text);
+        }
+      }
+    }
+
+    async function copyMonacoEditor(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.monacoInstance) return;
+      const feedback = document.getElementById('ui-file-badge-' + viewerId) || document.getElementById('code-file-badge-' + viewerId) || document.getElementById('state-file-badge-' + viewerId);
+      await copyEditorContent(viewer.monacoInstance, feedback);
+    }
+
+    async function pasteMonacoEditor(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.monacoInstance) return;
+      const feedback = document.getElementById('ui-file-badge-' + viewerId) || document.getElementById('code-file-badge-' + viewerId) || document.getElementById('state-file-badge-' + viewerId);
+      await pasteEditorContent(viewer.monacoInstance, feedback);
+      if (viewer.viewType === 'ui') {
+        refreshViewerUiPreview(viewerId);
+      }
+    }
+
+    async function copyTestInput(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.testInputEditor) return;
+      await copyEditorContent(viewer.testInputEditor, document.getElementById('test-badge-' + viewerId));
+    }
+
+    async function pasteTestInput(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.testInputEditor) return;
+      await pasteEditorContent(viewer.testInputEditor, document.getElementById('test-badge-' + viewerId));
+    }
+
+    async function copyTestOutput(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.testOutputEditor) return;
+      await copyEditorContent(viewer.testOutputEditor, document.getElementById('test-badge-' + viewerId));
+    }
+
+    function clearTestOutput(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.testOutputEditor) return;
+      viewer.testOutputEditor.setValue('// Output cleared');
+    }
+
+    async function saveCodeViewer(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.monacoInstance) return;
+      const badge = document.getElementById('code-file-badge-' + viewerId);
+      const code = viewer.monacoInstance.getValue();
+      const filePath = viewer.sourceNode.filePath;
+
+      if (badge) {
+        badge.textContent = '⏳ Saving...';
+        badge.style.color = '#e5c07b';
+      }
+
+      try {
+        const res = await fetch('/api/v1/file/edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath, newContent: code })
+        });
+        if (badge) {
+          const now = new Date().toLocaleTimeString();
+          const shortPath = filePath.split('/').slice(-3).join('/');
+          badge.textContent = `💾 Saved (${shortPath}) @ ${now}`;
+          badge.style.color = '#98c379';
+        }
+      } catch (err) {
+        if (badge) {
+          badge.textContent = '❌ Save error: ' + (err.message || String(err));
+          badge.style.color = '#e06c75';
+        }
       }
     }
 
@@ -1427,157 +1596,186 @@
       const previewEl = document.getElementById('ui-preview-' + viewerId);
       if (!previewEl) return;
 
-      const node = viewer.sourceNode;
-      previewEl.innerHTML = '';
+      const code = viewer.monacoInstance ? viewer.monacoInstance.getValue() : '';
+      evaluateAndRenderUiComponent(code, previewEl, viewer.sourceNode);
+    }
 
-      const card = document.createElement('div');
-      card.style.cssText = 'background: rgba(22, 22, 30, 0.95); border: 1px solid rgba(198, 120, 221, 0.4); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.5); box-sizing: border-box;';
+    /**
+     * Dynamic client-side evaluator & renderer for live UI components
+     */
+    function evaluateAndRenderUiComponent(code, containerEl, node) {
+      containerEl.innerHTML = '';
+      
+      const previewBox = document.createElement('div');
+      previewBox.className = 'live-component-canvas';
+      previewBox.style.cssText = 'background: #14141d; border: 1px solid rgba(198, 120, 221, 0.4); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 24px rgba(0,0,0,0.6);';
 
-      const header = document.createElement('div');
-      header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(198, 120, 221, 0.2); padding-bottom: 6px;';
-      header.innerHTML = `<span style="font-size: 12px; font-weight: bold; color: #c678dd;">${node.name} View</span><span style="font-size: 9px; background: rgba(198,120,221,0.2); color: #c678dd; padding: 2px 6px; border-radius: 4px;">Live Preview</span>`;
-      card.appendChild(header);
+      try {
+        const h = (tag, props = {}, ...children) => {
+          const el = document.createElement(tag);
+          if (props && typeof props === 'object' && !(props instanceof HTMLElement)) {
+            for (const [k, v] of Object.entries(props)) {
+              if (k === 'class' || k === 'className') el.className = v;
+              else if (k === 'style' && typeof v === 'string') el.style.cssText = v;
+              else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.substring(2).toLowerCase(), v);
+              else if (k === 'value') el.value = v;
+              else if (k === 'placeholder') el.placeholder = v;
+              else if (k !== 'children') el.setAttribute(k, v);
+            }
+          }
+          const childList = (props && props.children) ? props.children : children;
+          for (const c of (Array.isArray(childList) ? childList.flat() : [childList])) {
+            if (c === null || c === undefined) continue;
+            if (typeof c === 'string' || typeof c === 'number') el.appendChild(document.createTextNode(String(c)));
+            else if (c instanceof HTMLElement) el.appendChild(c);
+          }
+          return el;
+        };
 
-      const formContainer = document.createElement('div');
-      formContainer.style.cssText = 'display: flex; flex-direction: column; gap: 8px; font-size: 11px;';
+        const KrnlTile = (opts = {}) => {
+          const tile = h('div', { style: 'background: rgba(22, 22, 30, 0.95); border: 2px solid #d4af37; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 18px rgba(0,0,0,0.7);' });
+          if (opts.title) {
+            const titleEl = h('div', { style: 'font-size: 13px; font-weight: bold; color: #d4af37; border-bottom: 1px solid rgba(212,175,55,0.3); padding-bottom: 6px; display: flex; justify-content: space-between; align-items: center;' },
+              h('span', {}, opts.title),
+              h('span', { style: 'font-size: 9px; background: rgba(212,175,55,0.2); color: #d4af37; padding: 2px 6px; border-radius: 4px;' }, 'KrnlTile')
+            );
+            tile.appendChild(titleEl);
+          }
+          if (opts.description) {
+            tile.appendChild(h('div', { style: 'font-size: 11px; color: #abb2bf;' }, opts.description));
+          }
+          if (opts.children) {
+            const content = h('div', { style: 'display: flex; flex-direction: column; gap: 8px;' }, ...opts.children);
+            tile.appendChild(content);
+          }
+          return tile;
+        };
+
+        const KrnlButton = (opts = {}) => {
+          const isPrimary = opts.variant === 'primary' || !opts.variant;
+          const btn = h('button', {
+            style: `background: ${isPrimary ? '#d4af37' : '#21212b'}; color: ${isPrimary ? '#121212' : '#f5ede4'}; border: ${isPrimary ? 'none' : '1px solid #4b5263'}; padding: 7px 14px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; transition: transform 0.1s ease, box-shadow 0.1s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 4px;`,
+            onclick: (e) => {
+              btn.style.transform = 'scale(0.96)';
+              setTimeout(() => { btn.style.transform = 'none'; }, 100);
+              if (opts.onClick) opts.onClick(e);
+            }
+          }, opts.label || opts.text || 'Action');
+          return btn;
+        };
+
+        const KrnlTextInput = (opts = {}) => {
+          const wrap = h('div', { style: 'display: flex; flex-direction: column; gap: 4px;' });
+          if (opts.label) wrap.appendChild(h('label', { style: 'font-size: 10px; color: #abb2bf; font-weight: bold; text-transform: uppercase;' }, opts.label));
+          const input = h('input', {
+            type: opts.type || 'text',
+            placeholder: opts.placeholder || '',
+            value: opts.value || '',
+            style: 'background: #0e0e12; border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 5px; padding: 6px 10px; color: #f5ede4; font-size: 11px; outline: none; width: 100%; box-sizing: border-box;'
+          });
+          wrap.appendChild(input);
+          return wrap;
+        };
+
+        const KrnlBadge = (opts = {}) => {
+          const color = opts.variant === 'success' ? '#98c379' : opts.variant === 'danger' ? '#e06c75' : '#c678dd';
+          return h('span', { style: `font-size: 10px; font-weight: bold; color: ${color}; background: rgba(${opts.variant === 'success' ? '152,195,121' : '198,120,221'}, 0.2); padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; width: fit-content;` }, opts.text || opts.label || 'Badge');
+        };
+
+        const KrnlDropdown = (opts = {}) => {
+          const wrap = h('div', { style: 'display: flex; flex-direction: column; gap: 4px;' });
+          if (opts.label) wrap.appendChild(h('label', { style: 'font-size: 10px; color: #abb2bf; font-weight: bold; text-transform: uppercase;' }, opts.label));
+          const sel = h('select', { style: 'background: #0e0e12; border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 5px; padding: 6px 10px; color: #f5ede4; font-size: 11px; outline: none; width: 100%; box-sizing: border-box;' });
+          for (const opt of (opts.options || ['Option 1', 'Option 2'])) {
+            sel.appendChild(h('option', { value: opt }, opt));
+          }
+          wrap.appendChild(sel);
+          return wrap;
+        };
+
+        const tags = ['div', 'span', 'h1', 'h2', 'h3', 'h4', 'p', 'button', 'input', 'select', 'option', 'form', 'label', 'table', 'tr', 'td', 'th', 'ul', 'li', 'header', 'footer', 'section', 'article', 'aside', 'nav'];
+        const vanTags = {};
+        for (const t of tags) {
+          vanTags[t] = (...args) => h(t, ...args);
+        }
+        const van = { tags: vanTags, state: (v) => ({ val: v }) };
+
+        let executableCode = code
+          .replace(/import\s+[^;]+;/g, '')
+          .replace(/export\s+default\s+[^;]+;/g, '')
+          .replace(/export\s+function/g, 'function')
+          .replace(/export\s+const/g, 'const')
+          .replace(/:\s*HTMLElement/g, '')
+          .replace(/:\s*any/g, '');
+
+        const mockState = node.examplePayload || {};
+        const mockEntity = {
+          id: node.parentEntity || node.name,
+          call: async (fn, params) => { console.log('Mock entity.call:', fn, params); },
+          boot: async () => { console.log('Mock entity.boot called'); }
+        };
+
+        const fnWrapper = new Function('van', 'KrnlTile', 'KrnlButton', 'KrnlTextInput', 'KrnlBadge', 'KrnlDropdown', 'state', 'entity', `
+          ${executableCode}
+          if (typeof ${node.name}View === 'function') return ${node.name}View({ state, entity });
+          if (typeof ${node.name}App === 'function') return ${node.name}App({ state, entity });
+          if (typeof GeneratedView === 'function') return GeneratedView({ state, entity });
+          for (const k of Object.keys(this)) {
+            if (typeof this[k] === 'function' && k.endsWith('View')) return this[k]({ state, entity });
+          }
+          return KrnlTile({ title: '${node.name} Component', description: 'Interactive VanJS component', children: [ KrnlButton({ label: 'Execute Action' }) ] });
+        `);
+
+        const renderedNode = fnWrapper.call({}, van, KrnlTile, KrnlButton, KrnlTextInput, KrnlBadge, KrnlDropdown, mockState, mockEntity);
+        if (renderedNode instanceof HTMLElement) {
+          previewBox.appendChild(renderedNode);
+          containerEl.appendChild(previewBox);
+          return;
+        }
+      } catch (err) {
+        console.warn('Live UI evaluation fallback:', err);
+      }
+
+      // Fallback interactive AST visual card
+      const fallbackTile = document.createElement('div');
+      fallbackTile.style.cssText = 'background: rgba(22, 22, 30, 0.95); border: 2px solid #d4af37; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 100%; box-shadow: 0 4px 18px rgba(0,0,0,0.7); box-sizing: border-box;';
+      
+      const titleRow = document.createElement('div');
+      titleRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(212,175,55,0.3); padding-bottom: 6px;';
+      titleRow.innerHTML = `<span style="font-size: 13px; font-weight: bold; color: #d4af37;">${node.name} Component</span><span style="font-size: 9px; background: rgba(212,175,55,0.2); color: #d4af37; padding: 2px 6px; border-radius: 4px; font-weight: bold;">LIVE</span>`;
+      fallbackTile.appendChild(titleRow);
 
       if (node.inputs && node.inputs.length > 0) {
+        const formEl = document.createElement('div');
+        formEl.style.cssText = 'display: flex; flex-direction: column; gap: 8px; font-size: 11px;';
         node.inputs.forEach(inp => {
           const row = document.createElement('div');
           row.style.cssText = 'display: flex; flex-direction: column; gap: 3px;';
-          const label = document.createElement('label');
-          label.style.cssText = 'color: #abb2bf; font-weight: 500; font-size: 10px; text-transform: uppercase;';
-          label.textContent = `${inp.name} (${inp.type}):`;
-          
-          const input = document.createElement('input');
-          input.type = inp.type.includes('number') ? 'number' : 'text';
-          input.style.cssText = 'background: #121217; border: 1px solid rgba(212,175,55,0.3); border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none; width: 100%; box-sizing: border-box;';
-          input.value = node.examplePayload && node.examplePayload[inp.name] !== undefined ? node.examplePayload[inp.name] : '';
-          row.appendChild(label);
-          row.appendChild(input);
-          formContainer.appendChild(row);
+          const lbl = document.createElement('label');
+          lbl.style.cssText = 'color: #abb2bf; font-weight: bold; font-size: 10px; text-transform: uppercase;';
+          lbl.textContent = inp.name + ' (' + inp.type + '):';
+          const inpEl = document.createElement('input');
+          inpEl.style.cssText = 'background: #0e0e12; border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; padding: 6px 10px; color: #f5ede4; font-size: 11px; outline: none; width: 100%; box-sizing: border-box;';
+          inpEl.value = node.examplePayload && node.examplePayload[inp.name] !== undefined ? node.examplePayload[inp.name] : '';
+          row.appendChild(lbl);
+          row.appendChild(inpEl);
+          formEl.appendChild(row);
         });
-      } else {
-        const info = document.createElement('div');
-        info.style.cssText = 'color: #abb2bf; font-size: 11px; font-style: italic;';
-        info.textContent = `Interactive visual preview for ${node.type} ${node.name}`;
-        formContainer.appendChild(info);
+        fallbackTile.appendChild(formEl);
       }
 
-      const btnRow = document.createElement('div');
-      btnRow.style.cssText = 'display: flex; gap: 8px; margin-top: 6px;';
-      
-      const submitBtn = document.createElement('button');
-      submitBtn.style.cssText = 'background: #d4af37; color: #121212; border: none; border-radius: 4px; padding: 6px 12px; font-weight: bold; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; box-shadow: 0 0 10px rgba(212,175,55,0.3); width: 100%;';
-      submitBtn.textContent = node.type === 'entity' ? '⚡ Boot Entity' : `▶ Trigger ${node.name}`;
-      submitBtn.onclick = () => {
-        submitBtn.style.transform = 'scale(0.96)';
-        setTimeout(() => { submitBtn.style.transform = 'none'; }, 100);
+      const actionBtn = document.createElement('button');
+      actionBtn.style.cssText = 'background: #d4af37; color: #121212; border: none; border-radius: 6px; padding: 8px 14px; font-weight: bold; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; box-shadow: 0 2px 10px rgba(212,175,55,0.3); width: 100%; margin-top: 4px;';
+      actionBtn.textContent = '▶ Execute ' + node.name;
+      actionBtn.onclick = () => {
+        actionBtn.style.transform = 'scale(0.96)';
+        setTimeout(() => { actionBtn.style.transform = 'none'; }, 100);
         spawnViewerNode(node.id, 'test');
       };
-      btnRow.appendChild(submitBtn);
+      fallbackTile.appendChild(actionBtn);
 
-      card.appendChild(formContainer);
-      card.appendChild(btnRow);
-      previewEl.appendChild(card);
-    }
-
-    function resetViewerTestPayload(viewerId) {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer || !viewer.testInputEditor) return;
-      const payload = viewer.sourceNode.examplePayload || {};
-      viewer.testInputEditor.setValue(JSON.stringify(payload, null, 2));
-      const badge = document.getElementById('test-badge-' + viewerId);
-      if (badge) {
-        badge.textContent = '↺ Reset to example payload';
-        badge.style.color = '#d4af37';
-      }
-    }
-
-    function copyViewerTestPayload(viewerId) {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer || !viewer.testInputEditor) return;
-      const val = viewer.testInputEditor.getValue();
-      navigator.clipboard.writeText(val);
-      const badge = document.getElementById('test-badge-' + viewerId);
-      if (badge) {
-        badge.textContent = '📋 Copied to clipboard!';
-        badge.style.color = '#98c379';
-      }
-    }
-
-    function clearViewerTestPayload(viewerId) {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer || !viewer.testInputEditor) return;
-      viewer.testInputEditor.setValue('{}');
-      const badge = document.getElementById('test-badge-' + viewerId);
-      if (badge) {
-        badge.textContent = '🧹 Cleared input';
-        badge.style.color = '#7f848e';
-      }
-    }
-
-    async function executeViewerTest(viewerId) {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer || !viewer.testInputEditor) return;
-      const badge = document.getElementById('test-badge-' + viewerId);
-      if (badge) {
-        badge.textContent = '⏳ Executing in Sandbox...';
-        badge.style.color = '#e5c07b';
-      }
-
-      let inputVal = {};
-      try {
-        const raw = viewer.testInputEditor.getValue().trim();
-        inputVal = raw ? JSON.parse(raw) : {};
-      } catch (e) {
-        if (badge) {
-          badge.textContent = '❌ Invalid Input JSON';
-          badge.style.color = '#e06c75';
-        }
-        if (viewer.testOutputEditor) {
-          viewer.testOutputEditor.setValue(JSON.stringify({ error: 'Invalid JSON: ' + e.message }, null, 2));
-        }
-        return;
-      }
-
-      try {
-        const res = await fetch('/api/v1/test/execute', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filePath: viewer.sourceNode.filePath, input: inputVal })
-        });
-        const data = await res.json();
-        const payload = data.payload || data.result?.payload || data;
-
-        if (badge) {
-          if (payload.success) {
-            const memKb = payload.memoryDeltaBytes ? Math.round(payload.memoryDeltaBytes / 1024) : 0;
-            badge.textContent = `[${payload.durationMs || 0}ms | ${memKb}KB heap | PASSED]`;
-            badge.style.color = '#98c379';
-          } else {
-            badge.textContent = `[${payload.durationMs || 0}ms | FAILED]`;
-            badge.style.color = '#e06c75';
-          }
-        }
-        if (viewer.testOutputEditor) {
-          if (payload.output !== undefined) {
-            viewer.testOutputEditor.setValue(JSON.stringify(payload.output, null, 2));
-          } else if (payload.error) {
-            viewer.testOutputEditor.setValue(JSON.stringify({ error: payload.error, logs: payload.logs || [] }, null, 2));
-          } else {
-            viewer.testOutputEditor.setValue(JSON.stringify(payload, null, 2));
-          }
-        }
-      } catch (err) {
-        if (badge) {
-          badge.textContent = '[FAILED]';
-          badge.style.color = '#e06c75';
-        }
-        if (viewer.testOutputEditor) {
-          viewer.testOutputEditor.setValue(JSON.stringify({ error: err.message || String(err) }, null, 2));
-        }
-      }
+      previewBox.appendChild(fallbackTile);
+      containerEl.appendChild(previewBox);
     }
 
     function updateNodeSelectionStyles() {
