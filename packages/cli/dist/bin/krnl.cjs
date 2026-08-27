@@ -1919,6 +1919,21 @@ var StudioServer = class {
       box-shadow: 0 6px 28px rgba(0,0,0,0.9), 0 0 16px var(--krnl-accent-glow);
     }
 
+    /* Tooltip Helper */
+    .tooltip-container { position: relative; display: inline-flex; align-items: center; }
+    .tooltip-text {
+      visibility: hidden; opacity: 0;
+      position: absolute; z-index: 10000;
+      background: #1e1e28; color: #f5ede4;
+      border: 1px solid #d4af37; border-radius: 6px;
+      padding: 4px 8px; font-size: 11px; white-space: nowrap;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.8);
+      pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+    .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
+    .tooltip-bottom { top: 100%; left: 50%; transform: translateX(-50%) translateY(6px); }
+    .tooltip-top { bottom: 100%; left: 50%; transform: translateX(-50%) translateY(-6px); }
+
     /* Omni Canvas Viewport */
     #graph-viewport {
       width: 100%; height: 100%; position: relative; overflow: hidden;
@@ -2018,9 +2033,7 @@ var StudioServer = class {
       border-radius: 10px 10px 0 0;
     }
 
-    /* ==========================================================================
-       5. OMNI VIEWER WIDGET NODES (Movable & Resizable Canvas Window Widgets)
-       ========================================================================== */
+    /* 5. Omni Viewer Widget Nodes */
     .krnl-viewer-node {
       position: absolute; border-radius: 12px;
       background: rgba(22, 22, 30, 0.98); backdrop-filter: blur(20px);
@@ -2059,18 +2072,19 @@ var StudioServer = class {
     .socket-out { right: -7px; top: 50%; transform: translateY(-50%); }
     .socket-in { left: -7px; top: 50%; transform: translateY(-50%); background: #61afef; }
 
-    /* DEDICATED 'VIEWS' SOCKET HANDLE */
+    /* ICON-ONLY 'VIEWS' SOCKET HANDLE */
     .socket-views {
-      position: absolute; right: 14px; bottom: -8px;
+      position: absolute; right: 12px; bottom: -10px;
+      width: 26px; height: 26px; border-radius: 50%;
       background: #c678dd; border: 2px solid #0e0e12;
-      border-radius: 10px; padding: 2px 8px; font-size: 10px; font-weight: bold;
-      color: #fff; display: flex; align-items: center; gap: 4px;
-      cursor: crosshair; z-index: 40; box-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; cursor: crosshair; pointer-events: auto; z-index: 40;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.8), 0 0 10px var(--krnl-purple-glow);
       transition: transform 0.15s ease, background 0.15s ease;
     }
     .socket-views:hover {
-      transform: scale(1.15); background: #d19a66;
-      box-shadow: 0 0 14px var(--krnl-purple-glow);
+      transform: scale(1.25); background: #f5ede4; color: #16161e;
+      box-shadow: 0 0 16px var(--krnl-purple-glow);
     }
 
     /* Centered Wire Delete Gizmo */
@@ -2092,15 +2106,30 @@ var StudioServer = class {
     .krnl-context-menu {
       position: fixed; display: none; z-index: 9999;
       background: rgba(22, 22, 30, 0.98); backdrop-filter: blur(16px);
-      border: var(--krnl-border); border-radius: 8px; padding: 6px; min-width: 220px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 10px var(--krnl-accent-glow);
+      border: var(--krnl-border); border-radius: 10px; padding: 8px; min-width: 200px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.9), 0 0 14px var(--krnl-accent-glow);
     }
     .menu-item {
-      padding: 8px 12px; font-size: 12px; border-radius: 4px; cursor: pointer;
-      display: flex; align-items: center; gap: 8px; color: var(--krnl-text);
+      padding: 8px 12px; font-size: 12px; border-radius: 6px; cursor: pointer;
+      display: flex; align-items: center; gap: 10px; color: var(--krnl-text);
+      transition: background 0.1s ease, color 0.1s ease;
     }
     .menu-item:hover { background: rgba(212, 175, 55, 0.25); color: #d4af37; }
     .menu-separator { height: 1px; background: rgba(212, 175, 55, 0.15); margin: 4px 0; }
+
+    /* ICON-ONLY DOCK TOOLBAR */
+    .dock-icon-btn {
+      width: 38px; height: 38px; border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; cursor: pointer; color: #f5ede4;
+      transition: all 0.15s ease;
+    }
+    .dock-icon-btn:hover {
+      background: rgba(212, 175, 55, 0.25); border-color: #d4af37;
+      transform: scale(1.15); color: #d4af37;
+      box-shadow: 0 0 12px var(--krnl-accent-glow);
+    }
   </style>
 </head>
 <body>
@@ -2129,7 +2158,10 @@ var StudioServer = class {
           <option value="examples/ai-agent-app">examples/ai-agent-app</option>
           <option value=".">Framework Root</option>
         </select>
-        <button onclick="triggerPurityAudit()" style="background: rgba(212, 175, 55, 0.2); border: 1px solid #d4af37; color: #d4af37; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold;">\u26A1 Run AST Purity Audit</button>
+        <div class="tooltip-container">
+          <button onclick="triggerPurityAudit()" style="background: rgba(212, 175, 55, 0.2); border: 1px solid #d4af37; color: #d4af37; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold;">\u26A1 Purity Audit</button>
+          <span class="tooltip-text tooltip-bottom">Run AST 4-Layer Purity Audit</span>
+        </div>
       </div>
     </div>
 
@@ -2143,53 +2175,99 @@ var StudioServer = class {
       </div>
     </div>
 
-    <!-- Floating Canvas Toolbar Dock -->
-    <div style="position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; background: rgba(22, 22, 30, 0.92); backdrop-filter: blur(14px); border: var(--krnl-border); padding: 8px 14px; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.8); z-index: 2000;">
-      <button onclick="resetZoomAndFit()" style="background: rgba(212, 175, 55, 0.2); border: 1px solid #d4af37; color: #d4af37; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">\u{1F3AF} Fit View</button>
-      <button onclick="apiAlignLayout('hierarchical')" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;">\u{1F4D0} Auto-Align</button>
-      <button onclick="contextAddEntity()" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;">\u{1F4E6} + Entity</button>
-      <button onclick="contextAddFunctionality()" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;">\u26A1 + Functionality</button>
-      <button onclick="contextAddLibrary()" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;">\u{1F4DA} + Library</button>
+    <!-- ICON-ONLY FLOATING DOCK TOOLBAR -->
+    <div style="position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; background: rgba(22, 22, 30, 0.94); backdrop-filter: blur(16px); border: var(--krnl-border); padding: 8px 14px; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.8); z-index: 2000;">
+      <div class="tooltip-container">
+        <button class="dock-icon-btn" onclick="resetZoomAndFit()">\u{1F3AF}</button>
+        <span class="tooltip-text tooltip-top">Fit View & Reset Zoom</span>
+      </div>
+      <div class="tooltip-container">
+        <button class="dock-icon-btn" onclick="apiAlignLayout('hierarchical')">\u{1F4D0}</button>
+        <span class="tooltip-text tooltip-top">Auto-Align Hierarchical Layout</span>
+      </div>
+      <div style="width: 1px; background: rgba(212, 175, 55, 0.2); margin: 4px 0;"></div>
+      <div class="tooltip-container">
+        <button class="dock-icon-btn" onclick="contextAddEntity()">\u{1F3DB}\uFE0F</button>
+        <span class="tooltip-text tooltip-top">New System Entity</span>
+      </div>
+      <div class="tooltip-container">
+        <button class="dock-icon-btn" onclick="contextAddFunctionality()">\u26A1</button>
+        <span class="tooltip-text tooltip-top">New Quad-Unit Functionality</span>
+      </div>
+      <div class="tooltip-container">
+        <button class="dock-icon-btn" onclick="contextAddLibrary()">\u{1F4DA}</button>
+        <span class="tooltip-text tooltip-top">New Domain Concept Library</span>
+      </div>
     </div>
 
     <!-- Canvas Context Menu -->
     <div id="pane-context-menu" class="krnl-context-menu">
-      <div class="menu-item" onclick="contextAddEntity()">\u{1F4E6} New Entity</div>
-      <div class="menu-item" onclick="contextAddFunctionality()">\u26A1 New Functionality</div>
-      <div class="menu-item" onclick="contextAddLibrary()">\u{1F4DA} New Domain Library</div>
+      <div class="menu-item" onclick="contextAddEntity()"><span>\u{1F3DB}\uFE0F</span><span>New Entity</span></div>
+      <div class="menu-item" onclick="contextAddFunctionality()"><span>\u26A1</span><span>New Functionality</span></div>
+      <div class="menu-item" onclick="contextAddLibrary()"><span>\u{1F4DA}</span><span>New Concept Library</span></div>
       <div class="menu-separator"></div>
-      <div class="menu-item" onclick="apiAlignLayout('hierarchical')">\u{1F4D0} Auto-Align Hierarchical</div>
-      <div class="menu-item" onclick="resetZoomAndFit()">\u{1F3AF} Fit View / Reset Zoom</div>
+      <div class="menu-item" onclick="apiAlignLayout('hierarchical')"><span>\u{1F4D0}</span><span>Auto-Align Layout</span></div>
+      <div class="menu-item" onclick="resetZoomAndFit()"><span>\u{1F3AF}</span><span>Fit View</span></div>
     </div>
 
     <!-- Node Context Menu -->
     <div id="node-context-menu" class="krnl-context-menu">
-      <div class="menu-item" onclick="spawnViewerForContext('code')">\u{1F4C4} Inspect Source Code</div>
-      <div class="menu-item" onclick="spawnViewerForContext('ui')">\u{1F3A8} Open UI & Atom Builder</div>
-      <div class="menu-item" onclick="spawnViewerForContext('test')">\u{1F9EA} Open Test Bench</div>
+      <div class="menu-item" onclick="spawnViewerForContext('ui')"><span>\u{1F3A8}</span><span>UI View & Atom Builder</span></div>
+      <div class="menu-item" onclick="spawnViewerForContext('code')"><span>\u{1F4C4}</span><span>Monaco Source Code</span></div>
+      <div class="menu-item" onclick="spawnViewerForContext('test')"><span>\u{1F9EA}</span><span>Sandboxed Test Bench</span></div>
+      <div class="menu-item" onclick="spawnViewerForContext('state')"><span>\u{1F4BE}</span><span>Reactive State Inspector</span></div>
       <div class="menu-separator"></div>
-      <div class="menu-item" onclick="contextDuplicateSelected()">\u{1F4CB} Duplicate Node</div>
-      <div class="menu-item" onclick="contextDisconnectSelected()" style="color: #e5c07b;">\u{1F50C} Disconnect All Wires</div>
-      <div class="menu-item" onclick="contextDeleteSelected()" style="color: #e06c75;">\u{1F5D1}\uFE0F Delete Node</div>
+      <div class="menu-item" onclick="contextDuplicateSelected()"><span>\u{1F4CB}</span><span>Duplicate Node</span></div>
+      <div class="menu-item" onclick="contextDisconnectSelected()" style="color: #e5c07b;"><span>\u{1F50C}</span><span>Disconnect Wires</span></div>
+      <div class="menu-item" onclick="contextDeleteSelected()" style="color: #e06c75;"><span>\u{1F5D1}\uFE0F</span><span>Delete Node</span></div>
     </div>
 
-    <!-- Views Handle Wire-Drop Selector Dialogue -->
-    <div id="view-selector-modal" class="krnl-context-menu" style="border-color: #c678dd; box-shadow: 0 10px 30px rgba(0,0,0,0.9), 0 0 14px var(--krnl-purple-glow);">
-      <div style="padding: 6px 12px; font-size: 11px; color: #c678dd; font-weight: bold; text-transform: uppercase;">Spawn Omni Viewer:</div>
-      <div class="menu-item" onclick="confirmSpawnViewer('ui')">\u{1F3A8} UI View & Atom Builder</div>
-      <div class="menu-item" onclick="confirmSpawnViewer('code')">\u{1F4C4} Monaco Source Code</div>
-      <div class="menu-item" onclick="confirmSpawnViewer('test')">\u{1F9EA} Sandboxed Test Bench</div>
-      <div class="menu-item" onclick="confirmSpawnViewer('state')">\u{1F4BE} Reactive State Inspector</div>
+    <!-- ICON-TILED VIEWS SPAWN DIALOGUE (Triggered on Views Wire Drop & Views Click) -->
+    <div id="view-selector-modal" class="krnl-context-menu" style="border-color: #c678dd; box-shadow: 0 12px 36px rgba(0,0,0,0.95), 0 0 20px var(--krnl-purple-glow); min-width: 240px;">
+      <div style="padding: 6px 8px 8px 8px; font-size: 11px; color: #c678dd; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(198, 120, 221, 0.25); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+        <span>SPAWN OMNI VIEW</span>
+        <span id="views-modal-node-title" style="color: #f5ede4; font-size: 10px; background: rgba(198,120,221,0.2); padding: 2px 6px; border-radius: 4px;">Node</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div class="menu-item" onclick="confirmSpawnViewer('ui')">
+          <span style="font-size: 16px;">\u{1F3A8}</span>
+          <div>
+            <div style="font-weight: bold; font-size: 12px;">UI & Atom Builder</div>
+            <div style="font-size: 10px; color: #7f848e;">Live preview & VanJS editor</div>
+          </div>
+        </div>
+        <div class="menu-item" onclick="confirmSpawnViewer('code')">
+          <span style="font-size: 16px;">\u{1F4C4}</span>
+          <div>
+            <div style="font-weight: bold; font-size: 12px;">Monaco Source Code</div>
+            <div style="font-size: 10px; color: #7f848e;">TypeScript quad-unit code</div>
+          </div>
+        </div>
+        <div class="menu-item" onclick="confirmSpawnViewer('test')">
+          <span style="font-size: 16px;">\u{1F9EA}</span>
+          <div>
+            <div style="font-weight: bold; font-size: 12px;">Sandboxed Test Bench</div>
+            <div style="font-size: 10px; color: #7f848e;">Input/output execution & latency</div>
+          </div>
+        </div>
+        <div class="menu-item" onclick="confirmSpawnViewer('state')">
+          <span style="font-size: 16px;">\u{1F4BE}</span>
+          <div>
+            <div style="font-weight: bold; font-size: 12px;">Reactive State Inspector</div>
+            <div style="font-size: 10px; color: #7f848e;">Live reactive schema viewer</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
   <script>
     let currentGraph = { nodes: [], edges: [] };
     let selectedNodes = new Set();
-    let clipboardNodes = [];
-    let spawnedViewers = new Map(); // id -> { id, sourceNodeId, viewType, x, y, w, h, monacoInstance }
+    let spawnedViewers = new Map();
     let viewerCounter = 0;
     let maxZIndex = 100;
+    let lastModalOpenTime = 0;
 
     // Viewport Pan & Zoom
     let panX = 40, panY = 70, zoom = 0.85;
@@ -2216,7 +2294,7 @@ var StudioServer = class {
     // Wire Dragging State
     let isDraggingWire = false;
     let isDraggingViewsWire = false;
-    let wireSource = null; // { nodeId, socketType: 'out'|'in'|'views', x, y }
+    let wireSource = null;
     let wireDropPos = { x: 0, y: 0 };
 
     // Context Menus
@@ -2225,7 +2303,9 @@ var StudioServer = class {
     const viewSelectorModal = document.getElementById('view-selector-modal');
     let contextTargetNodeId = null;
 
-    function hideContextMenus() {
+    function hideContextMenus(e) {
+      if (Date.now() - lastModalOpenTime < 250) return;
+      if (e && e.target.closest('.krnl-context-menu')) return;
       paneMenu.style.display = 'none';
       nodeMenu.style.display = 'none';
       viewSelectorModal.style.display = 'none';
@@ -2233,14 +2313,13 @@ var StudioServer = class {
     window.addEventListener('click', hideContextMenus);
 
     // --- Mouse Pan & Box Selection ---
-
     viewport.onmousedown = (e) => {
-      hideContextMenus();
+      hideContextMenus(e);
       const rect = viewport.getBoundingClientRect();
       const clientX = e.clientX - rect.left;
       const clientY = e.clientY - rect.top;
 
-      // 1. Middle Click / Space+Drag: Pan
+      // Middle Click / Space+Drag: Pan
       if (e.button === 1 || (e.button === 0 && e.spaceKey)) {
         isPanning = true;
         startPanX = e.clientX - panX;
@@ -2250,7 +2329,7 @@ var StudioServer = class {
         return;
       }
 
-      // 2. Right-Click Drag: Pan fallback
+      // Right-Click Drag: Pan fallback
       if (e.button === 2) {
         isRightDragPanning = true;
         rightDragDist = 0;
@@ -2261,9 +2340,9 @@ var StudioServer = class {
         return;
       }
 
-      // 3. Canvas Background: Box Marquee
+      // Canvas Background: Box Marquee
       if (e.button === 0) {
-        const isInteractive = e.target.closest('.krnl-node') || e.target.closest('.krnl-viewer-node') || e.target.closest('.node-socket') || e.target.closest('.edge-delete-gizmo');
+        const isInteractive = e.target.closest('.krnl-node') || e.target.closest('.krnl-viewer-node') || e.target.closest('.node-socket') || e.target.closest('.socket-views') || e.target.closest('.edge-delete-gizmo');
         if (!isInteractive) {
           if (!e.shiftKey && !e.metaKey && !e.ctrlKey) {
             selectedNodes.clear();
@@ -2427,13 +2506,11 @@ var StudioServer = class {
         const dropX = Math.round((clientX - panX) / zoom);
         const dropY = Math.round((clientY - panY) / zoom);
 
-        // If Views Wire dropped on empty space -> Show View Selector Modal
+        // Views Wire dropped -> Display View Selector Modal
         if (isDraggingViewsWire && wireSource) {
           isDraggingViewsWire = false;
           wireDropPos = { x: dropX, y: dropY };
-          viewSelectorModal.style.display = 'block';
-          viewSelectorModal.style.left = e.clientX + 'px';
-          viewSelectorModal.style.top = e.clientY + 'px';
+          openViewSelectorModalAt(e.clientX, e.clientY, wireSource.nodeId);
           return;
         }
 
@@ -2450,6 +2527,15 @@ var StudioServer = class {
         }
       }
     });
+
+    function openViewSelectorModalAt(screenX, screenY, nodeId) {
+      lastModalOpenTime = Date.now();
+      const node = currentGraph.nodes.find(n => n.id === nodeId);
+      document.getElementById('views-modal-node-title').textContent = node ? node.name : 'Node';
+      viewSelectorModal.style.display = 'block';
+      viewSelectorModal.style.left = screenX + 'px';
+      viewSelectorModal.style.top = screenY + 'px';
+    }
 
     // Zoom on Scroll
     viewport.addEventListener('wheel', (e) => {
@@ -2667,18 +2753,21 @@ var StudioServer = class {
         \`;
       }
 
-      // Sockets: In/Out and DEDICATED 'VIEWS' SOCKET
+      // Sockets: In/Out and ICON-ONLY 'VIEWS' SOCKET
       innerHtml += \`
         <div class="node-socket socket-out" data-node-id="\${node.id}" data-socket-type="out"></div>
         <div class="node-socket socket-in" data-node-id="\${node.id}" data-socket-type="in"></div>
-        <div class="socket-views" data-node-id="\${node.id}" data-socket-type="views" title="Drag wire from Views handle to spawn UI/Code Viewer">\u{1F441}\uFE0F Views</div>
+        <div class="tooltip-container socket-views" data-node-id="\${node.id}" data-socket-type="views">
+          <span>\u{1F441}\uFE0F</span>
+          <span class="tooltip-text tooltip-bottom">Spawn Omni View</span>
+        </div>
       \`;
 
       el.innerHTML = innerHtml;
 
       // Node Dragging
       el.onmousedown = (e) => {
-        if (e.target.classList.contains('node-socket') || e.target.classList.contains('socket-views')) return;
+        if (e.target.closest('.node-socket') || e.target.closest('.socket-views')) return;
         if (e.button === 0) {
           e.stopPropagation();
           nodeDragMoved = false;
@@ -2721,7 +2810,7 @@ var StudioServer = class {
         }
       });
 
-      // 'VIEWS' WIRE DRAGGING
+      // 'VIEWS' SOCKET HANDLE (Wire Drag AND Click to Open View Menu)
       const viewsSocket = el.querySelector('.socket-views');
       if (viewsSocket) {
         viewsSocket.onmousedown = (e) => {
@@ -2737,23 +2826,29 @@ var StudioServer = class {
             y: (sockRect.top + sockRect.height / 2 - vpRect.top - panY) / zoom
           };
         };
+
+        viewsSocket.onclick = (e) => {
+          e.stopPropagation();
+          wireSource = { nodeId: node.id, socketType: 'views', x: x + 300, y: y + 50 };
+          wireDropPos = { x: x + 360, y: y };
+          openViewSelectorModalAt(e.clientX + 10, e.clientY + 10, node.id);
+        };
       }
 
       layer.appendChild(el);
     }
 
     // --- OMNI VIEWER NODE SPAWNING & WINDOW MANAGEMENT ---
-
     function confirmSpawnViewer(viewType) {
       hideContextMenus();
-      if (!wireSource?.nodeId) return;
-      spawnViewerNode(wireSource.nodeId, viewType, wireDropPos.x, wireDropPos.y);
+      const targetId = wireSource?.nodeId || contextTargetNodeId;
+      if (!targetId) return;
+      spawnViewerNode(targetId, viewType, wireDropPos.x, wireDropPos.y);
     }
 
     function spawnViewerForContext(viewType) {
       hideContextMenus();
       if (!contextTargetNodeId) return;
-      const targetNode = currentGraph.nodes.find(n => n.id === contextTargetNodeId);
       const el = document.getElementById('node-' + contextTargetNodeId);
       const x = el ? parseFloat(el.style.left) + 380 : 500;
       const y = el ? parseFloat(el.style.top) : 200;
@@ -2804,7 +2899,7 @@ var StudioServer = class {
       vEl.style.height = viewer.h + 'px';
 
       const nodeName = viewer.sourceNode.name;
-      const viewTitle = viewer.viewType === 'ui' ? '\u{1F3A8} UI View & Atom Builder'
+      const viewTitle = viewer.viewType === 'ui' ? '\u{1F3A8} UI & Atom Builder'
         : viewer.viewType === 'code' ? '\u{1F4C4} Monaco Source Code'
         : viewer.viewType === 'test' ? '\u{1F9EA} Sandboxed Test Bench'
         : '\u{1F4BE} Reactive State Inspector';
@@ -2823,12 +2918,8 @@ var StudioServer = class {
         <div class="viewer-resize-handle" id="vrh-\${viewer.id}"></div>
       \`;
 
-      // Raise Z-Index on Click
-      vEl.onmousedown = () => {
-        vEl.style.zIndex = ++maxZIndex;
-      };
+      vEl.onmousedown = () => { vEl.style.zIndex = ++maxZIndex; };
 
-      // Window Header Dragging
       const titlebar = vEl.querySelector('#vtb-' + viewer.id);
       titlebar.onmousedown = (e) => {
         if (e.target.tagName === 'BUTTON') return;
@@ -2842,7 +2933,6 @@ var StudioServer = class {
         };
       };
 
-      // Window Corner Resizing
       const resizeHandle = vEl.querySelector('#vrh-' + viewer.id);
       resizeHandle.onmousedown = (e) => {
         e.stopPropagation();
@@ -2857,7 +2947,6 @@ var StudioServer = class {
         };
       };
 
-      // Populate Viewer Content Body
       const body = vEl.querySelector('#vb-' + viewer.id);
       populateViewerContent(viewer, body);
     }
@@ -2877,7 +2966,7 @@ var StudioServer = class {
             </div>
             <div style="flex: 1; display: flex; flex-direction: column; padding: 12px; gap: 10px; overflow: hidden;">
               <div id="drop-target-\${viewer.id}" ondragover="event.preventDefault()" ondrop="handleViewerAtomDrop(event, '\${viewer.id}')" style="flex: 1; border: 1px dashed rgba(198, 120, 221, 0.4); border-radius: 8px; padding: 12px; background: rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 6px; overflow-y: auto;">
-                <div style="margin: auto; font-size: 11px; color: #7f848e;">Drag KrnlUI atoms here to compose view</div>
+                <div style="margin: auto; font-size: 11px; color: #7f848e;">Drag atoms here to compose view</div>
               </div>
               <div style="height: 120px; border: 1px solid rgba(198, 120, 221, 0.2); border-radius: 6px; overflow: hidden;" id="monaco-ui-\${viewer.id}"></div>
             </div>
@@ -2888,11 +2977,7 @@ var StudioServer = class {
           if (window.monaco) {
             viewer.monacoInstance = monaco.editor.create(document.getElementById('monaco-ui-' + viewer.id), {
               value: \`// Generated VanJS UI for \${viewer.sourceNode.name}\\nimport van from 'vanjs-core';\\nimport { KrnlTile } from '@dinilmusick/krnl-ui';\\n\\nexport function \${viewer.sourceNode.name}View() {\\n  return KrnlTile({ title: '\${viewer.sourceNode.name}' });\\n}\`,
-              language: 'typescript',
-              theme: 'krnl-dark',
-              readOnly: true,
-              fontSize: 11,
-              minimap: { enabled: false }
+              language: 'typescript', theme: 'krnl-dark', readOnly: true, fontSize: 11, minimap: { enabled: false }
             });
           }
         }, 50);
@@ -2901,8 +2986,7 @@ var StudioServer = class {
       // B. MONACO SOURCE CODE
       else if (viewer.viewType === 'code') {
         const monacoDiv = document.createElement('div');
-        monacoDiv.style.width = '100%';
-        monacoDiv.style.height = '100%';
+        monacoDiv.style.width = '100%'; monacoDiv.style.height = '100%';
         containerEl.appendChild(monacoDiv);
 
         setTimeout(async () => {
@@ -2919,12 +3003,7 @@ var StudioServer = class {
 
           if (window.monaco) {
             viewer.monacoInstance = monaco.editor.create(monacoDiv, {
-              value: codeContent,
-              language: 'typescript',
-              theme: 'krnl-dark',
-              automaticLayout: true,
-              fontSize: 12,
-              minimap: { enabled: true }
+              value: codeContent, language: 'typescript', theme: 'krnl-dark', automaticLayout: true, fontSize: 12, minimap: { enabled: true }
             });
           }
         }, 50);
@@ -2964,8 +3043,7 @@ var StudioServer = class {
       // D. STATE INSPECTOR
       else if (viewer.viewType === 'state') {
         const monacoDiv = document.createElement('div');
-        monacoDiv.style.width = '100%';
-        monacoDiv.style.height = '100%';
+        monacoDiv.style.width = '100%'; monacoDiv.style.height = '100%';
         containerEl.appendChild(monacoDiv);
 
         setTimeout(() => {
@@ -3161,7 +3239,6 @@ var StudioServer = class {
       if (window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'audit-' + Date.now(), method: 'validate.runPurityAudit' }));
     }
 
-    // Direct REST Initial Fetch
     async function initialGraphFetch() {
       try {
         const res = await fetch('/api/graph');
@@ -3174,7 +3251,6 @@ var StudioServer = class {
     }
     initialGraphFetch();
 
-    // WebSocket Live Updates
     function connectWebSocket() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const ws = new WebSocket(protocol + '//' + window.location.host + '/studio/ws');
@@ -3200,7 +3276,6 @@ var StudioServer = class {
       setTimeout(() => { hud.style.display = 'none'; }, 4000);
     }
 
-    // Monaco Theme Initialization
     if (window.require) {
       require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
       require(['vs/editor/editor.main'], function () {
