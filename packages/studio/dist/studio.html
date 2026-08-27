@@ -1037,8 +1037,8 @@
         sourceNode,
         x: x || 400,
         y: y || 200,
-        w: viewType === 'ui' ? 780 : 580,
-        h: viewType === 'ui' ? 480 : 420,
+        w: viewType === 'ui' ? 960 : 580,
+        h: viewType === 'ui' ? 560 : 420,
         monacoInstance: null,
         testInputEditor: null,
         testOutputEditor: null
@@ -1151,57 +1151,76 @@
       if (viewer.viewType === 'ui') {
         const filePathText = viewer.sourceNode.uiFilePath
           ? viewer.sourceNode.uiFilePath.split('/').slice(-3).join('/')
-          : '✨ New UI View (Unsaved)';
+          : 'New UI View (Unsaved)';
 
         containerEl.innerHTML = `
           <div style="display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden;">
             <!-- UI Top Toolbar -->
-            <div style="background: rgba(14, 14, 18, 0.9); border-bottom: 1px solid rgba(198, 120, 221, 0.25); padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
+            <div style="background: rgba(14, 14, 18, 0.95); border-bottom: 1px solid rgba(212, 175, 55, 0.25); padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
               <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
-                <span id="ui-file-badge-${viewer.id}" style="color: #abb2bf; font-family: monospace; font-size: 10px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 300px;">
-                  📄 ${filePathText}
+                <span style="color: #d4af37; font-weight: bold; font-size: 11px; letter-spacing: 0.5px;">UI VISUAL BUILDER</span>
+                <span style="color: #4b5263;">|</span>
+                <span id="ui-file-badge-${viewer.id}" style="color: #abb2bf; font-family: monospace; font-size: 10px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 280px;">
+                  ${filePathText}
                 </span>
               </div>
               <div style="display: flex; align-items: center; gap: 6px;">
-                <button onclick="copyMonacoEditor('${viewer.id}')" title="Copy UI code" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📋 Copy</button>
-                <button onclick="pasteMonacoEditor('${viewer.id}')" title="Paste UI code" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📥 Paste</button>
-                <button onclick="refreshViewerUiPreview('${viewer.id}')" title="Re-render preview" style="background: rgba(97, 175, 239, 0.18); color: #61afef; border: 1px solid rgba(97, 175, 239, 0.4); padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: bold;">🔄 Re-render</button>
+                <button onclick="switchUiTab('${viewer.id}', 'inspector')" id="btn-tab-inspector-${viewer.id}" title="Atom Inspector & Action Binder" style="background: rgba(212, 175, 55, 0.2); color: #d4af37; border: 1px solid rgba(212, 175, 55, 0.5); padding: 3px 10px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: bold;">⌕ Inspector</button>
+                <button onclick="switchUiTab('${viewer.id}', 'code')" id="btn-tab-code-${viewer.id}" title="Full TypeScript Code" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 10px; border-radius: 4px; font-size: 10px; cursor: pointer;">≡ Full Code</button>
+                <button onclick="copyUiCode('${viewer.id}')" title="Copy UI code" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📋 Copy</button>
+                <button onclick="pasteUiCode('${viewer.id}')" title="Paste UI code" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📥 Paste</button>
                 <button onclick="saveViewerUiCode('${viewer.id}')" title="Save file to disk (Ctrl+S / Cmd+S)" style="background: #d4af37; color: #121212; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; transition: transform 0.1s ease; box-shadow: 0 0 10px rgba(212,175,55,0.3);" onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform='none'">💾 Save UI</button>
               </div>
             </div>
 
-            <!-- UI Split Body: Left = Palette & Live Preview, Right = Monaco Editor -->
+            <!-- UI Split Body: LEFT (WIDER) = Puck-Style Live Visual Builder & Canvas, RIGHT = Inspector / Code -->
             <div style="display: flex; flex: 1; height: calc(100% - 35px); overflow: hidden;">
-              <!-- Left Column: Atom Palette & Interactive Live Preview -->
-              <div style="width: 320px; border-right: 1px solid rgba(198, 120, 221, 0.25); background: rgba(10, 10, 14, 0.7); display: flex; flex-direction: column; overflow: hidden;">
-                <div style="padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between;">
-                  <span style="font-size: 10px; color: #c678dd; font-weight: bold; letter-spacing: 0.5px;">KRNL ATOMS PALETTE</span>
-                  <span style="font-size: 9px; color: #7f848e;">Click to insert</span>
+              <!-- LEFT MAIN COLUMN (60-65%): Puck-Style Drag-and-Drop Canvas & Visual Builder -->
+              <div style="flex: 1.6; border-right: 1px solid rgba(212, 175, 55, 0.25); background: #0c0c10; display: flex; flex-direction: column; overflow: hidden;">
+                <!-- Canvas Controls & Monochromatic Atom Palette Header -->
+                <div style="padding: 6px 12px; background: rgba(14, 14, 18, 0.85); border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 10px; color: #d4af37; font-weight: bold; letter-spacing: 0.5px; margin-right: 4px;">ATOMS:</span>
+                    <button class="palette-btn" draggable="true" ondragstart="onPaletteDragStart(event, 'KrnlButton')" onclick="addAtomComponent('${viewer.id}', 'KrnlButton')" title="Drag into canvas or click to add" style="padding: 3px 8px; border: 1px solid #4b5263; background: #1a1a24; border-radius: 4px; cursor: grab; font-size: 10px; color: #f5ede4;">▢ Button</button>
+                    <button class="palette-btn" draggable="true" ondragstart="onPaletteDragStart(event, 'KrnlTextInput')" onclick="addAtomComponent('${viewer.id}', 'KrnlTextInput')" title="Drag into canvas or click to add" style="padding: 3px 8px; border: 1px solid #4b5263; background: #1a1a24; border-radius: 4px; cursor: grab; font-size: 10px; color: #f5ede4;">⎕ Input</button>
+                    <button class="palette-btn" draggable="true" ondragstart="onPaletteDragStart(event, 'KrnlTile')" onclick="addAtomComponent('${viewer.id}', 'KrnlTile')" title="Drag into canvas or click to add" style="padding: 3px 8px; border: 1px solid #4b5263; background: #1a1a24; border-radius: 4px; cursor: grab; font-size: 10px; color: #f5ede4;">⊞ Tile</button>
+                    <button class="palette-btn" draggable="true" ondragstart="onPaletteDragStart(event, 'KrnlBadge')" onclick="addAtomComponent('${viewer.id}', 'KrnlBadge')" title="Drag into canvas or click to add" style="padding: 3px 8px; border: 1px solid #4b5263; background: #1a1a24; border-radius: 4px; cursor: grab; font-size: 10px; color: #f5ede4;">⚑ Badge</button>
+                    <button class="palette-btn" draggable="true" ondragstart="onPaletteDragStart(event, 'KrnlDropdown')" onclick="addAtomComponent('${viewer.id}', 'KrnlDropdown')" title="Drag into canvas or click to add" style="padding: 3px 8px; border: 1px solid #4b5263; background: #1a1a24; border-radius: 4px; cursor: grab; font-size: 10px; color: #f5ede4;">▾ Dropdown</button>
+                    <button class="palette-btn" draggable="true" ondragstart="onPaletteDragStart(event, 'Container')" onclick="addAtomComponent('${viewer.id}', 'Container')" title="Drag into canvas or click to add" style="padding: 3px 8px; border: 1px solid #4b5263; background: #1a1a24; border-radius: 4px; cursor: grab; font-size: 10px; color: #f5ede4;">⧉ Box</button>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <button onclick="resetBuilderTree('${viewer.id}')" title="Reset to default schema" style="background: transparent; color: #7f848e; border: 1px solid #3e4451; padding: 2px 6px; border-radius: 4px; font-size: 9px; cursor: pointer;">↺ Reset</button>
+                    <button onclick="refreshViewerUiPreview('${viewer.id}')" title="Re-evaluate preview" style="background: rgba(97, 175, 239, 0.18); color: #61afef; border: 1px solid rgba(97, 175, 239, 0.4); padding: 2px 8px; border-radius: 4px; font-size: 9px; cursor: pointer; font-weight: bold;">⟳ Re-render</button>
+                  </div>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 6px 8px; background: rgba(0,0,0,0.25);">
-                  <div class="palette-item" onclick="insertAtomSnippet('${viewer.id}', 'KrnlButton')" style="padding: 4px 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: center; color: #f5ede4;">🔘 Button</div>
-                  <div class="palette-item" onclick="insertAtomSnippet('${viewer.id}', 'KrnlTextInput')" style="padding: 4px 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: center; color: #f5ede4;">📝 Input</div>
-                  <div class="palette-item" onclick="insertAtomSnippet('${viewer.id}', 'KrnlTile')" style="padding: 4px 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: center; color: #f5ede4;">🗂 Tile</div>
-                  <div class="palette-item" onclick="insertAtomSnippet('${viewer.id}', 'KrnlBadge')" style="padding: 4px 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: center; color: #f5ede4;">🏷 Badge</div>
-                  <div class="palette-item" onclick="insertAtomSnippet('${viewer.id}', 'KrnlDropdown')" style="padding: 4px 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: center; color: #f5ede4;">🔽 Dropdown</div>
-                  <div class="palette-item" onclick="insertAtomSnippet('${viewer.id}', 'Container')" style="padding: 4px 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: center; color: #f5ede4;">📦 Container</div>
-                </div>
-                <div style="padding: 6px 10px; font-size: 10px; color: #c678dd; font-weight: bold; border-top: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between;">
-                  <span>LIVE COMPONENT PREVIEW</span>
-                  <span style="font-size: 9px; color: #98c379;">Interactive DOM</span>
-                </div>
-                <div id="ui-preview-${viewer.id}" style="flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
-                  <!-- Dynamic live interactive preview mounts here -->
+
+                <!-- Drag & Drop Interactive Canvas -->
+                <div id="ui-canvas-wrap-${viewer.id}" ondragover="onCanvasDragOver(event)" ondragleave="onCanvasDragLeave(event)" ondrop="onCanvasDrop(event, '${viewer.id}')" style="flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; position: relative;">
+                  <!-- Visual Builder Content Mounts Here -->
                 </div>
               </div>
 
-              <!-- Right Column: Monaco Editor -->
-              <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-                <div id="monaco-ui-${viewer.id}" style="flex: 1; width: 100%; height: 100%;"></div>
+              <!-- RIGHT COLUMN (35-40%): Tab 1 = Atom Inspector & Action Binder, Tab 2 = Full Monaco Code -->
+              <div style="flex: 1; min-width: 330px; background: rgba(14, 14, 18, 0.95); display: flex; flex-direction: column; overflow: hidden;">
+                <!-- Tab 1: Atom Inspector Panel -->
+                <div id="tab-inspector-${viewer.id}" style="display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden;">
+                  <div id="inspector-content-${viewer.id}" style="flex: 1; padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;">
+                    <!-- Dynamically populated when an atom is selected -->
+                  </div>
+                </div>
+
+                <!-- Tab 2: Full Code Monaco Editor -->
+                <div id="tab-code-${viewer.id}" style="display: none; flex-direction: column; flex: 1; height: 100%; overflow: hidden;">
+                  <div id="monaco-ui-${viewer.id}" style="flex: 1; width: 100%; height: 100%;"></div>
+                </div>
               </div>
             </div>
           </div>
         `;
+
+        // Initialize component tree & monaco editor
+        initializeViewerTree(viewer);
+        renderBuilderTree(viewer.id);
 
         ensureMonacoReady(async () => {
           let initialCode = '';
@@ -1222,7 +1241,7 @@
           }
 
           if (!initialCode) {
-            initialCode = generateStarterUiCode(viewer.sourceNode);
+            initialCode = generateVanJsCodeFromTree(viewer);
           }
 
           viewer.monacoInstance = monaco.editor.create(document.getElementById('monaco-ui-' + viewer.id), {
@@ -1240,16 +1259,14 @@
             saveViewerUiCode(viewer.id);
           });
 
-          // Debounced live preview re-rendering as the user types
           let liveRenderTimer = null;
           viewer.monacoInstance.onDidChangeModelContent(() => {
             if (liveRenderTimer) clearTimeout(liveRenderTimer);
             liveRenderTimer = setTimeout(() => {
-              refreshViewerUiPreview(viewer.id);
-            }, 300);
+              // Sync tree from code if needed and re-render
+              renderBuilderTree(viewer.id);
+            }, 400);
           });
-
-          refreshViewerUiPreview(viewer.id);
         });
       } else if (viewer.viewType === 'code') {
         const filePathText = viewer.sourceNode.filePath.split('/').slice(-3).join('/');
@@ -1258,7 +1275,7 @@
           <div style="display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden;">
             <div style="background: rgba(14, 14, 18, 0.9); border-bottom: 1px solid rgba(198, 120, 221, 0.25); padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
               <span id="code-file-badge-${viewer.id}" style="color: #abb2bf; font-family: monospace; font-size: 10px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 320px;">
-                📄 ${filePathText}
+                ${filePathText}
               </span>
               <div style="display: flex; align-items: center; gap: 6px;">
                 <button onclick="copyMonacoEditor('${viewer.id}')" title="Copy code" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📋 Copy</button>
@@ -1378,7 +1395,627 @@
       }
     }
 
-    // --- Clipboard & Editor Persistence Helpers ---
+    // ==========================================
+    // PUCK-STYLE DRAG-AND-DROP VISUAL BUILDER ENGINE
+    // ==========================================
+    let draggedAtomType = null;
+
+    function onPaletteDragStart(e, atomType) {
+      draggedAtomType = atomType;
+      e.dataTransfer.setData('text/plain', atomType);
+      e.dataTransfer.effectAllowed = 'copy';
+    }
+
+    function onCanvasDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      const wrap = e.currentTarget;
+      wrap.style.background = 'rgba(212, 175, 55, 0.05)';
+      wrap.style.outline = '2px dashed rgba(212, 175, 55, 0.5)';
+    }
+
+    function onCanvasDragLeave(e) {
+      const wrap = e.currentTarget;
+      wrap.style.background = '';
+      wrap.style.outline = '';
+    }
+
+    function onCanvasDrop(e, viewerId) {
+      e.preventDefault();
+      const wrap = e.currentTarget;
+      wrap.style.background = '';
+      wrap.style.outline = '';
+      const atomType = e.dataTransfer.getData('text/plain') || draggedAtomType;
+      if (atomType) {
+        addAtomComponent(viewerId, atomType);
+      }
+      draggedAtomType = null;
+    }
+
+    function initializeViewerTree(viewer) {
+      if (viewer.componentTree) return viewer.componentTree;
+      const node = viewer.sourceNode;
+      const children = [];
+
+      if (node.inputs && node.inputs.length > 0) {
+        node.inputs.forEach((inp, i) => {
+          children.push({
+            id: `inp-${i + 1}`,
+            type: 'KrnlTextInput',
+            props: {
+              label: inp.name,
+              name: inp.name,
+              placeholder: inp.type,
+              value: (node.examplePayload && node.examplePayload[inp.name] !== undefined) ? String(node.examplePayload[inp.name]) : ''
+            }
+          });
+        });
+      }
+
+      const defaultAction = node.type === 'entity' ? 'boot' : 'call_functionality';
+      children.push({
+        id: 'btn-action',
+        type: 'KrnlButton',
+        props: {
+          label: node.type === 'entity' ? `⚡ Boot ${node.name}` : `▶ Execute ${node.name}`,
+          variant: 'primary',
+          actionType: defaultAction,
+          targetFunction: node.name
+        }
+      });
+
+      viewer.componentTree = {
+        id: 'root-tile',
+        type: 'KrnlTile',
+        props: {
+          title: `${node.name} Component`,
+          description: `${node.type.toUpperCase()} Visual Interface`
+        },
+        children
+      };
+
+      viewer.selectedAtomId = children[0]?.id || 'root-tile';
+      return viewer.componentTree;
+    }
+
+    function resetBuilderTree(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      viewer.componentTree = null;
+      initializeViewerTree(viewer);
+      renderBuilderTree(viewerId);
+      syncTreeToMonaco(viewerId);
+    }
+
+    function addAtomComponent(viewerId, atomType, parentId = 'root-tile') {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      const tree = initializeViewerTree(viewer);
+      const newId = `${atomType.toLowerCase().replace('krnl', '')}-${Date.now().toString().slice(-4)}`;
+
+      let newAtom = {
+        id: newId,
+        type: atomType,
+        props: {}
+      };
+
+      if (atomType === 'KrnlButton') {
+        newAtom.props = { label: 'Action Button', variant: 'primary', actionType: 'call_functionality', targetFunction: viewer.sourceNode.name };
+      } else if (atomType === 'KrnlTextInput') {
+        newAtom.props = { label: 'Text Input', name: 'field_' + newId, placeholder: 'string', value: '' };
+      } else if (atomType === 'KrnlTile') {
+        newAtom.props = { title: 'Section Card', description: 'Grouped Container' };
+        newAtom.children = [];
+      } else if (atomType === 'KrnlBadge') {
+        newAtom.props = { text: 'ACTIVE', variant: 'success' };
+      } else if (atomType === 'KrnlDropdown') {
+        newAtom.props = { label: 'Select Option', options: ['Option A', 'Option B'] };
+      } else if (atomType === 'Container') {
+        newAtom.props = { style: 'flex' };
+        newAtom.children = [];
+      }
+
+      tree.children.push(newAtom);
+      viewer.selectedAtomId = newId;
+      renderBuilderTree(viewerId);
+      syncTreeToMonaco(viewerId);
+    }
+
+    function deleteAtomComponent(viewerId, atomId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.componentTree) return;
+      if (atomId === 'root-tile') return;
+
+      viewer.componentTree.children = viewer.componentTree.children.filter(c => c.id !== atomId);
+      viewer.selectedAtomId = viewer.componentTree.children[0]?.id || 'root-tile';
+      renderBuilderTree(viewerId);
+      syncTreeToMonaco(viewerId);
+    }
+
+    function moveAtomComponent(viewerId, atomId, direction) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.componentTree) return;
+      const children = viewer.componentTree.children;
+      const idx = children.findIndex(c => c.id === atomId);
+      if (idx === -1) return;
+
+      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= children.length) return;
+
+      const [item] = children.splice(idx, 1);
+      children.splice(targetIdx, 0, item);
+      renderBuilderTree(viewerId);
+      syncTreeToMonaco(viewerId);
+    }
+
+    function selectAtomComponent(viewerId, atomId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      viewer.selectedAtomId = atomId;
+      renderBuilderTree(viewerId);
+    }
+
+    function renderBuilderTree(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      const wrap = document.getElementById(`ui-canvas-wrap-${viewerId}`);
+      if (!wrap) return;
+
+      const tree = initializeViewerTree(viewer);
+      wrap.innerHTML = '';
+
+      // Root Canvas Container Card (Puck Canvas)
+      const rootCard = document.createElement('div');
+      rootCard.className = 'puck-canvas-tile';
+      rootCard.style.cssText = `
+        background: rgba(20, 20, 28, 0.95);
+        border: 2px solid ${viewer.selectedAtomId === 'root-tile' ? '#d4af37' : 'rgba(212, 175, 55, 0.35)'};
+        border-radius: 10px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        box-sizing: border-box;
+        width: 100%;
+        transition: border-color 0.15s ease;
+      `;
+      rootCard.onclick = (e) => {
+        if (e.target === rootCard) {
+          selectAtomComponent(viewerId, 'root-tile');
+        }
+      };
+
+      // Header of Tile
+      const header = document.createElement('div');
+      header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(212,175,55,0.25); padding-bottom: 8px;';
+      header.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 13px; font-weight: bold; color: #d4af37;">${tree.props.title || 'Component'}</span>
+          ${tree.props.description ? `<span style="font-size: 10px; color: #7f848e;">— ${tree.props.description}</span>` : ''}
+        </div>
+        <span style="font-size: 9px; background: rgba(212,175,55,0.18); color: #d4af37; padding: 2px 6px; border-radius: 4px; font-weight: bold;">LIVE CANVAS</span>
+      `;
+      rootCard.appendChild(header);
+
+      // Children list
+      const itemsContainer = document.createElement('div');
+      itemsContainer.style.cssText = 'display: flex; flex-direction: column; gap: 10px; width: 100%;';
+
+      (tree.children || []).forEach((atom, idx) => {
+        const isSelected = viewer.selectedAtomId === atom.id;
+        const atomWrapper = document.createElement('div');
+        atomWrapper.className = `puck-atom-item ${isSelected ? 'selected' : ''}`;
+        atomWrapper.style.cssText = `
+          position: relative;
+          padding: 8px;
+          border-radius: 6px;
+          background: ${isSelected ? 'rgba(212, 175, 55, 0.08)' : 'rgba(255,255,255,0.02)'};
+          border: 1px solid ${isSelected ? '#d4af37' : 'rgba(255,255,255,0.08)'};
+          box-shadow: ${isSelected ? '0 0 12px rgba(212,175,55,0.25)' : 'none'};
+          cursor: pointer;
+          transition: all 0.15s ease;
+        `;
+        atomWrapper.onclick = (e) => {
+          e.stopPropagation();
+          selectAtomComponent(viewerId, atom.id);
+        };
+
+        // Render actual interactive component
+        if (atom.type === 'KrnlButton') {
+          const isPrimary = atom.props.variant === 'primary' || !atom.props.variant;
+          const btn = document.createElement('button');
+          btn.style.cssText = `
+            background: ${isPrimary ? '#d4af37' : '#21212b'};
+            color: ${isPrimary ? '#121212' : '#f5ede4'};
+            border: ${isPrimary ? 'none' : '1px solid #4b5263'};
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          `;
+          btn.textContent = atom.props.label || 'Button';
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            btn.style.transform = 'scale(0.97)';
+            setTimeout(() => { btn.style.transform = 'none'; }, 100);
+            if (atom.props.actionType === 'test_runner') {
+              spawnViewerNode(viewer.sourceNode.id, 'test');
+            }
+          };
+          atomWrapper.appendChild(btn);
+        } else if (atom.type === 'KrnlTextInput') {
+          const wrap = document.createElement('div');
+          wrap.style.cssText = 'display: flex; flex-direction: column; gap: 4px; width: 100%;';
+          if (atom.props.label) {
+            const lbl = document.createElement('label');
+            lbl.style.cssText = 'font-size: 10px; color: #abb2bf; font-weight: bold; text-transform: uppercase;';
+            lbl.textContent = `${atom.props.label}:`;
+            wrap.appendChild(lbl);
+          }
+          const inp = document.createElement('input');
+          inp.type = atom.props.placeholder?.includes('number') ? 'number' : 'text';
+          inp.placeholder = atom.props.placeholder || 'Enter value...';
+          inp.value = atom.props.value || '';
+          inp.style.cssText = 'background: #0e0e12; border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 5px; padding: 6px 10px; color: #f5ede4; font-size: 11px; outline: none; width: 100%; box-sizing: border-box;';
+          inp.oninput = (e) => {
+            atom.props.value = e.target.value;
+          };
+          wrap.appendChild(inp);
+          atomWrapper.appendChild(wrap);
+        } else if (atom.type === 'KrnlBadge') {
+          const color = atom.props.variant === 'success' ? '#98c379' : atom.props.variant === 'danger' ? '#e06c75' : '#c678dd';
+          const badge = document.createElement('span');
+          badge.style.cssText = `font-size: 10px; font-weight: bold; color: ${color}; background: rgba(255,255,255,0.06); border: 1px solid ${color}; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; width: fit-content;`;
+          badge.textContent = atom.props.text || 'Badge';
+          atomWrapper.appendChild(badge);
+        } else if (atom.type === 'KrnlDropdown') {
+          const wrap = document.createElement('div');
+          wrap.style.cssText = 'display: flex; flex-direction: column; gap: 4px; width: 100%;';
+          if (atom.props.label) {
+            const lbl = document.createElement('label');
+            lbl.style.cssText = 'font-size: 10px; color: #abb2bf; font-weight: bold; text-transform: uppercase;';
+            lbl.textContent = atom.props.label;
+            wrap.appendChild(lbl);
+          }
+          const sel = document.createElement('select');
+          sel.style.cssText = 'background: #0e0e12; border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 5px; padding: 6px 10px; color: #f5ede4; font-size: 11px; outline: none; width: 100%; box-sizing: border-box;';
+          (atom.props.options || ['Option 1', 'Option 2']).forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o; opt.textContent = o;
+            sel.appendChild(opt);
+          });
+          wrap.appendChild(sel);
+          atomWrapper.appendChild(wrap);
+        } else {
+          const box = document.createElement('div');
+          box.style.cssText = 'padding: 8px; border: 1px dashed #4b5263; border-radius: 4px; font-size: 11px; color: #abb2bf;';
+          box.textContent = `[Box Container] (${atom.type})`;
+          atomWrapper.appendChild(box);
+        }
+
+        // Floating Component Controls Pill
+        if (isSelected) {
+          const controls = document.createElement('div');
+          controls.style.cssText = 'position: absolute; top: -10px; right: 8px; display: flex; align-items: center; gap: 4px; background: #14141d; border: 1px solid #d4af37; border-radius: 4px; padding: 2px 6px; font-size: 9px; box-shadow: 0 2px 8px rgba(0,0,0,0.6); z-index: 10;';
+          controls.innerHTML = `
+            <span style="color: #d4af37; font-weight: bold;">${atom.type}</span>
+            <button onclick="event.stopPropagation(); moveAtomComponent('${viewerId}', '${atom.id}', 'up')" title="Move Up" style="background: transparent; border: none; color: #abb2bf; cursor: pointer; padding: 0 2px;">↑</button>
+            <button onclick="event.stopPropagation(); moveAtomComponent('${viewerId}', '${atom.id}', 'down')" title="Move Down" style="background: transparent; border: none; color: #abb2bf; cursor: pointer; padding: 0 2px;">↓</button>
+            <button onclick="event.stopPropagation(); deleteAtomComponent('${viewerId}', '${atom.id}')" title="Delete Atom" style="background: transparent; border: none; color: #e06c75; cursor: pointer; padding: 0 2px; font-weight: bold;">✕</button>
+          `;
+          atomWrapper.appendChild(controls);
+        }
+
+        itemsContainer.appendChild(atomWrapper);
+      });
+
+      rootCard.appendChild(itemsContainer);
+      wrap.appendChild(rootCard);
+
+      // Also render the Inspector on the right
+      renderAtomInspector(viewerId);
+    }
+
+    function renderAtomInspector(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      const inspectorEl = document.getElementById(`inspector-content-${viewerId}`);
+      if (!inspectorEl) return;
+
+      const tree = viewer.componentTree;
+      if (!tree) return;
+
+      let selectedAtom = null;
+      if (viewer.selectedAtomId === 'root-tile') {
+        selectedAtom = tree;
+      } else {
+        selectedAtom = tree.children.find(c => c.id === viewer.selectedAtomId) || tree;
+      }
+
+      const node = viewer.sourceNode;
+      const entityName = node.parentEntity || (node.type === 'entity' ? node.name : null);
+      const availableFuncs = node.functionalities || currentGraph.nodes.filter(n => n.type === 'functionality' && n.parentEntity === entityName).map(n => n.name);
+      const availableState = (node.stateFields || []).map(f => f.name).concat((node.inputs || []).map(i => i.name));
+
+      inspectorEl.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(212,175,55,0.3); padding-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 11px; font-weight: bold; color: #d4af37;">⌕ INSPECT:</span>
+            <span style="font-size: 10px; background: rgba(212,175,55,0.18); color: #d4af37; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${selectedAtom.type} (#${selectedAtom.id})</span>
+          </div>
+          ${selectedAtom.id !== 'root-tile' ? `<button onclick="deleteAtomComponent('${viewerId}', '${selectedAtom.id}')" title="Delete component" style="background: transparent; color: #e06c75; border: 1px solid rgba(224,108,117,0.4); padding: 2px 6px; border-radius: 4px; font-size: 9px; cursor: pointer;">✕ Delete</button>` : ''}
+        </div>
+
+        <!-- Component Properties Section -->
+        <div style="display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 6px;">
+          <span style="font-size: 10px; font-weight: bold; color: #c678dd; letter-spacing: 0.5px;">PROPERTIES</span>
+          ${selectedAtom.id === 'root-tile' ? `
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Tile Title:</label>
+              <input type="text" value="${selectedAtom.props.title || ''}" oninput="updateAtomProp('${viewerId}', 'title', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Description:</label>
+              <input type="text" value="${selectedAtom.props.description || ''}" oninput="updateAtomProp('${viewerId}', 'description', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+            </div>
+          ` : `
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Label / Title:</label>
+              <input type="text" value="${selectedAtom.props.label || selectedAtom.props.text || selectedAtom.props.title || ''}" oninput="updateAtomProp('${viewerId}', 'label', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+            </div>
+            ${selectedAtom.type === 'KrnlTextInput' ? `
+              <div style="display: flex; flex-direction: column; gap: 3px;">
+                <label style="font-size: 10px; color: #abb2bf;">Placeholder / Type:</label>
+                <input type="text" value="${selectedAtom.props.placeholder || ''}" oninput="updateAtomProp('${viewerId}', 'placeholder', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 3px;">
+                <label style="font-size: 10px; color: #abb2bf;">Default Value:</label>
+                <input type="text" value="${selectedAtom.props.value || ''}" oninput="updateAtomProp('${viewerId}', 'value', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+              </div>
+            ` : ''}
+            ${selectedAtom.type === 'KrnlButton' || selectedAtom.type === 'KrnlBadge' ? `
+              <div style="display: flex; flex-direction: column; gap: 3px;">
+                <label style="font-size: 10px; color: #abb2bf;">Variant Style:</label>
+                <select onchange="updateAtomProp('${viewerId}', 'variant', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
+                  <option value="primary" ${selectedAtom.props.variant === 'primary' ? 'selected' : ''}>Primary Gold</option>
+                  <option value="secondary" ${selectedAtom.props.variant === 'secondary' ? 'selected' : ''}>Secondary Dark</option>
+                  <option value="success" ${selectedAtom.props.variant === 'success' ? 'selected' : ''}>Success Green</option>
+                  <option value="danger" ${selectedAtom.props.variant === 'danger' ? 'selected' : ''}>Danger Red</option>
+                </select>
+              </div>
+            ` : ''}
+          `}
+        </div>
+
+        <!-- Action Binder & Connectivity -->
+        ${selectedAtom.type === 'KrnlButton' || selectedAtom.type === 'KrnlTextInput' ? `
+          <div style="display: flex; flex-direction: column; gap: 8px; background: rgba(212,175,55,0.04); border: 1px solid rgba(212,175,55,0.2); padding: 10px; border-radius: 6px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 10px; font-weight: bold; color: #d4af37; letter-spacing: 0.5px;">⚡ ACTION & BINDINGS</span>
+              <span style="font-size: 9px; color: #7f848e;">Reactive Link</span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">Trigger / Binding Type:</label>
+              <select id="action-type-sel-${viewerId}" onchange="updateAtomProp('${viewerId}', 'actionType', this.value)" style="background: #0e0e12; border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
+                <option value="call_functionality" ${selectedAtom.props.actionType === 'call_functionality' ? 'selected' : ''}>⚡ Call Entity Functionality (entity.call)</option>
+                <option value="boot" ${selectedAtom.props.actionType === 'boot' ? 'selected' : ''}>⚡ Boot Entity (entity.boot)</option>
+                <option value="main" ${selectedAtom.props.actionType === 'main' ? 'selected' : ''}>⚡ Trigger Main Function (main)</option>
+                <option value="state_bind" ${selectedAtom.props.actionType === 'state_bind' ? 'selected' : ''}>⚡ Bind State Field (state.field)</option>
+                <option value="subscribe_event" ${selectedAtom.props.actionType === 'subscribe_event' ? 'selected' : ''}>⚡ Subscribe to Event (entity.on)</option>
+                <option value="test_runner" ${selectedAtom.props.actionType === 'test_runner' ? 'selected' : ''}>⚡ Open Sandboxed Test Bench</option>
+              </select>
+            </div>
+
+            ${availableFuncs.length > 0 ? `
+              <div style="display: flex; flex-direction: column; gap: 3px;">
+                <label style="font-size: 10px; color: #abb2bf;">Target Functionality:</label>
+                <select onchange="updateAtomProp('${viewerId}', 'targetFunction', this.value)" style="background: #0e0e12; border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
+                  ${availableFuncs.map(fn => `<option value="${fn}" ${selectedAtom.props.targetFunction === fn ? 'selected' : ''}>${fn}</option>`).join('')}
+                </select>
+              </div>
+            ` : ''}
+
+            ${availableState.length > 0 ? `
+              <div style="display: flex; flex-direction: column; gap: 3px;">
+                <label style="font-size: 10px; color: #abb2bf;">Target State Property:</label>
+                <select onchange="updateAtomProp('${viewerId}', 'targetState', this.value)" style="background: #0e0e12; border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
+                  ${availableState.map(st => `<option value="${st}" ${selectedAtom.props.targetState === st ? 'selected' : ''}>state.${st}</option>`).join('')}
+                </select>
+              </div>
+            ` : ''}
+
+            <button onclick="applyAtomActionBinding('${viewerId}')" style="background: #d4af37; color: #121212; border: none; border-radius: 4px; padding: 6px 12px; font-weight: bold; font-size: 10px; cursor: pointer; margin-top: 4px;">⚡ Apply Action to Component</button>
+          </div>
+        ` : ''}
+
+        <!-- Isolated Component Code Snippet -->
+        <div style="display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 6px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 10px; font-weight: bold; color: #abb2bf;">COMPONENT CODE SNIPPET</span>
+            <button onclick="copyAtomSnippet('${viewerId}')" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 2px 6px; border-radius: 3px; font-size: 9px; cursor: pointer;">📋 Copy Snippet</button>
+          </div>
+          <pre id="snippet-${viewerId}" style="margin: 0; padding: 8px; background: #0a0a0e; border-radius: 4px; font-family: monospace; font-size: 10px; color: #98c379; overflow-x: auto; white-space: pre-wrap;">${generateAtomSnippet(selectedAtom, node)}</pre>
+        </div>
+      `;
+    }
+
+    function updateAtomProp(viewerId, propName, propVal) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.componentTree) return;
+
+      let atom = null;
+      if (viewer.selectedAtomId === 'root-tile') {
+        atom = viewer.componentTree;
+      } else {
+        atom = viewer.componentTree.children.find(c => c.id === viewer.selectedAtomId);
+      }
+
+      if (!atom) return;
+      atom.props[propName] = propVal;
+
+      // Update snippet
+      const snippetEl = document.getElementById(`snippet-${viewerId}`);
+      if (snippetEl) {
+        snippetEl.textContent = generateAtomSnippet(atom, viewer.sourceNode);
+      }
+
+      // Re-render canvas and sync to monaco
+      renderBuilderTree(viewerId);
+      syncTreeToMonaco(viewerId);
+    }
+
+    function applyAtomActionBinding(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.componentTree) return;
+      syncTreeToMonaco(viewerId);
+      renderBuilderTree(viewerId);
+
+      const feedback = document.getElementById('ui-file-badge-' + viewerId);
+      if (feedback) {
+        feedback.textContent = '⚡ Action Applied!';
+        feedback.style.color = '#98c379';
+        setTimeout(() => {
+          feedback.textContent = viewer.sourceNode.uiFilePath ? viewer.sourceNode.uiFilePath.split('/').slice(-3).join('/') : 'New UI View';
+          feedback.style.color = '';
+        }, 1500);
+      }
+    }
+
+    function generateAtomSnippet(atom, node) {
+      if (!atom) return '// No atom selected';
+      if (atom.id === 'root-tile') {
+        return `KrnlTile({\n  title: '${atom.props.title || node.name}',\n  description: '${atom.props.description || ''}',\n  children: [ ... ]\n})`;
+      }
+
+      if (atom.type === 'KrnlButton') {
+        let actionCode = `console.log('Clicked ${atom.props.label}');`;
+        if (atom.props.actionType === 'call_functionality') {
+          const fn = atom.props.targetFunction || node.name;
+          actionCode = `await entity.call('${fn}', state);`;
+        } else if (atom.props.actionType === 'boot') {
+          actionCode = `await entity.boot();`;
+        } else if (atom.props.actionType === 'main') {
+          actionCode = `await main(state, context);`;
+        } else if (atom.props.actionType === 'subscribe_event') {
+          actionCode = `entity.on('event', (data) => { console.log('Event received:', data); });`;
+        }
+
+        return `KrnlButton({\n  label: '${atom.props.label || 'Action'}',\n  variant: '${atom.props.variant || 'primary'}',\n  onClick: async () => {\n    ${actionCode}\n  }\n})`;
+      } else if (atom.type === 'KrnlTextInput') {
+        return `KrnlTextInput({\n  label: '${atom.props.label || 'Input'}',\n  placeholder: '${atom.props.placeholder || 'string'}',\n  value: state.${atom.props.name || 'field'} || '${atom.props.value || ''}'\n})`;
+      } else if (atom.type === 'KrnlBadge') {
+        return `KrnlBadge({\n  text: '${atom.props.text || 'ACTIVE'}',\n  variant: '${atom.props.variant || 'success'}'\n})`;
+      } else if (atom.type === 'KrnlDropdown') {
+        return `KrnlDropdown({\n  label: '${atom.props.label || 'Select'}',\n  options: ${JSON.stringify(atom.props.options || ['Option 1', 'Option 2'])}\n})`;
+      } else {
+        return `div({ class: 'krnl-box' }, ... )`;
+      }
+    }
+
+    function generateVanJsCodeFromTree(viewer) {
+      const node = viewer.sourceNode;
+      const name = node.name;
+      const tree = viewer.componentTree || initializeViewerTree(viewer);
+
+      const atomSnippets = (tree.children || []).map(atom => {
+        return '      ' + generateAtomSnippet(atom, node).split('\n').join('\n      ');
+      }).join(',\n');
+
+      return `// VanJS UI View for ${node.type.toUpperCase()}: ${name}\nimport van from 'vanjs-core';\nimport { KrnlTile, KrnlButton, KrnlTextInput, KrnlBadge, KrnlDropdown } from '@dinilmusick/krnl-ui';\n\nexport function ${name}View({ state, entity }: any): HTMLElement {\n  const { div, h3, span } = van.tags;\n\n  return KrnlTile({\n    title: '${tree.props.title || name}',\n    class: 'krnl-component-canvas',\n    children: [\n${atomSnippets}\n    ]\n  });\n}\n\nexport default ${name}View;\n`;
+    }
+
+    function syncTreeToMonaco(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.monacoInstance) return;
+      const code = generateVanJsCodeFromTree(viewer);
+      viewer.monacoInstance.setValue(code);
+    }
+
+    function switchUiTab(viewerId, tabName) {
+      const tabInspector = document.getElementById(`tab-inspector-${viewerId}`);
+      const tabCode = document.getElementById(`tab-code-${viewerId}`);
+      const btnInspector = document.getElementById(`btn-tab-inspector-${viewerId}`);
+      const btnCode = document.getElementById(`btn-tab-code-${viewerId}`);
+
+      if (tabName === 'inspector') {
+        if (tabInspector) tabInspector.style.display = 'flex';
+        if (tabCode) tabCode.style.display = 'none';
+        if (btnInspector) {
+          btnInspector.style.background = 'rgba(212, 175, 55, 0.2)';
+          btnInspector.style.color = '#d4af37';
+          btnInspector.style.borderColor = 'rgba(212, 175, 55, 0.5)';
+        }
+        if (btnCode) {
+          btnCode.style.background = '#21212b';
+          btnCode.style.color = '#abb2bf';
+          btnCode.style.borderColor = '#4b5263';
+        }
+        renderAtomInspector(viewerId);
+      } else {
+        if (tabInspector) tabInspector.style.display = 'none';
+        if (tabCode) tabCode.style.display = 'flex';
+        if (btnInspector) {
+          btnInspector.style.background = '#21212b';
+          btnInspector.style.color = '#abb2bf';
+          btnInspector.style.borderColor = '#4b5263';
+        }
+        if (btnCode) {
+          btnCode.style.background = 'rgba(212, 175, 55, 0.2)';
+          btnCode.style.color = '#d4af37';
+          btnCode.style.borderColor = 'rgba(212, 175, 55, 0.5)';
+        }
+        const viewer = spawnedViewers.get(viewerId);
+        if (viewer?.monacoInstance) {
+          viewer.monacoInstance.layout();
+        }
+      }
+    }
+
+    async function copyUiCode(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      const code = viewer.monacoInstance ? viewer.monacoInstance.getValue() : generateVanJsCodeFromTree(viewer);
+      await navigator.clipboard.writeText(code);
+      const badge = document.getElementById('ui-file-badge-' + viewerId);
+      if (badge) {
+        const orig = badge.textContent;
+        badge.textContent = '📋 Copied Code!';
+        badge.style.color = '#98c379';
+        setTimeout(() => { badge.textContent = orig; badge.style.color = ''; }, 1500);
+      }
+    }
+
+    async function pasteUiCode(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.monacoInstance) return;
+      await pasteEditorContent(viewer.monacoInstance, document.getElementById('ui-file-badge-' + viewerId));
+      renderBuilderTree(viewerId);
+    }
+
+    async function copyAtomSnippet(viewerId) {
+      const snippetEl = document.getElementById(`snippet-${viewerId}`);
+      if (snippetEl) {
+        await navigator.clipboard.writeText(snippetEl.textContent);
+        const orig = snippetEl.style.color;
+        snippetEl.style.color = '#d4af37';
+        setTimeout(() => { snippetEl.style.color = orig; }, 1000);
+      }
+    }
+
+    function refreshViewerUiPreview(viewerId) {
+      renderBuilderTree(viewerId);
+    }
+
+    // --- Universal Clipboard & Editor Helpers ---
     async function copyEditorContent(editorInstance, feedbackEl) {
       if (!editorInstance) return;
       const code = editorInstance.getValue();
@@ -1386,7 +2023,7 @@
         await navigator.clipboard.writeText(code);
         if (feedbackEl) {
           const orig = feedbackEl.textContent;
-          feedbackEl.textContent = '📋 Copied to Clipboard!';
+          feedbackEl.textContent = '📋 Copied!';
           feedbackEl.style.color = '#98c379';
           setTimeout(() => {
             feedbackEl.textContent = orig;
@@ -1408,7 +2045,7 @@
           editorInstance.setValue(text);
           if (feedbackEl) {
             const orig = feedbackEl.textContent;
-            feedbackEl.textContent = '📥 Pasted from Clipboard!';
+            feedbackEl.textContent = '📥 Pasted!';
             feedbackEl.style.color = '#98c379';
             setTimeout(() => {
               feedbackEl.textContent = orig;
@@ -1428,18 +2065,15 @@
     async function copyMonacoEditor(viewerId) {
       const viewer = spawnedViewers.get(viewerId);
       if (!viewer || !viewer.monacoInstance) return;
-      const feedback = document.getElementById('ui-file-badge-' + viewerId) || document.getElementById('code-file-badge-' + viewerId) || document.getElementById('state-file-badge-' + viewerId);
+      const feedback = document.getElementById('code-file-badge-' + viewerId) || document.getElementById('state-file-badge-' + viewerId);
       await copyEditorContent(viewer.monacoInstance, feedback);
     }
 
     async function pasteMonacoEditor(viewerId) {
       const viewer = spawnedViewers.get(viewerId);
       if (!viewer || !viewer.monacoInstance) return;
-      const feedback = document.getElementById('ui-file-badge-' + viewerId) || document.getElementById('code-file-badge-' + viewerId) || document.getElementById('state-file-badge-' + viewerId);
+      const feedback = document.getElementById('code-file-badge-' + viewerId) || document.getElementById('state-file-badge-' + viewerId);
       await pasteEditorContent(viewer.monacoInstance, feedback);
-      if (viewer.viewType === 'ui') {
-        refreshViewerUiPreview(viewerId);
-      }
     }
 
     async function copyTestInput(viewerId) {
@@ -1464,6 +2098,92 @@
       const viewer = spawnedViewers.get(viewerId);
       if (!viewer || !viewer.testOutputEditor) return;
       viewer.testOutputEditor.setValue('// Output cleared');
+    }
+
+    function resetViewerTestPayload(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.testInputEditor) return;
+      const payload = viewer.sourceNode.examplePayload || {};
+      viewer.testInputEditor.setValue(JSON.stringify(payload, null, 2));
+      const badge = document.getElementById('test-badge-' + viewerId);
+      if (badge) {
+        badge.textContent = '↺ Reset to example payload';
+        badge.style.color = '#d4af37';
+      }
+    }
+
+    function clearViewerTestPayload(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.testInputEditor) return;
+      viewer.testInputEditor.setValue('{}');
+      const badge = document.getElementById('test-badge-' + viewerId);
+      if (badge) {
+        badge.textContent = '🧹 Cleared input';
+        badge.style.color = '#7f848e';
+      }
+    }
+
+    async function executeViewerTest(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.testInputEditor) return;
+      const badge = document.getElementById('test-badge-' + viewerId);
+      if (badge) {
+        badge.textContent = '⏳ Executing in Sandbox...';
+        badge.style.color = '#e5c07b';
+      }
+
+      let inputVal = {};
+      try {
+        const raw = viewer.testInputEditor.getValue().trim();
+        inputVal = raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        if (badge) {
+          badge.textContent = '❌ Invalid Input JSON';
+          badge.style.color = '#e06c75';
+        }
+        if (viewer.testOutputEditor) {
+          viewer.testOutputEditor.setValue(JSON.stringify({ error: 'Invalid JSON: ' + e.message }, null, 2));
+        }
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/v1/test/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath: viewer.sourceNode.filePath, input: inputVal })
+        });
+        const data = await res.json();
+        const payload = data.payload || data.result?.payload || data;
+
+        if (badge) {
+          if (payload.success) {
+            const memKb = payload.memoryDeltaBytes ? Math.round(payload.memoryDeltaBytes / 1024) : 0;
+            badge.textContent = `[${payload.durationMs || 0}ms | ${memKb}KB heap | PASSED]`;
+            badge.style.color = '#98c379';
+          } else {
+            badge.textContent = `[${payload.durationMs || 0}ms | FAILED]`;
+            badge.style.color = '#e06c75';
+          }
+        }
+        if (viewer.testOutputEditor) {
+          if (payload.output !== undefined) {
+            viewer.testOutputEditor.setValue(JSON.stringify(payload.output, null, 2));
+          } else if (payload.error) {
+            viewer.testOutputEditor.setValue(JSON.stringify({ error: payload.error, logs: payload.logs || [] }, null, 2));
+          } else {
+            viewer.testOutputEditor.setValue(JSON.stringify(payload, null, 2));
+          }
+        }
+      } catch (err) {
+        if (badge) {
+          badge.textContent = '[FAILED]';
+          badge.style.color = '#e06c75';
+        }
+        if (viewer.testOutputEditor) {
+          viewer.testOutputEditor.setValue(JSON.stringify({ error: err.message || String(err) }, null, 2));
+        }
+      }
     }
 
     async function saveCodeViewer(viewerId) {
@@ -1498,53 +2218,11 @@
       }
     }
 
-    function generateStarterUiCode(node) {
-      const name = node.name;
-      if (node.type === 'functionality') {
-        const propFields = (node.inputs || []).map(i => `      KrnlTextInput({ label: '${i.name}', placeholder: '${i.type}', value: state.${i.name} || '' })`).join(',\n');
-        return `// VanJS UI View for Functionality: ${name}\nimport van from 'vanjs-core';\nimport { KrnlTile, KrnlButton, KrnlTextInput } from '@dinilmusick/krnl-ui';\n\nexport function ${name}View({ state, entity }: any): HTMLElement {\n  const { div, h3 } = van.tags;\n\n  return KrnlTile({\n    title: '${name}',\n    class: 'krnl-functionality-card',\n    children: [\n${propFields ? propFields + ',\n' : ''}      KrnlButton({\n        label: 'Execute ${name}',\n        variant: 'primary',\n        onClick: async () => {\n          await entity.call('${name}', state);\n        }\n      })\n    ]\n  });\n}\n\nexport default ${name}View;\n`;
-      } else if (node.type === 'entity') {
-        return `// VanJS UI View for Entity: ${name}\nimport van from 'vanjs-core';\nimport { KrnlTile, KrnlButton, KrnlBadge } from '@dinilmusick/krnl-ui';\n\nexport function ${name}View({ state, entity }: any): HTMLElement {\n  return KrnlTile({\n    title: '${name} Entity Dashboard',\n    children: [\n      KrnlBadge({ text: 'ACTIVE', variant: 'success' }),\n      KrnlButton({\n        label: 'Boot System',\n        onClick: async () => {\n          await entity.boot();\n        }\n      })\n    ]\n  });\n}\n\nexport default ${name}View;\n`;
-      } else if (node.type === 'library') {
-        return `// VanJS UI View for Concept Library: ${name}\nimport van from 'vanjs-core';\nimport { KrnlTile } from '@dinilmusick/krnl-ui';\n\nexport function ${name}View(): HTMLElement {\n  return KrnlTile({\n    title: '${name} Concepts Reference',\n    description: 'Layer 0 Pure Domain Logic'\n  });\n}\n\nexport default ${name}View;\n`;
-      } else {
-        return `// VanJS UI View for SubApp: ${name}\nimport van from 'vanjs-core';\nimport { KrnlTile, KrnlButton } from '@dinilmusick/krnl-ui';\n\nexport function ${name}App(): HTMLElement {\n  return KrnlTile({\n    title: '${name} Sub-App',\n    children: [\n      KrnlButton({ label: 'Open Workspace' })\n    ]\n  });\n}\n\nexport default ${name}App;\n`;
-      }
-    }
-
-    function insertAtomSnippet(viewerId, atomType) {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer || !viewer.monacoInstance) return;
-
-      let snippet = '';
-      if (atomType === 'KrnlButton') {
-        snippet = `      KrnlButton({\n        label: 'Action',\n        variant: 'primary',\n        onClick: () => { console.log('Action triggered'); }\n      }),\n`;
-      } else if (atomType === 'KrnlTextInput') {
-        snippet = `      KrnlTextInput({\n        label: 'Input Field',\n        placeholder: 'Enter value...'\n      }),\n`;
-      } else if (atomType === 'KrnlTile') {
-        snippet = `      KrnlTile({\n        title: 'Custom Section',\n        children: []\n      }),\n`;
-      } else if (atomType === 'KrnlBadge') {
-        snippet = `      KrnlBadge({\n        text: 'ACTIVE',\n        variant: 'success'\n      }),\n`;
-      } else if (atomType === 'KrnlDropdown') {
-        snippet = `      KrnlDropdown({\n        label: 'Select Option',\n        options: ['Option 1', 'Option 2']\n      }),\n`;
-      } else if (atomType === 'Container') {
-        snippet = `      div({ class: 'krnl-container', style: 'padding: 8px; display: flex; gap: 8px;' },\n        span('Container Content')\n      ),\n`;
-      }
-
-      const selection = viewer.monacoInstance.getSelection();
-      viewer.monacoInstance.executeEdits('insertAtom', [{
-        range: selection,
-        text: snippet,
-        forceMoveMarkers: true
-      }]);
-      refreshViewerUiPreview(viewerId);
-    }
-
     async function saveViewerUiCode(viewerId) {
       const viewer = spawnedViewers.get(viewerId);
-      if (!viewer || !viewer.monacoInstance) return;
+      if (!viewer) return;
       const badge = document.getElementById('ui-file-badge-' + viewerId);
-      const code = viewer.monacoInstance.getValue();
+      const code = viewer.monacoInstance ? viewer.monacoInstance.getValue() : generateVanJsCodeFromTree(viewer);
 
       let targetPath = viewer.sourceNode.uiFilePath;
       if (!targetPath) {
@@ -1572,7 +2250,6 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filePath: targetPath, newContent: code })
         });
-        const data = await res.json();
         viewer.sourceNode.uiFilePath = targetPath;
         viewer.sourceNode.uiSpec = true;
         if (badge) {
@@ -1581,201 +2258,12 @@
           badge.textContent = `💾 Saved (${shortPath}) @ ${now}`;
           badge.style.color = '#98c379';
         }
-        refreshViewerUiPreview(viewerId);
       } catch (err) {
         if (badge) {
           badge.textContent = '❌ Save error: ' + (err.message || String(err));
           badge.style.color = '#e06c75';
         }
       }
-    }
-
-    function refreshViewerUiPreview(viewerId) {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer) return;
-      const previewEl = document.getElementById('ui-preview-' + viewerId);
-      if (!previewEl) return;
-
-      const code = viewer.monacoInstance ? viewer.monacoInstance.getValue() : '';
-      evaluateAndRenderUiComponent(code, previewEl, viewer.sourceNode);
-    }
-
-    /**
-     * Dynamic client-side evaluator & renderer for live UI components
-     */
-    function evaluateAndRenderUiComponent(code, containerEl, node) {
-      containerEl.innerHTML = '';
-      
-      const previewBox = document.createElement('div');
-      previewBox.className = 'live-component-canvas';
-      previewBox.style.cssText = 'background: #14141d; border: 1px solid rgba(198, 120, 221, 0.4); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 24px rgba(0,0,0,0.6);';
-
-      try {
-        const h = (tag, props = {}, ...children) => {
-          const el = document.createElement(tag);
-          if (props && typeof props === 'object' && !(props instanceof HTMLElement)) {
-            for (const [k, v] of Object.entries(props)) {
-              if (k === 'class' || k === 'className') el.className = v;
-              else if (k === 'style' && typeof v === 'string') el.style.cssText = v;
-              else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.substring(2).toLowerCase(), v);
-              else if (k === 'value') el.value = v;
-              else if (k === 'placeholder') el.placeholder = v;
-              else if (k !== 'children') el.setAttribute(k, v);
-            }
-          }
-          const childList = (props && props.children) ? props.children : children;
-          for (const c of (Array.isArray(childList) ? childList.flat() : [childList])) {
-            if (c === null || c === undefined) continue;
-            if (typeof c === 'string' || typeof c === 'number') el.appendChild(document.createTextNode(String(c)));
-            else if (c instanceof HTMLElement) el.appendChild(c);
-          }
-          return el;
-        };
-
-        const KrnlTile = (opts = {}) => {
-          const tile = h('div', { style: 'background: rgba(22, 22, 30, 0.95); border: 2px solid #d4af37; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 18px rgba(0,0,0,0.7);' });
-          if (opts.title) {
-            const titleEl = h('div', { style: 'font-size: 13px; font-weight: bold; color: #d4af37; border-bottom: 1px solid rgba(212,175,55,0.3); padding-bottom: 6px; display: flex; justify-content: space-between; align-items: center;' },
-              h('span', {}, opts.title),
-              h('span', { style: 'font-size: 9px; background: rgba(212,175,55,0.2); color: #d4af37; padding: 2px 6px; border-radius: 4px;' }, 'KrnlTile')
-            );
-            tile.appendChild(titleEl);
-          }
-          if (opts.description) {
-            tile.appendChild(h('div', { style: 'font-size: 11px; color: #abb2bf;' }, opts.description));
-          }
-          if (opts.children) {
-            const content = h('div', { style: 'display: flex; flex-direction: column; gap: 8px;' }, ...opts.children);
-            tile.appendChild(content);
-          }
-          return tile;
-        };
-
-        const KrnlButton = (opts = {}) => {
-          const isPrimary = opts.variant === 'primary' || !opts.variant;
-          const btn = h('button', {
-            style: `background: ${isPrimary ? '#d4af37' : '#21212b'}; color: ${isPrimary ? '#121212' : '#f5ede4'}; border: ${isPrimary ? 'none' : '1px solid #4b5263'}; padding: 7px 14px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; transition: transform 0.1s ease, box-shadow 0.1s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 4px;`,
-            onclick: (e) => {
-              btn.style.transform = 'scale(0.96)';
-              setTimeout(() => { btn.style.transform = 'none'; }, 100);
-              if (opts.onClick) opts.onClick(e);
-            }
-          }, opts.label || opts.text || 'Action');
-          return btn;
-        };
-
-        const KrnlTextInput = (opts = {}) => {
-          const wrap = h('div', { style: 'display: flex; flex-direction: column; gap: 4px;' });
-          if (opts.label) wrap.appendChild(h('label', { style: 'font-size: 10px; color: #abb2bf; font-weight: bold; text-transform: uppercase;' }, opts.label));
-          const input = h('input', {
-            type: opts.type || 'text',
-            placeholder: opts.placeholder || '',
-            value: opts.value || '',
-            style: 'background: #0e0e12; border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 5px; padding: 6px 10px; color: #f5ede4; font-size: 11px; outline: none; width: 100%; box-sizing: border-box;'
-          });
-          wrap.appendChild(input);
-          return wrap;
-        };
-
-        const KrnlBadge = (opts = {}) => {
-          const color = opts.variant === 'success' ? '#98c379' : opts.variant === 'danger' ? '#e06c75' : '#c678dd';
-          return h('span', { style: `font-size: 10px; font-weight: bold; color: ${color}; background: rgba(${opts.variant === 'success' ? '152,195,121' : '198,120,221'}, 0.2); padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; width: fit-content;` }, opts.text || opts.label || 'Badge');
-        };
-
-        const KrnlDropdown = (opts = {}) => {
-          const wrap = h('div', { style: 'display: flex; flex-direction: column; gap: 4px;' });
-          if (opts.label) wrap.appendChild(h('label', { style: 'font-size: 10px; color: #abb2bf; font-weight: bold; text-transform: uppercase;' }, opts.label));
-          const sel = h('select', { style: 'background: #0e0e12; border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 5px; padding: 6px 10px; color: #f5ede4; font-size: 11px; outline: none; width: 100%; box-sizing: border-box;' });
-          for (const opt of (opts.options || ['Option 1', 'Option 2'])) {
-            sel.appendChild(h('option', { value: opt }, opt));
-          }
-          wrap.appendChild(sel);
-          return wrap;
-        };
-
-        const tags = ['div', 'span', 'h1', 'h2', 'h3', 'h4', 'p', 'button', 'input', 'select', 'option', 'form', 'label', 'table', 'tr', 'td', 'th', 'ul', 'li', 'header', 'footer', 'section', 'article', 'aside', 'nav'];
-        const vanTags = {};
-        for (const t of tags) {
-          vanTags[t] = (...args) => h(t, ...args);
-        }
-        const van = { tags: vanTags, state: (v) => ({ val: v }) };
-
-        let executableCode = code
-          .replace(/import\s+[^;]+;/g, '')
-          .replace(/export\s+default\s+[^;]+;/g, '')
-          .replace(/export\s+function/g, 'function')
-          .replace(/export\s+const/g, 'const')
-          .replace(/:\s*HTMLElement/g, '')
-          .replace(/:\s*any/g, '');
-
-        const mockState = node.examplePayload || {};
-        const mockEntity = {
-          id: node.parentEntity || node.name,
-          call: async (fn, params) => { console.log('Mock entity.call:', fn, params); },
-          boot: async () => { console.log('Mock entity.boot called'); }
-        };
-
-        const fnWrapper = new Function('van', 'KrnlTile', 'KrnlButton', 'KrnlTextInput', 'KrnlBadge', 'KrnlDropdown', 'state', 'entity', `
-          ${executableCode}
-          if (typeof ${node.name}View === 'function') return ${node.name}View({ state, entity });
-          if (typeof ${node.name}App === 'function') return ${node.name}App({ state, entity });
-          if (typeof GeneratedView === 'function') return GeneratedView({ state, entity });
-          for (const k of Object.keys(this)) {
-            if (typeof this[k] === 'function' && k.endsWith('View')) return this[k]({ state, entity });
-          }
-          return KrnlTile({ title: '${node.name} Component', description: 'Interactive VanJS component', children: [ KrnlButton({ label: 'Execute Action' }) ] });
-        `);
-
-        const renderedNode = fnWrapper.call({}, van, KrnlTile, KrnlButton, KrnlTextInput, KrnlBadge, KrnlDropdown, mockState, mockEntity);
-        if (renderedNode instanceof HTMLElement) {
-          previewBox.appendChild(renderedNode);
-          containerEl.appendChild(previewBox);
-          return;
-        }
-      } catch (err) {
-        console.warn('Live UI evaluation fallback:', err);
-      }
-
-      // Fallback interactive AST visual card
-      const fallbackTile = document.createElement('div');
-      fallbackTile.style.cssText = 'background: rgba(22, 22, 30, 0.95); border: 2px solid #d4af37; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 100%; box-shadow: 0 4px 18px rgba(0,0,0,0.7); box-sizing: border-box;';
-      
-      const titleRow = document.createElement('div');
-      titleRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(212,175,55,0.3); padding-bottom: 6px;';
-      titleRow.innerHTML = `<span style="font-size: 13px; font-weight: bold; color: #d4af37;">${node.name} Component</span><span style="font-size: 9px; background: rgba(212,175,55,0.2); color: #d4af37; padding: 2px 6px; border-radius: 4px; font-weight: bold;">LIVE</span>`;
-      fallbackTile.appendChild(titleRow);
-
-      if (node.inputs && node.inputs.length > 0) {
-        const formEl = document.createElement('div');
-        formEl.style.cssText = 'display: flex; flex-direction: column; gap: 8px; font-size: 11px;';
-        node.inputs.forEach(inp => {
-          const row = document.createElement('div');
-          row.style.cssText = 'display: flex; flex-direction: column; gap: 3px;';
-          const lbl = document.createElement('label');
-          lbl.style.cssText = 'color: #abb2bf; font-weight: bold; font-size: 10px; text-transform: uppercase;';
-          lbl.textContent = inp.name + ' (' + inp.type + '):';
-          const inpEl = document.createElement('input');
-          inpEl.style.cssText = 'background: #0e0e12; border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; padding: 6px 10px; color: #f5ede4; font-size: 11px; outline: none; width: 100%; box-sizing: border-box;';
-          inpEl.value = node.examplePayload && node.examplePayload[inp.name] !== undefined ? node.examplePayload[inp.name] : '';
-          row.appendChild(lbl);
-          row.appendChild(inpEl);
-          formEl.appendChild(row);
-        });
-        fallbackTile.appendChild(formEl);
-      }
-
-      const actionBtn = document.createElement('button');
-      actionBtn.style.cssText = 'background: #d4af37; color: #121212; border: none; border-radius: 6px; padding: 8px 14px; font-weight: bold; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; box-shadow: 0 2px 10px rgba(212,175,55,0.3); width: 100%; margin-top: 4px;';
-      actionBtn.textContent = '▶ Execute ' + node.name;
-      actionBtn.onclick = () => {
-        actionBtn.style.transform = 'scale(0.96)';
-        setTimeout(() => { actionBtn.style.transform = 'none'; }, 100);
-        spawnViewerNode(node.id, 'test');
-      };
-      fallbackTile.appendChild(actionBtn);
-
-      previewBox.appendChild(fallbackTile);
-      containerEl.appendChild(previewBox);
     }
 
     function updateNodeSelectionStyles() {

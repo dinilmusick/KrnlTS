@@ -12,6 +12,8 @@ export interface ArchitectureNode {
   inputs?: Array<{ name: string; type: string }>;
   outputs?: Array<{ name: string; type: string }>;
   stateFields?: Array<{ name: string; type: string }>;
+  functionalities?: string[];
+  events?: string[];
   helpers?: Array<{ name: string; filePath: string }>;
   uiSpec?: boolean;
   uiFilePath?: string;
@@ -181,6 +183,17 @@ export class AstMutationEngine {
         const entityTsFile = path.join(entityPath, `${entityName}.ts`);
         const entityUi = this.findUiFile(entityPath, entityName);
 
+        const funcsDir = path.join(entityPath, 'functionalities');
+        const entityFunctionalityNames: string[] = [];
+        if (fs.existsSync(funcsDir)) {
+          const funcs = fs.readdirSync(funcsDir, { withFileTypes: true });
+          for (const fn of funcs) {
+            if (fn.isDirectory()) {
+              entityFunctionalityNames.push(fn.name);
+            }
+          }
+        }
+
         const entityNode: ArchitectureNode = {
           id: `entity:${entityName}`,
           type: 'entity',
@@ -189,6 +202,7 @@ export class AstMutationEngine {
           filePath: fs.existsSync(entityTsFile) ? entityTsFile : entityPath,
           uiSpec: entityUi.uiSpec,
           uiFilePath: entityUi.uiFilePath,
+          functionalities: entityFunctionalityNames,
           examplePayload: {
             entityId: entityName,
             action: 'boot',
@@ -207,7 +221,6 @@ export class AstMutationEngine {
           });
         }
 
-        const funcsDir = path.join(entityPath, 'functionalities');
         if (fs.existsSync(funcsDir)) {
           const funcs = fs.readdirSync(funcsDir, { withFileTypes: true });
           for (const fn of funcs) {

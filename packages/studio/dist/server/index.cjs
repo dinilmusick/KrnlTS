@@ -180,6 +180,16 @@ var AstMutationEngine = class {
         const entityPath = path.join(entitiesDir, entityName);
         const entityTsFile = path.join(entityPath, `${entityName}.ts`);
         const entityUi = this.findUiFile(entityPath, entityName);
+        const funcsDir = path.join(entityPath, "functionalities");
+        const entityFunctionalityNames = [];
+        if (fs.existsSync(funcsDir)) {
+          const funcs = fs.readdirSync(funcsDir, { withFileTypes: true });
+          for (const fn of funcs) {
+            if (fn.isDirectory()) {
+              entityFunctionalityNames.push(fn.name);
+            }
+          }
+        }
         const entityNode = {
           id: `entity:${entityName}`,
           type: "entity",
@@ -188,6 +198,7 @@ var AstMutationEngine = class {
           filePath: fs.existsSync(entityTsFile) ? entityTsFile : entityPath,
           uiSpec: entityUi.uiSpec,
           uiFilePath: entityUi.uiFilePath,
+          functionalities: entityFunctionalityNames,
           examplePayload: {
             entityId: entityName,
             action: "boot",
@@ -204,7 +215,6 @@ var AstMutationEngine = class {
             deletable: true
           });
         }
-        const funcsDir = path.join(entityPath, "functionalities");
         if (fs.existsSync(funcsDir)) {
           const funcs = fs.readdirSync(funcsDir, { withFileTypes: true });
           for (const fn of funcs) {
