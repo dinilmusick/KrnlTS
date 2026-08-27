@@ -585,6 +585,7 @@ var AstMutationEngine = class {
               filePath: libPath,
               uiSpec: libMeta.uiSpec,
               uiFilePath: libMeta.uiFilePath,
+              methods: libMeta.methods,
               examplePayload: libMeta.examplePayload
             });
           }
@@ -633,6 +634,16 @@ var AstMutationEngine = class {
         const entityPath = path4.join(entitiesDir, entityName);
         const entityTsFile = path4.join(entityPath, `${entityName}.ts`);
         const entityUi = this.findUiFile(entityPath, entityName);
+        const funcsDir = path4.join(entityPath, "functionalities");
+        const entityFunctionalityNames = [];
+        if (fs4.existsSync(funcsDir)) {
+          const funcs = fs4.readdirSync(funcsDir, { withFileTypes: true });
+          for (const fn of funcs) {
+            if (fn.isDirectory()) {
+              entityFunctionalityNames.push(fn.name);
+            }
+          }
+        }
         const entityNode = {
           id: `entity:${entityName}`,
           type: "entity",
@@ -641,6 +652,7 @@ var AstMutationEngine = class {
           filePath: fs4.existsSync(entityTsFile) ? entityTsFile : entityPath,
           uiSpec: entityUi.uiSpec,
           uiFilePath: entityUi.uiFilePath,
+          functionalities: entityFunctionalityNames,
           examplePayload: {
             entityId: entityName,
             action: "boot",
@@ -657,7 +669,6 @@ var AstMutationEngine = class {
             deletable: true
           });
         }
-        const funcsDir = path4.join(entityPath, "functionalities");
         if (fs4.existsSync(funcsDir)) {
           const funcs = fs4.readdirSync(funcsDir, { withFileTypes: true });
           for (const fn of funcs) {
@@ -800,6 +811,7 @@ var AstMutationEngine = class {
   extractLibraryMetadata(libPath, baseName) {
     const ui = this.findUiFile(path4.dirname(libPath), baseName);
     let examplePayload = null;
+    let extractedMethods = [];
     try {
       const content = fs4.readFileSync(libPath, "utf-8");
       const staticMethodRegex = /static\s+([a-zA-Z0-9_$]+)\s*\(([^)]*)\)/g;
@@ -811,6 +823,7 @@ var AstMutationEngine = class {
         const paramNames = rawParams ? rawParams.split(",").map((p) => p.trim().split(":")[0].trim()) : [];
         methods.push({ name: mName, params: paramNames });
       }
+      extractedMethods = methods;
       if (methods.length > 0) {
         const primary = methods[0];
         if (primary.params.length > 1) {
@@ -837,7 +850,7 @@ var AstMutationEngine = class {
         examplePayload = { method: "process", args: [{ data: "sample" }] };
       }
     }
-    return { examplePayload, uiSpec: ui.uiSpec, uiFilePath: ui.uiFilePath };
+    return { examplePayload, uiSpec: ui.uiSpec, uiFilePath: ui.uiFilePath, methods: extractedMethods };
   }
   /**
    * Introspects SubApps to locate UI entries and operations.

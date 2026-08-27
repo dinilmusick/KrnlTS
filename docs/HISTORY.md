@@ -1,0 +1,25 @@
+# KrnlTS Project History Timeline
+
+## [2026-08-27] - Krnl Studio UI Expansion, Visual State Presets, and Clean Monaco Integration
+
+### User Intent & Rationale:
+- **Goal**: Expand Krnl Studio into a complete visual IDE and UI builder with interactive previews, customizable component parameters, visual state presets, schema-validated payload builders, and clean code Monaco editors.
+- **Rationale**: Developers need a unified, zero-friction interface to visually compose VanJS UI components, preview actions, configure custom JSON arguments, and inspect live source code without visual distraction from obvious imports.
+
+### Architectural Decisions & Changes:
+- **Canonical Component Specifications (`CANONICAL_COMPONENT_SPECS`)**:
+  - Standardized visual parameters (colors, borders, transforms, opacity, shadows) across `KrnlButton`, `KrnlTextInput`, `KrnlDropdown`, `KrnlBadge`, `KrnlTile`, and `Container`.
+- **Visual State Presets Architecture**:
+  - Differentiated runtime reactive *Asset State Data* from visual *State Presets* (`default`, `hover`, `loading`, `success`, `error`, `disabled`, and user-defined custom presets).
+  - Integrated action lifecycle state transitions and dynamic asset state data expression derivation.
+- **Monaco Editor Suite**:
+  - Embedded real-time Monaco Editor instances for Component Code Snippets and Custom JSON Payloads.
+  - Implemented automatic framework import filtering (`@dinilmusick/krnl-core`, `@dinilmusick/krnl-ui`, `vanjs-core`, atom schemas) with an interactive Clean View toggle and safe disk save reassembly.
+- **AST Purity & Validation**:
+  - Full compatibility with 4-layer function purity, magnetic discovery, and zero-mock backend integration.
+
+### Invariants & Constraints Maintained:
+- Preserved 4-layer unidirectional flow ($L_0 \to L_1 \to L_2 \to L_3$).
+- Strictly event-driven architecture with zero polling/onTick loops.
+- All files compliant with multi-tier line limits and atomic sizing.
+- Clean TypeScript ESM/CJS build with 0 compilation errors.

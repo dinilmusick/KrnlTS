@@ -3295,16 +3295,6 @@
       renderBuilderTree(viewerId);
     }
 
-    async function copyAtomSnippet(viewerId) {
-      const snippetEl = document.getElementById(`snippet-${viewerId}`);
-      if (snippetEl) {
-        await navigator.clipboard.writeText(snippetEl.textContent);
-        const orig = snippetEl.style.color;
-        snippetEl.style.color = '#d4af37';
-        setTimeout(() => { snippetEl.style.color = orig; }, 1000);
-      }
-    }
-
     function refreshViewerUiPreview(viewerId) {
       renderBuilderTree(viewerId);
     }

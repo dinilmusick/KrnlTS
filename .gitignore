@@ -6,6 +6,8 @@ pnpm-lock.yaml
 target/
 *.ports.json
 *.tmp
+*.db
+temp/
 krnlts-guide/
 krnl-magnetic.d.ts
 scratch/
