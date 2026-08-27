@@ -82,8 +82,8 @@
     /* Strict Layering Hierarchy:
        svg-wires (5) < gizmos-layer (7) < nodes-layer (10) < node-cards (20) < viewers (50) */
     #svg-wires {
-      position: absolute; top: 0; left: 0;
-      width: 0; height: 0;
+      position: absolute; top: -50000px; left: -50000px;
+      width: 100000px; height: 100000px;
       overflow: visible !important; pointer-events: none; z-index: 5;
     }
     #gizmos-layer {
@@ -322,7 +322,7 @@
     <!-- Infinite 4-Quadrant Canvas Viewport -->
     <div id="graph-viewport">
       <div id="graph-container">
-        <svg id="svg-wires"></svg>
+        <svg id="svg-wires" viewBox="-50000 -50000 100000 100000"></svg>
         <div id="gizmos-layer"></div>
         <div id="nodes-layer"></div>
         <div id="selection-box"></div>
@@ -828,8 +828,10 @@
         }
       });
 
-      renderWiresAndGizmos();
       updateNodeSelectionStyles();
+      renderWiresAndGizmos();
+      requestAnimationFrame(() => renderWiresAndGizmos());
+      setTimeout(renderWiresAndGizmos, 50);
     }
 
     function createNodeElement(node, x, y, layer) {
@@ -1336,10 +1338,13 @@
         const tEl = document.getElementById('node-' + edge.target);
 
         if (sEl && tEl) {
-          const sx = parseFloat(sEl.style.left) + sEl.offsetWidth;
-          const sy = parseFloat(sEl.style.top) + sEl.offsetHeight / 2;
+          const sW = sEl.offsetWidth || 280;
+          const sH = sEl.offsetHeight || 120;
+          const tH = tEl.offsetHeight || 120;
+          const sx = parseFloat(sEl.style.left) + sW;
+          const sy = parseFloat(sEl.style.top) + sH / 2;
           const tx = parseFloat(tEl.style.left);
-          const ty = parseFloat(tEl.style.top) + tEl.offsetHeight / 2;
+          const ty = parseFloat(tEl.style.top) + tH / 2;
 
           const dx = Math.max(30, Math.abs(tx - sx) * 0.5);
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
