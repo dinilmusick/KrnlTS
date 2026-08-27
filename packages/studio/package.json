@@ -15,7 +15,7 @@
     "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/server/index.ts --dts --format esm,cjs --external ts-morph,ws,esbuild,rete,rete-area-plugin,rete-connection-plugin,rete-auto-arrange-plugin,rete-history-plugin,rete-minimap-plugin,rete-scopes-plugin,vanjs-core"
+    "build": "tsup src/index.ts src/server/index.ts --dts --format esm,cjs --external ts-morph,ws,esbuild,rete,rete-area-plugin,rete-connection-plugin,rete-auto-arrange-plugin,rete-history-plugin,rete-minimap-plugin,rete-scopes-plugin,vanjs-core && cp src/server/studio.html dist/studio.html && cp src/server/studio.html dist/server/studio.html"
   },
   "dependencies": {
     "@dinilmusick/krnl-core": "workspace:*",

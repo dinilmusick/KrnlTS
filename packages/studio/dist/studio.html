@@ -1037,9 +1037,11 @@
         sourceNode,
         x: x || 400,
         y: y || 200,
-        w: viewType === 'ui' ? 620 : 540,
-        h: viewType === 'ui' ? 440 : 400,
-        monacoInstance: null
+        w: viewType === 'ui' ? 780 : 580,
+        h: viewType === 'ui' ? 480 : 420,
+        monacoInstance: null,
+        testInputEditor: null,
+        testOutputEditor: null
       };
 
       spawnedViewers.set(viewerId, viewerData);
@@ -1055,6 +1057,12 @@
       const vData = spawnedViewers.get(viewerId);
       if (vData?.monacoInstance) {
         try { vData.monacoInstance.dispose(); } catch (e) {}
+      }
+      if (vData?.testInputEditor) {
+        try { vData.testInputEditor.dispose(); } catch (e) {}
+      }
+      if (vData?.testOutputEditor) {
+        try { vData.testOutputEditor.dispose(); } catch (e) {}
       }
       spawnedViewers.delete(viewerId);
       renderWiresAndGizmos();
@@ -1141,28 +1149,96 @@
       containerEl.innerHTML = '';
 
       if (viewer.viewType === 'ui') {
+        const filePathText = viewer.sourceNode.uiFilePath
+          ? viewer.sourceNode.uiFilePath.split('/').slice(-3).join('/')
+          : '✨ New UI View (Unsaved)';
+
         containerEl.innerHTML = `
-          <div style="display: flex; flex: 1; overflow: hidden;">
-            <div style="width: 140px; border-right: 1px solid rgba(198, 120, 221, 0.25); padding: 10px; background: rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 6px;">
-              <span style="font-size: 10px; color: #c678dd; font-weight: bold;">KRNL ATOMS</span>
-              <div class="palette-item" draggable="true" ondragstart="event.dataTransfer.setData('text', 'KrnlButton')" style="padding: 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: grab; font-size: 11px;">Button</div>
-              <div class="palette-item" draggable="true" ondragstart="event.dataTransfer.setData('text', 'KrnlTextInput')" style="padding: 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: grab; font-size: 11px;">TextInput</div>
-              <div class="palette-item" draggable="true" ondragstart="event.dataTransfer.setData('text', 'KrnlTile')" style="padding: 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: grab; font-size: 11px;">Tile</div>
-            </div>
-            <div style="flex: 1; display: flex; flex-direction: column; padding: 12px; gap: 10px; overflow: hidden;">
-              <div id="drop-target-${viewer.id}" ondragover="event.preventDefault()" ondrop="handleViewerAtomDrop(event, '${viewer.id}')" style="flex: 1; border: 1px dashed rgba(198, 120, 221, 0.4); border-radius: 8px; padding: 12px; background: rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 6px; overflow-y: auto;">
-                <div style="margin: auto; font-size: 11px; color: #7f848e;">Drag atoms here to compose view</div>
+          <div style="display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden;">
+            <!-- UI Top Toolbar -->
+            <div style="background: rgba(14, 14, 18, 0.9); border-bottom: 1px solid rgba(198, 120, 221, 0.25); padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
+              <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+                <span id="ui-file-badge-${viewer.id}" style="color: #abb2bf; font-family: monospace; font-size: 10px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 320px;">
+                  📄 ${filePathText}
+                </span>
               </div>
-              <div style="height: 120px; border: 1px solid rgba(198, 120, 221, 0.2); border-radius: 6px; overflow: hidden;" id="monaco-ui-${viewer.id}"></div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <button onclick="refreshViewerUiPreview('${viewer.id}')" title="Re-render preview" style="background: rgba(97, 175, 239, 0.18); color: #61afef; border: 1px solid rgba(97, 175, 239, 0.4); padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: bold;">🔄 Re-render</button>
+                <button onclick="saveViewerUiCode('${viewer.id}')" title="Save file to disk (Ctrl+S / Cmd+S)" style="background: #d4af37; color: #121212; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; transition: transform 0.1s ease; box-shadow: 0 0 10px rgba(212,175,55,0.3);" onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform='none'">💾 Save UI</button>
+              </div>
+            </div>
+
+            <!-- UI Split Body: Left = Palette & Live Preview, Right = Monaco Editor -->
+            <div style="display: flex; flex: 1; height: calc(100% - 35px); overflow: hidden;">
+              <!-- Left Column: Atom Palette & Interactive Live Preview -->
+              <div style="width: 290px; border-right: 1px solid rgba(198, 120, 221, 0.25); background: rgba(10, 10, 14, 0.7); display: flex; flex-direction: column; overflow: hidden;">
+                <div style="padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: 10px; color: #c678dd; font-weight: bold; letter-spacing: 0.5px;">KRNL ATOMS PALETTE</span>
+                  <span style="font-size: 9px; color: #7f848e;">Click to insert</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 6px 8px; background: rgba(0,0,0,0.25);">
+                  <div class="palette-item" onclick="insertAtomSnippet('${viewer.id}', 'KrnlButton')" style="padding: 4px 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: center; color: #f5ede4;">🔘 Button</div>
+                  <div class="palette-item" onclick="insertAtomSnippet('${viewer.id}', 'KrnlTextInput')" style="padding: 4px 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: center; color: #f5ede4;">📝 Input</div>
+                  <div class="palette-item" onclick="insertAtomSnippet('${viewer.id}', 'KrnlTile')" style="padding: 4px 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: center; color: #f5ede4;">🗂 Tile</div>
+                  <div class="palette-item" onclick="insertAtomSnippet('${viewer.id}', 'KrnlBadge')" style="padding: 4px 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: center; color: #f5ede4;">🏷 Badge</div>
+                  <div class="palette-item" onclick="insertAtomSnippet('${viewer.id}', 'KrnlDropdown')" style="padding: 4px 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: center; color: #f5ede4;">🔽 Dropdown</div>
+                  <div class="palette-item" onclick="insertAtomSnippet('${viewer.id}', 'Container')" style="padding: 4px 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: center; color: #f5ede4;">📦 Container</div>
+                </div>
+                <div style="padding: 6px 10px; font-size: 10px; color: #c678dd; font-weight: bold; border-top: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between;">
+                  <span>LIVE COMPONENT PREVIEW</span>
+                  <span style="font-size: 9px; color: #98c379;">Interactive DOM</span>
+                </div>
+                <div id="ui-preview-${viewer.id}" style="flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+                  <!-- Dynamic live preview mounts here -->
+                </div>
+              </div>
+
+              <!-- Right Column: Monaco Editor -->
+              <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                <div id="monaco-ui-${viewer.id}" style="flex: 1; width: 100%; height: 100%;"></div>
+              </div>
             </div>
           </div>
         `;
 
-        ensureMonacoReady(() => {
+        ensureMonacoReady(async () => {
+          let initialCode = '';
+          
+          if (viewer.sourceNode.uiFilePath) {
+            try {
+              const res = await fetch('/api/v1/file/read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filePath: viewer.sourceNode.uiFilePath })
+              });
+              const data = await res.json();
+              const content = data.payload?.content ?? data.result?.payload?.content ?? data.content;
+              if (content) {
+                initialCode = content;
+              }
+            } catch (e) {}
+          }
+
+          if (!initialCode) {
+            initialCode = generateStarterUiCode(viewer.sourceNode);
+          }
+
           viewer.monacoInstance = monaco.editor.create(document.getElementById('monaco-ui-' + viewer.id), {
-            value: `// Generated VanJS UI for ${viewer.sourceNode.name}\nimport van from 'vanjs-core';\nimport { KrnlTile } from '@dinilmusick/krnl-ui';\n\nexport function ${viewer.sourceNode.name}View() {\n  return KrnlTile({ title: '${viewer.sourceNode.name}' });\n}`,
-            language: 'typescript', theme: 'krnl-dark', readOnly: true, fontSize: 11, minimap: { enabled: false }
+            value: initialCode,
+            language: 'typescript',
+            theme: 'krnl-dark',
+            readOnly: false,
+            fontSize: 12,
+            automaticLayout: true,
+            minimap: { enabled: false }
           });
+
+          // Add Ctrl+S / Cmd+S save command
+          viewer.monacoInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+            saveViewerUiCode(viewer.id);
+          });
+
+          refreshViewerUiPreview(viewer.id);
         });
       } else if (viewer.viewType === 'code') {
         const monacoDiv = document.createElement('div');
@@ -1198,35 +1274,45 @@
         });
       } else if (viewer.viewType === 'test') {
         containerEl.innerHTML = `
-          <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px; height: 100%;">
+          <div style="padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; height: 100%; box-sizing: border-box;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 11px; color: #abb2bf; font-weight: bold;">INPUT PAYLOAD:</span>
-              <button onclick="executeViewerTest('${viewer.id}')" style="background: #c678dd; color: #121212; border: none; padding: 4px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; transition: transform 0.1s ease;" onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform='none'">▶ Execute in Sandbox</button>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 11px; color: #abb2bf; font-weight: bold;">INPUT PAYLOAD:</span>
+                <span style="font-size: 10px; color: #7f848e; font-family: monospace;">(JSON)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <button onclick="resetViewerTestPayload('${viewer.id}')" title="Reset to auto-synthesized asset payload" style="background: rgba(212, 175, 55, 0.15); color: #d4af37; border: 1px solid rgba(212, 175, 55, 0.4); padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: 500;">↺ Reset Example</button>
+                <button onclick="copyViewerTestPayload('${viewer.id}')" title="Copy input JSON" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📋 Copy</button>
+                <button onclick="clearViewerTestPayload('${viewer.id}')" title="Clear input" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">🧹 Clear</button>
+                <button onclick="executeViewerTest('${viewer.id}')" style="background: #c678dd; color: #121212; border: none; padding: 4px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px; transition: transform 0.1s ease; box-shadow: 0 0 10px rgba(198, 120, 221, 0.3);" onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform='none'">▶ Execute in Sandbox</button>
+              </div>
             </div>
-            <div id="test-in-${viewer.id}" style="height: 100px; border: 1px solid rgba(198, 120, 221, 0.3); border-radius: 6px;"></div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+            <div id="test-in-${viewer.id}" style="height: 120px; border: 1px solid rgba(198, 120, 221, 0.3); border-radius: 6px; overflow: hidden;"></div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
               <span style="font-size: 11px; color: #abb2bf; font-weight: bold;">OUTPUT & BENCHMARK:</span>
               <span id="test-badge-${viewer.id}" style="font-size: 11px; font-weight: bold; color: #7f848e;">Awaiting run</span>
             </div>
-            <div id="test-out-${viewer.id}" style="flex: 1; border: 1px solid rgba(198, 120, 221, 0.3); border-radius: 6px;"></div>
+            <div id="test-out-${viewer.id}" style="flex: 1; border: 1px solid rgba(198, 120, 221, 0.3); border-radius: 6px; overflow: hidden;"></div>
           </div>
         `;
 
         let defaultJson = '{}';
-        if (viewer.sourceNode.name.includes('Calc')) {
-          defaultJson = '{\n  "a": 10,\n  "b": 25\n}';
-        } else if (viewer.sourceNode.name.includes('Order')) {
-          defaultJson = '{\n  "orderId": "ORD-9821",\n  "amount": 250\n}';
+        if (viewer.sourceNode.examplePayload) {
+          defaultJson = JSON.stringify(viewer.sourceNode.examplePayload, null, 2);
+        } else if (viewer.sourceNode.name.includes('Calc')) {
+          defaultJson = '{\n  "op": "add",\n  "a": 10,\n  "b": 25\n}';
+        } else if (viewer.sourceNode.name.includes('Order') || viewer.sourceNode.name.includes('Cart')) {
+          defaultJson = '{\n  "productId": "PROD-9821",\n  "quantity": 2,\n  "price": 49.99\n}';
         }
 
         ensureMonacoReady(() => {
           viewer.testInputEditor = monaco.editor.create(document.getElementById('test-in-' + viewer.id), {
             value: defaultJson,
-            language: 'json', theme: 'krnl-dark', fontSize: 11, minimap: { enabled: false }
+            language: 'json', theme: 'krnl-dark', fontSize: 11, minimap: { enabled: false }, automaticLayout: true
           });
           viewer.testOutputEditor = monaco.editor.create(document.getElementById('test-out-' + viewer.id), {
-            value: '// Press [▶ Execute in Sandbox] above to run in isolated VM',
-            language: 'json', theme: 'krnl-dark', readOnly: true, fontSize: 11, minimap: { enabled: false }
+            value: '// Press [▶ Execute in Sandbox] above to run in isolated VM sandbox',
+            language: 'json', theme: 'krnl-dark', readOnly: true, fontSize: 11, minimap: { enabled: false }, automaticLayout: true
           });
         });
       } else if (viewer.viewType === 'state') {
@@ -1243,15 +1329,191 @@
       }
     }
 
-    function handleViewerAtomDrop(e, viewerId) {
-      e.preventDefault();
-      const atom = e.dataTransfer.getData('text');
-      const target = document.getElementById('drop-target-' + viewerId);
-      if (atom && target) {
-        const item = document.createElement('div');
-        item.style.cssText = 'padding: 6px 10px; background: #21212b; border: 1px solid #c678dd; border-radius: 4px; font-size: 11px; display: flex; justify-content: space-between;';
-        item.innerHTML = `<span>${atom}</span><span style="color: #98c379;">Bound</span>`;
-        target.appendChild(item);
+    function generateStarterUiCode(node) {
+      const name = node.name;
+      if (node.type === 'functionality') {
+        const propFields = (node.inputs || []).map(i => `      KrnlTextInput({ label: '${i.name}', placeholder: '${i.type}', value: state.${i.name} || '' })`).join(',\n');
+        return `// VanJS UI View for Functionality: ${name}\nimport van from 'vanjs-core';\nimport { KrnlTile, KrnlButton, KrnlTextInput } from '@dinilmusick/krnl-ui';\n\nexport function ${name}View({ state, entity }: any): HTMLElement {\n  const { div, h3 } = van.tags;\n\n  return KrnlTile({\n    title: '${name}',\n    class: 'krnl-functionality-card',\n    children: [\n${propFields ? propFields + ',\n' : ''}      KrnlButton({\n        label: 'Execute ${name}',\n        variant: 'primary',\n        onClick: async () => {\n          await entity.call('${name}', state);\n        }\n      })\n    ]\n  });\n}\n\nexport default ${name}View;\n`;
+      } else if (node.type === 'entity') {
+        return `// VanJS UI View for Entity: ${name}\nimport van from 'vanjs-core';\nimport { KrnlTile, KrnlButton, KrnlBadge } from '@dinilmusick/krnl-ui';\n\nexport function ${name}View({ state, entity }: any): HTMLElement {\n  return KrnlTile({\n    title: '${name} Entity Dashboard',\n    children: [\n      KrnlBadge({ text: 'ACTIVE', variant: 'success' }),\n      KrnlButton({\n        label: 'Boot System',\n        onClick: async () => {\n          await entity.boot();\n        }\n      })\n    ]\n  });\n}\n\nexport default ${name}View;\n`;
+      } else if (node.type === 'library') {
+        return `// VanJS UI View for Concept Library: ${name}\nimport van from 'vanjs-core';\nimport { KrnlTile } from '@dinilmusick/krnl-ui';\n\nexport function ${name}View(): HTMLElement {\n  return KrnlTile({\n    title: '${name} Concepts Reference',\n    description: 'Layer 0 Pure Domain Logic'\n  });\n}\n\nexport default ${name}View;\n`;
+      } else {
+        return `// VanJS UI View for SubApp: ${name}\nimport van from 'vanjs-core';\nimport { KrnlTile, KrnlButton } from '@dinilmusick/krnl-ui';\n\nexport function ${name}App(): HTMLElement {\n  return KrnlTile({\n    title: '${name} Sub-App',\n    children: [\n      KrnlButton({ label: 'Open Workspace' })\n    ]\n  });\n}\n\nexport default ${name}App;\n`;
+      }
+    }
+
+    function insertAtomSnippet(viewerId, atomType) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.monacoInstance) return;
+
+      let snippet = '';
+      if (atomType === 'KrnlButton') {
+        snippet = `      KrnlButton({\n        label: 'Action',\n        variant: 'primary',\n        onClick: () => { console.log('Action triggered'); }\n      }),\n`;
+      } else if (atomType === 'KrnlTextInput') {
+        snippet = `      KrnlTextInput({\n        label: 'Input Field',\n        placeholder: 'Enter value...'\n      }),\n`;
+      } else if (atomType === 'KrnlTile') {
+        snippet = `      KrnlTile({\n        title: 'Custom Section',\n        children: []\n      }),\n`;
+      } else if (atomType === 'KrnlBadge') {
+        snippet = `      KrnlBadge({\n        text: 'ACTIVE',\n        variant: 'success'\n      }),\n`;
+      } else if (atomType === 'KrnlDropdown') {
+        snippet = `      KrnlDropdown({\n        label: 'Select Option',\n        options: ['Option 1', 'Option 2']\n      }),\n`;
+      } else if (atomType === 'Container') {
+        snippet = `      div({ class: 'krnl-container', style: 'padding: 8px; display: flex; gap: 8px;' },\n        span('Container Content')\n      ),\n`;
+      }
+
+      const selection = viewer.monacoInstance.getSelection();
+      viewer.monacoInstance.executeEdits('insertAtom', [{
+        range: selection,
+        text: snippet,
+        forceMoveMarkers: true
+      }]);
+      refreshViewerUiPreview(viewerId);
+    }
+
+    async function saveViewerUiCode(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.monacoInstance) return;
+      const badge = document.getElementById('ui-file-badge-' + viewerId);
+      const code = viewer.monacoInstance.getValue();
+
+      let targetPath = viewer.sourceNode.uiFilePath;
+      if (!targetPath) {
+        const srcPath = viewer.sourceNode.filePath;
+        const lastSlash = srcPath.lastIndexOf('/');
+        const dir = lastSlash !== -1 ? srcPath.substring(0, lastSlash) : srcPath;
+        if (viewer.sourceNode.type === 'subapp') {
+          targetPath = `${srcPath}/src/ui/App.tsx`;
+        } else if (viewer.sourceNode.type === 'functionality') {
+          const fnDir = dir.endsWith('main_function') ? dir.substring(0, dir.lastIndexOf('/')) : dir;
+          targetPath = `${fnDir}/${viewer.sourceNode.name}View.tsx`;
+        } else {
+          targetPath = `${dir}/${viewer.sourceNode.name}View.tsx`;
+        }
+      }
+
+      if (badge) {
+        badge.textContent = '⏳ Saving to disk...';
+        badge.style.color = '#e5c07b';
+      }
+
+      try {
+        const res = await fetch('/api/v1/file/edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath: targetPath, newContent: code })
+        });
+        const data = await res.json();
+        viewer.sourceNode.uiFilePath = targetPath;
+        viewer.sourceNode.uiSpec = true;
+        if (badge) {
+          const now = new Date().toLocaleTimeString();
+          const shortPath = targetPath.split('/').slice(-3).join('/');
+          badge.textContent = `💾 Saved (${shortPath}) @ ${now}`;
+          badge.style.color = '#98c379';
+        }
+        refreshViewerUiPreview(viewerId);
+      } catch (err) {
+        if (badge) {
+          badge.textContent = '❌ Save error: ' + (err.message || String(err));
+          badge.style.color = '#e06c75';
+        }
+      }
+    }
+
+    function refreshViewerUiPreview(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      const previewEl = document.getElementById('ui-preview-' + viewerId);
+      if (!previewEl) return;
+
+      const node = viewer.sourceNode;
+      previewEl.innerHTML = '';
+
+      const card = document.createElement('div');
+      card.style.cssText = 'background: rgba(22, 22, 30, 0.95); border: 1px solid rgba(198, 120, 221, 0.4); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.5); box-sizing: border-box;';
+
+      const header = document.createElement('div');
+      header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(198, 120, 221, 0.2); padding-bottom: 6px;';
+      header.innerHTML = `<span style="font-size: 12px; font-weight: bold; color: #c678dd;">${node.name} View</span><span style="font-size: 9px; background: rgba(198,120,221,0.2); color: #c678dd; padding: 2px 6px; border-radius: 4px;">Live Preview</span>`;
+      card.appendChild(header);
+
+      const formContainer = document.createElement('div');
+      formContainer.style.cssText = 'display: flex; flex-direction: column; gap: 8px; font-size: 11px;';
+
+      if (node.inputs && node.inputs.length > 0) {
+        node.inputs.forEach(inp => {
+          const row = document.createElement('div');
+          row.style.cssText = 'display: flex; flex-direction: column; gap: 3px;';
+          const label = document.createElement('label');
+          label.style.cssText = 'color: #abb2bf; font-weight: 500; font-size: 10px; text-transform: uppercase;';
+          label.textContent = `${inp.name} (${inp.type}):`;
+          
+          const input = document.createElement('input');
+          input.type = inp.type.includes('number') ? 'number' : 'text';
+          input.style.cssText = 'background: #121217; border: 1px solid rgba(212,175,55,0.3); border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none; width: 100%; box-sizing: border-box;';
+          input.value = node.examplePayload && node.examplePayload[inp.name] !== undefined ? node.examplePayload[inp.name] : '';
+          row.appendChild(label);
+          row.appendChild(input);
+          formContainer.appendChild(row);
+        });
+      } else {
+        const info = document.createElement('div');
+        info.style.cssText = 'color: #abb2bf; font-size: 11px; font-style: italic;';
+        info.textContent = `Interactive visual preview for ${node.type} ${node.name}`;
+        formContainer.appendChild(info);
+      }
+
+      const btnRow = document.createElement('div');
+      btnRow.style.cssText = 'display: flex; gap: 8px; margin-top: 6px;';
+      
+      const submitBtn = document.createElement('button');
+      submitBtn.style.cssText = 'background: #d4af37; color: #121212; border: none; border-radius: 4px; padding: 6px 12px; font-weight: bold; font-size: 11px; cursor: pointer; transition: transform 0.1s ease; box-shadow: 0 0 10px rgba(212,175,55,0.3); width: 100%;';
+      submitBtn.textContent = node.type === 'entity' ? '⚡ Boot Entity' : `▶ Trigger ${node.name}`;
+      submitBtn.onclick = () => {
+        submitBtn.style.transform = 'scale(0.96)';
+        setTimeout(() => { submitBtn.style.transform = 'none'; }, 100);
+        spawnViewerNode(node.id, 'test');
+      };
+      btnRow.appendChild(submitBtn);
+
+      card.appendChild(formContainer);
+      card.appendChild(btnRow);
+      previewEl.appendChild(card);
+    }
+
+    function resetViewerTestPayload(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.testInputEditor) return;
+      const payload = viewer.sourceNode.examplePayload || {};
+      viewer.testInputEditor.setValue(JSON.stringify(payload, null, 2));
+      const badge = document.getElementById('test-badge-' + viewerId);
+      if (badge) {
+        badge.textContent = '↺ Reset to example payload';
+        badge.style.color = '#d4af37';
+      }
+    }
+
+    function copyViewerTestPayload(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.testInputEditor) return;
+      const val = viewer.testInputEditor.getValue();
+      navigator.clipboard.writeText(val);
+      const badge = document.getElementById('test-badge-' + viewerId);
+      if (badge) {
+        badge.textContent = '📋 Copied to clipboard!';
+        badge.style.color = '#98c379';
+      }
+    }
+
+    function clearViewerTestPayload(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.testInputEditor) return;
+      viewer.testInputEditor.setValue('{}');
+      const badge = document.getElementById('test-badge-' + viewerId);
+      if (badge) {
+        badge.textContent = '🧹 Cleared input';
+        badge.style.color = '#7f848e';
       }
     }
 
@@ -1290,7 +1552,8 @@
 
         if (badge) {
           if (payload.success) {
-            badge.textContent = `[${payload.durationMs || 0}ms | PASSED]`;
+            const memKb = payload.memoryDeltaBytes ? Math.round(payload.memoryDeltaBytes / 1024) : 0;
+            badge.textContent = `[${payload.durationMs || 0}ms | ${memKb}KB heap | PASSED]`;
             badge.style.color = '#98c379';
           } else {
             badge.textContent = `[${payload.durationMs || 0}ms | FAILED]`;

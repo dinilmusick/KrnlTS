@@ -25,6 +25,8 @@ interface ArchitectureNode {
         filePath: string;
     }>;
     uiSpec?: boolean;
+    uiFilePath?: string;
+    examplePayload?: any;
 }
 interface ArchitectureEdge {
     id: string;
@@ -51,6 +53,26 @@ declare class AstMutationEngine {
     private persistGraphState;
     extractArchitectureGraph(): ArchitectureGraph;
     private scanEntitiesRecursive;
+    /**
+     * Introspects functionality Atom & State files to extract types and synthesize realistic example payloads.
+     */
+    private extractFunctionalityMetadata;
+    /**
+     * Introspects Concept Libraries to extract methods and example payloads.
+     */
+    private extractLibraryMetadata;
+    /**
+     * Introspects SubApps to locate UI entries and operations.
+     */
+    private extractSubappMetadata;
+    /**
+     * Helper to scan for UI files across multiple standard conventions.
+     */
+    private findUiFile;
+    /**
+     * Synthesizes realistic, intelligent mock values from property names and TypeScript types.
+     */
+    private synthesizeDefaultValue;
     moveNode(nodeId: string, x: number, y: number): {
         success: boolean;
         position: {

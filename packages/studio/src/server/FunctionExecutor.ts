@@ -105,10 +105,14 @@ export class FunctionExecutor {
       const mod = await import(fileUrl);
 
       let targetFn: any = null;
+      let targetClass: any = null;
+
       if (request.functionName && mod[request.functionName]) {
         targetFn = mod[request.functionName];
       } else if (typeof mod.main === 'function') {
         targetFn = mod.main;
+      } else if (typeof mod.register === 'function') {
+        targetFn = mod.register;
       } else if (typeof mod.default === 'function') {
         targetFn = mod.default;
       } else {
@@ -120,24 +124,106 @@ export class FunctionExecutor {
         }
       }
 
+      // Check if target or any export is a Class
+      for (const key of Object.keys(mod)) {
+        if (typeof mod[key] === 'function' && mod[key].prototype && Object.getOwnPropertyNames(mod[key].prototype).length > 1) {
+          targetClass = mod[key];
+          break;
+        }
+      }
+
       let executionOutput: any = null;
 
       if (typeof targetFn === 'function') {
-        // Check if target is an Entity Class constructor
+        // 1. Entity System Class
         if (targetFn.prototype && (targetFn.prototype.boot || targetFn.name.endsWith('System') || targetFn.name.endsWith('Entity'))) {
           const instance = new targetFn();
           if (typeof instance.boot === 'function') {
             await instance.boot();
           }
-          executionOutput = {
-            entityId: instance.id || targetFn.name,
-            version: instance.version || '1.0.0',
-            description: instance.description || 'System Entity',
-            status: 'BOOTED_AND_READY',
-            registeredFlows: instance['flows'] ? Array.from(instance['flows'].keys()) : []
+          const registeredFlows = instance['flows'] ? Array.from(instance['flows'].keys()) : [];
+          
+          // If request specifies a flow to execute
+          if (request.input?.flowName && instance['flows']?.has(request.input.flowName)) {
+            const flow = instance['flows'].get(request.input.flowName);
+            const flowRes = typeof flow.execute === 'function' ? await flow.execute(request.input.payload || {}) : 'Flow initiated';
+            executionOutput = {
+              entityId: instance.id || targetFn.name,
+              flowExecuted: request.input.flowName,
+              flowResult: flowRes,
+              status: 'FLOW_EXECUTED'
+            };
+          } else {
+            executionOutput = {
+              entityId: instance.id || targetFn.name,
+              version: instance.version || '1.0.0',
+              description: instance.description || 'System Entity',
+              status: 'BOOTED_AND_READY',
+              registeredFlows
+            };
+          }
+        }
+        // 2. SubApp Registration Entry (register function)
+        else if (targetFn.name === 'register' || mod.register === targetFn) {
+          const mockContext = {
+            entity: { id: 'TestSandboxEntity', call: async () => ({}), emitEvent: () => {} },
+            logger: { log: (msg: string) => logs.push(msg), error: (msg: string) => logs.push('ERROR: ' + msg) }
           };
-        } else {
-          // Standard Quad-Unit or Pure Function
+          const regResult = await targetFn(mockContext);
+          executionOutput = {
+            subappName: regResult?.name || 'SubApp',
+            operations: (regResult?.operations || []).map((o: any) => ({ name: o.name, description: o.description })),
+            ui: regResult?.ui,
+            status: 'REGISTERED'
+          };
+        }
+        // 3. Concept Library with static methods
+        else if (targetFn.name.endsWith('Concepts') || (targetClass && targetClass.name.endsWith('Concepts'))) {
+          const cls = targetClass || targetFn;
+          const staticMethods = Object.getOwnPropertyNames(cls).filter(m => typeof cls[m] === 'function' && m !== 'prototype' && m !== 'length' && m !== 'name');
+          
+          let invokedMethod = request.functionName || request.input?.method;
+          let methodArgs = request.input?.args;
+
+          if (!invokedMethod && staticMethods.length > 0) {
+            invokedMethod = staticMethods[0];
+          }
+
+          if (invokedMethod && typeof cls[invokedMethod] === 'function') {
+            if (!methodArgs) {
+              if (Array.isArray(request.input)) {
+                methodArgs = request.input;
+              } else if (request.input && typeof request.input === 'object' && !request.input.method) {
+                // Check if parameters match keys (e.g. { a: 10, b: 20 })
+                const fnStr = cls[invokedMethod].toString();
+                const paramMatch = fnStr.match(/\(([^)]*)\)/);
+                const paramNames = paramMatch ? paramMatch[1].split(',').map((p: string) => p.trim().split(':')[0].trim()) : [];
+                if (paramNames.length > 1 && paramNames.every((p: string) => p in request.input)) {
+                  methodArgs = paramNames.map((p: string) => request.input[p]);
+                } else {
+                  methodArgs = [request.input];
+                }
+              } else {
+                methodArgs = [];
+              }
+            }
+            const result = await cls[invokedMethod](...methodArgs);
+            executionOutput = {
+              library: cls.name,
+              method: invokedMethod,
+              args: methodArgs,
+              result
+            };
+          } else {
+            executionOutput = {
+              library: cls.name,
+              status: 'READY',
+              availableMethods: staticMethods
+            };
+          }
+        }
+        // 4. Standard Quad-Unit / Logic function
+        else {
           const dummyContext = {
             state: request.state || {},
             entity: {
@@ -146,6 +232,8 @@ export class FunctionExecutor {
               emitEvent: () => {}
             }
           };
+
+          // If input has { a, b } or similar object, pass directly
           executionOutput = await targetFn(request.input || {}, dummyContext);
         }
       } else if (mod && typeof mod === 'object') {

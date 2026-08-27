@@ -577,11 +577,15 @@ var AstMutationEngine = class {
           if (file.isFile() && (file.name.endsWith(".ts") || file.name.endsWith(".js"))) {
             const baseName = file.name.replace(/\.(ts|js)$/, "");
             const libPath = path4.join(libDir, file.name);
+            const libMeta = this.extractLibraryMetadata(libPath, baseName);
             nodes.push({
               id: `library:${baseName}`,
               type: "library",
               name: baseName,
-              filePath: libPath
+              filePath: libPath,
+              uiSpec: libMeta.uiSpec,
+              uiFilePath: libMeta.uiFilePath,
+              examplePayload: libMeta.examplePayload
             });
           }
         }
@@ -598,11 +602,15 @@ var AstMutationEngine = class {
           if (sa.isDirectory()) {
             const saName = sa.name;
             const saPath = path4.join(subappDir, saName);
+            const saMeta = this.extractSubappMetadata(saPath, saName);
             nodes.push({
               id: `subapp:${saName}`,
               type: "subapp",
               name: saName,
-              filePath: saPath
+              filePath: saPath,
+              uiSpec: saMeta.uiSpec,
+              uiFilePath: saMeta.uiFilePath,
+              examplePayload: saMeta.examplePayload
             });
           }
         }
@@ -624,12 +632,20 @@ var AstMutationEngine = class {
         const entityName = entry.name;
         const entityPath = path4.join(entitiesDir, entityName);
         const entityTsFile = path4.join(entityPath, `${entityName}.ts`);
+        const entityUi = this.findUiFile(entityPath, entityName);
         const entityNode = {
           id: `entity:${entityName}`,
           type: "entity",
           name: entityName,
           parentEntity: parentName,
-          filePath: fs4.existsSync(entityTsFile) ? entityTsFile : entityPath
+          filePath: fs4.existsSync(entityTsFile) ? entityTsFile : entityPath,
+          uiSpec: entityUi.uiSpec,
+          uiFilePath: entityUi.uiFilePath,
+          examplePayload: {
+            entityId: entityName,
+            action: "boot",
+            config: { debug: true, environment: "sandbox" }
+          }
         };
         nodes.push(entityNode);
         if (parentName) {
@@ -658,6 +674,8 @@ var AstMutationEngine = class {
                   }
                 }
               }
+              const fnUi = this.findUiFile(fnPath, fnName);
+              const atomMeta = this.extractFunctionalityMetadata(fnPath, fnName);
               nodes.push({
                 id: `functionality:${entityName}:${fnName}`,
                 type: "functionality",
@@ -665,7 +683,12 @@ var AstMutationEngine = class {
                 parentEntity: entityName,
                 filePath: logicFile,
                 helpers,
-                uiSpec: fs4.existsSync(path4.join(fnPath, `${fnName}View.ts`))
+                uiSpec: fnUi.uiSpec,
+                uiFilePath: fnUi.uiFilePath,
+                inputs: atomMeta.inputs,
+                outputs: atomMeta.outputs,
+                stateFields: atomMeta.stateFields,
+                examplePayload: atomMeta.examplePayload
               });
               edges.push({
                 id: `edge:${entityName}->${fnName}`,
@@ -683,6 +706,257 @@ var AstMutationEngine = class {
         }
       }
     }
+  }
+  /**
+   * Introspects functionality Atom & State files to extract types and synthesize realistic example payloads.
+   */
+  extractFunctionalityMetadata(fnPath, fnName) {
+    const inputs = [];
+    const outputs = [];
+    const stateFields = [];
+    let examplePayload = null;
+    const payloadFiles = ["example.json", "payload.json", "test-input.json", "input.json"];
+    for (const pf of payloadFiles) {
+      const p = path4.join(fnPath, pf);
+      if (fs4.existsSync(p)) {
+        try {
+          examplePayload = JSON.parse(fs4.readFileSync(p, "utf-8"));
+          break;
+        } catch (e) {
+        }
+      }
+    }
+    const atomCandidates = [
+      path4.join(fnPath, `${fnName}Atom.ts`),
+      path4.join(fnPath, `${fnName}Atom.js`),
+      path4.join(fnPath, "atom.ts"),
+      path4.join(fnPath, "types.ts")
+    ];
+    const atomPath = atomCandidates.find((c) => fs4.existsSync(c));
+    if (atomPath) {
+      try {
+        const atomContent = fs4.readFileSync(atomPath, "utf-8");
+        const synthPayload = {};
+        const inputMatch = atomContent.match(/export\s+interface\s+\w+Input\s*\{([^}]+)\}/s) || atomContent.match(/interface\s+\w+Input\s*\{([^}]+)\}/s);
+        if (inputMatch && inputMatch[1]) {
+          const lines = inputMatch[1].split("\n");
+          for (const line of lines) {
+            const propMatch = line.trim().match(/^([a-zA-Z0-9_$]+)\??\s*:\s*([^;]+);?/);
+            if (propMatch) {
+              const propName = propMatch[1];
+              const propType = propMatch[2].trim();
+              inputs.push({ name: propName, type: propType });
+              synthPayload[propName] = this.synthesizeDefaultValue(propName, propType);
+            }
+          }
+        }
+        const outputMatch = atomContent.match(/export\s+interface\s+\w+Output\s*\{([^}]+)\}/s) || atomContent.match(/interface\s+\w+Output\s*\{([^}]+)\}/s);
+        if (outputMatch && outputMatch[1]) {
+          const lines = outputMatch[1].split("\n");
+          for (const line of lines) {
+            const propMatch = line.trim().match(/^([a-zA-Z0-9_$]+)\??\s*:\s*([^;]+);?/);
+            if (propMatch) {
+              outputs.push({ name: propMatch[1], type: propMatch[2].trim() });
+            }
+          }
+        }
+        if (!examplePayload && Object.keys(synthPayload).length > 0) {
+          examplePayload = synthPayload;
+        }
+      } catch (e) {
+      }
+    }
+    const stateFile = path4.join(fnPath, "state_data", "state.ts");
+    if (fs4.existsSync(stateFile)) {
+      try {
+        const stateContent = fs4.readFileSync(stateFile, "utf-8");
+        const stateMatch = stateContent.match(/export\s+interface\s+\w+State\s*\{([^}]+)\}/s);
+        if (stateMatch && stateMatch[1]) {
+          const lines = stateMatch[1].split("\n");
+          for (const line of lines) {
+            const propMatch = line.trim().match(/^([a-zA-Z0-9_$]+)\??\s*:\s*([^;]+);?/);
+            if (propMatch) {
+              stateFields.push({ name: propMatch[1], type: propMatch[2].trim() });
+            }
+          }
+        }
+      } catch (e) {
+      }
+    }
+    if (!examplePayload) {
+      if (fnName.includes("Calc")) {
+        examplePayload = { op: "add", a: 10, b: 25 };
+      } else if (fnName.includes("Order") || fnName.includes("Cart")) {
+        examplePayload = { productId: "PROD-9821", quantity: 2, price: 49.99 };
+      } else {
+        examplePayload = { payload: `Sample input for ${fnName}` };
+      }
+    }
+    return { inputs, outputs, stateFields, examplePayload };
+  }
+  /**
+   * Introspects Concept Libraries to extract methods and example payloads.
+   */
+  extractLibraryMetadata(libPath, baseName) {
+    const ui = this.findUiFile(path4.dirname(libPath), baseName);
+    let examplePayload = null;
+    try {
+      const content = fs4.readFileSync(libPath, "utf-8");
+      const staticMethodRegex = /static\s+([a-zA-Z0-9_$]+)\s*\(([^)]*)\)/g;
+      let match;
+      const methods = [];
+      while ((match = staticMethodRegex.exec(content)) !== null) {
+        const mName = match[1];
+        const rawParams = match[2].trim();
+        const paramNames = rawParams ? rawParams.split(",").map((p) => p.trim().split(":")[0].trim()) : [];
+        methods.push({ name: mName, params: paramNames });
+      }
+      if (methods.length > 0) {
+        const primary = methods[0];
+        if (primary.params.length > 1) {
+          const sampleArgs = [];
+          for (const p of primary.params) {
+            sampleArgs.push(this.synthesizeDefaultValue(p, "number"));
+          }
+          examplePayload = { method: primary.name, args: sampleArgs };
+        } else if (primary.params.length === 1) {
+          const pName = primary.params[0];
+          examplePayload = { method: primary.name, args: [this.synthesizeDefaultValue(pName, "object")] };
+        } else {
+          examplePayload = { method: primary.name, args: [] };
+        }
+      }
+    } catch (e) {
+    }
+    if (!examplePayload) {
+      if (baseName.includes("Math")) {
+        examplePayload = { method: "add", args: [15, 30] };
+      } else if (baseName.includes("Commerce")) {
+        examplePayload = { method: "validateCart", args: [{ items: [{ productId: "PROD-101", quantity: 2, price: 29.99 }] }] };
+      } else {
+        examplePayload = { method: "process", args: [{ data: "sample" }] };
+      }
+    }
+    return { examplePayload, uiSpec: ui.uiSpec, uiFilePath: ui.uiFilePath };
+  }
+  /**
+   * Introspects SubApps to locate UI entries and operations.
+   */
+  extractSubappMetadata(saPath, saName) {
+    const ui = this.findUiFile(saPath, saName);
+    let examplePayload = null;
+    const manifestPath = path4.join(saPath, "subapp.json");
+    if (fs4.existsSync(manifestPath)) {
+      try {
+        const manifest = JSON.parse(fs4.readFileSync(manifestPath, "utf-8"));
+        if (manifest.ui && manifest.ui.entryPath && !ui.uiFilePath) {
+          const entryAbs = path4.resolve(saPath, manifest.ui.entryPath);
+          if (fs4.existsSync(entryAbs)) {
+            ui.uiSpec = true;
+            ui.uiFilePath = entryAbs;
+          }
+        }
+      } catch (e) {
+      }
+    }
+    const opsDir = path4.join(saPath, "operations");
+    if (fs4.existsSync(opsDir)) {
+      const ops = fs4.readdirSync(opsDir).filter((f) => f.endsWith(".ts") || f.endsWith(".js"));
+      if (ops.length > 0) {
+        const firstOp = ops[0].replace(/\.(ts|js)$/, "");
+        examplePayload = { operation: firstOp, payload: { action: "execute", timestamp: Date.now() } };
+      }
+    }
+    if (!examplePayload) {
+      examplePayload = { action: "initialize", subapp: saName, context: { debug: true } };
+    }
+    return { examplePayload, uiSpec: ui.uiSpec, uiFilePath: ui.uiFilePath };
+  }
+  /**
+   * Helper to scan for UI files across multiple standard conventions.
+   */
+  findUiFile(dirPath, baseName) {
+    const candidates = [
+      path4.join(dirPath, `${baseName}View.tsx`),
+      path4.join(dirPath, `${baseName}View.ts`),
+      path4.join(dirPath, `${baseName}.view.tsx`),
+      path4.join(dirPath, `${baseName}.view.ts`),
+      path4.join(dirPath, "ui", `${baseName}View.tsx`),
+      path4.join(dirPath, "ui", `${baseName}View.ts`),
+      path4.join(dirPath, "ui", "App.tsx"),
+      path4.join(dirPath, "ui", "index.tsx"),
+      path4.join(dirPath, "src", "ui", "App.tsx"),
+      path4.join(dirPath, "src", "ui", "index.tsx"),
+      path4.join(dirPath, "view.tsx"),
+      path4.join(dirPath, "view.ts")
+    ];
+    for (const c of candidates) {
+      if (fs4.existsSync(c)) {
+        return { uiSpec: true, uiFilePath: c };
+      }
+    }
+    return { uiSpec: false };
+  }
+  /**
+   * Synthesizes realistic, intelligent mock values from property names and TypeScript types.
+   */
+  synthesizeDefaultValue(propName, typeText) {
+    const lowerName = propName.toLowerCase();
+    const cleanType = typeText.replace(/\s+/g, " ").trim();
+    if (cleanType.includes("|") && (cleanType.includes("'") || cleanType.includes('"'))) {
+      const match = cleanType.match(/['"]([^'"]+)['"]/);
+      if (match) return match[1];
+    }
+    if (cleanType.startsWith("number")) {
+      if (lowerName.includes("price") || lowerName.includes("cost") || lowerName.includes("amount") || lowerName.includes("subtotal")) {
+        return 49.99;
+      }
+      if (lowerName.includes("qty") || lowerName.includes("quantity") || lowerName.includes("count") || lowerName.includes("itemcount")) {
+        return 2;
+      }
+      if (lowerName === "a") return 10;
+      if (lowerName === "b") return 25;
+      if (lowerName.includes("port")) return 8080;
+      if (lowerName.includes("id") || lowerName.includes("code")) return 1001;
+      return 10;
+    }
+    if (cleanType.startsWith("string")) {
+      if (lowerName.includes("productid") || lowerName.includes("product_id") || lowerName.includes("itemid")) {
+        return "PROD-9821";
+      }
+      if (lowerName.includes("orderid") || lowerName.includes("order_id")) {
+        return "ORD-1049";
+      }
+      if (lowerName.includes("userid") || lowerName.includes("user_id")) {
+        return "USR-4402";
+      }
+      if (lowerName.includes("email")) {
+        return "alex.developer@krnl.io";
+      }
+      if (lowerName.includes("name")) {
+        return "Premium Subscription";
+      }
+      if (lowerName.includes("url")) {
+        return "https://api.krnl.io/v1/stream";
+      }
+      if (lowerName === "op" || lowerName === "operation") {
+        return "add";
+      }
+      return `Sample ${propName}`;
+    }
+    if (cleanType.startsWith("boolean")) {
+      return true;
+    }
+    if (cleanType.endsWith("[]") || cleanType.startsWith("Array<")) {
+      if (lowerName.includes("item") || lowerName.includes("product")) {
+        return [{ id: "ITEM-1", name: "Standard Item", price: 29.99, quantity: 1 }];
+      }
+      return ["sample-item-1", "sample-item-2"];
+    }
+    if (cleanType.startsWith("Record") || cleanType.startsWith("object") || cleanType === "any") {
+      return { sampleKey: "sampleValue" };
+    }
+    return "sample";
   }
   // --- Graph Manipulation & Controls ---
   moveNode(nodeId, x, y) {
@@ -975,10 +1249,13 @@ var FunctionExecutor = class {
       const fileUrl = (0, import_url.pathToFileURL)(tempBundlePath).href;
       const mod = await import(fileUrl);
       let targetFn = null;
+      let targetClass = null;
       if (request.functionName && mod[request.functionName]) {
         targetFn = mod[request.functionName];
       } else if (typeof mod.main === "function") {
         targetFn = mod.main;
+      } else if (typeof mod.register === "function") {
+        targetFn = mod.register;
       } else if (typeof mod.default === "function") {
         targetFn = mod.default;
       } else {
@@ -989,6 +1266,12 @@ var FunctionExecutor = class {
           }
         }
       }
+      for (const key of Object.keys(mod)) {
+        if (typeof mod[key] === "function" && mod[key].prototype && Object.getOwnPropertyNames(mod[key].prototype).length > 1) {
+          targetClass = mod[key];
+          break;
+        }
+      }
       let executionOutput = null;
       if (typeof targetFn === "function") {
         if (targetFn.prototype && (targetFn.prototype.boot || targetFn.name.endsWith("System") || targetFn.name.endsWith("Entity"))) {
@@ -996,13 +1279,77 @@ var FunctionExecutor = class {
           if (typeof instance.boot === "function") {
             await instance.boot();
           }
-          executionOutput = {
-            entityId: instance.id || targetFn.name,
-            version: instance.version || "1.0.0",
-            description: instance.description || "System Entity",
-            status: "BOOTED_AND_READY",
-            registeredFlows: instance["flows"] ? Array.from(instance["flows"].keys()) : []
+          const registeredFlows = instance["flows"] ? Array.from(instance["flows"].keys()) : [];
+          if (request.input?.flowName && instance["flows"]?.has(request.input.flowName)) {
+            const flow = instance["flows"].get(request.input.flowName);
+            const flowRes = typeof flow.execute === "function" ? await flow.execute(request.input.payload || {}) : "Flow initiated";
+            executionOutput = {
+              entityId: instance.id || targetFn.name,
+              flowExecuted: request.input.flowName,
+              flowResult: flowRes,
+              status: "FLOW_EXECUTED"
+            };
+          } else {
+            executionOutput = {
+              entityId: instance.id || targetFn.name,
+              version: instance.version || "1.0.0",
+              description: instance.description || "System Entity",
+              status: "BOOTED_AND_READY",
+              registeredFlows
+            };
+          }
+        } else if (targetFn.name === "register" || mod.register === targetFn) {
+          const mockContext = {
+            entity: { id: "TestSandboxEntity", call: async () => ({}), emitEvent: () => {
+            } },
+            logger: { log: (msg) => logs.push(msg), error: (msg) => logs.push("ERROR: " + msg) }
           };
+          const regResult = await targetFn(mockContext);
+          executionOutput = {
+            subappName: regResult?.name || "SubApp",
+            operations: (regResult?.operations || []).map((o) => ({ name: o.name, description: o.description })),
+            ui: regResult?.ui,
+            status: "REGISTERED"
+          };
+        } else if (targetFn.name.endsWith("Concepts") || targetClass && targetClass.name.endsWith("Concepts")) {
+          const cls = targetClass || targetFn;
+          const staticMethods = Object.getOwnPropertyNames(cls).filter((m) => typeof cls[m] === "function" && m !== "prototype" && m !== "length" && m !== "name");
+          let invokedMethod = request.functionName || request.input?.method;
+          let methodArgs = request.input?.args;
+          if (!invokedMethod && staticMethods.length > 0) {
+            invokedMethod = staticMethods[0];
+          }
+          if (invokedMethod && typeof cls[invokedMethod] === "function") {
+            if (!methodArgs) {
+              if (Array.isArray(request.input)) {
+                methodArgs = request.input;
+              } else if (request.input && typeof request.input === "object" && !request.input.method) {
+                const fnStr = cls[invokedMethod].toString();
+                const paramMatch = fnStr.match(/\(([^)]*)\)/);
+                const paramNames = paramMatch ? paramMatch[1].split(",").map((p) => p.trim().split(":")[0].trim()) : [];
+                if (paramNames.length > 1 && paramNames.every((p) => p in request.input)) {
+                  methodArgs = paramNames.map((p) => request.input[p]);
+                } else {
+                  methodArgs = [request.input];
+                }
+              } else {
+                methodArgs = [];
+              }
+            }
+            const result = await cls[invokedMethod](...methodArgs);
+            executionOutput = {
+              library: cls.name,
+              method: invokedMethod,
+              args: methodArgs,
+              result
+            };
+          } else {
+            executionOutput = {
+              library: cls.name,
+              status: "READY",
+              availableMethods: staticMethods
+            };
+          }
         } else {
           const dummyContext = {
             state: request.state || {},
