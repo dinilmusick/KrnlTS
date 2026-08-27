@@ -1389,7 +1389,7 @@ var StudioServer = class {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Krnl Studio \u2014 Differentiated Visual Architecture IDE</title>
+  <title>Krnl Studio \u2014 Omni Canvas Visual IDE</title>
   
   <!-- Monaco Editor AMD Loader -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
@@ -1401,6 +1401,8 @@ var StudioServer = class {
       --krnl-panel-hover: #1f1f2a;
       --krnl-accent: #d4af37;
       --krnl-accent-glow: rgba(212, 175, 55, 0.45);
+      --krnl-purple: #c678dd;
+      --krnl-purple-glow: rgba(198, 120, 221, 0.45);
       --krnl-text: #f5ede4;
       --krnl-border: 1px solid rgba(212, 175, 55, 0.3);
     }
@@ -1415,8 +1417,6 @@ var StudioServer = class {
       user-select: none;
     }
     #app { width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; }
-    .studio-canvas { width: 100%; height: 100%; position: absolute; inset: 0; display: none; }
-    .studio-canvas.active { display: block; }
     
     /* Header */
     .studio-header {
@@ -1437,16 +1437,16 @@ var StudioServer = class {
       box-shadow: 0 6px 28px rgba(0,0,0,0.9), 0 0 16px var(--krnl-accent-glow);
     }
 
-    /* Graph Canvas Viewport */
+    /* Omni Canvas Viewport */
     #graph-viewport {
       width: 100%; height: 100%; position: relative; overflow: hidden;
       background-color: #0e0e12;
       background-image: radial-gradient(rgba(212, 175, 55, 0.15) 1px, transparent 1px);
       background-size: 24px 24px; cursor: default;
     }
-    #graph-container { position: absolute; top: 0; left: 0; width: 6000px; height: 6000px; transform-origin: 0 0; }
+    #graph-container { position: absolute; top: 0; left: 0; width: 8000px; height: 8000px; transform-origin: 0 0; }
     
-    /* CRITICAL LAYER POINTER-EVENTS ISOLATION */
+    /* Layer Isolation */
     #svg-wires { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
     #nodes-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
     #gizmos-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
@@ -1463,9 +1463,9 @@ var StudioServer = class {
       position: absolute; border-radius: 12px;
       font-family: inherit; color: var(--krnl-text); cursor: grab;
       box-shadow: 0 10px 30px rgba(0,0,0,0.75);
-      transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
       pointer-events: auto; z-index: 20;
-      overflow: hidden;
+      overflow: visible;
     }
     .krnl-node:hover {
       box-shadow: 0 14px 42px rgba(0,0,0,0.9), 0 0 24px var(--krnl-accent-glow);
@@ -1475,36 +1475,30 @@ var StudioServer = class {
       box-shadow: 0 0 0 2px #f5ede4, 0 14px 42px rgba(0,0,0,0.9), 0 0 28px var(--krnl-accent-glow) !important;
     }
 
-    /* ==========================================================================
-       1. ENTITY SYSTEM NODES (Deep Obsidian with Gold Dual-Border & System Crown)
-       ========================================================================== */
+    /* 1. Entity System Nodes */
     .krnl-node-entity {
       background: linear-gradient(180deg, #1d1d28 0%, #13131b 100%);
-      border: 2px solid #d4af37;
-      min-width: 290px;
+      border: 2px solid #d4af37; min-width: 290px;
       box-shadow: 0 10px 32px rgba(0,0,0,0.85), inset 0 1px 0 rgba(212, 175, 55, 0.4);
     }
     .node-header-entity {
       background: rgba(212, 175, 55, 0.12);
       border-bottom: 1px solid rgba(212, 175, 55, 0.3);
-      padding: 10px 14px;
-      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;
+      border-radius: 10px 10px 0 0;
     }
 
-    /* ==========================================================================
-       2. QUAD-UNIT FUNCTIONALITY NODES (Technical Slate with 4-Layer Compartments)
-       ========================================================================== */
+    /* 2. Quad-Unit Functionality Nodes */
     .krnl-node-functionality {
       background: linear-gradient(180deg, #181926 0%, #11121a 100%);
-      border: 1px solid #61afef;
-      min-width: 280px;
+      border: 1px solid #61afef; min-width: 280px;
       box-shadow: 0 8px 28px rgba(0,0,0,0.7), inset 0 1px 0 rgba(97, 175, 239, 0.3);
     }
     .node-header-functionality {
       background: rgba(97, 175, 239, 0.12);
       border-bottom: 1px solid rgba(97, 175, 239, 0.25);
-      padding: 9px 14px;
-      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 14px; display: flex; align-items: center; justify-content: space-between;
+      border-radius: 10px 10px 0 0;
     }
     .quad-layers-grid {
       display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
@@ -1516,39 +1510,60 @@ var StudioServer = class {
       display: flex; align-items: center; gap: 4px; font-weight: 500;
     }
 
-    /* ==========================================================================
-       3. DOMAIN CONCEPT LIBRARY NODES (Warm Amber Bronze with Math Emblem)
-       ========================================================================== */
+    /* 3. Concept Library Nodes */
     .krnl-node-library {
       background: linear-gradient(180deg, #261f18 0%, #18130e 100%);
-      border: 1px solid #e5c07b;
-      min-width: 250px;
+      border: 1px solid #e5c07b; min-width: 250px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.75), inset 0 1px 0 rgba(229, 192, 123, 0.3);
     }
     .node-header-library {
       background: rgba(229, 192, 123, 0.14);
       border-bottom: 1px solid rgba(229, 192, 123, 0.3);
-      padding: 9px 14px;
-      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 14px; display: flex; align-items: center; justify-content: space-between;
+      border-radius: 10px 10px 0 0;
     }
 
-    /* ==========================================================================
-       4. SUB-APP NODES (Cyan Blueprint Frame with Route Container)
-       ========================================================================== */
+    /* 4. Sub-App Nodes */
     .krnl-node-subapp {
       background: linear-gradient(180deg, #15222b 0%, #0d151c 100%);
-      border: 1px dashed #56b6c2;
-      min-width: 260px;
+      border: 1px dashed #56b6c2; min-width: 260px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.75), inset 0 1px 0 rgba(86, 182, 194, 0.25);
     }
     .node-header-subapp {
       background: rgba(86, 182, 194, 0.14);
       border-bottom: 1px dashed rgba(86, 182, 194, 0.3);
-      padding: 9px 14px;
-      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 14px; display: flex; align-items: center; justify-content: space-between;
+      border-radius: 10px 10px 0 0;
     }
 
-    /* Socket Ports */
+    /* ==========================================================================
+       5. OMNI VIEWER WIDGET NODES (Movable & Resizable Canvas Window Widgets)
+       ========================================================================== */
+    .krnl-viewer-node {
+      position: absolute; border-radius: 12px;
+      background: rgba(22, 22, 30, 0.98); backdrop-filter: blur(20px);
+      border: 2px solid #c678dd;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.9), 0 0 24px var(--krnl-purple-glow);
+      pointer-events: auto; z-index: 50; display: flex; flex-direction: column;
+      min-width: 380px; min-height: 280px;
+      overflow: hidden;
+    }
+    .viewer-titlebar {
+      background: linear-gradient(90deg, rgba(198, 120, 221, 0.25) 0%, rgba(22, 22, 30, 0.8) 100%);
+      border-bottom: 1px solid rgba(198, 120, 221, 0.35);
+      padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;
+      cursor: move;
+    }
+    .viewer-body {
+      flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative;
+    }
+    .viewer-resize-handle {
+      position: absolute; right: 0; bottom: 0; width: 18px; height: 18px;
+      cursor: nwse-resize; z-index: 100;
+      background: linear-gradient(135deg, transparent 50%, #c678dd 50%);
+    }
+
+    /* Sockets */
     .node-socket {
       width: 14px; height: 14px; border-radius: 50%;
       background: #d4af37; border: 2px solid #0e0e12;
@@ -1557,11 +1572,24 @@ var StudioServer = class {
     }
     .node-socket:hover {
       transform: translateY(-50%) scale(1.35);
-      background: #f5ede4;
-      box-shadow: 0 0 12px #d4af37;
+      background: #f5ede4; box-shadow: 0 0 12px #d4af37;
     }
     .socket-out { right: -7px; top: 50%; transform: translateY(-50%); }
     .socket-in { left: -7px; top: 50%; transform: translateY(-50%); background: #61afef; }
+
+    /* DEDICATED 'VIEWS' SOCKET HANDLE */
+    .socket-views {
+      position: absolute; right: 14px; bottom: -8px;
+      background: #c678dd; border: 2px solid #0e0e12;
+      border-radius: 10px; padding: 2px 8px; font-size: 10px; font-weight: bold;
+      color: #fff; display: flex; align-items: center; gap: 4px;
+      cursor: crosshair; z-index: 40; box-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+    .socket-views:hover {
+      transform: scale(1.15); background: #d19a66;
+      box-shadow: 0 0 14px var(--krnl-purple-glow);
+    }
 
     /* Centered Wire Delete Gizmo */
     .edge-delete-gizmo {
@@ -1582,7 +1610,7 @@ var StudioServer = class {
     .krnl-context-menu {
       position: fixed; display: none; z-index: 9999;
       background: rgba(22, 22, 30, 0.98); backdrop-filter: blur(16px);
-      border: var(--krnl-border); border-radius: 8px; padding: 6px; min-width: 190px;
+      border: var(--krnl-border); border-radius: 8px; padding: 6px; min-width: 220px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 10px var(--krnl-accent-glow);
     }
     .menu-item {
@@ -1591,13 +1619,6 @@ var StudioServer = class {
     }
     .menu-item:hover { background: rgba(212, 175, 55, 0.25); color: #d4af37; }
     .menu-separator { height: 1px; background: rgba(212, 175, 55, 0.15); margin: 4px 0; }
-
-    /* Monaco Container */
-    .monaco-card {
-      border: 1px solid rgba(212, 175, 55, 0.25);
-      border-radius: 8px; overflow: hidden;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-    }
   </style>
 </head>
 <body>
@@ -1614,7 +1635,7 @@ var StudioServer = class {
         <span class="status-dot"></span>
         <span style="letter-spacing: 1px;">KRNL STUDIO</span>
         <span style="color: var(--krnl-accent);">|</span>
-        <span id="canvas-title" style="color: #abb2bf;">\u{1F3D7}\uFE0F Architecture Canvas</span>
+        <span style="color: #abb2bf;">\u{1F30C} Omni Canvas IDE</span>
       </div>
       <div style="display: flex; align-items: center; gap: 14px;">
         <span id="node-count-badge" style="background: rgba(212, 175, 55, 0.15); color: #d4af37; padding: 3px 8px; border-radius: 4px; font-size: 11px;">0 Nodes</span>
@@ -1630,86 +1651,23 @@ var StudioServer = class {
       </div>
     </div>
 
-    <!-- 1. Architecture Canvas -->
-    <div id="canvas-architecture" class="studio-canvas active">
-      <div id="graph-viewport">
-        <div id="graph-container">
-          <svg id="svg-wires"></svg>
-          <div id="nodes-layer"></div>
-          <div id="gizmos-layer"></div>
-          <div id="selection-box"></div>
-        </div>
-      </div>
-
-      <!-- Source Code Drawer -->
-      <div id="code-drawer" style="position: absolute; top: 60px; right: 16px; bottom: 80px; width: 500px; background: rgba(22, 22, 30, 0.96); backdrop-filter: blur(16px); border: var(--krnl-border); border-radius: 10px; display: none; flex-direction: column; z-index: 1500; box-shadow: 0 12px 36px rgba(0,0,0,0.8);">
-        <div style="padding: 12px 16px; border-bottom: var(--krnl-border); display: flex; justify-content: space-between; align-items: center;">
-          <span id="drawer-file-title" style="font-size: 12px; font-weight: bold; color: var(--krnl-accent); font-family: monospace;">Source File</span>
-          <button onclick="closeCodeDrawer()" style="background: transparent; border: none; color: #abb2bf; cursor: pointer; font-size: 14px;">\u2715</button>
-        </div>
-        <div id="drawer-monaco-container" style="flex: 1; width: 100%;"></div>
+    <!-- Unified Omni Canvas Viewport -->
+    <div id="graph-viewport">
+      <div id="graph-container">
+        <svg id="svg-wires"></svg>
+        <div id="nodes-layer"></div>
+        <div id="gizmos-layer"></div>
+        <div id="selection-box"></div>
       </div>
     </div>
 
-    <!-- 2. UI Composer Canvas -->
-    <div id="canvas-ui" class="studio-canvas">
-      <div style="display: flex; width: 100%; height: 100%; padding-top: 60px;">
-        <div style="width: 250px; border-right: var(--krnl-border); padding: 16px; background: var(--krnl-panel);">
-          <h3 style="font-size: 12px; color: var(--krnl-accent); margin-bottom: 12px;">KRNL UI ATOMS</h3>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <div class="palette-item" draggable="true" ondragstart="onDragAtom(event, 'KrnlButton')" style="padding: 10px; border: var(--krnl-border); background: #21212b; border-radius: 6px; cursor: grab; font-size: 12px;">\u{1F518} KrnlButton</div>
-            <div class="palette-item" draggable="true" ondragstart="onDragAtom(event, 'KrnlTextInput')" style="padding: 10px; border: var(--krnl-border); background: #21212b; border-radius: 6px; cursor: grab; font-size: 12px;">\u{1F4DD} KrnlTextInput</div>
-            <div class="palette-item" draggable="true" ondragstart="onDragAtom(event, 'KrnlDropdown')" style="padding: 10px; border: var(--krnl-border); background: #21212b; border-radius: 6px; cursor: grab; font-size: 12px;">\u{1F4CB} KrnlDropdown</div>
-            <div class="palette-item" draggable="true" ondragstart="onDragAtom(event, 'KrnlTile')" style="padding: 10px; border: var(--krnl-border); background: #21212b; border-radius: 6px; cursor: grab; font-size: 12px;">\u{1F4CA} KrnlTile</div>
-            <div class="palette-item" draggable="true" ondragstart="onDragAtom(event, 'KrnlDock')" style="padding: 10px; border: var(--krnl-border); background: #21212b; border-radius: 6px; cursor: grab; font-size: 12px;">\u{1F680} KrnlDock</div>
-          </div>
-        </div>
-        <div style="flex: 1; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
-          <div id="ui-drop-target" ondragover="event.preventDefault()" ondrop="onDropAtom(event)" style="flex: 1; border: 2px dashed rgba(212, 175, 55, 0.4); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto;">
-            <div id="ui-empty-hint" style="text-align: center; color: #7f848e; margin: auto;">Drag KrnlUI atoms here to compose live views</div>
-          </div>
-          <div style="height: 220px; display: flex; flex-direction: column;">
-            <div style="font-size: 11px; color: var(--krnl-accent); margin-bottom: 6px;">\u26A1 GENERATED VANJS TYPESCRIPT CODE (MONACO IDE)</div>
-            <div id="ui-monaco-container" class="monaco-card" style="flex: 1; width: 100%;"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 3. Test Console Canvas -->
-    <div id="canvas-test" class="studio-canvas">
-      <div style="display: flex; width: 100%; height: 100%; padding-top: 60px;">
-        <div style="width: 280px; border-right: var(--krnl-border); padding: 16px; background: var(--krnl-panel); overflow-y: auto;">
-          <h3 style="font-size: 12px; color: var(--krnl-accent); margin-bottom: 12px;">SELECT FUNCTION TO TEST</h3>
-          <div id="test-fn-items" style="display: flex; flex-direction: column; gap: 6px;"></div>
-        </div>
-        <div style="flex: 1; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 id="active-test-fn-name" style="font-size: 17px; color: var(--krnl-accent);">Select a function from the left</h2>
-            <button id="btn-run-test" style="background: #d4af37; color: #121212; border: none; padding: 8px 20px; border-radius: 6px; font-weight: bold; cursor: pointer;">\u25B6 Execute in Sandbox</button>
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1;">
-            <div style="display: flex; flex-direction: column;">
-              <label style="font-size: 11px; color: #abb2bf; margin-bottom: 4px;">INPUT (MONACO JSON EDITOR)</label>
-              <div id="test-input-monaco" class="monaco-card" style="flex: 1; width: 100%;"></div>
-            </div>
-            <div style="display: flex; flex-direction: column;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <label style="font-size: 11px; color: #abb2bf;">EXECUTION OUTPUT & BENCHMARK</label>
-                <span id="test-metrics-badge" style="font-size: 11px; color: #98c379; font-weight: bold;"></span>
-              </div>
-              <div id="test-output-monaco" class="monaco-card" style="flex: 1; width: 100%;"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Floating Dock -->
-    <div style="position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; background: rgba(22, 22, 30, 0.88); backdrop-filter: blur(14px); border: var(--krnl-border); padding: 8px 14px; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.7); z-index: 2000;">
-      <button id="dock-btn-arch" onclick="switchCanvas('architecture', '\u{1F3D7}\uFE0F Architecture Canvas')" style="background: rgba(212, 175, 55, 0.25); border: 1px solid #d4af37; color: #d4af37; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">\u{1F3D7}\uFE0F Architecture</button>
-      <button id="dock-btn-ui" onclick="switchCanvas('ui', '\u{1F3A8} UI Composer')" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 12px;">\u{1F3A8} UI Composer</button>
-      <button id="dock-btn-test" onclick="switchCanvas('test', '\u{1F9EA} Test Console')" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 12px;">\u{1F9EA} Test Console</button>
+    <!-- Floating Canvas Toolbar Dock -->
+    <div style="position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; background: rgba(22, 22, 30, 0.92); backdrop-filter: blur(14px); border: var(--krnl-border); padding: 8px 14px; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.8); z-index: 2000;">
+      <button onclick="resetZoomAndFit()" style="background: rgba(212, 175, 55, 0.2); border: 1px solid #d4af37; color: #d4af37; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold;">\u{1F3AF} Fit View</button>
+      <button onclick="apiAlignLayout('hierarchical')" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;">\u{1F4D0} Auto-Align</button>
+      <button onclick="contextAddEntity()" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;">\u{1F4E6} + Entity</button>
+      <button onclick="contextAddFunctionality()" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;">\u26A1 + Functionality</button>
+      <button onclick="contextAddLibrary()" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;">\u{1F4DA} + Library</button>
     </div>
 
     <!-- Canvas Context Menu -->
@@ -1724,34 +1682,32 @@ var StudioServer = class {
 
     <!-- Node Context Menu -->
     <div id="node-context-menu" class="krnl-context-menu">
-      <div class="menu-item" onclick="contextOpenSelectedSource()">\u{1F4C4} Inspect Source Code</div>
-      <div class="menu-item" onclick="contextDuplicateSelected()">\u{1F4CB} Duplicate Node</div>
+      <div class="menu-item" onclick="spawnViewerForContext('code')">\u{1F4C4} Inspect Source Code</div>
+      <div class="menu-item" onclick="spawnViewerForContext('ui')">\u{1F3A8} Open UI & Atom Builder</div>
+      <div class="menu-item" onclick="spawnViewerForContext('test')">\u{1F9EA} Open Test Bench</div>
       <div class="menu-separator"></div>
+      <div class="menu-item" onclick="contextDuplicateSelected()">\u{1F4CB} Duplicate Node</div>
       <div class="menu-item" onclick="contextDisconnectSelected()" style="color: #e5c07b;">\u{1F50C} Disconnect All Wires</div>
       <div class="menu-item" onclick="contextDeleteSelected()" style="color: #e06c75;">\u{1F5D1}\uFE0F Delete Node</div>
     </div>
 
-    <!-- Wire Drop Auto-Spawn Menu -->
-    <div id="autospawn-menu" class="krnl-context-menu">
-      <div style="padding: 6px 12px; font-size: 10px; color: #d4af37; font-weight: bold; text-transform: uppercase;">Spawn & Auto-Connect:</div>
-      <div class="menu-item" onclick="spawnAndConnect('functionality')">\u26A1 New Functionality</div>
-      <div class="menu-item" onclick="spawnAndConnect('entity')">\u{1F4E6} New Entity</div>
-      <div class="menu-item" onclick="spawnAndConnect('library')">\u{1F4DA} New Domain Library</div>
+    <!-- Views Handle Wire-Drop Selector Dialogue -->
+    <div id="view-selector-modal" class="krnl-context-menu" style="border-color: #c678dd; box-shadow: 0 10px 30px rgba(0,0,0,0.9), 0 0 14px var(--krnl-purple-glow);">
+      <div style="padding: 6px 12px; font-size: 11px; color: #c678dd; font-weight: bold; text-transform: uppercase;">Spawn Omni Viewer:</div>
+      <div class="menu-item" onclick="confirmSpawnViewer('ui')">\u{1F3A8} UI View & Atom Builder</div>
+      <div class="menu-item" onclick="confirmSpawnViewer('code')">\u{1F4C4} Monaco Source Code</div>
+      <div class="menu-item" onclick="confirmSpawnViewer('test')">\u{1F9EA} Sandboxed Test Bench</div>
+      <div class="menu-item" onclick="confirmSpawnViewer('state')">\u{1F4BE} Reactive State Inspector</div>
     </div>
   </div>
 
   <script>
-    let activeCanvas = 'architecture';
     let currentGraph = { nodes: [], edges: [] };
     let selectedNodes = new Set();
-    let selectedFunction = null;
-    let droppedAtoms = [];
     let clipboardNodes = [];
-
-    let monacoUiEditor = null;
-    let monacoTestInputEditor = null;
-    let monacoTestOutputEditor = null;
-    let monacoDrawerEditor = null;
+    let spawnedViewers = new Map(); // id -> { id, sourceNodeId, viewType, x, y, w, h, monacoInstance }
+    let viewerCounter = 0;
+    let maxZIndex = 100;
 
     // Viewport Pan & Zoom
     let panX = 40, panY = 70, zoom = 0.85;
@@ -1771,26 +1727,30 @@ var StudioServer = class {
     let dragStartPos = { x: 0, y: 0 };
     let initialNodePositions = new Map();
 
+    // Dragging / Resizing Viewer Window State
+    let isDraggingViewer = false, draggedViewerId = null, viewerDragOffset = { x: 0, y: 0 };
+    let isResizingViewer = false, resizedViewerId = null, resizeStartPos = { x: 0, y: 0, w: 0, h: 0 };
+
     // Wire Dragging State
     let isDraggingWire = false;
-    let wireSource = null;
-    let wireDropLocation = { x: 0, y: 0 };
+    let isDraggingViewsWire = false;
+    let wireSource = null; // { nodeId, socketType: 'out'|'in'|'views', x, y }
+    let wireDropPos = { x: 0, y: 0 };
 
     // Context Menus
     const paneMenu = document.getElementById('pane-context-menu');
     const nodeMenu = document.getElementById('node-context-menu');
-    const spawnMenu = document.getElementById('autospawn-menu');
+    const viewSelectorModal = document.getElementById('view-selector-modal');
     let contextTargetNodeId = null;
-    let contextClickPos = { x: 0, y: 0 };
 
     function hideContextMenus() {
       paneMenu.style.display = 'none';
       nodeMenu.style.display = 'none';
-      spawnMenu.style.display = 'none';
+      viewSelectorModal.style.display = 'none';
     }
     window.addEventListener('click', hideContextMenus);
 
-    // --- Mouse & Pan/Zoom Controls ---
+    // --- Mouse Pan & Box Selection ---
 
     viewport.onmousedown = (e) => {
       hideContextMenus();
@@ -1798,7 +1758,7 @@ var StudioServer = class {
       const clientX = e.clientX - rect.left;
       const clientY = e.clientY - rect.top;
 
-      // 1. Middle Click (button === 1) or Space+LeftClick: Pan canvas
+      // 1. Middle Click / Space+Drag: Pan
       if (e.button === 1 || (e.button === 0 && e.spaceKey)) {
         isPanning = true;
         startPanX = e.clientX - panX;
@@ -1808,7 +1768,7 @@ var StudioServer = class {
         return;
       }
 
-      // 2. Right-Click Drag: Pan fallback for Mac trackpad
+      // 2. Right-Click Drag: Pan fallback
       if (e.button === 2) {
         isRightDragPanning = true;
         rightDragDist = 0;
@@ -1819,10 +1779,10 @@ var StudioServer = class {
         return;
       }
 
-      // 3. Left Click on Canvas Background: Box Marquee Selection or Deselect
+      // 3. Canvas Background: Box Marquee
       if (e.button === 0) {
-        const isNodeOrSocket = e.target.closest('.krnl-node') || e.target.closest('.node-socket') || e.target.closest('.edge-delete-gizmo');
-        if (!isNodeOrSocket) {
+        const isInteractive = e.target.closest('.krnl-node') || e.target.closest('.krnl-viewer-node') || e.target.closest('.node-socket') || e.target.closest('.edge-delete-gizmo');
+        if (!isInteractive) {
           if (!e.shiftKey && !e.metaKey && !e.ctrlKey) {
             selectedNodes.clear();
             updateNodeSelectionStyles();
@@ -1844,15 +1804,13 @@ var StudioServer = class {
       const clientX = e.clientX - rect.left;
       const clientY = e.clientY - rect.top;
 
-      // 1. Middle-Mouse Pan
+      // Pan
       if (isPanning) {
         panX = e.clientX - startPanX;
         panY = e.clientY - startPanY;
         updateTransform();
         return;
       }
-
-      // 2. Right-Drag Pan
       if (isRightDragPanning) {
         const dx = e.clientX - rightDragStartX;
         const dy = e.clientY - rightDragStartY;
@@ -1863,7 +1821,7 @@ var StudioServer = class {
         return;
       }
 
-      // 3. Box Selection
+      // Box Selection
       if (isBoxSelecting) {
         const currentX = (clientX - panX) / zoom;
         const currentY = (clientY - panY) / zoom;
@@ -1877,16 +1835,12 @@ var StudioServer = class {
         selectionBox.style.width = width + 'px';
         selectionBox.style.height = height + 'px';
 
-        // Select all nodes within bounding box
         for (const node of currentGraph.nodes) {
           const el = document.getElementById('node-' + node.id);
           if (el) {
             const nx = parseFloat(el.style.left);
             const ny = parseFloat(el.style.top);
-            const nw = el.offsetWidth;
-            const nh = el.offsetHeight;
-
-            if (nx + nw >= left && nx <= left + width && ny + nh >= top && ny <= top + height) {
+            if (nx + el.offsetWidth >= left && nx <= left + width && ny + el.offsetHeight >= top && ny <= top + height) {
               selectedNodes.add(node.id);
             }
           }
@@ -1895,7 +1849,7 @@ var StudioServer = class {
         return;
       }
 
-      // 4. Dragging Selected Nodes
+      // Drag Nodes
       if (isDraggingNode) {
         nodeDragMoved = true;
         const dx = (clientX - dragStartPos.x) / zoom;
@@ -1906,56 +1860,80 @@ var StudioServer = class {
           if (init) {
             const el = document.getElementById('node-' + nodeId);
             if (el) {
-              const newX = Math.round(init.x + dx);
-              const newY = Math.round(init.y + dy);
-              el.style.left = newX + 'px';
-              el.style.top = newY + 'px';
+              el.style.left = Math.round(init.x + dx) + 'px';
+              el.style.top = Math.round(init.y + dy) + 'px';
             }
           }
         });
-
         renderWiresAndGizmos();
         return;
       }
 
-      // 5. Live Wire Dragging
+      // Drag Viewer Window
+      if (isDraggingViewer && draggedViewerId) {
+        const vEl = document.getElementById('viewer-' + draggedViewerId);
+        if (vEl) {
+          const currentX = (clientX - panX) / zoom;
+          const currentY = (clientY - panY) / zoom;
+          const newX = Math.round(currentX - viewerDragOffset.x);
+          const newY = Math.round(currentY - viewerDragOffset.y);
+          vEl.style.left = newX + 'px';
+          vEl.style.top = newY + 'px';
+          const vData = spawnedViewers.get(draggedViewerId);
+          if (vData) { vData.x = newX; vData.y = newY; }
+          renderWiresAndGizmos();
+        }
+        return;
+      }
+
+      // Resize Viewer Window
+      if (isResizingViewer && resizedViewerId) {
+        const vEl = document.getElementById('viewer-' + resizedViewerId);
+        if (vEl) {
+          const dx = (clientX - resizeStartPos.startX) / zoom;
+          const dy = (clientY - resizeStartPos.startY) / zoom;
+          const newW = Math.max(380, Math.round(resizeStartPos.w + dx));
+          const newH = Math.max(260, Math.round(resizeStartPos.h + dy));
+          vEl.style.width = newW + 'px';
+          vEl.style.height = newH + 'px';
+          const vData = spawnedViewers.get(resizedViewerId);
+          if (vData) {
+            vData.w = newW; vData.h = newH;
+            if (vData.monacoInstance) vData.monacoInstance.layout();
+          }
+          renderWiresAndGizmos();
+        }
+        return;
+      }
+
+      // Live Wire Dragging
       if (isDraggingWire && wireSource) {
         const currentX = (clientX - panX) / zoom;
         const currentY = (clientY - panY) / zoom;
-        drawLiveWire(wireSource.x, wireSource.y, currentX, currentY);
+        drawLiveWire(wireSource.x, wireSource.y, currentX, currentY, isDraggingViewsWire ? '#c678dd' : '#61afef');
       }
     });
 
     window.addEventListener('mouseup', (e) => {
-      if (isPanning) {
-        isPanning = false;
-        viewport.style.cursor = 'default';
-      }
-
-      if (isRightDragPanning) {
-        isRightDragPanning = false;
-      }
-
-      if (isBoxSelecting) {
-        isBoxSelecting = false;
-        selectionBox.style.display = 'none';
-      }
+      if (isPanning) { isPanning = false; viewport.style.cursor = 'default'; }
+      if (isRightDragPanning) { isRightDragPanning = false; }
+      if (isBoxSelecting) { isBoxSelecting = false; selectionBox.style.display = 'none'; }
 
       if (isDraggingNode) {
         isDraggingNode = false;
         document.querySelectorAll('.krnl-node').forEach(el => el.classList.remove('dragging'));
-
         if (nodeDragMoved) {
           const positions = {};
           selectedNodes.forEach(nodeId => {
             const el = document.getElementById('node-' + nodeId);
-            if (el) {
-              positions[nodeId] = { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
-            }
+            if (el) positions[nodeId] = { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
           });
           apiMoveMultipleNodes(positions);
         }
       }
+
+      if (isDraggingViewer) { isDraggingViewer = false; draggedViewerId = null; }
+      if (isResizingViewer) { isResizingViewer = false; resizedViewerId = null; }
 
       if (isDraggingWire) {
         isDraggingWire = false;
@@ -1967,45 +1945,43 @@ var StudioServer = class {
         const dropX = Math.round((clientX - panX) / zoom);
         const dropY = Math.round((clientY - panY) / zoom);
 
-        // Check if dropped on another socket
+        // If Views Wire dropped on empty space -> Show View Selector Modal
+        if (isDraggingViewsWire && wireSource) {
+          isDraggingViewsWire = false;
+          wireDropPos = { x: dropX, y: dropY };
+          viewSelectorModal.style.display = 'block';
+          viewSelectorModal.style.left = e.clientX + 'px';
+          viewSelectorModal.style.top = e.clientY + 'px';
+          return;
+        }
+
+        // Standard flow connection drop
         const elemUnderCursor = document.elementFromPoint(e.clientX, e.clientY);
         if (elemUnderCursor && elemUnderCursor.classList.contains('node-socket')) {
           const targetNodeId = elemUnderCursor.dataset.nodeId;
           const targetSocketType = elemUnderCursor.dataset.socketType;
-
           if (targetNodeId && targetNodeId !== wireSource.nodeId && wireSource.socketType !== targetSocketType) {
             const src = wireSource.socketType === 'out' ? wireSource.nodeId : targetNodeId;
             const tgt = wireSource.socketType === 'out' ? targetNodeId : wireSource.nodeId;
             apiConnectNodes(src, tgt);
-            return;
           }
         }
-
-        // Dropped on empty canvas space -> Open Auto-Spawn Menu
-        wireDropLocation = { x: dropX, y: dropY };
-        spawnMenu.style.display = 'block';
-        spawnMenu.style.left = e.clientX + 'px';
-        spawnMenu.style.top = e.clientY + 'px';
       }
     });
 
-    // Zoom on Scroll Centered at Mouse Cursor
+    // Zoom on Scroll
     viewport.addEventListener('wheel', (e) => {
       e.preventDefault();
       const rect = viewport.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
-
       const graphX = (mouseX - panX) / zoom;
       const graphY = (mouseY - panY) / zoom;
-
       const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
       const newZoom = Math.min(Math.max(0.25, zoom * zoomFactor), 2.5);
-
       panX = mouseX - graphX * newZoom;
       panY = mouseY - graphY * newZoom;
       zoom = newZoom;
-
       updateTransform();
     }, { passive: false });
 
@@ -2021,17 +1997,10 @@ var StudioServer = class {
     }
 
     // --- Context Menu Handlers ---
-
     viewport.oncontextmenu = (e) => {
       e.preventDefault();
       if (rightDragDist > 8) return;
       hideContextMenus();
-
-      const rect = viewport.getBoundingClientRect();
-      contextClickPos = {
-        x: Math.round((e.clientX - rect.left - panX) / zoom),
-        y: Math.round((e.clientY - rect.top - panY) / zoom)
-      };
 
       const nodeEl = e.target.closest('.krnl-node');
       if (nodeEl) {
@@ -2052,53 +2021,26 @@ var StudioServer = class {
     };
 
     // --- Hotkeys Matrix ---
-
     window.addEventListener('keydown', (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.closest('.monaco-editor')) {
-        return;
-      }
-
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.closest('.monaco-editor')) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         selectedNodes.forEach(nodeId => apiDeleteNode(nodeId));
         selectedNodes.clear();
       }
-
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         currentGraph.nodes.forEach(n => selectedNodes.add(n.id));
         updateNodeSelectionStyles();
       }
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
-        e.preventDefault();
-        clipboardNodes = currentGraph.nodes.filter(n => selectedNodes.has(n.id));
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-        e.preventDefault();
-        clipboardNodes.forEach((node, idx) => {
-          const newName = node.name + 'Copy';
-          if (node.type === 'entity') apiCreateEntity(newName);
-          else if (node.type === 'functionality') apiCreateFunctionality(node.parentEntity || 'App', newName);
-          else if (node.type === 'library') apiCreateLibrary(newName);
-        });
-      }
-
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) apiRedo();
         else apiUndo();
       }
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault();
-        apiRedo();
-      }
     });
 
     // --- Rich Differentiated Node Rendering Engine ---
-
     function renderGraphNodes(graph) {
       const layer = document.getElementById('nodes-layer');
       layer.innerHTML = '';
@@ -2130,8 +2072,12 @@ var StudioServer = class {
             y = 60 + idx * 180;
           }
         }
-
         createNodeElement(node, x, y, layer);
+      });
+
+      // Re-render spawned viewers
+      spawnedViewers.forEach(viewer => {
+        renderViewerDomElement(viewer, layer);
       });
 
       renderWiresAndGizmos();
@@ -2158,7 +2104,7 @@ var StudioServer = class {
           <div class="node-header-entity">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 14px;">\u{1F3DB}\uFE0F</span>
-              <span style="font-size: 11px; font-weight: bold; color: #d4af37; text-transform: uppercase; letter-spacing: 0.5px;">SYSTEM ENTITY</span>
+              <span style="font-size: 11px; font-weight: bold; color: #d4af37; text-transform: uppercase;">SYSTEM ENTITY</span>
             </div>
             \${parentBadge}
           </div>
@@ -2166,7 +2112,6 @@ var StudioServer = class {
             <div style="font-size: 16px; font-weight: bold; color: #f5ede4;">\${node.name}</div>
             <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
               <span style="font-size: 10px; background: #21212b; color: #abb2bf; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">\u26A1 Magnetic Auto-Boot</span>
-              <span style="font-size: 10px; color: #7f848e; font-family: monospace;">\${node.filePath.split('/').slice(-1)[0]}</span>
             </div>
           </div>
         \`;
@@ -2179,7 +2124,7 @@ var StudioServer = class {
           <div class="node-header-functionality">
             <div style="display: flex; align-items: center; gap: 6px;">
               <span style="font-size: 13px;">\u26A1</span>
-              <span style="font-size: 10px; font-weight: bold; color: #61afef; text-transform: uppercase; letter-spacing: 0.5px;">QUAD-UNIT FUNCTIONALITY</span>
+              <span style="font-size: 10px; font-weight: bold; color: #61afef; text-transform: uppercase;">QUAD-UNIT</span>
             </div>
             <span style="font-size: 10px; background: rgba(97, 175, 239, 0.2); color: #61afef; padding: 2px 6px; border-radius: 4px;">\${node.parentEntity}</span>
           </div>
@@ -2189,13 +2134,13 @@ var StudioServer = class {
           </div>
           <div class="quad-layers-grid">
             <div class="quad-pill" style="background: rgba(97, 175, 239, 0.15); color: #61afef; border: 1px solid rgba(97, 175, 239, 0.3);">
-              <span>\u{1F4DD}</span><span>Atom Contract</span>
+              <span>\u{1F4DD}</span><span>Atom</span>
             </div>
             <div class="quad-pill" style="background: rgba(212, 175, 55, 0.15); color: #d4af37; border: 1px solid rgba(212, 175, 55, 0.3);">
-              <span>\u2699\uFE0F</span><span>Layer 2 Logic</span>
+              <span>\u2699\uFE0F</span><span>Logic</span>
             </div>
             <div class="quad-pill" style="background: rgba(152, 195, 121, 0.15); color: #98c379; border: 1px solid rgba(152, 195, 121, 0.3);">
-              <span>\u{1F4BE}</span><span>State Schema</span>
+              <span>\u{1F4BE}</span><span>State</span>
             </div>
             <div class="quad-pill" style="background: rgba(198, 120, 221, 0.15); color: #c678dd; border: 1px solid rgba(198, 120, 221, 0.3);">
               <span>\u{1F6E0}\uFE0F</span><span>\${helperCount} Helpers</span>
@@ -2210,14 +2155,14 @@ var StudioServer = class {
           <div class="node-header-library">
             <div style="display: flex; align-items: center; gap: 6px;">
               <span style="font-size: 13px;">\u{1F4DA}</span>
-              <span style="font-size: 10px; font-weight: bold; color: #e5c07b; text-transform: uppercase; letter-spacing: 0.5px;">CONCEPT LIBRARY</span>
+              <span style="font-size: 10px; font-weight: bold; color: #e5c07b; text-transform: uppercase;">CONCEPT LIBRARY</span>
             </div>
-            <span style="font-size: 10px; background: rgba(229, 192, 123, 0.2); color: #e5c07b; padding: 2px 6px; border-radius: 4px;">Layer 0 Pure Math</span>
+            <span style="font-size: 10px; background: rgba(229, 192, 123, 0.2); color: #e5c07b; padding: 2px 6px; border-radius: 4px;">Layer 0 Pure</span>
           </div>
           <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;">
             <div style="font-size: 15px; font-weight: bold; color: #f5ede4;">\${node.name}</div>
             <div style="font-size: 10px; color: #98c379; display: flex; align-items: center; gap: 4px; margin-top: 2px;">
-              <span>\u{1F331}</span><span>Zero I/O \u2022 100% Deterministic</span>
+              <span>\u{1F331}</span><span>Zero I/O \u2022 Deterministic</span>
             </div>
           </div>
         \`;
@@ -2229,78 +2174,59 @@ var StudioServer = class {
           <div class="node-header-subapp">
             <div style="display: flex; align-items: center; gap: 6px;">
               <span style="font-size: 13px;">\u{1F310}</span>
-              <span style="font-size: 10px; font-weight: bold; color: #56b6c2; text-transform: uppercase; letter-spacing: 0.5px;">SUB-APP CONTAINER</span>
+              <span style="font-size: 10px; font-weight: bold; color: #56b6c2; text-transform: uppercase;">SUB-APP CONTAINER</span>
             </div>
-            <span style="font-size: 10px; background: rgba(86, 182, 194, 0.2); color: #56b6c2; padding: 2px 6px; border-radius: 4px;">Fullstack SPA</span>
+            <span style="font-size: 10px; background: rgba(86, 182, 194, 0.2); color: #56b6c2; padding: 2px 6px; border-radius: 4px;">SPA</span>
           </div>
           <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;">
             <div style="font-size: 15px; font-weight: bold; color: #f5ede4;">\${node.name}</div>
-            <div style="font-size: 10px; color: #56b6c2; display: flex; align-items: center; gap: 4px; margin-top: 2px;">
-              <span>\u{1F4E6}</span><span>Self-Contained UI & API Bundle</span>
-            </div>
+            <div style="font-size: 10px; color: #56b6c2; margin-top: 2px;">Self-Contained UI & API Bundle</div>
           </div>
         \`;
       }
 
+      // Sockets: In/Out and DEDICATED 'VIEWS' SOCKET
       innerHtml += \`
         <div class="node-socket socket-out" data-node-id="\${node.id}" data-socket-type="out"></div>
         <div class="node-socket socket-in" data-node-id="\${node.id}" data-socket-type="in"></div>
+        <div class="socket-views" data-node-id="\${node.id}" data-socket-type="views" title="Drag wire from Views handle to spawn UI/Code Viewer">\u{1F441}\uFE0F Views</div>
       \`;
 
       el.innerHTML = innerHtml;
 
-      // Node Drag Initiation
+      // Node Dragging
       el.onmousedown = (e) => {
-        if (e.target.classList.contains('node-socket')) return;
+        if (e.target.classList.contains('node-socket') || e.target.classList.contains('socket-views')) return;
         if (e.button === 0) {
           e.stopPropagation();
           nodeDragMoved = false;
-
           if (!selectedNodes.has(node.id)) {
             if (!e.shiftKey && !e.metaKey) selectedNodes.clear();
             selectedNodes.add(node.id);
             updateNodeSelectionStyles();
           }
-
           isDraggingNode = true;
           draggedNodeId = node.id;
           el.classList.add('dragging');
-
           const rect = viewport.getBoundingClientRect();
           dragStartPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-
           initialNodePositions.clear();
           selectedNodes.forEach(nid => {
             const nEl = document.getElementById('node-' + nid);
-            if (nEl) {
-              initialNodePositions.set(nid, { x: parseFloat(nEl.style.left), y: parseFloat(nEl.style.top) });
-            }
+            if (nEl) initialNodePositions.set(nid, { x: parseFloat(nEl.style.left), y: parseFloat(nEl.style.top) });
           });
         }
       };
 
-      // Click to open source drawer (only if not dragged)
-      el.onclick = (e) => {
-        if (e.target.classList.contains('node-socket')) return;
-        if (!nodeDragMoved && node.filePath && window.studioWs) {
-          window.studioWs.send(JSON.stringify({
-            jsonrpc: '2.0',
-            id: 'read-' + Date.now(),
-            method: 'file.read',
-            params: { filePath: node.filePath }
-          }));
-        }
-      };
-
-      // Socket Port Wire Drag Initiation
+      // In/Out Wire Dragging
       const outSocket = el.querySelector('.socket-out');
       const inSocket = el.querySelector('.socket-in');
-
       [outSocket, inSocket].forEach(sock => {
         if (sock) {
           sock.onmousedown = (e) => {
             e.stopPropagation();
             isDraggingWire = true;
+            isDraggingViewsWire = false;
             const sockRect = sock.getBoundingClientRect();
             const vpRect = viewport.getBoundingClientRect();
             wireSource = {
@@ -2313,7 +2239,293 @@ var StudioServer = class {
         }
       });
 
+      // 'VIEWS' WIRE DRAGGING
+      const viewsSocket = el.querySelector('.socket-views');
+      if (viewsSocket) {
+        viewsSocket.onmousedown = (e) => {
+          e.stopPropagation();
+          isDraggingWire = true;
+          isDraggingViewsWire = true;
+          const sockRect = viewsSocket.getBoundingClientRect();
+          const vpRect = viewport.getBoundingClientRect();
+          wireSource = {
+            nodeId: node.id,
+            socketType: 'views',
+            x: (sockRect.left + sockRect.width / 2 - vpRect.left - panX) / zoom,
+            y: (sockRect.top + sockRect.height / 2 - vpRect.top - panY) / zoom
+          };
+        };
+      }
+
       layer.appendChild(el);
+    }
+
+    // --- OMNI VIEWER NODE SPAWNING & WINDOW MANAGEMENT ---
+
+    function confirmSpawnViewer(viewType) {
+      hideContextMenus();
+      if (!wireSource?.nodeId) return;
+      spawnViewerNode(wireSource.nodeId, viewType, wireDropPos.x, wireDropPos.y);
+    }
+
+    function spawnViewerForContext(viewType) {
+      hideContextMenus();
+      if (!contextTargetNodeId) return;
+      const targetNode = currentGraph.nodes.find(n => n.id === contextTargetNodeId);
+      const el = document.getElementById('node-' + contextTargetNodeId);
+      const x = el ? parseFloat(el.style.left) + 380 : 500;
+      const y = el ? parseFloat(el.style.top) : 200;
+      spawnViewerNode(contextTargetNodeId, viewType, x, y);
+    }
+
+    function spawnViewerNode(sourceNodeId, viewType, x, y) {
+      const sourceNode = currentGraph.nodes.find(n => n.id === sourceNodeId);
+      if (!sourceNode) return;
+
+      const viewerId = 'viewer_' + (++viewerCounter);
+      const viewerData = {
+        id: viewerId,
+        sourceNodeId,
+        viewType,
+        sourceNode,
+        x: x || 400,
+        y: y || 200,
+        w: viewType === 'ui' ? 620 : 520,
+        h: viewType === 'ui' ? 440 : 380,
+        monacoInstance: null
+      };
+
+      spawnedViewers.set(viewerId, viewerData);
+      renderViewerDomElement(viewerData, document.getElementById('nodes-layer'));
+      renderWiresAndGizmos();
+    }
+
+    function closeViewerNode(viewerId) {
+      const vEl = document.getElementById('viewer-' + viewerId);
+      if (vEl) vEl.remove();
+      spawnedViewers.delete(viewerId);
+      renderWiresAndGizmos();
+    }
+
+    function renderViewerDomElement(viewer, layer) {
+      let vEl = document.getElementById('viewer-' + viewer.id);
+      if (!vEl) {
+        vEl = document.createElement('div');
+        vEl.id = 'viewer-' + viewer.id;
+        vEl.className = 'krnl-viewer-node';
+        layer.appendChild(vEl);
+      }
+
+      vEl.style.left = viewer.x + 'px';
+      vEl.style.top = viewer.y + 'px';
+      vEl.style.width = viewer.w + 'px';
+      vEl.style.height = viewer.h + 'px';
+
+      const nodeName = viewer.sourceNode.name;
+      const viewTitle = viewer.viewType === 'ui' ? '\u{1F3A8} UI View & Atom Builder'
+        : viewer.viewType === 'code' ? '\u{1F4C4} Monaco Source Code'
+        : viewer.viewType === 'test' ? '\u{1F9EA} Sandboxed Test Bench'
+        : '\u{1F4BE} Reactive State Inspector';
+
+      vEl.innerHTML = \`
+        <div class="viewer-titlebar" id="vtb-\${viewer.id}">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 13px; font-weight: bold; color: #c678dd;">\${viewTitle}</span>
+            <span style="font-size: 11px; background: rgba(198, 120, 221, 0.2); color: #c678dd; padding: 2px 6px; border-radius: 4px;">\${nodeName}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button onclick="closeViewerNode('\${viewer.id}')" style="background: transparent; border: none; color: #abb2bf; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px;">\u2715</button>
+          </div>
+        </div>
+        <div class="viewer-body" id="vb-\${viewer.id}"></div>
+        <div class="viewer-resize-handle" id="vrh-\${viewer.id}"></div>
+      \`;
+
+      // Raise Z-Index on Click
+      vEl.onmousedown = () => {
+        vEl.style.zIndex = ++maxZIndex;
+      };
+
+      // Window Header Dragging
+      const titlebar = vEl.querySelector('#vtb-' + viewer.id);
+      titlebar.onmousedown = (e) => {
+        if (e.target.tagName === 'BUTTON') return;
+        e.stopPropagation();
+        isDraggingViewer = true;
+        draggedViewerId = viewer.id;
+        const rect = viewport.getBoundingClientRect();
+        viewerDragOffset = {
+          x: (e.clientX - rect.left - panX) / zoom - viewer.x,
+          y: (e.clientY - rect.top - panY) / zoom - viewer.y
+        };
+      };
+
+      // Window Corner Resizing
+      const resizeHandle = vEl.querySelector('#vrh-' + viewer.id);
+      resizeHandle.onmousedown = (e) => {
+        e.stopPropagation();
+        isResizingViewer = true;
+        resizedViewerId = viewer.id;
+        const rect = viewport.getBoundingClientRect();
+        resizeStartPos = {
+          startX: e.clientX - rect.left,
+          startY: e.clientY - rect.top,
+          w: viewer.w,
+          h: viewer.h
+        };
+      };
+
+      // Populate Viewer Content Body
+      const body = vEl.querySelector('#vb-' + viewer.id);
+      populateViewerContent(viewer, body);
+    }
+
+    function populateViewerContent(viewer, containerEl) {
+      containerEl.innerHTML = '';
+
+      // A. UI VIEW & ATOM BUILDER
+      if (viewer.viewType === 'ui') {
+        containerEl.innerHTML = \`
+          <div style="display: flex; flex: 1; overflow: hidden;">
+            <div style="width: 140px; border-right: 1px solid rgba(198, 120, 221, 0.25); padding: 10px; background: rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 10px; color: #c678dd; font-weight: bold;">KRNL ATOMS</span>
+              <div class="palette-item" draggable="true" ondragstart="event.dataTransfer.setData('text', 'KrnlButton')" style="padding: 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: grab; font-size: 11px;">\u{1F518} Button</div>
+              <div class="palette-item" draggable="true" ondragstart="event.dataTransfer.setData('text', 'KrnlTextInput')" style="padding: 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: grab; font-size: 11px;">\u{1F4DD} Input</div>
+              <div class="palette-item" draggable="true" ondragstart="event.dataTransfer.setData('text', 'KrnlTile')" style="padding: 6px; border: var(--krnl-border); background: #21212b; border-radius: 4px; cursor: grab; font-size: 11px;">\u{1F4CA} Tile</div>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; padding: 12px; gap: 10px; overflow: hidden;">
+              <div id="drop-target-\${viewer.id}" ondragover="event.preventDefault()" ondrop="handleViewerAtomDrop(event, '\${viewer.id}')" style="flex: 1; border: 1px dashed rgba(198, 120, 221, 0.4); border-radius: 8px; padding: 12px; background: rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 6px; overflow-y: auto;">
+                <div style="margin: auto; font-size: 11px; color: #7f848e;">Drag KrnlUI atoms here to compose view</div>
+              </div>
+              <div style="height: 120px; border: 1px solid rgba(198, 120, 221, 0.2); border-radius: 6px; overflow: hidden;" id="monaco-ui-\${viewer.id}"></div>
+            </div>
+          </div>
+        \`;
+
+        setTimeout(() => {
+          if (window.monaco) {
+            viewer.monacoInstance = monaco.editor.create(document.getElementById('monaco-ui-' + viewer.id), {
+              value: \`// Generated VanJS UI for \${viewer.sourceNode.name}\\nimport van from 'vanjs-core';\\nimport { KrnlTile } from '@dinilmusick/krnl-ui';\\n\\nexport function \${viewer.sourceNode.name}View() {\\n  return KrnlTile({ title: '\${viewer.sourceNode.name}' });\\n}\`,
+              language: 'typescript',
+              theme: 'krnl-dark',
+              readOnly: true,
+              fontSize: 11,
+              minimap: { enabled: false }
+            });
+          }
+        }, 50);
+      }
+
+      // B. MONACO SOURCE CODE
+      else if (viewer.viewType === 'code') {
+        const monacoDiv = document.createElement('div');
+        monacoDiv.style.width = '100%';
+        monacoDiv.style.height = '100%';
+        containerEl.appendChild(monacoDiv);
+
+        setTimeout(async () => {
+          let codeContent = '// Loading code from disk...';
+          try {
+            const res = await fetch('/api/v1/file/read', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filePath: viewer.sourceNode.filePath })
+            });
+            const data = await res.json();
+            if (data.payload?.content) codeContent = data.payload.content;
+          } catch (e) {}
+
+          if (window.monaco) {
+            viewer.monacoInstance = monaco.editor.create(monacoDiv, {
+              value: codeContent,
+              language: 'typescript',
+              theme: 'krnl-dark',
+              automaticLayout: true,
+              fontSize: 12,
+              minimap: { enabled: true }
+            });
+          }
+        }, 50);
+      }
+
+      // C. SANDBOXED TEST BENCH
+      else if (viewer.viewType === 'test') {
+        containerEl.innerHTML = \`
+          <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px; height: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 11px; color: #abb2bf;">INPUT PAYLOAD:</span>
+              <button onclick="executeViewerTest('\${viewer.id}')" style="background: #c678dd; color: #121212; border: none; padding: 4px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 11px;">\u25B6 Execute in Sandbox</button>
+            </div>
+            <div id="test-in-\${viewer.id}" style="height: 100px; border: 1px solid rgba(198, 120, 221, 0.3); border-radius: 6px;"></div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+              <span style="font-size: 11px; color: #abb2bf;">OUTPUT & BENCHMARK:</span>
+              <span id="test-badge-\${viewer.id}" style="font-size: 10px; color: #98c379; font-weight: bold;"></span>
+            </div>
+            <div id="test-out-\${viewer.id}" style="flex: 1; border: 1px solid rgba(198, 120, 221, 0.3); border-radius: 6px;"></div>
+          </div>
+        \`;
+
+        setTimeout(() => {
+          if (window.monaco) {
+            viewer.testInputEditor = monaco.editor.create(document.getElementById('test-in-' + viewer.id), {
+              value: '{\\n  "symbol": "BTC/USDT",\\n  "limitPrice": 64500\\n}',
+              language: 'json', theme: 'krnl-dark', fontSize: 11, minimap: { enabled: false }
+            });
+            viewer.testOutputEditor = monaco.editor.create(document.getElementById('test-out-' + viewer.id), {
+              value: '// Awaiting execution...',
+              language: 'json', theme: 'krnl-dark', readOnly: true, fontSize: 11, minimap: { enabled: false }
+            });
+          }
+        }, 50);
+      }
+
+      // D. STATE INSPECTOR
+      else if (viewer.viewType === 'state') {
+        const monacoDiv = document.createElement('div');
+        monacoDiv.style.width = '100%';
+        monacoDiv.style.height = '100%';
+        containerEl.appendChild(monacoDiv);
+
+        setTimeout(() => {
+          if (window.monaco) {
+            viewer.monacoInstance = monaco.editor.create(monacoDiv, {
+              value: JSON.stringify({ active: true, invocationCount: 14, lastUpdated: Date.now() }, null, 2),
+              language: 'json', theme: 'krnl-dark', fontSize: 12, minimap: { enabled: false }
+            });
+          }
+        }, 50);
+      }
+    }
+
+    function handleViewerAtomDrop(e, viewerId) {
+      e.preventDefault();
+      const atom = e.dataTransfer.getData('text');
+      const target = document.getElementById('drop-target-' + viewerId);
+      if (atom && target) {
+        const item = document.createElement('div');
+        item.style.cssText = 'padding: 6px 10px; background: #21212b; border: 1px solid #c678dd; border-radius: 4px; font-size: 11px; display: flex; justify-content: space-between;';
+        item.innerHTML = \`<span>\${atom}</span><span style="color: #98c379;">Bound</span>\`;
+        target.appendChild(item);
+      }
+    }
+
+    async function executeViewerTest(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.testInputEditor) return;
+      let inputVal = {};
+      try { inputVal = JSON.parse(viewer.testInputEditor.getValue()); } catch (e) { alert('Invalid JSON: ' + e.message); return; }
+
+      const res = await fetch('/api/v1/test/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath: viewer.sourceNode.filePath, input: inputVal })
+      });
+      const data = await res.json();
+      if (data.payload) {
+        const badge = document.getElementById('test-badge-' + viewerId);
+        if (badge) badge.textContent = \`[\u23F1\uFE0F \${data.payload.durationMs}ms | \${data.payload.success ? 'PASSED' : 'FAILED'}]\`;
+        if (viewer.testOutputEditor) viewer.testOutputEditor.setValue(JSON.stringify(data.payload.output || data.payload.error, null, 2));
+      }
     }
 
     function updateNodeSelectionStyles() {
@@ -2329,6 +2541,7 @@ var StudioServer = class {
       svg.innerHTML = '';
       gizmosLayer.innerHTML = '';
 
+      // Standard Flow Connections
       for (const edge of currentGraph.edges || []) {
         const sEl = document.getElementById('node-' + edge.source);
         const tEl = document.getElementById('node-' + edge.target);
@@ -2349,39 +2562,70 @@ var StudioServer = class {
           path.setAttribute('opacity', '0.75');
           svg.appendChild(path);
 
-          // Render Centered Delete Gizmo on wire midpoint
           if (edge.deletable !== false) {
             const midX = (sx + tx) / 2;
             const midY = (sy + ty) / 2;
-
             const gizmo = document.createElement('div');
             gizmo.className = 'edge-delete-gizmo';
             gizmo.style.left = midX + 'px';
             gizmo.style.top = midY + 'px';
             gizmo.innerHTML = '\u2715';
             gizmo.title = 'Delete Connection';
-            gizmo.onclick = (e) => {
-              e.stopPropagation();
-              apiDeleteEdge(edge.id);
-            };
+            gizmo.onclick = (e) => { e.stopPropagation(); apiDeleteEdge(edge.id); };
             gizmosLayer.appendChild(gizmo);
           }
         }
       }
+
+      // TETHERING 'VIEWS' WIRES
+      spawnedViewers.forEach(viewer => {
+        const sEl = document.getElementById('node-' + viewer.sourceNodeId);
+        const vEl = document.getElementById('viewer-' + viewer.id);
+        if (sEl && vEl) {
+          const viewsSock = sEl.querySelector('.socket-views');
+          const sx = parseFloat(sEl.style.left) + (viewsSock ? sEl.offsetWidth - 20 : sEl.offsetWidth);
+          const sy = parseFloat(sEl.style.top) + sEl.offsetHeight;
+          const tx = parseFloat(vEl.style.left);
+          const ty = parseFloat(vEl.style.top) + 20;
+
+          const dy = Math.abs(ty - sy) * 0.5;
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', \`M \${sx} \${sy} C \${sx} \${sy + dy}, \${tx - 40} \${ty}, \${tx} \${ty}\`);
+          path.setAttribute('stroke', '#c678dd');
+          path.setAttribute('stroke-width', '2.5');
+          path.setAttribute('stroke-dasharray', '5,5');
+          path.setAttribute('fill', 'none');
+          path.setAttribute('opacity', '0.85');
+          svg.appendChild(path);
+
+          const midX = (sx + tx) / 2;
+          const midY = (sy + ty) / 2;
+          const gizmo = document.createElement('div');
+          gizmo.className = 'edge-delete-gizmo';
+          gizmo.style.left = midX + 'px';
+          gizmo.style.top = midY + 'px';
+          gizmo.style.borderColor = '#c678dd';
+          gizmo.style.color = '#c678dd';
+          gizmo.innerHTML = '\u2715';
+          gizmo.title = 'Close Viewer';
+          gizmo.onclick = (e) => { e.stopPropagation(); closeViewerNode(viewer.id); };
+          gizmosLayer.appendChild(gizmo);
+        }
+      });
     }
 
-    function drawLiveWire(sx, sy, tx, ty) {
+    function drawLiveWire(sx, sy, tx, ty, color = '#61afef') {
       let livePath = document.getElementById('live-drag-wire');
       const svg = document.getElementById('svg-wires');
       if (!livePath) {
         livePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         livePath.id = 'live-drag-wire';
-        livePath.setAttribute('stroke', '#61afef');
         livePath.setAttribute('stroke-width', '3');
         livePath.setAttribute('stroke-dasharray', '6,6');
         livePath.setAttribute('fill', 'none');
         svg.appendChild(livePath);
       }
+      livePath.setAttribute('stroke', color);
       const dx = Math.abs(tx - sx) * 0.5;
       livePath.setAttribute('d', \`M \${sx} \${sy} C \${sx + dx} \${sy}, \${tx - dx} \${ty}, \${tx} \${ty}\`);
     }
@@ -2391,347 +2635,48 @@ var StudioServer = class {
       if (livePath) livePath.remove();
     }
 
-    function spawnAndConnect(nodeType) {
-      hideContextMenus();
-      const defaultName = prompt(\`Enter \${nodeType} name:\`);
-      if (!defaultName) return;
-
-      if (nodeType === 'entity') {
-        apiCreateEntity(defaultName, () => {
-          if (wireSource) apiConnectNodes(wireSource.nodeId, 'entity:' + defaultName);
-        });
-      } else if (nodeType === 'functionality') {
-        const parentEntity = wireSource?.nodeId?.replace(/^entity:/, '') || 'App';
-        apiCreateFunctionality(parentEntity, defaultName, () => {
-          if (wireSource) apiConnectNodes(wireSource.nodeId, \`functionality:\${parentEntity}:\${defaultName}\`);
-        });
-      } else if (nodeType === 'library') {
-        apiCreateLibrary(defaultName, () => {
-          if (wireSource) apiConnectNodes(wireSource.nodeId, 'library:' + defaultName + 'Concepts');
-        });
-      }
-    }
-
-    // --- Programmatic Client API Calls ---
-
+    // --- Programmatic API Handlers ---
     function apiMoveMultipleNodes(positions) {
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'move-' + Date.now(),
-          method: 'graph.moveMultipleNodes',
-          params: { positions }
-        }));
-      }
+      if (window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'move-' + Date.now(), method: 'graph.moveMultipleNodes', params: { positions } }));
     }
-
     function apiConnectNodes(source, target) {
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'conn-' + Date.now(),
-          method: 'graph.connectNodes',
-          params: { source, target, type: 'contains' }
-        }));
-      }
+      if (window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'conn-' + Date.now(), method: 'graph.connectNodes', params: { source, target, type: 'contains' } }));
     }
-
     function apiDeleteEdge(edgeId) {
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'del-edge-' + Date.now(),
-          method: 'graph.deleteEdge',
-          params: { edgeId }
-        }));
-      }
+      if (window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'del-edge-' + Date.now(), method: 'graph.deleteEdge', params: { edgeId } }));
     }
-
     function apiDeleteNode(nodeId) {
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'del-node-' + Date.now(),
-          method: 'graph.deleteNode',
-          params: { nodeId }
-        }));
-      }
+      if (window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'del-node-' + Date.now(), method: 'graph.deleteNode', params: { nodeId } }));
     }
-
     function apiAlignLayout(algorithm = 'hierarchical') {
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'align-' + Date.now(),
-          method: 'graph.alignLayout',
-          params: { algorithm }
-        }));
-      }
+      if (window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'align-' + Date.now(), method: 'graph.alignLayout', params: { algorithm } }));
     }
-
     function apiUndo() {
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'undo-' + Date.now(),
-          method: 'graph.undo',
-          params: {}
-        }));
-      }
+      if (window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'undo-' + Date.now(), method: 'graph.undo', params: {} }));
     }
-
     function apiRedo() {
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'redo-' + Date.now(),
-          method: 'graph.redo',
-          params: {}
-        }));
-      }
-    }
-
-    function apiCreateEntity(name, cb) {
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'create-ent-' + Date.now(),
-          method: 'entity.create',
-          params: { name }
-        }));
-        if (cb) setTimeout(cb, 300);
-      }
-    }
-
-    function apiCreateFunctionality(entityName, name, cb) {
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'create-fn-' + Date.now(),
-          method: 'functionality.create',
-          params: { entityName, name }
-        }));
-        if (cb) setTimeout(cb, 300);
-      }
-    }
-
-    function apiCreateLibrary(name, cb) {
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'create-lib-' + Date.now(),
-          method: 'library.create',
-          params: { name }
-        }));
-        if (cb) setTimeout(cb, 300);
-      }
+      if (window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'redo-' + Date.now(), method: 'graph.redo', params: {} }));
     }
 
     function contextAddEntity() {
       const name = prompt('Enter Entity Name:');
-      if (name) apiCreateEntity(name);
+      if (name && window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'c-ent-' + Date.now(), method: 'entity.create', params: { name } }));
     }
-
     function contextAddFunctionality() {
       const entityName = prompt('Enter Parent Entity Name:');
       const name = prompt('Enter Functionality Name:');
-      if (entityName && name) apiCreateFunctionality(entityName, name);
+      if (entityName && name && window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'c-fn-' + Date.now(), method: 'functionality.create', params: { entityName, name } }));
     }
-
     function contextAddLibrary() {
-      const name = prompt('Enter Domain Concept Library Name:');
-      if (name) apiCreateLibrary(name);
-    }
-
-    function contextOpenSelectedSource() {
-      if (contextTargetNodeId) {
-        const node = currentGraph.nodes.find(n => n.id === contextTargetNodeId);
-        if (node?.filePath && window.studioWs) {
-          window.studioWs.send(JSON.stringify({
-            jsonrpc: '2.0',
-            id: 'read-' + Date.now(),
-            method: 'file.read',
-            params: { filePath: node.filePath }
-          }));
-        }
-      }
-    }
-
-    function contextDuplicateSelected() {
-      if (contextTargetNodeId) {
-        const node = currentGraph.nodes.find(n => n.id === contextTargetNodeId);
-        if (node) {
-          const newName = node.name + 'Copy';
-          if (node.type === 'entity') apiCreateEntity(newName);
-          else if (node.type === 'functionality') apiCreateFunctionality(node.parentEntity || 'App', newName);
-          else if (node.type === 'library') apiCreateLibrary(newName);
-        }
-      }
-    }
-
-    function contextDisconnectSelected() {
-      if (contextTargetNodeId) {
-        const toDelete = currentGraph.edges.filter(e => e.source === contextTargetNodeId || e.target === contextTargetNodeId);
-        toDelete.forEach(e => apiDeleteEdge(e.id));
-      }
-    }
-
-    function contextDeleteSelected() {
-      if (contextTargetNodeId) {
-        apiDeleteNode(contextTargetNodeId);
-        selectedNodes.delete(contextTargetNodeId);
-      }
-    }
-
-    function displaySourceFile(filePath, content) {
-      const drawer = document.getElementById('code-drawer');
-      document.getElementById('drawer-file-title').textContent = filePath.split('/').slice(-3).join('/');
-      drawer.style.display = 'flex';
-
-      if (monacoDrawerEditor) {
-        monacoDrawerEditor.setValue(content);
-        const model = monacoDrawerEditor.getModel();
-        if (model) {
-          monaco.editor.setModelLanguage(model, filePath.endsWith('.json') ? 'json' : 'typescript');
-        }
-      }
-    }
-
-    function closeCodeDrawer() {
-      document.getElementById('code-drawer').style.display = 'none';
-    }
-
-    function renderTestFunctions(graph) {
-      const list = document.getElementById('test-fn-items');
-      list.innerHTML = '';
-
-      for (const node of graph.nodes) {
-        if (node.type === 'functionality' || node.type === 'library') {
-          const item = document.createElement('div');
-          item.style.cssText = 'padding: 10px; border: var(--krnl-border); background: #21212b; border-radius: 6px; cursor: pointer; font-size: 12px;';
-          item.innerHTML = \`<span style="color: var(--krnl-accent); font-weight: bold;">\${node.parentEntity ? node.parentEntity + ' > ' : ''}</span>\${node.name}\`;
-          item.onclick = () => {
-            selectedFunction = node;
-            document.getElementById('active-test-fn-name').textContent = 'Testing: ' + node.name;
-          };
-          list.appendChild(item);
-        }
-      }
-    }
-
-    document.getElementById('btn-run-test').onclick = () => {
-      if (!selectedFunction) {
-        alert('Please select a function to test.');
-        return;
-      }
-      let inputVal = {};
-      try {
-        inputVal = JSON.parse(monacoTestInputEditor ? monacoTestInputEditor.getValue() : '{}');
-      } catch (e) {
-        alert('Invalid JSON input: ' + e.message);
-        return;
-      }
-
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'test-' + Date.now(),
-          method: 'test.executeFunction',
-          params: {
-            filePath: selectedFunction.filePath,
-            input: inputVal
-          }
-        }));
-      }
-    };
-
-    function renderTestOutput(result) {
-      document.getElementById('test-metrics-badge').textContent = \`[\u23F1\uFE0F \${result.durationMs}ms | \${result.success ? 'PASSED' : 'FAILED'}]\`;
-      if (monacoTestOutputEditor) {
-        monacoTestOutputEditor.setValue(JSON.stringify(result.output || result.error, null, 2));
-      }
+      const name = prompt('Enter Concept Library Name:');
+      if (name && window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'c-lib-' + Date.now(), method: 'library.create', params: { name } }));
     }
 
     function switchProject(relPath) {
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'switch-' + Date.now(),
-          method: 'project.switch',
-          params: { path: relPath }
-        }));
-      }
+      if (window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'switch-' + Date.now(), method: 'project.switch', params: { path: relPath } }));
     }
-
     function triggerPurityAudit() {
-      if (window.studioWs) {
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'audit-' + Date.now(),
-          method: 'validate.runPurityAudit'
-        }));
-      }
-    }
-
-    function switchCanvas(canvasId, title) {
-      activeCanvas = canvasId;
-      document.querySelectorAll('.studio-canvas').forEach(c => c.classList.remove('active'));
-      document.getElementById('canvas-' + canvasId).classList.add('active');
-      document.getElementById('canvas-title').textContent = title;
-
-      ['arch', 'ui', 'test'].forEach(k => {
-        const btn = document.getElementById('dock-btn-' + k);
-        if (canvasId.startsWith(k)) {
-          btn.style.background = 'rgba(212, 175, 55, 0.25)';
-          btn.style.borderColor = '#d4af37';
-          btn.style.color = '#d4af37';
-          btn.style.fontWeight = 'bold';
-        } else {
-          btn.style.background = 'rgba(255, 255, 255, 0.05)';
-          btn.style.borderColor = 'rgba(255,255,255,0.1)';
-          btn.style.color = '#e0e0e0';
-          btn.style.fontWeight = 'normal';
-        }
-      });
-    }
-
-    // UI Composer Drag & Drop
-    function onDragAtom(e, atomType) {
-      e.dataTransfer.setData('text/plain', atomType);
-    }
-    function onDropAtom(e) {
-      e.preventDefault();
-      const atomType = e.dataTransfer.getData('text/plain');
-      if (atomType) {
-        document.getElementById('ui-empty-hint').style.display = 'none';
-        droppedAtoms.push({ type: atomType });
-        renderDroppedUI();
-      }
-    }
-    function renderDroppedUI() {
-      const target = document.getElementById('ui-drop-target');
-      target.innerHTML = '';
-      for (const atom of droppedAtoms) {
-        const item = document.createElement('div');
-        item.style.cssText = 'padding: 12px; background: #21212b; border: var(--krnl-border); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;';
-        item.innerHTML = \`<span>\${atom.type}</span><span style="color: #7f848e; font-size: 11px;">Bound to Entity</span>\`;
-        target.appendChild(item);
-      }
-
-      const imports = Array.from(new Set(droppedAtoms.map(a => a.type))).join(', ');
-      const code = \`import van from 'vanjs-core';
-import { \${imports} } from '@dinilmusick/krnl-ui';
-
-export function View({ state, entity }: any): HTMLElement {
-  const { div } = van.tags;
-  return div(
-    { class: 'krnl-view-panel' },
-    \${droppedAtoms.map(a => a.type + '({ ... })').join(',\\n    ')}
-  );
-}\`;
-      if (monacoUiEditor) {
-        monacoUiEditor.setValue(code);
-      }
+      if (window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'audit-' + Date.now(), method: 'validate.runPurityAudit' }));
     }
 
     // Direct REST Initial Fetch
@@ -2742,11 +2687,8 @@ export function View({ state, entity }: any): HTMLElement {
         if (data.payload && data.payload.nodes) {
           currentGraph = data.payload;
           renderGraphNodes(currentGraph);
-          renderTestFunctions(currentGraph);
         }
-      } catch (e) {
-        console.error('Initial graph fetch error:', e);
-      }
+      } catch (e) {}
     }
     initialGraphFetch();
 
@@ -2754,28 +2696,16 @@ export function View({ state, entity }: any): HTMLElement {
     function connectWebSocket() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const ws = new WebSocket(protocol + '//' + window.location.host + '/studio/ws');
-
       ws.onmessage = (evt) => {
         const msg = JSON.parse(evt.data);
         if (msg.method === 'graph.init' || msg.method === 'graph.updated') {
           currentGraph = msg.params;
           renderGraphNodes(currentGraph);
-          renderTestFunctions(currentGraph);
         } else if (msg.method === 'agent.activity') {
           showAgentHud(msg.params);
-        } else if (msg.result && msg.result.durationMs !== undefined) {
-          renderTestOutput(msg.result);
-        } else if (msg.result && msg.result.content !== undefined) {
-          displaySourceFile(msg.result.filePath, msg.result.content);
-        } else if (msg.result && msg.result.valid !== undefined) {
-          alert(\`AST Purity Audit: \${msg.result.valid ? 'PASSED (Clean)' : 'FAILED (' + (msg.result.errors?.length || 0) + ' errors)'}\`);
         }
       };
-
-      ws.onclose = () => {
-        setTimeout(connectWebSocket, 2000);
-      };
-
+      ws.onclose = () => setTimeout(connectWebSocket, 2000);
       window.studioWs = ws;
     }
     connectWebSocket();
@@ -2788,80 +2718,32 @@ export function View({ state, entity }: any): HTMLElement {
       setTimeout(() => { hud.style.display = 'none'; }, 4000);
     }
 
-    // Initialize Monaco instances safely
+    // Monaco Theme Initialization
     if (window.require) {
       require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
       require(['vs/editor/editor.main'], function () {
-        try {
-          monaco.editor.defineTheme('krnl-dark', {
-            base: 'vs-dark',
-            inherit: true,
-            rules: [
-              { token: 'keyword', foreground: 'd4af37', fontStyle: 'bold' },
-              { token: 'string', foreground: '98c379' },
-              { token: 'number', foreground: 'd19a66' },
-              { token: 'comment', foreground: '5c6370', fontStyle: 'italic' },
-              { token: 'type', foreground: 'e5c07b' },
-              { token: 'identifier', foreground: 'f5ede4' }
-            ],
-            colors: {
-              'editor.background': '#16161e',
-              'editor.foreground': '#f5ede4',
-              'editor.lineHighlightBackground': '#1f1f2a',
-              'editorLineNumber.foreground': '#5c6370',
-              'editorLineNumber.activeForeground': '#d4af37',
-              'editorCursor.foreground': '#d4af37',
-              'editor.selectionBackground': '#2d3139',
-              'editorWidget.background': '#16161e',
-              'editorWidget.border': '#d4af37'
-            }
-          });
-
-          monacoUiEditor = monaco.editor.create(document.getElementById('ui-monaco-container'), {
-            value: '// Drag KrnlUI atoms into the canvas above to generate VanJS code...',
-            language: 'typescript',
-            theme: 'krnl-dark',
-            readOnly: true,
-            automaticLayout: true,
-            fontSize: 12,
-            fontFamily: 'Fira Code, Menlo, Monaco, monospace',
-            minimap: { enabled: false }
-          });
-
-          monacoTestInputEditor = monaco.editor.create(document.getElementById('test-input-monaco'), {
-            value: '{\\n  "payload": "demo_test_value"\\n}',
-            language: 'json',
-            theme: 'krnl-dark',
-            automaticLayout: true,
-            fontSize: 12,
-            fontFamily: 'Fira Code, Menlo, Monaco, monospace',
-            minimap: { enabled: false }
-          });
-
-          monacoTestOutputEditor = monaco.editor.create(document.getElementById('test-output-monaco'), {
-            value: '// Awaiting execution...',
-            language: 'json',
-            theme: 'krnl-dark',
-            readOnly: true,
-            automaticLayout: true,
-            fontSize: 12,
-            fontFamily: 'Fira Code, Menlo, Monaco, monospace',
-            minimap: { enabled: false }
-          });
-
-          monacoDrawerEditor = monaco.editor.create(document.getElementById('drawer-monaco-container'), {
-            value: '// Select a node to view its source code...',
-            language: 'typescript',
-            theme: 'krnl-dark',
-            readOnly: true,
-            automaticLayout: true,
-            fontSize: 12,
-            fontFamily: 'Fira Code, Menlo, Monaco, monospace',
-            minimap: { enabled: true }
-          });
-        } catch (e) {
-          console.error('Monaco init error:', e);
-        }
+        monaco.editor.defineTheme('krnl-dark', {
+          base: 'vs-dark', inherit: true,
+          rules: [
+            { token: 'keyword', foreground: 'd4af37', fontStyle: 'bold' },
+            { token: 'string', foreground: '98c379' },
+            { token: 'number', foreground: 'd19a66' },
+            { token: 'comment', foreground: '5c6370', fontStyle: 'italic' },
+            { token: 'type', foreground: 'e5c07b' },
+            { token: 'identifier', foreground: 'f5ede4' }
+          ],
+          colors: {
+            'editor.background': '#16161e',
+            'editor.foreground': '#f5ede4',
+            'editor.lineHighlightBackground': '#1f1f2a',
+            'editorLineNumber.foreground': '#5c6370',
+            'editorLineNumber.activeForeground': '#d4af37',
+            'editorCursor.foreground': '#d4af37',
+            'editor.selectionBackground': '#2d3139',
+            'editorWidget.background': '#16161e',
+            'editorWidget.border': '#c678dd'
+          }
+        });
       });
     }
   </script>
@@ -2872,7 +2754,7 @@ export function View({ state, entity }: any): HTMLElement {
     return new Promise((resolve6) => {
       this.httpServer.listen(this.port, () => {
         console.log(`
-\u{1F680} [Krnl Studio] Visual IDE running at: http://localhost:${this.port}`);
+\u{1F680} [Krnl Studio] Omni Canvas IDE running at: http://localhost:${this.port}`);
         console.log(`\u{1F4E1} [Krnl Studio] Active Project Root: ${this.projectRoot}`);
         console.log(`\u{1F4E1} [Krnl Studio] REST API Suite available at: http://localhost:${this.port}/api/v1/*`);
         console.log(`\u{1F4E1} [Krnl Studio] WebSocket JSON-RPC protocol active on /studio/ws
