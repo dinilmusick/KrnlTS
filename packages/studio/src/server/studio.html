@@ -1274,10 +1274,11 @@
         containerEl.innerHTML = `
           <div style="display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden;">
             <div style="background: rgba(14, 14, 18, 0.9); border-bottom: 1px solid rgba(198, 120, 221, 0.25); padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
-              <span id="code-file-badge-${viewer.id}" style="color: #abb2bf; font-family: monospace; font-size: 10px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 320px;">
+              <span id="code-file-badge-${viewer.id}" style="color: #abb2bf; font-family: monospace; font-size: 10px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 280px;">
                 ${filePathText}
               </span>
               <div style="display: flex; align-items: center; gap: 6px;">
+                <button id="btn-toggle-imports-${viewer.id}" onclick="toggleObviousImports('${viewer.id}')" title="Toggle visibility of framework & atom boilerplate imports" style="background: rgba(212, 175, 55, 0.15); color: #d4af37; border: 1px solid rgba(212, 175, 55, 0.4); padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: 500;">⚡ Clean View</button>
                 <button onclick="copyMonacoEditor('${viewer.id}')" title="Copy code" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📋 Copy</button>
                 <button onclick="pasteMonacoEditor('${viewer.id}')" title="Paste code" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;">📥 Paste</button>
                 <button onclick="saveCodeViewer('${viewer.id}')" title="Save file to disk (Ctrl+S / Cmd+S)" style="background: #d4af37; color: #121212; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; transition: transform 0.1s ease; box-shadow: 0 0 10px rgba(212,175,55,0.3);" onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform='none'">💾 Save</button>
@@ -1309,9 +1310,20 @@
               body: JSON.stringify({ filePath: viewer.sourceNode.filePath })
             });
             const data = await res.json();
-            const content = data.payload?.content ?? data.result?.payload?.content ?? data.content;
-            if (content !== undefined) {
-              viewer.monacoInstance.setValue(content);
+            const rawContent = data.payload?.content ?? data.result?.payload?.content ?? data.content;
+            if (rawContent !== undefined) {
+              const extracted = extractAndFilterObviousImports(rawContent);
+              viewer.hiddenImports = extracted.hiddenImports;
+              viewer.fullSourceCode = rawContent;
+              viewer.showObviousImports = false;
+              viewer.monacoInstance.setValue(extracted.cleanCode);
+
+              const btn = document.getElementById(`btn-toggle-imports-${viewer.id}`);
+              if (btn) {
+                btn.innerHTML = extracted.hiddenImports.length > 0
+                  ? `⚡ Imports: Cleaned (${extracted.hiddenImports.length} hidden)`
+                  : `⚡ Clean View`;
+              }
             } else {
               viewer.monacoInstance.setValue(`// File: ${viewer.sourceNode.filePath}\n// Status: No content returned`);
             }
@@ -3077,7 +3089,128 @@
       }
     }
 
-    function generateVanJsCodeFromTree(viewer) {
+    /**
+     * Filters out standard / obvious boilerplate framework imports from code view
+     * to keep the editor clean and uncluttered for the viewer.
+     */
+    function extractAndFilterObviousImports(fullSourceCode) {
+      if (!fullSourceCode) return { cleanCode: fullSourceCode || '', hiddenImports: [], fullCode: fullSourceCode || '' };
+
+      const lines = fullSourceCode.split('\n');
+      const hiddenImports = [];
+      const keptLines = [];
+      let inMultiLineImport = false;
+      let currentMultiLineImport = [];
+
+      const isObviousImport = (stmt) => {
+        return (
+          stmt.includes('@dinilmusick/krnl-core') ||
+          stmt.includes('@dinilmusick/krnl-ui') ||
+          stmt.includes('@dinilmusick/krnl-validate') ||
+          stmt.includes('@dinilmusick/') ||
+          stmt.includes('vanjs-core') ||
+          /from\s+['"][^'"]*Atom(\.js)?['"]/.test(stmt)
+        );
+      };
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        if (inMultiLineImport) {
+          currentMultiLineImport.push(line);
+          if (trimmed.includes(';') || trimmed.includes("from ") || trimmed.endsWith("}")) {
+            const fullStmt = currentMultiLineImport.join('\n');
+            if (isObviousImport(fullStmt)) {
+              hiddenImports.push(fullStmt);
+            } else {
+              keptLines.push(fullStmt);
+            }
+            inMultiLineImport = false;
+            currentMultiLineImport = [];
+          }
+          continue;
+        }
+
+        if (trimmed.startsWith('import ') || trimmed.startsWith('import{') || trimmed.startsWith('import type')) {
+          if (!trimmed.includes(';') && !trimmed.includes("from '") && !trimmed.includes('from "')) {
+            inMultiLineImport = true;
+            currentMultiLineImport = [line];
+            continue;
+          }
+          if (isObviousImport(line)) {
+            hiddenImports.push(line);
+            continue;
+          }
+        }
+
+        keptLines.push(line);
+      }
+
+      // Remove leading blank lines
+      while (keptLines.length > 0 && keptLines[0].trim() === '') {
+        keptLines.shift();
+      }
+
+      return {
+        cleanCode: keptLines.join('\n'),
+        hiddenImports,
+        fullCode: fullSourceCode
+      };
+    }
+
+    /**
+     * Safely prepends hidden framework imports back to the code before saving to disk
+     */
+    function assembleCodeForSave(editorContent, hiddenImports) {
+      if (!hiddenImports || hiddenImports.length === 0) return editorContent;
+
+      const neededImports = hiddenImports.filter(imp => {
+        const fromMatch = imp.match(/from\s+['"]([^'"]+)['"]/);
+        if (!fromMatch) return !editorContent.includes(imp.trim());
+        const moduleSpecifier = fromMatch[1];
+        return !editorContent.includes(moduleSpecifier);
+      });
+
+      if (neededImports.length === 0) return editorContent;
+      return neededImports.join('\n') + '\n\n' + editorContent.trimStart();
+    }
+
+    function toggleObviousImports(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.monacoInstance) return;
+
+      const btn = document.getElementById(`btn-toggle-imports-${viewerId}`);
+      viewer.showObviousImports = !viewer.showObviousImports;
+
+      if (viewer.showObviousImports) {
+        // Show full code with imports
+        viewer.monacoInstance.setValue(viewer.fullSourceCode || viewer.monacoInstance.getValue());
+        if (btn) {
+          btn.innerHTML = '👁 Imports: Shown';
+          btn.style.background = '#21212b';
+          btn.style.color = '#abb2bf';
+          btn.style.borderColor = '#4b5263';
+        }
+      } else {
+        // Hide obvious imports
+        const curValue = viewer.monacoInstance.getValue();
+        const extracted = extractAndFilterObviousImports(curValue);
+        viewer.hiddenImports = extracted.hiddenImports;
+        viewer.fullSourceCode = curValue;
+        viewer.monacoInstance.setValue(extracted.cleanCode);
+        if (btn) {
+          btn.innerHTML = extracted.hiddenImports.length > 0
+            ? `⚡ Imports: Cleaned (${extracted.hiddenImports.length} hidden)`
+            : `⚡ Clean View`;
+          btn.style.background = 'rgba(212, 175, 55, 0.15)';
+          btn.style.color = '#d4af37';
+          btn.style.borderColor = 'rgba(212, 175, 55, 0.4)';
+        }
+      }
+    }
+
+    function generateVanJsCodeFromTree(viewer, includeImports = false) {
       const node = viewer.sourceNode;
       const name = node.name;
       const tree = viewer.componentTree || initializeViewerTree(viewer);
@@ -3086,13 +3219,18 @@
         return '      ' + generateAtomSnippet(atom, node).split('\n').join('\n      ');
       }).join(',\n');
 
-      return `// VanJS UI View for ${node.type.toUpperCase()}: ${name}\nimport van from 'vanjs-core';\nimport { KrnlTile, KrnlButton, KrnlTextInput, KrnlBadge, KrnlDropdown } from '@dinilmusick/krnl-ui';\n\nexport function ${name}View({ state, entity }: any): HTMLElement {\n  const { div, h3, span } = van.tags;\n\n  return KrnlTile({\n    title: '${tree.props.title || name}',\n    class: 'krnl-component-canvas',\n    children: [\n${atomSnippets}\n    ]\n  });\n}\n\nexport default ${name}View;\n`;
+      const body = `export function ${name}View({ state, entity }: any): HTMLElement {\n  const { div, h3, span } = van.tags;\n\n  return KrnlTile({\n    title: '${tree.props.title || name}',\n    class: 'krnl-component-canvas',\n    children: [\n${atomSnippets}\n    ]\n  });\n}\n\nexport default ${name}View;\n`;
+
+      if (includeImports) {
+        return `// VanJS UI View for ${node.type.toUpperCase()}: ${name}\nimport van from 'vanjs-core';\nimport { KrnlTile, KrnlButton, KrnlTextInput, KrnlBadge, KrnlDropdown } from '@dinilmusick/krnl-ui';\n\n${body}`;
+      }
+      return body;
     }
 
     function syncTreeToMonaco(viewerId) {
       const viewer = spawnedViewers.get(viewerId);
       if (!viewer || !viewer.monacoInstance) return;
-      const code = generateVanJsCodeFromTree(viewer);
+      const code = generateVanJsCodeFromTree(viewer, false);
       viewer.monacoInstance.setValue(code);
     }
 
@@ -3139,7 +3277,7 @@
     async function copyUiCode(viewerId) {
       const viewer = spawnedViewers.get(viewerId);
       if (!viewer) return;
-      const code = viewer.monacoInstance ? viewer.monacoInstance.getValue() : generateVanJsCodeFromTree(viewer);
+      const code = viewer.monacoInstance ? viewer.monacoInstance.getValue() : generateVanJsCodeFromTree(viewer, true);
       await navigator.clipboard.writeText(code);
       const badge = document.getElementById('ui-file-badge-' + viewerId);
       if (badge) {
@@ -3346,8 +3484,13 @@
       const viewer = spawnedViewers.get(viewerId);
       if (!viewer || !viewer.monacoInstance) return;
       const badge = document.getElementById('code-file-badge-' + viewerId);
-      const code = viewer.monacoInstance.getValue();
+      let code = viewer.monacoInstance.getValue();
       const filePath = viewer.sourceNode.filePath;
+
+      // If viewing in clean mode (obvious imports hidden), reconstruct full file with imports before saving
+      if (!viewer.showObviousImports && viewer.hiddenImports && viewer.hiddenImports.length > 0) {
+        code = assembleCodeForSave(code, viewer.hiddenImports);
+      }
 
       if (badge) {
         badge.textContent = '⏳ Saving...';
@@ -3378,7 +3521,12 @@
       const viewer = spawnedViewers.get(viewerId);
       if (!viewer) return;
       const badge = document.getElementById('ui-file-badge-' + viewerId);
-      const code = viewer.monacoInstance ? viewer.monacoInstance.getValue() : generateVanJsCodeFromTree(viewer);
+      let code = viewer.monacoInstance ? viewer.monacoInstance.getValue() : generateVanJsCodeFromTree(viewer, true);
+
+      // Ensure framework imports are present when writing to disk
+      if (!code.includes("from '@dinilmusick/krnl-ui'")) {
+        code = `// VanJS UI View for ${viewer.sourceNode.name}\nimport van from 'vanjs-core';\nimport { KrnlTile, KrnlButton, KrnlTextInput, KrnlBadge, KrnlDropdown } from '@dinilmusick/krnl-ui';\n\n` + code;
+      }
 
       let targetPath = viewer.sourceNode.uiFilePath;
       if (!targetPath) {
