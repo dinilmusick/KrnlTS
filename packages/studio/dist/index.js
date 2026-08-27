@@ -5,7 +5,7 @@ import {
   StudioFileWatcher,
   StudioServer,
   VanJSCodeGenerator
-} from "./chunk-PKBB3JF6.js";
+} from "./chunk-MHKZWG57.js";
 
 // src/client/plugins/VanJSRenderPlugin.ts
 import van from "vanjs-core";

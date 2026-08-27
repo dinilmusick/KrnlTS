@@ -20,11 +20,21 @@ export class StudioFileWatcher {
 
     this.watcher = fs.watch(srcDir, { recursive: true }, (eventType, filename) => {
       if (!filename) return;
-      if (filename.includes('node_modules') || filename.includes('dist') || filename.includes('.git')) return;
+      if (
+        filename.includes('node_modules') ||
+        filename.includes('dist') ||
+        filename.includes('.git') ||
+        filename.endsWith('.d.ts') ||
+        filename.endsWith('.log') ||
+        filename.endsWith('.tmp') ||
+        filename.includes('.krnl-graph') ||
+        filename.includes('.DS_Store')
+      ) {
+        return;
+      }
 
       const fullPath = path.join(srcDir, filename);
 
-      // Debounce rapid writes
       if (this.debounceTimers.has(fullPath)) {
         clearTimeout(this.debounceTimers.get(fullPath)!);
       }
@@ -36,7 +46,7 @@ export class StudioFileWatcher {
             listener({ eventType, filename, fullPath });
           } catch (e) {}
         }
-      }, 150);
+      }, 300);
 
       this.debounceTimers.set(fullPath, timer);
     });

@@ -617,7 +617,9 @@ var StudioFileWatcher = class {
     if (!fs3.existsSync(srcDir)) return;
     this.watcher = fs3.watch(srcDir, { recursive: true }, (eventType, filename) => {
       if (!filename) return;
-      if (filename.includes("node_modules") || filename.includes("dist") || filename.includes(".git")) return;
+      if (filename.includes("node_modules") || filename.includes("dist") || filename.includes(".git") || filename.endsWith(".d.ts") || filename.endsWith(".log") || filename.endsWith(".tmp") || filename.includes(".krnl-graph") || filename.includes(".DS_Store")) {
+        return;
+      }
       const fullPath = path3.join(srcDir, filename);
       if (this.debounceTimers.has(fullPath)) {
         clearTimeout(this.debounceTimers.get(fullPath));
@@ -630,7 +632,7 @@ var StudioFileWatcher = class {
           } catch (e) {
           }
         }
-      }, 150);
+      }, 300);
       this.debounceTimers.set(fullPath, timer);
     });
   }
@@ -1517,8 +1519,7 @@ var StudioServer = class {
     }
     
     /* 4-Quadrant Unbounded Layers with strict Z-Index Hierarchy:
-       svg-wires (5) < gizmos-layer (7) < nodes-layer (10) < node-cards (20) < viewers (50)
-       This guarantees that wire delete gizmos ALWAYS draw below node bodies! */
+       svg-wires (5) < gizmos-layer (7) < nodes-layer (10) < node-cards (20) < viewers (50) */
     #svg-wires {
       position: absolute; top: 0; left: 0;
       width: 1px; height: 1px;
@@ -1542,7 +1543,7 @@ var StudioServer = class {
       pointer-events: none; z-index: 999;
     }
 
-    /* Base Node Structure (Draws at z-index: 20, above wire gizmos at z-index: 7) */
+    /* Base Node Structure */
     .krnl-node {
       position: absolute; border-radius: 12px;
       font-family: inherit; color: var(--krnl-text); cursor: grab;
@@ -1676,7 +1677,7 @@ var StudioServer = class {
     }
     .socket-views:hover svg { stroke: #0e0e12; }
 
-    /* Centered Wire Delete Gizmo (Rendered in #gizmos-layer at z-index: 7, strictly BELOW nodes at z-index: 20) */
+    /* Centered Wire Delete Gizmo */
     .edge-delete-gizmo {
       position: absolute; width: 20px; height: 20px; border-radius: 50%;
       background: #16161e; border: 1px solid #e06c75; color: #e06c75;
@@ -1899,7 +1900,7 @@ var StudioServer = class {
   <script>
     let currentGraph = { nodes: [], edges: [] };
     let selectedNodes = new Set();
-    let spawnedViewers = new Map();
+    let spawnedViewers = new Map(); // id -> viewerData
     let viewerCounter = 0;
     let maxZIndex = 100;
     let lastModalOpenTime = 0;
@@ -1954,7 +1955,6 @@ var StudioServer = class {
       const clientX = e.clientX - rect.left;
       const clientY = e.clientY - rect.top;
 
-      // Middle Click / Space+Drag: Pan
       if (e.button === 1 || (e.button === 0 && e.spaceKey)) {
         isPanning = true;
         startPanX = e.clientX - panX;
@@ -1964,7 +1964,6 @@ var StudioServer = class {
         return;
       }
 
-      // Right-Click Drag: Pan fallback
       if (e.button === 2) {
         isRightDragPanning = true;
         rightDragDist = 0;
@@ -1975,7 +1974,6 @@ var StudioServer = class {
         return;
       }
 
-      // Canvas Background: Box Marquee
       if (e.button === 0) {
         const isInteractive = e.target.closest('.krnl-node') || e.target.closest('.krnl-viewer-node') || e.target.closest('.node-socket') || e.target.closest('.socket-views') || e.target.closest('.edge-delete-gizmo');
         if (!isInteractive) {
@@ -2000,7 +1998,6 @@ var StudioServer = class {
       const clientX = e.clientX - rect.left;
       const clientY = e.clientY - rect.top;
 
-      // Pan
       if (isPanning) {
         panX = e.clientX - startPanX;
         panY = e.clientY - startPanY;
@@ -2017,7 +2014,6 @@ var StudioServer = class {
         return;
       }
 
-      // Box Selection
       if (isBoxSelecting) {
         const currentX = (clientX - panX) / zoom;
         const currentY = (clientY - panY) / zoom;
@@ -2045,7 +2041,6 @@ var StudioServer = class {
         return;
       }
 
-      // Drag Nodes
       if (isDraggingNode) {
         nodeDragMoved = true;
         const dx = (clientX - dragStartPos.x) / zoom;
@@ -2065,7 +2060,6 @@ var StudioServer = class {
         return;
       }
 
-      // Drag Viewer Window
       if (isDraggingViewer && draggedViewerId) {
         const vEl = document.getElementById('viewer-' + draggedViewerId);
         if (vEl) {
@@ -2082,7 +2076,6 @@ var StudioServer = class {
         return;
       }
 
-      // Resize Viewer Window
       if (isResizingViewer && resizedViewerId) {
         const vEl = document.getElementById('viewer-' + resizedViewerId);
         if (vEl) {
@@ -2102,7 +2095,6 @@ var StudioServer = class {
         return;
       }
 
-      // Live Wire Dragging
       if (isDraggingWire && wireSource) {
         const currentX = (clientX - panX) / zoom;
         const currentY = (clientY - panY) / zoom;
@@ -2141,7 +2133,6 @@ var StudioServer = class {
         const dropX = Math.round((clientX - panX) / zoom);
         const dropY = Math.round((clientY - panY) / zoom);
 
-        // Views Wire dropped -> Display View Selector Modal
         if (isDraggingViewsWire && wireSource) {
           isDraggingViewsWire = false;
           wireDropPos = { x: dropX, y: dropY };
@@ -2149,7 +2140,6 @@ var StudioServer = class {
           return;
         }
 
-        // Standard flow connection drop
         const elemUnderCursor = document.elementFromPoint(e.clientX, e.clientY);
         if (elemUnderCursor && elemUnderCursor.classList.contains('node-socket')) {
           const targetNodeId = elemUnderCursor.dataset.nodeId;
@@ -2172,7 +2162,6 @@ var StudioServer = class {
       viewSelectorModal.style.top = screenY + 'px';
     }
 
-    // Zoom on Scroll
     viewport.addEventListener('wheel', (e) => {
       e.preventDefault();
       const rect = viewport.getBoundingClientRect();
@@ -2199,7 +2188,6 @@ var StudioServer = class {
       updateTransform();
     }
 
-    // --- Context Menu Handlers ---
     viewport.oncontextmenu = (e) => {
       e.preventDefault();
       if (rightDragDist > 8) return;
@@ -2223,7 +2211,6 @@ var StudioServer = class {
       }
     };
 
-    // --- Hotkeys Matrix ---
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.closest('.monaco-editor')) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -2243,10 +2230,9 @@ var StudioServer = class {
       }
     });
 
-    // --- Rich Differentiated Node Rendering Engine ---
+    // --- RECONCILIATION NODE RENDERING (ZERO-POLL, PRESERVES DOM & MONACO) ---
     function renderGraphNodes(graph) {
       const layer = document.getElementById('nodes-layer');
-      layer.innerHTML = '';
 
       if (!graph.nodes || graph.nodes.length === 0) {
         document.getElementById('node-count-badge').textContent = '0 Nodes (Empty)';
@@ -2255,32 +2241,37 @@ var StudioServer = class {
 
       document.getElementById('node-count-badge').textContent = \`\${graph.nodes.length} Nodes | \${graph.edges?.length || 0} Wires\`;
 
-      graph.nodes.forEach((node, idx) => {
-        let x = node.position?.x;
-        let y = node.position?.y;
+      const incomingIds = new Set(graph.nodes.map(n => n.id));
 
-        if (x === undefined || y === undefined) {
-          if (node.type === 'entity') {
-            const col = Math.floor(idx / 5);
-            const row = idx % 5;
-            x = 60 + col * 360;
-            y = 60 + row * 240;
-          } else if (node.type === 'functionality') {
-            const col = Math.floor(idx / 6);
-            const row = idx % 6;
-            x = 840 + col * 340;
-            y = 60 + row * 220;
-          } else {
-            x = 1580;
-            y = 60 + idx * 180;
-          }
-        }
-        createNodeElement(node, x, y, layer);
+      // Remove obsolete nodes from DOM (except viewers)
+      document.querySelectorAll('.krnl-node').forEach(el => {
+        if (!incomingIds.has(el.dataset.nodeId)) el.remove();
       });
 
-      // Re-render spawned viewers
-      spawnedViewers.forEach(viewer => {
-        renderViewerDomElement(viewer, layer);
+      // Update or create node elements without wiping innerHTML of existing ones
+      graph.nodes.forEach((node, idx) => {
+        let el = document.getElementById('node-' + node.id);
+        if (!el) {
+          let x = node.position?.x;
+          let y = node.position?.y;
+          if (x === undefined || y === undefined) {
+            if (node.type === 'entity') {
+              const col = Math.floor(idx / 5); const row = idx % 5;
+              x = 60 + col * 360; y = 60 + row * 240;
+            } else if (node.type === 'functionality') {
+              const col = Math.floor(idx / 6); const row = idx % 6;
+              x = 840 + col * 340; y = 60 + row * 220;
+            } else {
+              x = 1580; y = 60 + idx * 180;
+            }
+          }
+          createNodeElement(node, x, y, layer);
+        } else if (!isDraggingNode || !selectedNodes.has(node.id)) {
+          if (node.position?.x !== undefined && node.position?.y !== undefined) {
+            el.style.left = node.position.x + 'px';
+            el.style.top = node.position.y + 'px';
+          }
+        }
       });
 
       renderWiresAndGizmos();
@@ -2297,7 +2288,6 @@ var StudioServer = class {
 
       let innerHtml = '';
 
-      // 1. ENTITY SYSTEM NODES (Monochromatic Hexagon/Cube Vector)
       if (node.type === 'entity') {
         const parentBadge = node.parentEntity
           ? \`<span style="background: rgba(212, 175, 55, 0.2); color: #d4af37; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Subsystem of \${node.parentEntity}</span>\`
@@ -2318,10 +2308,7 @@ var StudioServer = class {
             </div>
           </div>
         \`;
-      }
-
-      // 2. QUAD-UNIT FUNCTIONALITY NODES (Monochromatic Bolt Vector)
-      else if (node.type === 'functionality') {
+      } else if (node.type === 'functionality') {
         const helperCount = node.helpers?.length || 0;
         innerHtml = \`
           <div class="node-header-functionality">
@@ -2354,10 +2341,7 @@ var StudioServer = class {
             </div>
           </div>
         \`;
-      }
-
-      // 3. DOMAIN CONCEPT LIBRARY NODES (Monochromatic Book Vector)
-      else if (node.type === 'library') {
+      } else if (node.type === 'library') {
         innerHtml = \`
           <div class="node-header-library">
             <div style="display: flex; align-items: center; gap: 6px;">
@@ -2371,10 +2355,7 @@ var StudioServer = class {
             <div style="font-size: 10px; color: #98c379; margin-top: 2px;">Deterministic Purity</div>
           </div>
         \`;
-      }
-
-      // 4. SUB-APP NODES (Monochromatic Window Vector)
-      else if (node.type === 'subapp') {
+      } else if (node.type === 'subapp') {
         innerHtml = \`
           <div class="node-header-subapp">
             <div style="display: flex; align-items: center; gap: 6px;">
@@ -2390,7 +2371,6 @@ var StudioServer = class {
         \`;
       }
 
-      // Sockets: In/Out and STRICT MONOCHROMATIC 'VIEWS' SOCKET
       innerHtml += \`
         <div class="node-socket socket-out" data-node-id="\${node.id}" data-socket-type="out"></div>
         <div class="node-socket socket-in" data-node-id="\${node.id}" data-socket-type="in"></div>
@@ -2402,7 +2382,6 @@ var StudioServer = class {
 
       el.innerHTML = innerHtml;
 
-      // Node Dragging
       el.onmousedown = (e) => {
         if (e.target.closest('.node-socket') || e.target.closest('.socket-views')) return;
         if (e.button === 0) {
@@ -2426,7 +2405,6 @@ var StudioServer = class {
         }
       };
 
-      // In/Out Wire Dragging
       const outSocket = el.querySelector('.socket-out');
       const inSocket = el.querySelector('.socket-in');
       [outSocket, inSocket].forEach(sock => {
@@ -2447,7 +2425,6 @@ var StudioServer = class {
         }
       });
 
-      // 'VIEWS' SOCKET HANDLE (Wire Drag AND Click)
       const viewsSocket = el.querySelector('.socket-views');
       if (viewsSocket) {
         viewsSocket.onmousedown = (e) => {
@@ -2475,7 +2452,7 @@ var StudioServer = class {
       layer.appendChild(el);
     }
 
-    // --- OMNI VIEWER NODE SPAWNING & WINDOW MANAGEMENT ---
+    // --- OMNI VIEWER NODE SPAWNING & PERSISTENCE (CREATE ONCE, ZERO RE-CREATION) ---
     function confirmSpawnViewer(viewType) {
       hideContextMenus();
       const targetId = wireSource?.nodeId || contextTargetNodeId;
@@ -2517,18 +2494,22 @@ var StudioServer = class {
     function closeViewerNode(viewerId) {
       const vEl = document.getElementById('viewer-' + viewerId);
       if (vEl) vEl.remove();
+      const vData = spawnedViewers.get(viewerId);
+      if (vData?.monacoInstance) {
+        try { vData.monacoInstance.dispose(); } catch (e) {}
+      }
       spawnedViewers.delete(viewerId);
       renderWiresAndGizmos();
     }
 
     function renderViewerDomElement(viewer, layer) {
       let vEl = document.getElementById('viewer-' + viewer.id);
-      if (!vEl) {
-        vEl = document.createElement('div');
-        vEl.id = 'viewer-' + viewer.id;
-        vEl.className = 'krnl-viewer-node';
-        layer.appendChild(vEl);
-      }
+      if (vEl) return; // ALREADY CREATED! NEVER RE-CREATE TO PREVENT FLICKER
+
+      vEl = document.createElement('div');
+      vEl.id = 'viewer-' + viewer.id;
+      vEl.className = 'krnl-viewer-node';
+      layer.appendChild(vEl);
 
       vEl.style.left = viewer.x + 'px';
       vEl.style.top = viewer.y + 'px';
@@ -2592,7 +2573,6 @@ var StudioServer = class {
     function populateViewerContent(viewer, containerEl) {
       containerEl.innerHTML = '';
 
-      // A. UI VIEW & ATOM BUILDER
       if (viewer.viewType === 'ui') {
         containerEl.innerHTML = \`
           <div style="display: flex; flex: 1; overflow: hidden;">
@@ -2619,10 +2599,7 @@ var StudioServer = class {
             });
           }
         }, 50);
-      }
-
-      // B. MONACO SOURCE CODE (ROBUST DISK LOADING)
-      else if (viewer.viewType === 'code') {
+      } else if (viewer.viewType === 'code') {
         const monacoDiv = document.createElement('div');
         monacoDiv.style.width = '100%'; monacoDiv.style.height = '100%';
         containerEl.appendChild(monacoDiv);
@@ -2659,10 +2636,7 @@ var StudioServer = class {
             }
           }
         }, 50);
-      }
-
-      // C. SANDBOXED TEST BENCH
-      else if (viewer.viewType === 'test') {
+      } else if (viewer.viewType === 'test') {
         containerEl.innerHTML = \`
           <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px; height: 100%;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -2690,10 +2664,7 @@ var StudioServer = class {
             });
           }
         }, 50);
-      }
-
-      // D. STATE INSPECTOR
-      else if (viewer.viewType === 'state') {
+      } else if (viewer.viewType === 'state') {
         const monacoDiv = document.createElement('div');
         monacoDiv.style.width = '100%'; monacoDiv.style.height = '100%';
         containerEl.appendChild(monacoDiv);
@@ -2753,7 +2724,6 @@ var StudioServer = class {
       svg.innerHTML = '';
       gizmosLayer.innerHTML = '';
 
-      // Standard Flow Connections
       for (const edge of currentGraph.edges || []) {
         const sEl = document.getElementById('node-' + edge.source);
         const tEl = document.getElementById('node-' + edge.target);
@@ -2789,7 +2759,6 @@ var StudioServer = class {
         }
       }
 
-      // TETHERING 'VIEWS' WIRES
       spawnedViewers.forEach(viewer => {
         const sEl = document.getElementById('node-' + viewer.sourceNodeId);
         const vEl = document.getElementById('viewer-' + viewer.id);
@@ -2847,7 +2816,6 @@ var StudioServer = class {
       if (livePath) livePath.remove();
     }
 
-    // --- Programmatic API Handlers ---
     function apiMoveMultipleNodes(positions) {
       if (window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'move-' + Date.now(), method: 'graph.moveMultipleNodes', params: { positions } }));
     }
@@ -2890,18 +2858,6 @@ var StudioServer = class {
     function triggerPurityAudit() {
       if (window.studioWs) window.studioWs.send(JSON.stringify({ jsonrpc: '2.0', id: 'audit-' + Date.now(), method: 'validate.runPurityAudit' }));
     }
-
-    async function initialGraphFetch() {
-      try {
-        const res = await fetch('/api/graph');
-        const data = await res.json();
-        if (data.payload && data.payload.nodes) {
-          currentGraph = data.payload;
-          renderGraphNodes(currentGraph);
-        }
-      } catch (e) {}
-    }
-    initialGraphFetch();
 
     function connectWebSocket() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
