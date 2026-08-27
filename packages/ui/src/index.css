@@ -511,3 +511,20 @@ body {
   .krnl-sphere-accent  { width: 320px; height: 320px; }
   .krnl-sphere-neutral { width: 260px; height: 260px; }
 }
+
+/* ── Backend Connection Wizard & Storage Cards ──────────────── */
+.krnl-backend-wizard {
+  transition: all 0.2s ease;
+}
+
+.krnl-storage-card:hover,
+.krnl-provider-card:hover {
+  border-color: var(--krnl-accent) !important;
+  box-shadow: 0 0 14px var(--krnl-accent-glow), 3px 3px 0px var(--krnl-border) !important;
+  transform: translateY(-1px);
+}
+
+.krnl-status-checklist {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+

@@ -128,4 +128,18 @@ export const DiagnosticsControlButton: React.FC<DiagnosticsControlButtonProps> =
     </div>
   );
 };
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 4. BACKEND CONNECTION WIZARD & WORKSPACE STORAGE UX STANDARD
+// ══════════════════════════════════════════════════════════════════════════════════════════
+/**
+ * Invariants for Backend Connection UX:
+ * 1. Prompt "Where should your data live?" with Tri-Choice Storage (Local, BYOB Connect, Managed).
+ * 2. Driven dynamically via ProviderRegistry (supportsOAuth, supportsAutoProvisioning, supportsManual).
+ * 3. Connection State Machine:
+ *    DISCONNECTED ──► SELECT_PROVIDER ──► AUTHENTICATING ──► VERIFYING ──► INITIALIZING ──► READY
+ * 4. Zero Secrets Exposure: service_role / master keys strictly prohibited client-side.
+ * 5. Action controls (Test, Reconfigure, Disconnect) rendered strictly as icon-only with hover tooltips.
+ */
+
 ```

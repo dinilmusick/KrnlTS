@@ -1,5 +1,10 @@
 # TASK: DEBUG_FIX_AND_VERIFY_PROTOCOL
-$DEBUG := \text{Diagnose}(\mathcal{E}) \to \text{Patch}(\mathcal{P}) \to \text{Verify}(\mathcal{V}) \quad \text{s.t.} \quad \text{Regressions} = \emptyset
+$DEBUG := \text{ReadState}(\mathcal{S}) \to \text{Diagnose}(\mathcal{E}) \to \text{Patch}(\mathcal{P}) \to \text{Verify}(\mathcal{V}) \to \text{UpdateState}(\mathcal{S}) \quad \text{s.t.} \quad \text{Regressions} = \emptyset
+
+## 0. TURN-COUNTER STATE GUARD (`.skipo/agent-state.json`)
+- Before debugging, inspect `.skipo/agent-state.json`.
+- If debugging is executed as part of a routine cadence audit, verify all 6 pillars and set `status: "PASSED"`, `turnsSinceLastAudit: 0`.
+- If executed for an ad-hoc bugfix, increment `totalTurns` and `turnsSinceLastAudit`.
 
 ## 1. IN-CODE UTILITY DOCUMENTATION, SECTION DEMARCATION & NAMING RULES
 - **Naming**: Use long, descriptive names for all test cases, diagnostic harnesses, and assertion helpers (e.g., `verifyUserSessionAuthenticationAndPermissionCascading`).
@@ -13,7 +18,8 @@ $$\begin{array}{lll}
 \text{[AccessDenied]} & \text{Port/Key/Admin mismatch} & \text{Verify AdminGuard token format ("sess::<userId>::...") or header key} \\
 \text{[DependencyGate]} & \text{Unsatisfied requires spec} & \text{Check entity capability resolution or startup boot barrier} \\
 \text{[KrnlSchemaError]} & \text{Input/Output type mismatch} & \text{Validate payload against Zod/Protobuf definitions} \\
-\text{[KrnlBackendWarning]} & \text{Table or DB connection error} & \text{Ensure provider credentials and filePath/endpoint are valid}
+\text{[KrnlBackendWarning]} & \text{Table or DB connection error} & \text{Ensure provider credentials and filePath/endpoint are valid} \\
+\text{[CadenceDeviation]} & \text{Unchecked turns > threshold} & \text{Execute full 6-pillar audit, fix deviations, reset counter to 0}
 \end{array}$$
 
 ## 3. CANONICAL REPRODUCTION & VERIFICATION SCRIPT TEMPLATE

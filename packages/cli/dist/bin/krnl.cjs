@@ -1871,7 +1871,7 @@ var StudioServer = class {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Krnl Studio \u2014 Interactive Visual Node IDE</title>
+  <title>Krnl Studio \u2014 Differentiated Visual Architecture IDE</title>
   
   <!-- Monaco Editor AMD Loader -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
@@ -1927,10 +1927,11 @@ var StudioServer = class {
       background-size: 24px 24px; cursor: default;
     }
     #graph-container { position: absolute; top: 0; left: 0; width: 6000px; height: 6000px; transform-origin: 0 0; }
+    
+    /* CRITICAL LAYER POINTER-EVENTS ISOLATION */
     #svg-wires { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
-    #svg-wires path { pointer-events: stroke; }
-    #nodes-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: auto; }
-    #gizmos-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 15; pointer-events: auto; }
+    #nodes-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+    #gizmos-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
 
     /* Selection Box */
     #selection-box {
@@ -1939,47 +1940,107 @@ var StudioServer = class {
       pointer-events: none; z-index: 999;
     }
 
-    /* Nodes */
+    /* Base Node Structure */
     .krnl-node {
-      position: absolute; border-radius: 10px; padding: 14px 18px;
+      position: absolute; border-radius: 12px;
       font-family: inherit; color: var(--krnl-text); cursor: grab;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.7);
-      transition: box-shadow 0.15s ease, border-color 0.15s ease;
-      z-index: 20;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.75);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+      pointer-events: auto; z-index: 20;
+      overflow: hidden;
     }
-    .krnl-node:active { cursor: grabbing; }
+    .krnl-node:hover {
+      box-shadow: 0 14px 42px rgba(0,0,0,0.9), 0 0 24px var(--krnl-accent-glow);
+    }
+    .krnl-node.dragging { cursor: grabbing !important; }
     .krnl-node.selected {
-      border-color: #f5ede4 !important;
-      box-shadow: 0 0 0 2px #f5ede4, 0 12px 36px rgba(0,0,0,0.9), 0 0 24px var(--krnl-accent-glow) !important;
+      box-shadow: 0 0 0 2px #f5ede4, 0 14px 42px rgba(0,0,0,0.9), 0 0 28px var(--krnl-accent-glow) !important;
     }
+
+    /* ==========================================================================
+       1. ENTITY SYSTEM NODES (Deep Obsidian with Gold Dual-Border & System Crown)
+       ========================================================================== */
     .krnl-node-entity {
-      background: #181822; border: 2px solid #d4af37;
-      min-width: 250px;
+      background: linear-gradient(180deg, #1d1d28 0%, #13131b 100%);
+      border: 2px solid #d4af37;
+      min-width: 290px;
+      box-shadow: 0 10px 32px rgba(0,0,0,0.85), inset 0 1px 0 rgba(212, 175, 55, 0.4);
     }
+    .node-header-entity {
+      background: rgba(212, 175, 55, 0.12);
+      border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+      padding: 10px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    /* ==========================================================================
+       2. QUAD-UNIT FUNCTIONALITY NODES (Technical Slate with 4-Layer Compartments)
+       ========================================================================== */
     .krnl-node-functionality {
-      background: #14141e; border: 1px solid rgba(255, 255, 255, 0.35);
-      min-width: 220px;
+      background: linear-gradient(180deg, #181926 0%, #11121a 100%);
+      border: 1px solid #61afef;
+      min-width: 280px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.7), inset 0 1px 0 rgba(97, 175, 239, 0.3);
     }
+    .node-header-functionality {
+      background: rgba(97, 175, 239, 0.12);
+      border-bottom: 1px solid rgba(97, 175, 239, 0.25);
+      padding: 9px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .quad-layers-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+      padding: 10px 14px; background: rgba(0,0,0,0.25);
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .quad-pill {
+      font-size: 10px; padding: 4px 6px; border-radius: 4px;
+      display: flex; align-items: center; gap: 4px; font-weight: 500;
+    }
+
+    /* ==========================================================================
+       3. DOMAIN CONCEPT LIBRARY NODES (Warm Amber Bronze with Math Emblem)
+       ========================================================================== */
     .krnl-node-library {
-      background: #221c16; border: 1px solid #e5c07b;
-      min-width: 200px;
+      background: linear-gradient(180deg, #261f18 0%, #18130e 100%);
+      border: 1px solid #e5c07b;
+      min-width: 250px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.75), inset 0 1px 0 rgba(229, 192, 123, 0.3);
     }
+    .node-header-library {
+      background: rgba(229, 192, 123, 0.14);
+      border-bottom: 1px solid rgba(229, 192, 123, 0.3);
+      padding: 9px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    /* ==========================================================================
+       4. SUB-APP NODES (Cyan Blueprint Frame with Route Container)
+       ========================================================================== */
     .krnl-node-subapp {
-      background: #152228; border: 1px dashed #56b6c2;
-      min-width: 220px;
+      background: linear-gradient(180deg, #15222b 0%, #0d151c 100%);
+      border: 1px dashed #56b6c2;
+      min-width: 260px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.75), inset 0 1px 0 rgba(86, 182, 194, 0.25);
+    }
+    .node-header-subapp {
+      background: rgba(86, 182, 194, 0.14);
+      border-bottom: 1px dashed rgba(86, 182, 194, 0.3);
+      padding: 9px 14px;
+      display: flex; align-items: center; justify-content: space-between;
     }
 
     /* Socket Ports */
     .node-socket {
       width: 14px; height: 14px; border-radius: 50%;
       background: #d4af37; border: 2px solid #0e0e12;
-      position: absolute; cursor: crosshair; z-index: 25;
+      position: absolute; cursor: crosshair; pointer-events: auto; z-index: 35;
       transition: transform 0.1s ease, background 0.1s ease;
     }
     .node-socket:hover {
-      transform: translateY(-50%) scale(1.3);
+      transform: translateY(-50%) scale(1.35);
       background: #f5ede4;
-      box-shadow: 0 0 10px #d4af37;
+      box-shadow: 0 0 12px #d4af37;
     }
     .socket-out { right: -7px; top: 50%; transform: translateY(-50%); }
     .socket-in { left: -7px; top: 50%; transform: translateY(-50%); background: #61afef; }
@@ -1989,7 +2050,7 @@ var StudioServer = class {
       position: absolute; width: 20px; height: 20px; border-radius: 50%;
       background: #16161e; border: 1px solid #e06c75; color: #e06c75;
       display: flex; align-items: center; justify-content: center;
-      font-size: 11px; font-weight: bold; cursor: pointer;
+      font-size: 11px; font-weight: bold; cursor: pointer; pointer-events: auto;
       transform: translate(-50%, -50%); z-index: 30;
       box-shadow: 0 2px 8px rgba(0,0,0,0.8);
       transition: all 0.15s ease;
@@ -2063,7 +2124,7 @@ var StudioServer = class {
       </div>
 
       <!-- Source Code Drawer -->
-      <div id="code-drawer" style="position: absolute; top: 60px; right: 16px; bottom: 80px; width: 480px; background: rgba(22, 22, 30, 0.96); backdrop-filter: blur(16px); border: var(--krnl-border); border-radius: 10px; display: none; flex-direction: column; z-index: 1500; box-shadow: 0 12px 36px rgba(0,0,0,0.8);">
+      <div id="code-drawer" style="position: absolute; top: 60px; right: 16px; bottom: 80px; width: 500px; background: rgba(22, 22, 30, 0.96); backdrop-filter: blur(16px); border: var(--krnl-border); border-radius: 10px; display: none; flex-direction: column; z-index: 1500; box-shadow: 0 12px 36px rgba(0,0,0,0.8);">
         <div style="padding: 12px 16px; border-bottom: var(--krnl-border); display: flex; justify-content: space-between; align-items: center;">
           <span id="drawer-file-title" style="font-size: 12px; font-weight: bold; color: var(--krnl-accent); font-family: monospace;">Source File</span>
           <button onclick="closeCodeDrawer()" style="background: transparent; border: none; color: #abb2bf; cursor: pointer; font-size: 14px;">\u2715</button>
@@ -2177,6 +2238,7 @@ var StudioServer = class {
     // Viewport Pan & Zoom
     let panX = 40, panY = 70, zoom = 0.85;
     let isPanning = false, startPanX = 0, startPanY = 0;
+    let isRightDragPanning = false, rightDragStartX = 0, rightDragStartY = 0, rightDragDist = 0;
     const viewport = document.getElementById('graph-viewport');
     const container = document.getElementById('graph-container');
 
@@ -2186,13 +2248,14 @@ var StudioServer = class {
 
     // Dragging Nodes State
     let isDraggingNode = false;
+    let nodeDragMoved = false;
     let draggedNodeId = null;
     let dragStartPos = { x: 0, y: 0 };
     let initialNodePositions = new Map();
 
     // Wire Dragging State
     let isDraggingWire = false;
-    let wireSource = null; // { nodeId, socketType: 'out'|'in', x, y }
+    let wireSource = null;
     let wireDropLocation = { x: 0, y: 0 };
 
     // Context Menus
@@ -2227,20 +2290,34 @@ var StudioServer = class {
         return;
       }
 
-      // 2. Left Click on Canvas Background: Start Box Selection
-      if (e.button === 0 && (e.target === viewport || e.target.id === 'svg-wires' || e.target.id === 'nodes-layer' || e.target.id === 'gizmos-layer')) {
-        if (!e.shiftKey && !e.metaKey && !e.ctrlKey) {
-          selectedNodes.clear();
-          updateNodeSelectionStyles();
+      // 2. Right-Click Drag: Pan fallback for Mac trackpad
+      if (e.button === 2) {
+        isRightDragPanning = true;
+        rightDragDist = 0;
+        rightDragStartX = e.clientX;
+        rightDragStartY = e.clientY;
+        startPanX = e.clientX - panX;
+        startPanY = e.clientY - panY;
+        return;
+      }
+
+      // 3. Left Click on Canvas Background: Box Marquee Selection or Deselect
+      if (e.button === 0) {
+        const isNodeOrSocket = e.target.closest('.krnl-node') || e.target.closest('.node-socket') || e.target.closest('.edge-delete-gizmo');
+        if (!isNodeOrSocket) {
+          if (!e.shiftKey && !e.metaKey && !e.ctrlKey) {
+            selectedNodes.clear();
+            updateNodeSelectionStyles();
+          }
+          isBoxSelecting = true;
+          boxStartX = (clientX - panX) / zoom;
+          boxStartY = (clientY - panY) / zoom;
+          selectionBox.style.left = boxStartX + 'px';
+          selectionBox.style.top = boxStartY + 'px';
+          selectionBox.style.width = '0px';
+          selectionBox.style.height = '0px';
+          selectionBox.style.display = 'block';
         }
-        isBoxSelecting = true;
-        boxStartX = (clientX - panX) / zoom;
-        boxStartY = (clientY - panY) / zoom;
-        selectionBox.style.left = boxStartX + 'px';
-        selectionBox.style.top = boxStartY + 'px';
-        selectionBox.style.width = '0px';
-        selectionBox.style.height = '0px';
-        selectionBox.style.display = 'block';
       }
     };
 
@@ -2249,7 +2326,7 @@ var StudioServer = class {
       const clientX = e.clientX - rect.left;
       const clientY = e.clientY - rect.top;
 
-      // 1. Pan Viewport
+      // 1. Middle-Mouse Pan
       if (isPanning) {
         panX = e.clientX - startPanX;
         panY = e.clientY - startPanY;
@@ -2257,7 +2334,18 @@ var StudioServer = class {
         return;
       }
 
-      // 2. Box Selection
+      // 2. Right-Drag Pan
+      if (isRightDragPanning) {
+        const dx = e.clientX - rightDragStartX;
+        const dy = e.clientY - rightDragStartY;
+        rightDragDist += Math.abs(dx) + Math.abs(dy);
+        panX = e.clientX - startPanX;
+        panY = e.clientY - startPanY;
+        updateTransform();
+        return;
+      }
+
+      // 3. Box Selection
       if (isBoxSelecting) {
         const currentX = (clientX - panX) / zoom;
         const currentY = (clientY - panY) / zoom;
@@ -2289,8 +2377,9 @@ var StudioServer = class {
         return;
       }
 
-      // 3. Dragging Selected Nodes
+      // 4. Dragging Selected Nodes
       if (isDraggingNode) {
+        nodeDragMoved = true;
         const dx = (clientX - dragStartPos.x) / zoom;
         const dy = (clientY - dragStartPos.y) / zoom;
 
@@ -2311,7 +2400,7 @@ var StudioServer = class {
         return;
       }
 
-      // 4. Live Wire Dragging
+      // 5. Live Wire Dragging
       if (isDraggingWire && wireSource) {
         const currentX = (clientX - panX) / zoom;
         const currentY = (clientY - panY) / zoom;
@@ -2325,6 +2414,10 @@ var StudioServer = class {
         viewport.style.cursor = 'default';
       }
 
+      if (isRightDragPanning) {
+        isRightDragPanning = false;
+      }
+
       if (isBoxSelecting) {
         isBoxSelecting = false;
         selectionBox.style.display = 'none';
@@ -2332,15 +2425,18 @@ var StudioServer = class {
 
       if (isDraggingNode) {
         isDraggingNode = false;
-        // Persist moved positions
-        const positions = {};
-        selectedNodes.forEach(nodeId => {
-          const el = document.getElementById('node-' + nodeId);
-          if (el) {
-            positions[nodeId] = { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
-          }
-        });
-        apiMoveMultipleNodes(positions);
+        document.querySelectorAll('.krnl-node').forEach(el => el.classList.remove('dragging'));
+
+        if (nodeDragMoved) {
+          const positions = {};
+          selectedNodes.forEach(nodeId => {
+            const el = document.getElementById('node-' + nodeId);
+            if (el) {
+              positions[nodeId] = { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
+            }
+          });
+          apiMoveMultipleNodes(positions);
+        }
       }
 
       if (isDraggingWire) {
@@ -2410,6 +2506,7 @@ var StudioServer = class {
 
     viewport.oncontextmenu = (e) => {
       e.preventDefault();
+      if (rightDragDist > 8) return;
       hideContextMenus();
 
       const rect = viewport.getBoundingClientRect();
@@ -2439,32 +2536,27 @@ var StudioServer = class {
     // --- Hotkeys Matrix ---
 
     window.addEventListener('keydown', (e) => {
-      // Ignore hotkeys when typing in inputs / Monaco
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.closest('.monaco-editor')) {
         return;
       }
 
-      // Delete / Backspace: Delete selected nodes
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         selectedNodes.forEach(nodeId => apiDeleteNode(nodeId));
         selectedNodes.clear();
       }
 
-      // Ctrl+A / Cmd+A: Select all
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         currentGraph.nodes.forEach(n => selectedNodes.add(n.id));
         updateNodeSelectionStyles();
       }
 
-      // Ctrl+C / Cmd+C: Copy selected nodes
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
         e.preventDefault();
         clipboardNodes = currentGraph.nodes.filter(n => selectedNodes.has(n.id));
       }
 
-      // Ctrl+V / Cmd+V: Paste copied nodes
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
         e.preventDefault();
         clipboardNodes.forEach((node, idx) => {
@@ -2475,21 +2567,19 @@ var StudioServer = class {
         });
       }
 
-      // Ctrl+Z / Cmd+Z: Undo / Redo
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) apiRedo();
         else apiUndo();
       }
 
-      // Ctrl+Y: Redo
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         apiRedo();
       }
     });
 
-    // --- Graph Rendering Engine ---
+    // --- Rich Differentiated Node Rendering Engine ---
 
     function renderGraphNodes(graph) {
       const layer = document.getElementById('nodes-layer');
@@ -2503,7 +2593,6 @@ var StudioServer = class {
       document.getElementById('node-count-badge').textContent = \`\${graph.nodes.length} Nodes | \${graph.edges?.length || 0} Wires\`;
 
       graph.nodes.forEach((node, idx) => {
-        // Use stored position or fallback layout
         let x = node.position?.x;
         let y = node.position?.y;
 
@@ -2512,15 +2601,15 @@ var StudioServer = class {
             const col = Math.floor(idx / 5);
             const row = idx % 5;
             x = 60 + col * 360;
-            y = 60 + row * 220;
+            y = 60 + row * 240;
           } else if (node.type === 'functionality') {
-            const col = Math.floor(idx / 7);
-            const row = idx % 7;
-            x = 800 + col * 320;
-            y = 60 + row * 180;
+            const col = Math.floor(idx / 6);
+            const row = idx % 6;
+            x = 840 + col * 340;
+            y = 60 + row * 220;
           } else {
-            x = 1500;
-            y = 60 + idx * 160;
+            x = 1580;
+            y = 60 + idx * 180;
           }
         }
 
@@ -2539,21 +2628,116 @@ var StudioServer = class {
       el.style.left = x + 'px';
       el.style.top = y + 'px';
 
-      const parentInfo = node.parentEntity ? \`<div style="font-size: 10px; color: #abb2bf; margin-bottom: 2px;">Parent: \${node.parentEntity}</div>\` : '';
+      let innerHtml = '';
 
-      el.innerHTML = \`
-        <div style="font-size: 10px; text-transform: uppercase; color: var(--krnl-accent); font-weight: bold; margin-bottom: 4px;">\${node.type}</div>
-        <div style="font-size: 15px; font-weight: bold; margin-bottom: 4px;">\${node.name}</div>
-        \${parentInfo}
-        <div style="font-size: 9px; color: #7f848e; font-family: monospace; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">\${node.filePath ? node.filePath.split('/').slice(-2).join('/') : ''}</div>
+      // 1. ENTITY SYSTEM NODES
+      if (node.type === 'entity') {
+        const parentBadge = node.parentEntity
+          ? \`<span style="background: rgba(212, 175, 55, 0.2); color: #d4af37; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Subsystem of \${node.parentEntity}</span>\`
+          : \`<span style="background: rgba(152, 195, 121, 0.2); color: #98c379; padding: 2px 6px; border-radius: 4px; font-size: 10px;">\u{1F451} Root Entity</span>\`;
+
+        innerHtml = \`
+          <div class="node-header-entity">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 14px;">\u{1F3DB}\uFE0F</span>
+              <span style="font-size: 11px; font-weight: bold; color: #d4af37; text-transform: uppercase; letter-spacing: 0.5px;">SYSTEM ENTITY</span>
+            </div>
+            \${parentBadge}
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-size: 16px; font-weight: bold; color: #f5ede4;">\${node.name}</div>
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+              <span style="font-size: 10px; background: #21212b; color: #abb2bf; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);">\u26A1 Magnetic Auto-Boot</span>
+              <span style="font-size: 10px; color: #7f848e; font-family: monospace;">\${node.filePath.split('/').slice(-1)[0]}</span>
+            </div>
+          </div>
+        \`;
+      }
+
+      // 2. QUAD-UNIT FUNCTIONALITY NODES
+      else if (node.type === 'functionality') {
+        const helperCount = node.helpers?.length || 0;
+        innerHtml = \`
+          <div class="node-header-functionality">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 13px;">\u26A1</span>
+              <span style="font-size: 10px; font-weight: bold; color: #61afef; text-transform: uppercase; letter-spacing: 0.5px;">QUAD-UNIT FUNCTIONALITY</span>
+            </div>
+            <span style="font-size: 10px; background: rgba(97, 175, 239, 0.2); color: #61afef; padding: 2px 6px; border-radius: 4px;">\${node.parentEntity}</span>
+          </div>
+          <div style="padding: 10px 14px 6px 14px;">
+            <div style="font-size: 15px; font-weight: bold; color: #f5ede4; margin-bottom: 2px;">\${node.name}</div>
+            <div style="font-size: 9px; color: #7f848e; font-family: monospace;">\${node.filePath.split('/').slice(-2).join('/')}</div>
+          </div>
+          <div class="quad-layers-grid">
+            <div class="quad-pill" style="background: rgba(97, 175, 239, 0.15); color: #61afef; border: 1px solid rgba(97, 175, 239, 0.3);">
+              <span>\u{1F4DD}</span><span>Atom Contract</span>
+            </div>
+            <div class="quad-pill" style="background: rgba(212, 175, 55, 0.15); color: #d4af37; border: 1px solid rgba(212, 175, 55, 0.3);">
+              <span>\u2699\uFE0F</span><span>Layer 2 Logic</span>
+            </div>
+            <div class="quad-pill" style="background: rgba(152, 195, 121, 0.15); color: #98c379; border: 1px solid rgba(152, 195, 121, 0.3);">
+              <span>\u{1F4BE}</span><span>State Schema</span>
+            </div>
+            <div class="quad-pill" style="background: rgba(198, 120, 221, 0.15); color: #c678dd; border: 1px solid rgba(198, 120, 221, 0.3);">
+              <span>\u{1F6E0}\uFE0F</span><span>\${helperCount} Helpers</span>
+            </div>
+          </div>
+        \`;
+      }
+
+      // 3. DOMAIN CONCEPT LIBRARY NODES
+      else if (node.type === 'library') {
+        innerHtml = \`
+          <div class="node-header-library">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 13px;">\u{1F4DA}</span>
+              <span style="font-size: 10px; font-weight: bold; color: #e5c07b; text-transform: uppercase; letter-spacing: 0.5px;">CONCEPT LIBRARY</span>
+            </div>
+            <span style="font-size: 10px; background: rgba(229, 192, 123, 0.2); color: #e5c07b; padding: 2px 6px; border-radius: 4px;">Layer 0 Pure Math</span>
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;">
+            <div style="font-size: 15px; font-weight: bold; color: #f5ede4;">\${node.name}</div>
+            <div style="font-size: 10px; color: #98c379; display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+              <span>\u{1F331}</span><span>Zero I/O \u2022 100% Deterministic</span>
+            </div>
+          </div>
+        \`;
+      }
+
+      // 4. SUB-APP NODES
+      else if (node.type === 'subapp') {
+        innerHtml = \`
+          <div class="node-header-subapp">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 13px;">\u{1F310}</span>
+              <span style="font-size: 10px; font-weight: bold; color: #56b6c2; text-transform: uppercase; letter-spacing: 0.5px;">SUB-APP CONTAINER</span>
+            </div>
+            <span style="font-size: 10px; background: rgba(86, 182, 194, 0.2); color: #56b6c2; padding: 2px 6px; border-radius: 4px;">Fullstack SPA</span>
+          </div>
+          <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;">
+            <div style="font-size: 15px; font-weight: bold; color: #f5ede4;">\${node.name}</div>
+            <div style="font-size: 10px; color: #56b6c2; display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+              <span>\u{1F4E6}</span><span>Self-Contained UI & API Bundle</span>
+            </div>
+          </div>
+        \`;
+      }
+
+      innerHtml += \`
         <div class="node-socket socket-out" data-node-id="\${node.id}" data-socket-type="out"></div>
         <div class="node-socket socket-in" data-node-id="\${node.id}" data-socket-type="in"></div>
       \`;
+
+      el.innerHTML = innerHtml;
 
       // Node Drag Initiation
       el.onmousedown = (e) => {
         if (e.target.classList.contains('node-socket')) return;
         if (e.button === 0) {
+          e.stopPropagation();
+          nodeDragMoved = false;
+
           if (!selectedNodes.has(node.id)) {
             if (!e.shiftKey && !e.metaKey) selectedNodes.clear();
             selectedNodes.add(node.id);
@@ -2562,6 +2746,8 @@ var StudioServer = class {
 
           isDraggingNode = true;
           draggedNodeId = node.id;
+          el.classList.add('dragging');
+
           const rect = viewport.getBoundingClientRect();
           dragStartPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
 
@@ -2572,14 +2758,13 @@ var StudioServer = class {
               initialNodePositions.set(nid, { x: parseFloat(nEl.style.left), y: parseFloat(nEl.style.top) });
             }
           });
-          e.stopPropagation();
         }
       };
 
-      // Click to open source drawer
+      // Click to open source drawer (only if not dragged)
       el.onclick = (e) => {
         if (e.target.classList.contains('node-socket')) return;
-        if (node.filePath && window.studioWs) {
+        if (!nodeDragMoved && node.filePath && window.studioWs) {
           window.studioWs.send(JSON.stringify({
             jsonrpc: '2.0',
             id: 'read-' + Date.now(),

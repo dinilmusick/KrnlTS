@@ -167,4 +167,82 @@ interface KrnlMonacoProps {
  */
 declare function KrnlMonacoEditor(props?: KrnlMonacoProps): HTMLElement;
 
-export { KrnlAgentBridge, KrnlAgentBridgeManager, KrnlButton, type KrnlButtonProps, type KrnlComponentRegistration, type KrnlComponentState, KrnlDock, type KrnlDockItem, type KrnlDockProps, KrnlDropdown, type KrnlDropdownProps, KrnlJsonViewer, type KrnlJsonViewerProps, KrnlMonacoEditor, type KrnlMonacoProps, KrnlReactiveBridge, KrnlTextArea, type KrnlTextAreaProps, KrnlTextInput, type KrnlTextInputProps, KrnlTile, type KrnlTileProps, KrnlTooltip, type KrnlTooltipProps, type SharedSlot, getSharedSlot };
+type StorageSelectionMode = "local" | "connect_existing" | "managed";
+type ConnectionWizardStep = "DISCONNECTED" | "SELECT_STORAGE_MODE" | "SELECT_PROVIDER" | "AUTHENTICATING" | "AUTHENTICATED" | "SELECT_RESOURCE" | "VERIFYING" | "VERIFIED" | "INITIALIZING" | "READY" | "CONNECTION_ERROR" | "PERMISSION_ERROR";
+interface ProviderFieldConfig {
+    key: string;
+    label: string;
+    type: "text" | "password" | "url";
+    placeholder: string;
+    isSecret: boolean;
+    required?: boolean;
+}
+interface ProviderDescriptor {
+    id: string;
+    name: string;
+    category: "relational_sql" | "document_nosql" | "embedded_baas" | "object_storage";
+    iconSvg: string;
+    description: string;
+    supportsOAuth: boolean;
+    supportsAutomaticProvisioning: boolean;
+    supportsManualConnection: boolean;
+    requiredFields: ProviderFieldConfig[];
+}
+interface WorkspaceBackendConnectionState {
+    mode: StorageSelectionMode;
+    providerId?: string;
+    endpoint?: string;
+    clientKey?: string;
+    databaseName?: string;
+    status: "CONNECTED" | "DISCONNECTED" | "INITIALIZING" | "ERROR";
+    latencyMs?: number;
+    databaseConnected: boolean;
+    storageConnected: boolean;
+    schemaInitialized: boolean;
+    errorMessage?: string;
+}
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: ProviderRegistry
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Centralized repository of supported storage and BaaS providers, decoupled from UI.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class ProviderRegistry {
+    private static providers;
+    static register(descriptor: ProviderDescriptor): void;
+    static getAll(): ProviderDescriptor[];
+    static get(id: string): ProviderDescriptor | undefined;
+}
+interface KrnlBackendConnectionWizardProps {
+    initialState?: Partial<WorkspaceBackendConnectionState>;
+    onConnectionSuccess?: (state: WorkspaceBackendConnectionState) => void;
+    onDisconnect?: () => void;
+    onTestConnection?: (config: Record<string, string>) => Promise<{
+        ok: boolean;
+        latencyMs: number;
+        errorMessage?: string;
+    }>;
+}
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * COMPONENT: KrnlBackendConnectionWizard
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Direct-DOM reactive Neo-Brutalist wizard facilitating zero-jargon workspace storage
+ *          selection, live latency probes, automatic schema initialization, and status monitoring.
+ *
+ * Flow Chart:
+ *   [SELECT_STORAGE_MODE] ──► [Local (Instant Ready)]
+ *           │
+ *           └──► [Connect Existing] ──► [SELECT_PROVIDER] ──► [ENTER CREDENTIALS]
+ *                                                                    │
+ *                                                                    ▼
+ *                                                            [VERIFY & AUTO-INIT]
+ *                                                                    │
+ *                                                                    ▼
+ *                                                             [READY (Status)]
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare function KrnlBackendConnectionWizard(props?: KrnlBackendConnectionWizardProps): HTMLDivElement;
+
+export { type ConnectionWizardStep, KrnlAgentBridge, KrnlAgentBridgeManager, KrnlBackendConnectionWizard, type KrnlBackendConnectionWizardProps, KrnlButton, type KrnlButtonProps, type KrnlComponentRegistration, type KrnlComponentState, KrnlDock, type KrnlDockItem, type KrnlDockProps, KrnlDropdown, type KrnlDropdownProps, KrnlJsonViewer, type KrnlJsonViewerProps, KrnlMonacoEditor, type KrnlMonacoProps, KrnlReactiveBridge, KrnlTextArea, type KrnlTextAreaProps, KrnlTextInput, type KrnlTextInputProps, KrnlTile, type KrnlTileProps, KrnlTooltip, type KrnlTooltipProps, type ProviderDescriptor, type ProviderFieldConfig, ProviderRegistry, type SharedSlot, type StorageSelectionMode, type WorkspaceBackendConnectionState, getSharedSlot };

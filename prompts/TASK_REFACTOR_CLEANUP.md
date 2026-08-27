@@ -1,6 +1,10 @@
 # TASK: REFACTOR_AND_CLEANUP_PROTOCOL
-$GOAL := \text{RefactorCodebase}(\mathcal{C}) \to \mathcal{C}_{\text{krnl}} \quad \text{s.t.} \quad \text{Behavior}(\mathcal{C}_{\text{krnl}}) \equiv \text{Behavior}(\mathcal{C})
+$GOAL := \text{ReadState}(\mathcal{S}) \to \text{RefactorCodebase}(\mathcal{C}) \to \text{Verify}(\mathcal{C}_{\text{krnl}}) \to \text{ResetCadence}(\mathcal{S}) \quad \text{s.t.} \quad \text{Behavior}(\mathcal{C}_{\text{krnl}}) \equiv \text{Behavior}(\mathcal{C})
 CRITICAL_INVARIANT: \Delta(\text{BusinessLogic}) = 0 \quad (\text{ZERO LOGIC DELETION - RESTRUCTURE ONLY})
+
+## 0. TURN-COUNTER STATE GUARD (`.skipo/agent-state.json`)
+- Before executing refactor, read `.skipo/agent-state.json`.
+- Upon successful refactoring and regression verification, reset `turnsSinceLastAudit = 0` and record the refactor actions in `lastAudit.refactorsPerformed`.
 
 ## 1. COMPLEXITY, NAMING & CODE LIMITS (ENFORCED)
 $$\begin{array}{ll}
