@@ -1955,7 +1955,7 @@ var StudioServer = class {
     .tooltip-bottom { top: 100%; left: 50%; transform: translateX(-50%) translateY(6px); }
     .tooltip-top { bottom: 100%; left: 50%; transform: translateX(-50%) translateY(-6px); }
 
-    /* INFINITE 4-QUADRANT CANVASS VIEWPORT (-INF to +INF) */
+    /* INFINITE 4-QUADRANT CANVAS VIEWPORT (-INF to +INF) */
     #graph-viewport {
       width: 100%; height: 100%; position: relative; overflow: hidden;
       background-color: #0e0e12;
@@ -1968,21 +1968,23 @@ var StudioServer = class {
       transform-origin: 0 0;
     }
     
-    /* 4-Quadrant Unbounded Layers with overflow: visible */
+    /* 4-Quadrant Unbounded Layers with strict Z-Index Hierarchy:
+       svg-wires (5) < gizmos-layer (7) < nodes-layer (10) < node-cards (20) < viewers (50)
+       This guarantees that wire delete gizmos ALWAYS draw below node bodies! */
     #svg-wires {
       position: absolute; top: 0; left: 0;
       width: 1px; height: 1px;
       overflow: visible; pointer-events: none; z-index: 5;
     }
+    #gizmos-layer {
+      position: absolute; top: 0; left: 0;
+      width: 1px; height: 1px;
+      overflow: visible; pointer-events: none; z-index: 7;
+    }
     #nodes-layer {
       position: absolute; top: 0; left: 0;
       width: 1px; height: 1px;
       overflow: visible; pointer-events: none; z-index: 10;
-    }
-    #gizmos-layer {
-      position: absolute; top: 0; left: 0;
-      width: 1px; height: 1px;
-      overflow: visible; pointer-events: none; z-index: 25;
     }
 
     /* Selection Box */
@@ -1992,7 +1994,7 @@ var StudioServer = class {
       pointer-events: none; z-index: 999;
     }
 
-    /* Base Node Structure */
+    /* Base Node Structure (Draws at z-index: 20, above wire gizmos at z-index: 7) */
     .krnl-node {
       position: absolute; border-radius: 12px;
       font-family: inherit; color: var(--krnl-text); cursor: grab;
@@ -2126,13 +2128,13 @@ var StudioServer = class {
     }
     .socket-views:hover svg { stroke: #0e0e12; }
 
-    /* Centered Wire Delete Gizmo */
+    /* Centered Wire Delete Gizmo (Rendered in #gizmos-layer at z-index: 7, strictly BELOW nodes at z-index: 20) */
     .edge-delete-gizmo {
       position: absolute; width: 20px; height: 20px; border-radius: 50%;
       background: #16161e; border: 1px solid #e06c75; color: #e06c75;
       display: flex; align-items: center; justify-content: center;
       font-size: 11px; font-weight: bold; cursor: pointer; pointer-events: auto;
-      transform: translate(-50%, -50%); z-index: 30;
+      transform: translate(-50%, -50%); z-index: 7;
       box-shadow: 0 2px 8px rgba(0,0,0,0.8);
       transition: all 0.15s ease;
     }
@@ -2212,8 +2214,8 @@ var StudioServer = class {
     <div id="graph-viewport">
       <div id="graph-container">
         <svg id="svg-wires"></svg>
-        <div id="nodes-layer"></div>
         <div id="gizmos-layer"></div>
+        <div id="nodes-layer"></div>
         <div id="selection-box"></div>
       </div>
     </div>
@@ -2495,7 +2497,7 @@ var StudioServer = class {
         return;
       }
 
-      // Drag Nodes (Smooth across all negative & positive coordinates)
+      // Drag Nodes
       if (isDraggingNode) {
         nodeDragMoved = true;
         const dx = (clientX - dragStartPos.x) / zoom;
@@ -3252,7 +3254,7 @@ var StudioServer = class {
 
           const dy = Math.abs(ty - sy) * 0.5;
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-          path.setAttribute('d', \`M \${sx} \${sy} C \${sx} \${sy + dy}, \${tx - 40} \${ty}, \${tx} \${ty}\`);
+          path.setAttribute('d', \`M \${sx} \${sy} C \${sx + dy}, \${tx - 40} \${ty}, \${tx} \${ty}\`);
           path.setAttribute('stroke', '#c678dd');
           path.setAttribute('stroke-width', '2.5');
           path.setAttribute('stroke-dasharray', '5,5');
