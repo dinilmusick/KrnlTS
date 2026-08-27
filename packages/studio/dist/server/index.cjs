@@ -1465,7 +1465,6 @@ var StudioServer = class {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Krnl Studio \u2014 Omni Canvas Visual IDE</title>
   
-  <!-- Monaco Editor AMD Loader -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 
   <style>
@@ -1536,29 +1535,28 @@ var StudioServer = class {
     }
     #graph-container {
       position: absolute; top: 0; left: 0;
-      width: 1px; height: 1px;
+      width: 0; height: 0;
       transform-origin: 0 0;
     }
     
     /* Strict Layering Hierarchy:
        svg-wires (5) < gizmos-layer (7) < nodes-layer (10) < node-cards (20) < viewers (50) */
     #svg-wires {
-      position: absolute; top: -50000px; left: -50000px;
-      width: 100000px; height: 100000px;
+      position: absolute; top: 0; left: 0;
+      width: 0; height: 0;
       overflow: visible !important; pointer-events: none; z-index: 5;
     }
     #gizmos-layer {
       position: absolute; top: 0; left: 0;
-      width: 1px; height: 1px;
+      width: 0; height: 0;
       overflow: visible; pointer-events: none; z-index: 7;
     }
     #nodes-layer {
       position: absolute; top: 0; left: 0;
-      width: 1px; height: 1px;
+      width: 0; height: 0;
       overflow: visible; pointer-events: none; z-index: 10;
     }
 
-    /* Selection Box */
     #selection-box {
       position: absolute; display: none;
       border: 1px dashed #d4af37; background: rgba(212, 175, 55, 0.12);
@@ -1927,35 +1925,29 @@ var StudioServer = class {
     let maxZIndex = 100;
     let lastModalOpenTime = 0;
 
-    // Viewport Pan & Zoom
     let panX = 40, panY = 70, zoom = 0.85;
     let isPanning = false, startPanX = 0, startPanY = 0;
     let isRightDragPanning = false, rightDragStartX = 0, rightDragStartY = 0, rightDragDist = 0;
     const viewport = document.getElementById('graph-viewport');
     const container = document.getElementById('graph-container');
 
-    // Box Selection State
     let isBoxSelecting = false, boxStartX = 0, boxStartY = 0;
     const selectionBox = document.getElementById('selection-box');
 
-    // Dragging Nodes State
     let isDraggingNode = false;
     let nodeDragMoved = false;
     let draggedNodeId = null;
     let dragStartPos = { x: 0, y: 0 };
     let initialNodePositions = new Map();
 
-    // Dragging / Resizing Viewer Window State
     let isDraggingViewer = false, draggedViewerId = null, viewerDragOffset = { x: 0, y: 0 };
     let isResizingViewer = false, resizedViewerId = null, resizeStartPos = { x: 0, y: 0, w: 0, h: 0 };
 
-    // Wire Dragging State
     let isDraggingWire = false;
     let isDraggingViewsWire = false;
     let wireSource = null;
     let wireDropPos = { x: 0, y: 0 };
 
-    // Context Menus
     const paneMenu = document.getElementById('pane-context-menu');
     const nodeMenu = document.getElementById('node-context-menu');
     const viewSelectorModal = document.getElementById('view-selector-modal');
@@ -1970,7 +1962,6 @@ var StudioServer = class {
     }
     window.addEventListener('click', hideContextMenus);
 
-    // --- Mouse Pan & Box Selection ---
     viewport.onmousedown = (e) => {
       hideContextMenus(e);
       const rect = viewport.getBoundingClientRect();
@@ -2253,7 +2244,7 @@ var StudioServer = class {
       }
     });
 
-    // --- RECONCILIATION NODE RENDERING (ZERO-POLL, PRESERVES DOM & MONACO) ---
+    // --- RECONCILIATION NODE RENDERING ---
     function renderGraphNodes(graph) {
       const layer = document.getElementById('nodes-layer');
 
@@ -2502,8 +2493,8 @@ var StudioServer = class {
         sourceNode,
         x: x || 400,
         y: y || 200,
-        w: viewType === 'ui' ? 620 : 520,
-        h: viewType === 'ui' ? 440 : 380,
+        w: viewType === 'ui' ? 620 : 540,
+        h: viewType === 'ui' ? 440 : 400,
         monacoInstance: null
       };
 
@@ -2593,48 +2584,13 @@ var StudioServer = class {
       populateViewerContent(viewer, body);
     }
 
-    // --- Bulletproof File Loader (WebSocket RPC + HTTP Fallback) ---
-    function fetchFileContent(filePath, cb) {
-      if (window.studioWs && window.studioWs.readyState === WebSocket.OPEN) {
-        const reqId = 'file-read-' + Date.now();
-        const msgHandler = (evt) => {
-          try {
-            const data = JSON.parse(evt.data);
-            if (data.id === reqId) {
-              window.studioWs.removeEventListener('message', msgHandler);
-              if (data.result?.payload?.content !== undefined) {
-                cb(null, data.result.payload.content);
-              } else if (data.result?.content !== undefined) {
-                cb(null, data.result.content);
-              } else if (data.error) {
-                cb(new Error(data.error.message));
-              }
-            }
-          } catch (e) {}
-        };
-        window.studioWs.addEventListener('message', msgHandler);
-        window.studioWs.send(JSON.stringify({
-          jsonrpc: '2.0',
-          id: reqId,
-          method: 'file.read',
-          params: { filePath }
-        }));
-        return;
+    function ensureMonacoReady(cb) {
+      if (window.monaco && window.monaco.editor) return cb();
+      if (window.require) {
+        require(['vs/editor/editor.main'], () => cb());
+      } else {
+        setTimeout(() => ensureMonacoReady(cb), 80);
       }
-
-      // HTTP fetch fallback
-      fetch('/api/v1/file/read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.payload?.content !== undefined) cb(null, data.payload.content);
-        else if (data.result?.payload?.content !== undefined) cb(null, data.result.payload.content);
-        else cb(new Error('No content returned'));
-      })
-      .catch(err => cb(err));
     }
 
     function populateViewerContent(viewer, containerEl) {
@@ -2658,39 +2614,52 @@ var StudioServer = class {
           </div>
         \`;
 
-        setTimeout(() => {
-          if (window.monaco) {
-            viewer.monacoInstance = monaco.editor.create(document.getElementById('monaco-ui-' + viewer.id), {
-              value: \`// Generated VanJS UI for \${viewer.sourceNode.name}\\nimport van from 'vanjs-core';\\nimport { KrnlTile } from '@dinilmusick/krnl-ui';\\n\\nexport function \${viewer.sourceNode.name}View() {\\n  return KrnlTile({ title: '\${viewer.sourceNode.name}' });\\n}\`,
-              language: 'typescript', theme: 'krnl-dark', readOnly: true, fontSize: 11, minimap: { enabled: false }
-            });
-          }
-        }, 50);
+        ensureMonacoReady(() => {
+          viewer.monacoInstance = monaco.editor.create(document.getElementById('monaco-ui-' + viewer.id), {
+            value: \`// Generated VanJS UI for \${viewer.sourceNode.name}
+import van from 'vanjs-core';
+import { KrnlTile } from '@dinilmusick/krnl-ui';
+
+export function \${viewer.sourceNode.name}View() {
+  return KrnlTile({ title: '\${viewer.sourceNode.name}' });
+}\`,
+            language: 'typescript', theme: 'krnl-dark', readOnly: true, fontSize: 11, minimap: { enabled: false }
+          });
+        });
       } else if (viewer.viewType === 'code') {
         const monacoDiv = document.createElement('div');
         monacoDiv.style.width = '100%'; monacoDiv.style.height = '100%';
         containerEl.appendChild(monacoDiv);
 
-        setTimeout(() => {
-          if (window.monaco) {
-            viewer.monacoInstance = monaco.editor.create(monacoDiv, {
-              value: \`// Loading source code for \${viewer.sourceNode.name}...\`,
-              language: 'typescript',
-              theme: 'krnl-dark',
-              automaticLayout: true,
-              fontSize: 12,
-              minimap: { enabled: true }
-            });
+        ensureMonacoReady(async () => {
+          viewer.monacoInstance = monaco.editor.create(monacoDiv, {
+            value: \`// Loading \${viewer.sourceNode.name} source code...\`,
+            language: 'typescript',
+            theme: 'krnl-dark',
+            automaticLayout: true,
+            fontSize: 12,
+            minimap: { enabled: true }
+          });
 
-            fetchFileContent(viewer.sourceNode.filePath, (err, content) => {
-              if (err) {
-                viewer.monacoInstance.setValue(\`// File: \${viewer.sourceNode.filePath}\\n// Could not load file directly: \${err.message}\\n\\n// Showing placeholder contract:\\nexport function \${viewer.sourceNode.name}() {\\n  // Implementation\\n}\`);
-              } else {
-                viewer.monacoInstance.setValue(content);
-              }
+          try {
+            const res = await fetch('/api/v1/file/read', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filePath: viewer.sourceNode.filePath })
             });
+            const data = await res.json();
+            const content = data.payload?.content ?? data.result?.payload?.content ?? data.content;
+            if (content !== undefined) {
+              viewer.monacoInstance.setValue(content);
+            } else {
+              viewer.monacoInstance.setValue(\`// File: \${viewer.sourceNode.filePath}
+// Status: No content returned\`);
+            }
+          } catch (err) {
+            viewer.monacoInstance.setValue(\`// File: \${viewer.sourceNode.filePath}
+// Fetch Error: \${err.message || String(err)}\`);
           }
-        }, 50);
+        });
       } else if (viewer.viewType === 'test') {
         containerEl.innerHTML = \`
           <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px; height: 100%;">
@@ -2709,38 +2678,38 @@ var StudioServer = class {
 
         let defaultJson = '{}';
         if (viewer.sourceNode.name.includes('Calc')) {
-          defaultJson = '{\\n  "a": 10,\\n  "b": 25\\n}';
+          defaultJson = '{
+  "a": 10,
+  "b": 25
+}';
         } else if (viewer.sourceNode.name.includes('Order')) {
-          defaultJson = '{\\n  "orderId": "ORD-9821",\\n  "amount": 250\\n}';
-        } else if (viewer.sourceNode.name.includes('Agent') || viewer.sourceNode.name.includes('AI')) {
-          defaultJson = '{\\n  "prompt": "Analyze systems status",\\n  "maxTokens": 100\\n}';
+          defaultJson = '{
+  "orderId": "ORD-9821",
+  "amount": 250
+}';
         }
 
-        setTimeout(() => {
-          if (window.monaco) {
-            viewer.testInputEditor = monaco.editor.create(document.getElementById('test-in-' + viewer.id), {
-              value: defaultJson,
-              language: 'json', theme: 'krnl-dark', fontSize: 11, minimap: { enabled: false }
-            });
-            viewer.testOutputEditor = monaco.editor.create(document.getElementById('test-out-' + viewer.id), {
-              value: '// Press [\u25B6 Execute in Sandbox] above to run in isolated VM',
-              language: 'json', theme: 'krnl-dark', readOnly: true, fontSize: 11, minimap: { enabled: false }
-            });
-          }
-        }, 50);
+        ensureMonacoReady(() => {
+          viewer.testInputEditor = monaco.editor.create(document.getElementById('test-in-' + viewer.id), {
+            value: defaultJson,
+            language: 'json', theme: 'krnl-dark', fontSize: 11, minimap: { enabled: false }
+          });
+          viewer.testOutputEditor = monaco.editor.create(document.getElementById('test-out-' + viewer.id), {
+            value: '// Press [\u25B6 Execute in Sandbox] above to run in isolated VM',
+            language: 'json', theme: 'krnl-dark', readOnly: true, fontSize: 11, minimap: { enabled: false }
+          });
+        });
       } else if (viewer.viewType === 'state') {
         const monacoDiv = document.createElement('div');
         monacoDiv.style.width = '100%'; monacoDiv.style.height = '100%';
         containerEl.appendChild(monacoDiv);
 
-        setTimeout(() => {
-          if (window.monaco) {
-            viewer.monacoInstance = monaco.editor.create(monacoDiv, {
-              value: JSON.stringify({ active: true, invocationCount: 14, lastUpdated: Date.now() }, null, 2),
-              language: 'json', theme: 'krnl-dark', fontSize: 12, minimap: { enabled: false }
-            });
-          }
-        }, 50);
+        ensureMonacoReady(() => {
+          viewer.monacoInstance = monaco.editor.create(monacoDiv, {
+            value: JSON.stringify({ active: true, invocationCount: 14, lastUpdated: Date.now() }, null, 2),
+            language: 'json', theme: 'krnl-dark', fontSize: 12, minimap: { enabled: false }
+          });
+        });
       }
     }
 
@@ -2781,34 +2750,32 @@ var StudioServer = class {
       }
 
       try {
-        if (window.studioWs && window.studioWs.readyState === WebSocket.OPEN) {
-          const reqId = 'test-exec-' + Date.now();
-          const handler = (evt) => {
-            try {
-              const data = JSON.parse(evt.data);
-              if (data.id === reqId) {
-                window.studioWs.removeEventListener('message', handler);
-                handleTestResult(data.result?.payload || data.result, viewerId);
-              }
-            } catch (e) {}
-          };
-          window.studioWs.addEventListener('message', handler);
-          window.studioWs.send(JSON.stringify({
-            jsonrpc: '2.0',
-            id: reqId,
-            method: 'test.executeFunction',
-            params: { filePath: viewer.sourceNode.filePath, input: inputVal }
-          }));
-          return;
-        }
-
         const res = await fetch('/api/v1/test/execute', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filePath: viewer.sourceNode.filePath, input: inputVal })
         });
         const data = await res.json();
-        handleTestResult(data.payload || data.result?.payload || data, viewerId);
+        const payload = data.payload || data.result?.payload || data;
+
+        if (badge) {
+          if (payload.success) {
+            badge.textContent = \`[\${payload.durationMs || 0}ms | PASSED]\`;
+            badge.style.color = '#98c379';
+          } else {
+            badge.textContent = \`[\${payload.durationMs || 0}ms | FAILED]\`;
+            badge.style.color = '#e06c75';
+          }
+        }
+        if (viewer.testOutputEditor) {
+          if (payload.output !== undefined) {
+            viewer.testOutputEditor.setValue(JSON.stringify(payload.output, null, 2));
+          } else if (payload.error) {
+            viewer.testOutputEditor.setValue(JSON.stringify({ error: payload.error, logs: payload.logs || [] }, null, 2));
+          } else {
+            viewer.testOutputEditor.setValue(JSON.stringify(payload, null, 2));
+          }
+        }
       } catch (err) {
         if (badge) {
           badge.textContent = '[FAILED]';
@@ -2816,29 +2783,6 @@ var StudioServer = class {
         }
         if (viewer.testOutputEditor) {
           viewer.testOutputEditor.setValue(JSON.stringify({ error: err.message || String(err) }, null, 2));
-        }
-      }
-    }
-
-    function handleTestResult(payload, viewerId) {
-      const viewer = spawnedViewers.get(viewerId);
-      const badge = document.getElementById('test-badge-' + viewerId);
-      if (badge && payload) {
-        if (payload.success) {
-          badge.textContent = \`[\${payload.durationMs || 0}ms | PASSED]\`;
-          badge.style.color = '#98c379';
-        } else {
-          badge.textContent = \`[\${payload.durationMs || 0}ms | FAILED]\`;
-          badge.style.color = '#e06c75';
-        }
-      }
-      if (viewer && viewer.testOutputEditor) {
-        if (payload?.output !== undefined) {
-          viewer.testOutputEditor.setValue(JSON.stringify(payload.output, null, 2));
-        } else if (payload?.error) {
-          viewer.testOutputEditor.setValue(JSON.stringify({ error: payload.error, logs: payload.logs || [] }, null, 2));
-        } else {
-          viewer.testOutputEditor.setValue(JSON.stringify(payload, null, 2));
         }
       }
     }
@@ -2869,14 +2813,14 @@ var StudioServer = class {
           const tx = parseFloat(tEl.style.left);
           const ty = parseFloat(tEl.style.top) + tEl.offsetHeight / 2;
 
-          const dx = Math.abs(tx - sx) * 0.5;
+          const dx = Math.max(30, Math.abs(tx - sx) * 0.5);
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           path.setAttribute('d', \`M \${sx} \${sy} C \${sx + dx} \${sy}, \${tx - dx} \${ty}, \${tx} \${ty}\`);
           path.setAttribute('stroke', '#d4af37');
           path.setAttribute('stroke-width', '2');
           path.setAttribute('fill', 'none');
           path.setAttribute('stroke-dasharray', edge.type === 'contains' ? 'none' : '4,4');
-          path.setAttribute('opacity', '0.75');
+          path.setAttribute('opacity', '0.85');
           svg.appendChild(path);
 
           if (edge.deletable !== false) {
@@ -2894,7 +2838,7 @@ var StudioServer = class {
         }
       }
 
-      // TETHERING 'VIEWS' WIRES (Rendered between Node's Views Socket & Viewer Window)
+      // Tethering 'Views' Wires
       spawnedViewers.forEach(viewer => {
         const sEl = document.getElementById('node-' + viewer.sourceNodeId);
         const vEl = document.getElementById('viewer-' + viewer.id);
@@ -2904,7 +2848,6 @@ var StudioServer = class {
           const sW = sEl.offsetWidth || 280;
           const sH = sEl.offsetHeight || 130;
 
-          // Originates at bottom-right Views handle
           const sx = sX + sW - 13;
           const sy = sY + sH + 3;
 
