@@ -1,5 +1,101 @@
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 1. IMPORTS & EXTERNAL DEPENDENCIES
+// 1. LIGHTWEIGHT DOM ENVIRONMENT MOCK FOR NODE.JS
+// ══════════════════════════════════════════════════════════════════════════════════════════
+if (typeof globalThis.document === "undefined") {
+  class MockNode {
+    constructor() {
+      this.parentNode = null;
+    }
+  }
+
+  class MockTextNode extends MockNode {
+    constructor(text = "") {
+      super();
+      this.nodeValue = String(text);
+      this.textContent = String(text);
+    }
+    get data() {
+      return this.nodeValue;
+    }
+    set data(v) {
+      this.nodeValue = String(v);
+      this.textContent = String(v);
+    }
+    get outerHTML() {
+      return this.textContent;
+    }
+  }
+
+  class MockElement extends MockNode {
+    constructor(tagName) {
+      super();
+      this.tagName = tagName.toUpperCase();
+      this.children = [];
+      this.childNodes = [];
+      this.attributes = {};
+      this.style = {};
+      this.onclick = null;
+      this.oninput = null;
+      this.onmouseenter = null;
+      this.onmouseleave = null;
+    }
+    setAttribute(name, value) {
+      this.attributes[name] = String(value);
+    }
+    getAttribute(name) {
+      return this.attributes[name] || null;
+    }
+    appendChild(child) {
+      child.parentNode = this;
+      this.childNodes.push(child);
+      this.children.push(child);
+      return child;
+    }
+    append(...children) {
+      for (const c of children) {
+        const node = typeof c === "string" ? new MockTextNode(c) : c;
+        node.parentNode = this;
+        this.childNodes.push(node);
+        this.children.push(node);
+      }
+    }
+    replaceWith(...nodes) {
+      if (this.parentNode) {
+        const idx = this.parentNode.childNodes.indexOf(this);
+        if (idx !== -1) {
+          this.parentNode.childNodes.splice(idx, 1, ...nodes);
+        }
+      }
+    }
+    addEventListener(event, fn) {
+      this[`on${event}`] = fn;
+    }
+    removeEventListener(event, fn) {
+      if (this[`on${event}`] === fn) {
+        this[`on${event}`] = null;
+      }
+    }
+    get outerHTML() {
+      const attrs = Object.entries(this.attributes).map(([k, v]) => ` ${k}="${v}"`).join("");
+      const inner = this.childNodes.map(c => (typeof c === "string" ? c : c?.outerHTML || "")).join("");
+      return `<${this.tagName.toLowerCase()}${attrs}>${inner}</${this.tagName.toLowerCase()}>`;
+    }
+  }
+
+  globalThis.Node = MockNode;
+  globalThis.Element = MockElement;
+  globalThis.HTMLElement = MockElement;
+  globalThis.Text = MockTextNode;
+
+  globalThis.document = {
+    createElement: (tag) => new MockElement(tag),
+    createTextNode: (text) => new MockTextNode(text)
+  };
+  globalThis.window = globalThis;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 2. IMPORTS & TEST SUITE
 // ══════════════════════════════════════════════════════════════════════════════════════════
 import {
   ProviderRegistry,
