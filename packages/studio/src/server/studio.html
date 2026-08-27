@@ -1432,314 +1432,297 @@
       draggedAtomType = null;
     }
 
-    function initializeViewerTree(viewer) {
-      if (viewer.componentTree) return viewer.componentTree;
-      const node = viewer.sourceNode;
-      const children = [];
-
-      if (node.inputs && node.inputs.length > 0) {
-        node.inputs.forEach((inp, i) => {
-          children.push({
-            id: `inp-${i + 1}`,
-            type: 'KrnlTextInput',
-            props: {
-              label: inp.name,
-              name: inp.name,
-              placeholder: inp.type,
-              value: (node.examplePayload && node.examplePayload[inp.name] !== undefined) ? String(node.examplePayload[inp.name]) : ''
-            }
-          });
-        });
-      }
-
-      const defaultAction = node.type === 'entity' ? 'boot' : 'call_functionality';
-      children.push({
-        id: 'btn-action',
-        type: 'KrnlButton',
-        props: {
-          label: node.type === 'entity' ? `⚡ Boot ${node.name}` : `▶ Execute ${node.name}`,
-          variant: 'primary',
-          actionType: defaultAction,
-          targetFunction: node.name
-        }
-      });
-
-      viewer.componentTree = {
-        id: 'root-tile',
-        type: 'KrnlTile',
-        props: {
-          title: `${node.name} Component`,
-          description: `${node.type.toUpperCase()} Visual Interface`
+    // ==========================================
+    // CANONICAL COMPONENT SPECS & VISUAL STATES
+    // ==========================================
+    const CANONICAL_COMPONENT_SPECS = {
+      KrnlButton: {
+        name: 'KrnlButton',
+        category: 'Action Controls',
+        defaultProps: {
+          label: 'Execute Action',
+          variant: 'primary'
         },
-        children
-      };
-
-      viewer.selectedAtomId = children[0]?.id || 'root-tile';
-      return viewer.componentTree;
-    }
-
-    function resetBuilderTree(viewerId) {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer) return;
-      viewer.componentTree = null;
-      initializeViewerTree(viewer);
-      renderBuilderTree(viewerId);
-      syncTreeToMonaco(viewerId);
-    }
-
-    function addAtomComponent(viewerId, atomType, parentId = 'root-tile') {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer) return;
-      const tree = initializeViewerTree(viewer);
-      const newId = `${atomType.toLowerCase().replace('krnl', '')}-${Date.now().toString().slice(-4)}`;
-
-      let newAtom = {
-        id: newId,
-        type: atomType,
-        props: {}
-      };
-
-      if (atomType === 'KrnlButton') {
-        newAtom.props = { label: 'Action Button', variant: 'primary', actionType: 'call_functionality', targetFunction: viewer.sourceNode.name };
-      } else if (atomType === 'KrnlTextInput') {
-        newAtom.props = { label: 'Text Input', name: 'field_' + newId, placeholder: 'string', value: '' };
-      } else if (atomType === 'KrnlTile') {
-        newAtom.props = { title: 'Section Card', description: 'Grouped Container' };
-        newAtom.children = [];
-      } else if (atomType === 'KrnlBadge') {
-        newAtom.props = { text: 'ACTIVE', variant: 'success' };
-      } else if (atomType === 'KrnlDropdown') {
-        newAtom.props = { label: 'Select Option', options: ['Option A', 'Option B'] };
-      } else if (atomType === 'Container') {
-        newAtom.props = { style: 'flex' };
-        newAtom.children = [];
+        defaultStates: {
+          default: {
+            label: 'Execute Action',
+            backgroundColor: '#d4af37',
+            color: '#121212',
+            borderColor: '#d4af37',
+            borderWidth: '0px',
+            borderRadius: '6px',
+            opacity: 1.0,
+            scale: 1.0,
+            rotation: 0,
+            translateX: 0,
+            translateY: 0,
+            shadow: 'sm',
+            fontWeight: 'bold',
+            fontSize: '11px'
+          },
+          hover: {
+            label: 'Execute Action',
+            backgroundColor: '#ffd700',
+            color: '#000000',
+            borderColor: '#ffd700',
+            borderWidth: '0px',
+            borderRadius: '6px',
+            opacity: 1.0,
+            scale: 1.02,
+            rotation: 0,
+            translateX: 0,
+            translateY: -1,
+            shadow: 'gold-glow',
+            fontWeight: 'bold',
+            fontSize: '11px'
+          },
+          loading: {
+            label: 'Processing...',
+            backgroundColor: '#21212b',
+            color: '#abb2bf',
+            borderColor: '#4b5263',
+            borderWidth: '1px',
+            borderRadius: '6px',
+            opacity: 0.7,
+            scale: 0.98,
+            rotation: 0,
+            translateX: 0,
+            translateY: 0,
+            shadow: 'none',
+            fontWeight: 'normal',
+            fontSize: '11px'
+          },
+          success: {
+            label: 'Completed ✓',
+            backgroundColor: '#2e7d32',
+            color: '#ffffff',
+            borderColor: '#98c379',
+            borderWidth: '1px',
+            borderRadius: '6px',
+            opacity: 1.0,
+            scale: 1.0,
+            rotation: 0,
+            translateX: 0,
+            translateY: 0,
+            shadow: 'sm',
+            fontWeight: 'bold',
+            fontSize: '11px'
+          },
+          error: {
+            label: 'Failed ✕',
+            backgroundColor: '#c62828',
+            color: '#ffffff',
+            borderColor: '#e06c75',
+            borderWidth: '1px',
+            borderRadius: '6px',
+            opacity: 1.0,
+            scale: 0.98,
+            rotation: 0,
+            translateX: 0,
+            translateY: 0,
+            shadow: 'danger-glow',
+            fontWeight: 'bold',
+            fontSize: '11px'
+          }
+        }
+      },
+      KrnlTextInput: {
+        name: 'KrnlTextInput',
+        category: 'Form Inputs',
+        defaultProps: {
+          label: 'Input Field',
+          name: 'field',
+          placeholder: 'string',
+          value: ''
+        },
+        defaultStates: {
+          default: {
+            backgroundColor: '#0e0e12',
+            color: '#f5ede4',
+            borderColor: 'rgba(212, 175, 55, 0.35)',
+            borderWidth: '1px',
+            borderRadius: '5px',
+            opacity: 1.0,
+            scale: 1.0,
+            rotation: 0,
+            translateX: 0,
+            translateY: 0,
+            shadow: 'none',
+            fontSize: '11px'
+          },
+          focus: {
+            backgroundColor: '#14141d',
+            color: '#ffffff',
+            borderColor: '#d4af37',
+            borderWidth: '1px',
+            borderRadius: '5px',
+            opacity: 1.0,
+            scale: 1.01,
+            rotation: 0,
+            translateX: 0,
+            translateY: 0,
+            shadow: 'gold-glow',
+            fontSize: '11px'
+          },
+          error: {
+            backgroundColor: '#1b0e0e',
+            color: '#f5ede4',
+            borderColor: '#e06c75',
+            borderWidth: '1px',
+            borderRadius: '5px',
+            opacity: 1.0,
+            scale: 1.0,
+            rotation: 0,
+            translateX: 0,
+            translateY: 0,
+            shadow: 'danger-glow',
+            fontSize: '11px'
+          },
+          disabled: {
+            backgroundColor: '#18181f',
+            color: '#7f848e',
+            borderColor: '#3e4451',
+            borderWidth: '1px',
+            borderRadius: '5px',
+            opacity: 0.5,
+            scale: 1.0,
+            rotation: 0,
+            translateX: 0,
+            translateY: 0,
+            shadow: 'none',
+            fontSize: '11px'
+          }
+        }
+      },
+      KrnlDropdown: {
+        name: 'KrnlDropdown',
+        category: 'Selection Controls',
+        defaultProps: {
+          label: 'Select Option',
+          options: ['Option A', 'Option B']
+        },
+        defaultStates: {
+          default: {
+            backgroundColor: '#0e0e12',
+            color: '#f5ede4',
+            borderColor: 'rgba(212, 175, 55, 0.35)',
+            borderWidth: '1px',
+            borderRadius: '5px',
+            opacity: 1.0,
+            scale: 1.0,
+            shadow: 'none',
+            fontSize: '11px'
+          },
+          active: {
+            backgroundColor: '#14141d',
+            color: '#ffffff',
+            borderColor: '#d4af37',
+            borderWidth: '1px',
+            borderRadius: '5px',
+            opacity: 1.0,
+            scale: 1.01,
+            shadow: 'gold-glow',
+            fontSize: '11px'
+          }
+        }
+      },
+      KrnlBadge: {
+        name: 'KrnlBadge',
+        category: 'Status Badges',
+        defaultProps: {
+          text: 'ACTIVE',
+          variant: 'success'
+        },
+        defaultStates: {
+          default: {
+            text: 'ACTIVE',
+            backgroundColor: 'rgba(152, 195, 121, 0.15)',
+            color: '#98c379',
+            borderColor: '#98c379',
+            borderWidth: '1px',
+            borderRadius: '4px',
+            opacity: 1.0,
+            scale: 1.0,
+            shadow: 'none',
+            fontWeight: 'bold',
+            fontSize: '10px'
+          },
+          inactive: {
+            text: 'INACTIVE',
+            backgroundColor: 'rgba(127, 132, 142, 0.15)',
+            color: '#7f848e',
+            borderColor: '#4b5263',
+            borderWidth: '1px',
+            borderRadius: '4px',
+            opacity: 0.8,
+            scale: 1.0,
+            shadow: 'none',
+            fontWeight: 'normal',
+            fontSize: '10px'
+          },
+          warning: {
+            text: 'WARNING',
+            backgroundColor: 'rgba(229, 192, 123, 0.15)',
+            color: '#e5c07b',
+            borderColor: '#e5c07b',
+            borderWidth: '1px',
+            borderRadius: '4px',
+            opacity: 1.0,
+            scale: 1.0,
+            shadow: 'none',
+            fontWeight: 'bold',
+            fontSize: '10px'
+          }
+        }
+      },
+      KrnlTile: {
+        name: 'KrnlTile',
+        category: 'Containers & Cards',
+        defaultProps: {
+          title: 'Component Card',
+          description: 'Visual Layer Container'
+        },
+        defaultStates: {
+          default: {
+            backgroundColor: 'rgba(20, 20, 28, 0.95)',
+            color: '#d4af37',
+            borderColor: 'rgba(212, 175, 55, 0.35)',
+            borderWidth: '2px',
+            borderRadius: '10px',
+            opacity: 1.0,
+            scale: 1.0,
+            shadow: 'lg'
+          },
+          expanded: {
+            backgroundColor: 'rgba(24, 24, 34, 0.98)',
+            color: '#ffd700',
+            borderColor: '#d4af37',
+            borderWidth: '2px',
+            borderRadius: '10px',
+            opacity: 1.0,
+            scale: 1.0,
+            shadow: 'gold-glow'
+          }
+        }
+      },
+      Container: {
+        name: 'Container',
+        category: 'Generic Layout',
+        defaultProps: { style: 'flex' },
+        defaultStates: {
+          default: {
+            backgroundColor: 'transparent',
+            color: '#abb2bf',
+            borderColor: '#4b5263',
+            borderWidth: '1px',
+            borderRadius: '4px',
+            opacity: 1.0,
+            scale: 1.0
+          }
+        }
       }
+    };
 
-      tree.children.push(newAtom);
-      viewer.selectedAtomId = newId;
-      renderBuilderTree(viewerId);
-      syncTreeToMonaco(viewerId);
-    }
-
-    function deleteAtomComponent(viewerId, atomId) {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer || !viewer.componentTree) return;
-      if (atomId === 'root-tile') return;
-
-      viewer.componentTree.children = viewer.componentTree.children.filter(c => c.id !== atomId);
-      viewer.selectedAtomId = viewer.componentTree.children[0]?.id || 'root-tile';
-      renderBuilderTree(viewerId);
-      syncTreeToMonaco(viewerId);
-    }
-
-    function moveAtomComponent(viewerId, atomId, direction) {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer || !viewer.componentTree) return;
-      const children = viewer.componentTree.children;
-      const idx = children.findIndex(c => c.id === atomId);
-      if (idx === -1) return;
-
-      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
-      if (targetIdx < 0 || targetIdx >= children.length) return;
-
-      const [item] = children.splice(idx, 1);
-      children.splice(targetIdx, 0, item);
-      renderBuilderTree(viewerId);
-      syncTreeToMonaco(viewerId);
-    }
-
-    function selectAtomComponent(viewerId, atomId) {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer) return;
-      viewer.selectedAtomId = atomId;
-      renderBuilderTree(viewerId);
-    }
-
-    function renderBuilderTree(viewerId) {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer) return;
-      const wrap = document.getElementById(`ui-canvas-wrap-${viewerId}`);
-      if (!wrap) return;
-
-      const tree = initializeViewerTree(viewer);
-      wrap.innerHTML = '';
-
-      // Root Canvas Container Card (Puck Canvas)
-      const rootCard = document.createElement('div');
-      rootCard.className = 'puck-canvas-tile';
-      rootCard.style.cssText = `
-        background: rgba(20, 20, 28, 0.95);
-        border: 2px solid ${viewer.selectedAtomId === 'root-tile' ? '#d4af37' : 'rgba(212, 175, 55, 0.35)'};
-        border-radius: 10px;
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-        box-sizing: border-box;
-        width: 100%;
-        transition: border-color 0.15s ease;
-      `;
-      rootCard.onclick = (e) => {
-        if (e.target === rootCard) {
-          selectAtomComponent(viewerId, 'root-tile');
-        }
-      };
-
-      // Header of Tile
-      const header = document.createElement('div');
-      header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(212,175,55,0.25); padding-bottom: 8px;';
-      header.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 13px; font-weight: bold; color: #d4af37;">${tree.props.title || 'Component'}</span>
-          ${tree.props.description ? `<span style="font-size: 10px; color: #7f848e;">— ${tree.props.description}</span>` : ''}
-        </div>
-        <span style="font-size: 9px; background: rgba(212,175,55,0.18); color: #d4af37; padding: 2px 6px; border-radius: 4px; font-weight: bold;">LIVE CANVAS</span>
-      `;
-      rootCard.appendChild(header);
-
-      // Children list
-      const itemsContainer = document.createElement('div');
-      itemsContainer.style.cssText = 'display: flex; flex-direction: column; gap: 10px; width: 100%;';
-
-      (tree.children || []).forEach((atom, idx) => {
-        const isSelected = viewer.selectedAtomId === atom.id;
-        const atomWrapper = document.createElement('div');
-        atomWrapper.className = `puck-atom-item ${isSelected ? 'selected' : ''}`;
-        atomWrapper.style.cssText = `
-          position: relative;
-          padding: 8px;
-          border-radius: 6px;
-          background: ${isSelected ? 'rgba(212, 175, 55, 0.08)' : 'rgba(255,255,255,0.02)'};
-          border: 1px solid ${isSelected ? '#d4af37' : 'rgba(255,255,255,0.08)'};
-          box-shadow: ${isSelected ? '0 0 12px rgba(212,175,55,0.25)' : 'none'};
-          cursor: pointer;
-          transition: all 0.15s ease;
-        `;
-        atomWrapper.onclick = (e) => {
-          e.stopPropagation();
-          selectAtomComponent(viewerId, atom.id);
-        };
-
-        // Render actual interactive component
-        if (atom.type === 'KrnlButton') {
-          const isPrimary = atom.props.variant === 'primary' || !atom.props.variant;
-          const btn = document.createElement('button');
-          btn.style.cssText = `
-            background: ${isPrimary ? '#d4af37' : '#21212b'};
-            color: ${isPrimary ? '#121212' : '#f5ede4'};
-            border: ${isPrimary ? 'none' : '1px solid #4b5263'};
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: bold;
-            cursor: pointer;
-            width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          `;
-          btn.textContent = atom.props.label || 'Button';
-          btn.onclick = (e) => {
-            e.stopPropagation();
-            btn.style.transform = 'scale(0.97)';
-            setTimeout(() => { btn.style.transform = 'none'; }, 100);
-            if (atom.props.actionType === 'test_runner') {
-              spawnViewerNode(viewer.sourceNode.id, 'test');
-            }
-          };
-          atomWrapper.appendChild(btn);
-        } else if (atom.type === 'KrnlTextInput') {
-          const wrap = document.createElement('div');
-          wrap.style.cssText = 'display: flex; flex-direction: column; gap: 4px; width: 100%;';
-          if (atom.props.label) {
-            const lbl = document.createElement('label');
-            lbl.style.cssText = 'font-size: 10px; color: #abb2bf; font-weight: bold; text-transform: uppercase;';
-            lbl.textContent = `${atom.props.label}:`;
-            wrap.appendChild(lbl);
-          }
-          const inp = document.createElement('input');
-          inp.type = atom.props.placeholder?.includes('number') ? 'number' : 'text';
-          inp.placeholder = atom.props.placeholder || 'Enter value...';
-          inp.value = atom.props.value || '';
-          inp.style.cssText = 'background: #0e0e12; border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 5px; padding: 6px 10px; color: #f5ede4; font-size: 11px; outline: none; width: 100%; box-sizing: border-box;';
-          inp.oninput = (e) => {
-            atom.props.value = e.target.value;
-          };
-          wrap.appendChild(inp);
-          atomWrapper.appendChild(wrap);
-        } else if (atom.type === 'KrnlBadge') {
-          const color = atom.props.variant === 'success' ? '#98c379' : atom.props.variant === 'danger' ? '#e06c75' : '#c678dd';
-          const badge = document.createElement('span');
-          badge.style.cssText = `font-size: 10px; font-weight: bold; color: ${color}; background: rgba(255,255,255,0.06); border: 1px solid ${color}; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; width: fit-content;`;
-          badge.textContent = atom.props.text || 'Badge';
-          atomWrapper.appendChild(badge);
-        } else if (atom.type === 'KrnlDropdown') {
-          const wrap = document.createElement('div');
-          wrap.style.cssText = 'display: flex; flex-direction: column; gap: 4px; width: 100%;';
-          if (atom.props.label) {
-            const lbl = document.createElement('label');
-            lbl.style.cssText = 'font-size: 10px; color: #abb2bf; font-weight: bold; text-transform: uppercase;';
-            lbl.textContent = atom.props.label;
-            wrap.appendChild(lbl);
-          }
-          const sel = document.createElement('select');
-          sel.style.cssText = 'background: #0e0e12; border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 5px; padding: 6px 10px; color: #f5ede4; font-size: 11px; outline: none; width: 100%; box-sizing: border-box;';
-          (atom.props.options || ['Option 1', 'Option 2']).forEach(o => {
-            const opt = document.createElement('option');
-            opt.value = o; opt.textContent = o;
-            sel.appendChild(opt);
-          });
-          wrap.appendChild(sel);
-          atomWrapper.appendChild(wrap);
-        } else {
-          const box = document.createElement('div');
-          box.style.cssText = 'padding: 8px; border: 1px dashed #4b5263; border-radius: 4px; font-size: 11px; color: #abb2bf;';
-          box.textContent = `[Box Container] (${atom.type})`;
-          atomWrapper.appendChild(box);
-        }
-
-        // Floating Component Controls Pill
-        if (isSelected) {
-          const controls = document.createElement('div');
-          controls.style.cssText = 'position: absolute; top: -10px; right: 8px; display: flex; align-items: center; gap: 4px; background: #14141d; border: 1px solid #d4af37; border-radius: 4px; padding: 2px 6px; font-size: 9px; box-shadow: 0 2px 8px rgba(0,0,0,0.6); z-index: 10;';
-          controls.innerHTML = `
-            <span style="color: #d4af37; font-weight: bold;">${atom.type}</span>
-            <button onclick="event.stopPropagation(); moveAtomComponent('${viewerId}', '${atom.id}', 'up')" title="Move Up" style="background: transparent; border: none; color: #abb2bf; cursor: pointer; padding: 0 2px;">↑</button>
-            <button onclick="event.stopPropagation(); moveAtomComponent('${viewerId}', '${atom.id}', 'down')" title="Move Down" style="background: transparent; border: none; color: #abb2bf; cursor: pointer; padding: 0 2px;">↓</button>
-            <button onclick="event.stopPropagation(); deleteAtomComponent('${viewerId}', '${atom.id}')" title="Delete Atom" style="background: transparent; border: none; color: #e06c75; cursor: pointer; padding: 0 2px; font-weight: bold;">✕</button>
-          `;
-          atomWrapper.appendChild(controls);
-        }
-
-        itemsContainer.appendChild(atomWrapper);
-      });
-
-      rootCard.appendChild(itemsContainer);
-      wrap.appendChild(rootCard);
-
-      // Also render the Inspector on the right
-      renderAtomInspector(viewerId);
-    }
-
-    function renderAtomInspector(viewerId) {
-      const viewer = spawnedViewers.get(viewerId);
-      if (!viewer) return;
-      const inspectorEl = document.getElementById(`inspector-content-${viewerId}`);
-      if (!inspectorEl) return;
-
-      const tree = viewer.componentTree;
-      if (!tree) return;
-
-      let selectedAtom = null;
-      if (viewer.selectedAtomId === 'root-tile') {
-        selectedAtom = tree;
-      } else {
-    // ==========================================
-    // SMART COMPONENT EVENT & PAYLOAD SYSTEM
-    // ==========================================
     const COMPONENT_EVENT_DEFINITIONS = {
       KrnlButton: {
         events: [
@@ -2041,6 +2024,473 @@
       return { isValid: true, statusText: 'Payload Configured', badgeColor: '#98c379', fieldChecks: [] };
     }
 
+    function initializeViewerTree(viewer) {
+      if (viewer.componentTree) return viewer.componentTree;
+      const node = viewer.sourceNode;
+      const children = [];
+
+      if (node.inputs && node.inputs.length > 0) {
+        node.inputs.forEach((inp, i) => {
+          const spec = CANONICAL_COMPONENT_SPECS.KrnlTextInput;
+          children.push({
+            id: `inp-${i + 1}`,
+            type: 'KrnlTextInput',
+            props: {
+              label: inp.name,
+              name: inp.name,
+              placeholder: inp.type,
+              value: (node.examplePayload && node.examplePayload[inp.name] !== undefined) ? String(node.examplePayload[inp.name]) : ''
+            },
+            activeStateId: 'default',
+            states: JSON.parse(JSON.stringify(spec.defaultStates)),
+            stateTransitions: {
+              assetStateBinding: '',
+              onTriggerState: 'focus',
+              onSuccessState: 'default',
+              onErrorState: 'error',
+              resetAfterMs: 2000
+            },
+            eventConfig: {
+              triggerEvent: 'onEnter',
+              targetId: node.type === 'entity' ? `entity.call:${node.name}` : 'func.main',
+              payloadMode: 'state_sync',
+              customPayload: JSON.stringify(node.examplePayload || {}, null, 2)
+            }
+          });
+        });
+      }
+
+      const btnSpec = CANONICAL_COMPONENT_SPECS.KrnlButton;
+      const defaultAction = node.type === 'entity' ? 'boot' : 'call_functionality';
+      children.push({
+        id: 'btn-action',
+        type: 'KrnlButton',
+        props: {
+          label: node.type === 'entity' ? `⚡ Boot ${node.name}` : `▶ Execute ${node.name}`,
+          variant: 'primary',
+          actionType: defaultAction,
+          targetFunction: node.name
+        },
+        activeStateId: 'default',
+        states: JSON.parse(JSON.stringify(btnSpec.defaultStates)),
+        stateTransitions: {
+          assetStateBinding: '',
+          onTriggerState: 'loading',
+          onSuccessState: 'success',
+          onErrorState: 'error',
+          resetAfterMs: 2000
+        },
+        eventConfig: {
+          triggerEvent: 'onClick',
+          targetId: node.type === 'entity' ? 'entity.boot' : `entity.call:${node.name}`,
+          payloadMode: 'state_sync',
+          customPayload: JSON.stringify(node.examplePayload || {}, null, 2)
+        }
+      });
+
+      const rootSpec = CANONICAL_COMPONENT_SPECS.KrnlTile;
+      viewer.componentTree = {
+        id: 'root-tile',
+        type: 'KrnlTile',
+        props: {
+          title: `${node.name} Component`,
+          description: `${node.type.toUpperCase()} Visual Interface`
+        },
+        activeStateId: 'default',
+        states: JSON.parse(JSON.stringify(rootSpec.defaultStates)),
+        stateTransitions: {},
+        children
+      };
+
+      viewer.selectedAtomId = children[0]?.id || 'root-tile';
+      return viewer.componentTree;
+    }
+
+    function resetBuilderTree(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      viewer.componentTree = null;
+      initializeViewerTree(viewer);
+      renderBuilderTree(viewerId);
+      syncTreeToMonaco(viewerId);
+    }
+
+    function addAtomComponent(viewerId, atomType, parentId = 'root-tile') {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      const tree = initializeViewerTree(viewer);
+      const newId = `${atomType.toLowerCase().replace('krnl', '')}-${Date.now().toString().slice(-4)}`;
+      const spec = CANONICAL_COMPONENT_SPECS[atomType] || CANONICAL_COMPONENT_SPECS.KrnlButton;
+
+      let newAtom = {
+        id: newId,
+        type: atomType,
+        props: { ...spec.defaultProps },
+        activeStateId: 'default',
+        states: JSON.parse(JSON.stringify(spec.defaultStates)),
+        stateTransitions: {
+          assetStateBinding: '',
+          onTriggerState: atomType === 'KrnlButton' ? 'loading' : 'focus',
+          onSuccessState: 'success',
+          onErrorState: 'error',
+          resetAfterMs: 2000
+        },
+        eventConfig: {
+          triggerEvent: COMPONENT_EVENT_DEFINITIONS[atomType]?.defaultEvent || 'onClick',
+          targetId: viewer.sourceNode.type === 'entity' ? 'entity.boot' : `entity.call:${viewer.sourceNode.name}`,
+          payloadMode: 'state_sync',
+          customPayload: JSON.stringify(viewer.sourceNode.examplePayload || {}, null, 2)
+        }
+      };
+
+      if (atomType === 'KrnlTextInput') {
+        newAtom.props.name = 'field_' + newId;
+      }
+
+      tree.children.push(newAtom);
+      viewer.selectedAtomId = newId;
+      renderBuilderTree(viewerId);
+      syncTreeToMonaco(viewerId);
+    }
+
+    function deleteAtomComponent(viewerId, atomId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.componentTree) return;
+      if (atomId === 'root-tile') return;
+
+      viewer.componentTree.children = viewer.componentTree.children.filter(c => c.id !== atomId);
+      viewer.selectedAtomId = viewer.componentTree.children[0]?.id || 'root-tile';
+      renderBuilderTree(viewerId);
+      syncTreeToMonaco(viewerId);
+    }
+
+    function moveAtomComponent(viewerId, atomId, direction) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.componentTree) return;
+      const children = viewer.componentTree.children;
+      const idx = children.findIndex(c => c.id === atomId);
+      if (idx === -1) return;
+
+      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= children.length) return;
+
+      const [item] = children.splice(idx, 1);
+      children.splice(targetIdx, 0, item);
+      renderBuilderTree(viewerId);
+      syncTreeToMonaco(viewerId);
+    }
+
+    function selectAtomComponent(viewerId, atomId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      viewer.selectedAtomId = atomId;
+      renderBuilderTree(viewerId);
+    }
+
+    function setAtomActiveState(viewerId, atomId, stateId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.componentTree) return;
+
+      let atom = atomId === 'root-tile' ? viewer.componentTree : viewer.componentTree.children.find(c => c.id === atomId);
+      if (!atom) return;
+      atom.activeStateId = stateId;
+      renderBuilderTree(viewerId);
+    }
+
+    function addCustomVisualState(viewerId, atomId) {
+      const stateName = prompt('Enter new visual state name (e.g. highlighted, active, collapsed, promo):');
+      if (!stateName || !stateName.trim()) return;
+      const cleanName = stateName.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.componentTree) return;
+
+      let atom = atomId === 'root-tile' ? viewer.componentTree : viewer.componentTree.children.find(c => c.id === atomId);
+      if (!atom) return;
+
+      if (!atom.states) atom.states = {};
+      const baseState = atom.states[atom.activeStateId || 'default'] || atom.states.default || {};
+      atom.states[cleanName] = JSON.parse(JSON.stringify(baseState));
+      atom.activeStateId = cleanName;
+
+      renderBuilderTree(viewerId);
+      syncTreeToMonaco(viewerId);
+    }
+
+    function deleteVisualState(viewerId, atomId, stateId) {
+      if (stateId === 'default') {
+        alert('Cannot delete the default visual state.');
+        return;
+      }
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.componentTree) return;
+
+      let atom = atomId === 'root-tile' ? viewer.componentTree : viewer.componentTree.children.find(c => c.id === atomId);
+      if (!atom || !atom.states) return;
+
+      delete atom.states[stateId];
+      atom.activeStateId = 'default';
+      renderBuilderTree(viewerId);
+      syncTreeToMonaco(viewerId);
+    }
+
+    function renderBuilderTree(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      const wrap = document.getElementById(`ui-canvas-wrap-${viewerId}`);
+      if (!wrap) return;
+
+      const tree = initializeViewerTree(viewer);
+      wrap.innerHTML = '';
+
+      const rootState = (tree.states && tree.states[tree.activeStateId || 'default']) || (tree.states && tree.states.default) || {};
+
+      // Root Canvas Container Card (Puck Canvas)
+      const rootCard = document.createElement('div');
+      rootCard.className = 'puck-canvas-tile';
+      rootCard.style.cssText = `
+        background: ${rootState.backgroundColor || 'rgba(20, 20, 28, 0.95)'};
+        border: 2px solid ${viewer.selectedAtomId === 'root-tile' ? '#d4af37' : (rootState.borderColor || 'rgba(212, 175, 55, 0.35)')};
+        border-radius: ${rootState.borderRadius || '10px'};
+        opacity: ${rootState.opacity !== undefined ? rootState.opacity : 1};
+        transform: scale(${rootState.scale || 1});
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        box-sizing: border-box;
+        width: 100%;
+        transition: all 0.15s ease;
+      `;
+      rootCard.onclick = (e) => {
+        if (e.target === rootCard) {
+          selectAtomComponent(viewerId, 'root-tile');
+        }
+      };
+
+      // Header of Tile
+      const header = document.createElement('div');
+      header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(212,175,55,0.25); padding-bottom: 8px;';
+      header.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 13px; font-weight: bold; color: ${rootState.color || '#d4af37'};">${tree.props.title || 'Component'}</span>
+          ${tree.props.description ? `<span style="font-size: 10px; color: #7f848e;">— ${tree.props.description}</span>` : ''}
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 9px; color: #7f848e;">State:</span>
+          <select onchange="event.stopPropagation(); setAtomActiveState('${viewerId}', 'root-tile', this.value)" style="background: #14141d; border: 1px solid rgba(212,175,55,0.4); border-radius: 4px; font-size: 9px; color: #d4af37; padding: 2px 6px; outline: none;">
+            ${Object.keys(tree.states || { default: {} }).map(st => `
+              <option value="${st}" ${(tree.activeStateId || 'default') === st ? 'selected' : ''}>${st}</option>
+            `).join('')}
+          </select>
+        </div>
+      `;
+      rootCard.appendChild(header);
+
+      // Children list
+      const itemsContainer = document.createElement('div');
+      itemsContainer.style.cssText = 'display: flex; flex-direction: column; gap: 10px; width: 100%;';
+
+      (tree.children || []).forEach((atom, idx) => {
+        const isSelected = viewer.selectedAtomId === atom.id;
+        const activeStateId = atom.activeStateId || 'default';
+        const curStyle = (atom.states && atom.states[activeStateId]) || (atom.states && atom.states.default) || {};
+
+        const bg = curStyle.backgroundColor || '#21212b';
+        const col = curStyle.color || '#f5ede4';
+        const bcol = curStyle.borderColor || 'rgba(212, 175, 55, 0.35)';
+        const bwidth = curStyle.borderWidth || '1px';
+        const bradius = curStyle.borderRadius || '6px';
+        const opac = curStyle.opacity !== undefined ? curStyle.opacity : 1;
+        const sc = curStyle.scale !== undefined ? curStyle.scale : 1;
+        const rot = curStyle.rotation !== undefined ? curStyle.rotation : 0;
+        const ty = curStyle.translateY !== undefined ? curStyle.translateY : 0;
+        const tx = curStyle.translateX !== undefined ? curStyle.translateX : 0;
+        const fw = curStyle.fontWeight || 'normal';
+        const fs = curStyle.fontSize || '11px';
+
+        let bshadow = 'none';
+        if (curStyle.shadow === 'sm') bshadow = '0 2px 8px rgba(0,0,0,0.4)';
+        else if (curStyle.shadow === 'gold-glow') bshadow = '0 0 14px rgba(212,175,55,0.5)';
+        else if (curStyle.shadow === 'danger-glow') bshadow = '0 0 14px rgba(224,108,117,0.5)';
+        else if (curStyle.shadow === 'success-glow') bshadow = '0 0 14px rgba(152,195,121,0.5)';
+
+        const atomWrapper = document.createElement('div');
+        atomWrapper.className = `puck-atom-item ${isSelected ? 'selected' : ''}`;
+        atomWrapper.style.cssText = `
+          position: relative;
+          padding: 8px;
+          border-radius: 6px;
+          background: ${isSelected ? 'rgba(212, 175, 55, 0.08)' : 'rgba(255,255,255,0.02)'};
+          border: 1px solid ${isSelected ? '#d4af37' : 'rgba(255,255,255,0.08)'};
+          box-shadow: ${isSelected ? '0 0 12px rgba(212,175,55,0.25)' : 'none'};
+          cursor: pointer;
+          transition: all 0.15s ease;
+        `;
+        atomWrapper.onclick = (e) => {
+          e.stopPropagation();
+          selectAtomComponent(viewerId, atom.id);
+        };
+
+        // Render actual interactive component styled by active visual state
+        if (atom.type === 'KrnlButton') {
+          const btn = document.createElement('button');
+          btn.style.cssText = `
+            background: ${bg};
+            color: ${col};
+            border: ${bwidth} solid ${bcol};
+            border-radius: ${bradius};
+            opacity: ${opac};
+            transform: scale(${sc}) rotate(${rot}deg) translate(${tx}px, ${ty}px);
+            box-shadow: ${bshadow};
+            font-weight: ${fw};
+            font-size: ${fs};
+            padding: 8px 16px;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+          `;
+          btn.textContent = curStyle.label || atom.props.label || 'Button';
+          btn.onclick = async (e) => {
+            e.stopPropagation();
+            btn.style.transform = `scale(${sc * 0.96}) rotate(${rot}deg)`;
+            setTimeout(() => { btn.style.transform = `scale(${sc}) rotate(${rot}deg)`; }, 100);
+
+            // Execute transition lifecycle preview
+            if (atom.states?.loading) {
+              setAtomActiveState(viewerId, atom.id, 'loading');
+              setTimeout(() => {
+                setAtomActiveState(viewerId, atom.id, 'success');
+                setTimeout(() => {
+                  setAtomActiveState(viewerId, atom.id, 'default');
+                }, atom.stateTransitions?.resetAfterMs || 2000);
+              }, 600);
+            }
+          };
+          atomWrapper.appendChild(btn);
+        } else if (atom.type === 'KrnlTextInput') {
+          const wrap = document.createElement('div');
+          wrap.style.cssText = 'display: flex; flex-direction: column; gap: 4px; width: 100%;';
+          if (atom.props.label) {
+            const lbl = document.createElement('label');
+            lbl.style.cssText = 'font-size: 10px; color: #abb2bf; font-weight: bold; text-transform: uppercase;';
+            lbl.textContent = `${atom.props.label}:`;
+            wrap.appendChild(lbl);
+          }
+          const inp = document.createElement('input');
+          inp.type = atom.props.placeholder?.includes('number') ? 'number' : 'text';
+          inp.placeholder = atom.props.placeholder || 'Enter value...';
+          inp.value = atom.props.value || '';
+          inp.style.cssText = `
+            background: ${bg};
+            color: ${col};
+            border: ${bwidth} solid ${bcol};
+            border-radius: ${bradius};
+            opacity: ${opac};
+            transform: scale(${sc}) rotate(${rot}deg) translate(${tx}px, ${ty}px);
+            box-shadow: ${bshadow};
+            font-size: ${fs};
+            padding: 6px 10px;
+            outline: none;
+            width: 100%;
+            box-sizing: border-box;
+            transition: all 0.15s ease;
+          `;
+          inp.oninput = (e) => {
+            atom.props.value = e.target.value;
+          };
+          wrap.appendChild(inp);
+          atomWrapper.appendChild(wrap);
+        } else if (atom.type === 'KrnlBadge') {
+          const badge = document.createElement('span');
+          badge.style.cssText = `
+            background: ${bg};
+            color: ${col};
+            border: ${bwidth} solid ${bcol};
+            border-radius: ${bradius};
+            opacity: ${opac};
+            transform: scale(${sc}) rotate(${rot}deg);
+            box-shadow: ${bshadow};
+            font-weight: ${fw};
+            font-size: ${fs};
+            padding: 3px 8px;
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            transition: all 0.15s ease;
+          `;
+          badge.textContent = curStyle.text || atom.props.text || 'Badge';
+          atomWrapper.appendChild(badge);
+        } else if (atom.type === 'KrnlDropdown') {
+          const wrap = document.createElement('div');
+          wrap.style.cssText = 'display: flex; flex-direction: column; gap: 4px; width: 100%;';
+          if (atom.props.label) {
+            const lbl = document.createElement('label');
+            lbl.style.cssText = 'font-size: 10px; color: #abb2bf; font-weight: bold; text-transform: uppercase;';
+            lbl.textContent = atom.props.label;
+            wrap.appendChild(lbl);
+          }
+          const sel = document.createElement('select');
+          sel.style.cssText = `
+            background: ${bg};
+            color: ${col};
+            border: ${bwidth} solid ${bcol};
+            border-radius: ${bradius};
+            opacity: ${opac};
+            transform: scale(${sc});
+            font-size: ${fs};
+            padding: 6px 10px;
+            outline: none;
+            width: 100%;
+            box-sizing: border-box;
+          `;
+          (atom.props.options || ['Option 1', 'Option 2']).forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o; opt.textContent = o;
+            sel.appendChild(opt);
+          });
+          wrap.appendChild(sel);
+          atomWrapper.appendChild(wrap);
+        } else {
+          const box = document.createElement('div');
+          box.style.cssText = `padding: 8px; border: 1px dashed ${bcol}; border-radius: ${bradius}; font-size: 11px; color: ${col}; background: ${bg};`;
+          box.textContent = `[Box Container] (${atom.type})`;
+          atomWrapper.appendChild(box);
+        }
+
+        // Floating Component Controls Pill with State Switcher
+        if (isSelected) {
+          const controls = document.createElement('div');
+          controls.style.cssText = 'position: absolute; top: -11px; right: 8px; display: flex; align-items: center; gap: 4px; background: #14141d; border: 1px solid #d4af37; border-radius: 4px; padding: 2px 6px; font-size: 9px; box-shadow: 0 2px 8px rgba(0,0,0,0.6); z-index: 10;';
+          controls.innerHTML = `
+            <span style="color: #d4af37; font-weight: bold;">${atom.type}</span>
+            <select onchange="event.stopPropagation(); setAtomActiveState('${viewerId}', '${atom.id}', this.value)" title="Active Visual State" style="background: #21212b; border: 1px solid #4b5263; border-radius: 3px; font-size: 9px; color: #abb2bf; padding: 1px 4px; outline: none;">
+              ${Object.keys(atom.states || { default: {} }).map(st => `
+                <option value="${st}" ${activeStateId === st ? 'selected' : ''}>${st}</option>
+              `).join('')}
+            </select>
+            <button onclick="event.stopPropagation(); moveAtomComponent('${viewerId}', '${atom.id}', 'up')" title="Move Up" style="background: transparent; border: none; color: #abb2bf; cursor: pointer; padding: 0 2px;">↑</button>
+            <button onclick="event.stopPropagation(); moveAtomComponent('${viewerId}', '${atom.id}', 'down')" title="Move Down" style="background: transparent; border: none; color: #abb2bf; cursor: pointer; padding: 0 2px;">↓</button>
+            <button onclick="event.stopPropagation(); deleteAtomComponent('${viewerId}', '${atom.id}')" title="Delete Atom" style="background: transparent; border: none; color: #e06c75; cursor: pointer; padding: 0 2px; font-weight: bold;">✕</button>
+          `;
+          atomWrapper.appendChild(controls);
+        }
+
+        itemsContainer.appendChild(atomWrapper);
+      });
+
+      rootCard.appendChild(itemsContainer);
+      wrap.appendChild(rootCard);
+
+      // Also render the Inspector on the right
+      renderAtomInspector(viewerId);
+    }
+
     function renderAtomInspector(viewerId) {
       const viewer = spawnedViewers.get(viewerId);
       if (!viewer) return;
@@ -2061,21 +2511,39 @@
       const eventDefs = COMPONENT_EVENT_DEFINITIONS[selectedAtom.type] || COMPONENT_EVENT_DEFINITIONS.KrnlButton;
       const callableTargets = getCallableTargetsForAsset(node);
 
-      // Default atom event config if not set
+      if (!selectedAtom.states) {
+        const spec = CANONICAL_COMPONENT_SPECS[selectedAtom.type] || CANONICAL_COMPONENT_SPECS.KrnlButton;
+        selectedAtom.states = JSON.parse(JSON.stringify(spec.defaultStates));
+      }
+      if (!selectedAtom.activeStateId || !selectedAtom.states[selectedAtom.activeStateId]) {
+        selectedAtom.activeStateId = 'default';
+      }
+
       if (!selectedAtom.eventConfig) {
         selectedAtom.eventConfig = {
           triggerEvent: eventDefs.defaultEvent || 'onClick',
           targetId: callableTargets[0]?.id || 'entity.boot',
-          payloadMode: selectedAtom.type === 'KrnlTextInput' ? 'state_sync' : 'state_sync',
+          payloadMode: 'state_sync',
           customPayload: JSON.stringify(callableTargets[0]?.examplePayload || {}, null, 2)
         };
       }
 
+      if (!selectedAtom.stateTransitions) {
+        selectedAtom.stateTransitions = {
+          assetStateBinding: '',
+          onTriggerState: 'loading',
+          onSuccessState: 'success',
+          onErrorState: 'error',
+          resetAfterMs: 2000
+        };
+      }
+
+      const activeState = selectedAtom.states[selectedAtom.activeStateId] || selectedAtom.states.default || {};
       const cfg = selectedAtom.eventConfig;
+      const trans = selectedAtom.stateTransitions;
       const activeTarget = callableTargets.find(t => t.id === cfg.targetId) || callableTargets[0];
       const validation = validatePayloadCompatibility(activeTarget, cfg.payloadMode, cfg.customPayload, selectedAtom, node);
 
-      // Group callable targets by category
       const categories = {};
       callableTargets.forEach(t => {
         if (!categories[t.category]) categories[t.category] = [];
@@ -2091,81 +2559,101 @@
           ${selectedAtom.id !== 'root-tile' ? `<button onclick="deleteAtomComponent('${viewerId}', '${selectedAtom.id}')" title="Delete component" style="background: transparent; color: #e06c75; border: 1px solid rgba(224,108,117,0.4); padding: 2px 6px; border-radius: 4px; font-size: 9px; cursor: pointer;">✕ Delete</button>` : ''}
         </div>
 
-        <!-- 1. Component Properties Section (Dynamic based on Component Type) -->
-        <div style="display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 6px;">
+        <!-- 1. Visual Multi-State Manager Tabs -->
+        <div style="display: flex; flex-direction: column; gap: 8px; background: rgba(212,175,55,0.03); border: 1px solid rgba(212,175,55,0.2); padding: 10px; border-radius: 6px;">
           <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="font-size: 10px; font-weight: bold; color: #c678dd; letter-spacing: 0.5px;">PROPERTIES</span>
-            <span style="font-size: 9px; color: #7f848e;">${selectedAtom.type}</span>
+            <span style="font-size: 10px; font-weight: bold; color: #d4af37; letter-spacing: 0.5px;">VISUAL STATES</span>
+            <button onclick="addCustomVisualState('${viewerId}', '${selectedAtom.id}')" title="Add a new named state" style="background: rgba(212,175,55,0.15); color: #d4af37; border: 1px solid rgba(212,175,55,0.4); padding: 2px 6px; border-radius: 3px; font-size: 9px; cursor: pointer; font-weight: bold;">+ New State</button>
           </div>
 
-          ${selectedAtom.id === 'root-tile' ? `
-            <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Tile Title:</label>
-              <input type="text" value="${selectedAtom.props.title || ''}" oninput="updateAtomProp('${viewerId}', 'title', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            ${Object.keys(selectedAtom.states).map(st => `
+              <button onclick="setAtomActiveState('${viewerId}', '${selectedAtom.id}', '${st}')" style="background: ${selectedAtom.activeStateId === st ? '#d4af37' : '#1a1a24'}; color: ${selectedAtom.activeStateId === st ? '#121212' : '#abb2bf'}; border: 1px solid ${selectedAtom.activeStateId === st ? '#d4af37' : '#3e4451'}; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: ${selectedAtom.activeStateId === st ? 'bold' : 'normal'}; cursor: pointer;">
+                ${selectedAtom.activeStateId === st ? '⦿ ' : ''}${st}
+              </button>
+            `).join('')}
+          </div>
+
+          ${selectedAtom.activeStateId !== 'default' ? `
+            <div style="display: flex; justify-content: flex-end;">
+              <button onclick="deleteVisualState('${viewerId}', '${selectedAtom.id}', '${selectedAtom.activeStateId}')" style="background: transparent; color: #e06c75; border: none; font-size: 9px; cursor: pointer; padding: 0;">✕ Delete '${selectedAtom.activeStateId}' State</button>
             </div>
-            <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Description:</label>
-              <input type="text" value="${selectedAtom.props.description || ''}" oninput="updateAtomProp('${viewerId}', 'description', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
-            </div>
-          ` : selectedAtom.type === 'KrnlButton' ? `
-            <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Button Label:</label>
-              <input type="text" value="${selectedAtom.props.label || 'Action Button'}" oninput="updateAtomProp('${viewerId}', 'label', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Variant Style:</label>
-              <select onchange="updateAtomProp('${viewerId}', 'variant', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
-                <option value="primary" ${selectedAtom.props.variant === 'primary' ? 'selected' : ''}>Primary Gold</option>
-                <option value="secondary" ${selectedAtom.props.variant === 'secondary' ? 'selected' : ''}>Secondary Dark</option>
-                <option value="success" ${selectedAtom.props.variant === 'success' ? 'selected' : ''}>Success Green</option>
-                <option value="danger" ${selectedAtom.props.variant === 'danger' ? 'selected' : ''}>Danger Red</option>
-              </select>
-            </div>
-          ` : selectedAtom.type === 'KrnlTextInput' ? `
-            <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Field Label:</label>
-              <input type="text" value="${selectedAtom.props.label || 'Input'}" oninput="updateAtomProp('${viewerId}', 'label', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Bound State Field (name):</label>
-              <input type="text" value="${selectedAtom.props.name || 'field'}" oninput="updateAtomProp('${viewerId}', 'name', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Placeholder / Type:</label>
-              <input type="text" value="${selectedAtom.props.placeholder || 'string'}" oninput="updateAtomProp('${viewerId}', 'placeholder', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Initial / Default Value:</label>
-              <input type="text" value="${selectedAtom.props.value || ''}" oninput="updateAtomProp('${viewerId}', 'value', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
-            </div>
-          ` : selectedAtom.type === 'KrnlDropdown' ? `
-            <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Dropdown Label:</label>
-              <input type="text" value="${selectedAtom.props.label || 'Select'}" oninput="updateAtomProp('${viewerId}', 'label', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Options (comma-separated):</label>
-              <input type="text" value="${(selectedAtom.props.options || ['Option 1', 'Option 2']).join(', ')}" oninput="updateAtomProp('${viewerId}', 'options', this.value.split(',').map(s=>s.trim()))" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
-            </div>
-          ` : selectedAtom.type === 'KrnlBadge' ? `
-            <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Badge Text:</label>
-              <input type="text" value="${selectedAtom.props.text || 'ACTIVE'}" oninput="updateAtomProp('${viewerId}', 'text', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 3px;">
-              <label style="font-size: 10px; color: #abb2bf;">Variant Style:</label>
-              <select onchange="updateAtomProp('${viewerId}', 'variant', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
-                <option value="success" ${selectedAtom.props.variant === 'success' ? 'selected' : ''}>Success Green</option>
-                <option value="primary" ${selectedAtom.props.variant === 'primary' ? 'selected' : ''}>Primary Gold</option>
-                <option value="danger" ${selectedAtom.props.variant === 'danger' ? 'selected' : ''}>Danger Red</option>
-              </select>
-            </div>
-          ` : `
-            <div style="font-size: 11px; color: #abb2bf;">Generic Box Container</div>
-          `}
+          ` : ''}
         </div>
 
-        <!-- 2. Smart Event & Feature Connectivity Binder -->
+        <!-- 2. Settable Visual Parameters for Active State -->
+        <div style="display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 6px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 10px; font-weight: bold; color: #c678dd; letter-spacing: 0.5px;">CANONICAL VISUAL PARAMETERS (${selectedAtom.activeStateId})</span>
+          </div>
+
+          ${selectedAtom.type === 'KrnlButton' || selectedAtom.type === 'KrnlBadge' ? `
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <label style="font-size: 10px; color: #abb2bf;">State Text Label:</label>
+              <input type="text" value="${activeState.label || activeState.text || selectedAtom.props.label || selectedAtom.props.text || ''}" oninput="updateVisualStateProp('${viewerId}', '${selectedAtom.id}', 'label', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 4px 8px; color: #f5ede4; font-size: 11px; outline: none;" />
+            </div>
+          ` : ''}
+
+          <!-- Color Pickers Row -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <label style="font-size: 9px; color: #abb2bf;">Text Color:</label>
+              <input type="text" value="${activeState.color || '#f5ede4'}" oninput="updateVisualStateProp('${viewerId}', '${selectedAtom.id}', 'color', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 4px; color: #f5ede4; font-size: 10px; outline: none;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <label style="font-size: 9px; color: #abb2bf;">Background:</label>
+              <input type="text" value="${activeState.backgroundColor || '#21212b'}" oninput="updateVisualStateProp('${viewerId}', '${selectedAtom.id}', 'backgroundColor', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 4px; color: #f5ede4; font-size: 10px; outline: none;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <label style="font-size: 9px; color: #abb2bf;">Border Color:</label>
+              <input type="text" value="${activeState.borderColor || '#d4af37'}" oninput="updateVisualStateProp('${viewerId}', '${selectedAtom.id}', 'borderColor', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 4px; color: #f5ede4; font-size: 10px; outline: none;" />
+            </div>
+          </div>
+
+          <!-- Geometry & Transforms Controls -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <label style="font-size: 9px; color: #abb2bf;">Border Radius:</label>
+              <select onchange="updateVisualStateProp('${viewerId}', '${selectedAtom.id}', 'borderRadius', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 4px; color: #f5ede4; font-size: 10px; outline: none;">
+                <option value="0px" ${activeState.borderRadius === '0px' ? 'selected' : ''}>0px Square</option>
+                <option value="4px" ${activeState.borderRadius === '4px' ? 'selected' : ''}>4px Small</option>
+                <option value="6px" ${activeState.borderRadius === '6px' || !activeState.borderRadius ? 'selected' : ''}>6px Medium</option>
+                <option value="10px" ${activeState.borderRadius === '10px' ? 'selected' : ''}>10px Large</option>
+                <option value="9999px" ${activeState.borderRadius === '9999px' ? 'selected' : ''}>Pill (9999px)</option>
+              </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <label style="font-size: 9px; color: #abb2bf;">Shadow Effect:</label>
+              <select onchange="updateVisualStateProp('${viewerId}', '${selectedAtom.id}', 'shadow', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 4px; color: #f5ede4; font-size: 10px; outline: none;">
+                <option value="none" ${activeState.shadow === 'none' ? 'selected' : ''}>None</option>
+                <option value="sm" ${activeState.shadow === 'sm' ? 'selected' : ''}>Subtle Soft</option>
+                <option value="gold-glow" ${activeState.shadow === 'gold-glow' ? 'selected' : ''}>Gold Glow</option>
+                <option value="danger-glow" ${activeState.shadow === 'danger-glow' ? 'selected' : ''}>Danger Red Glow</option>
+                <option value="success-glow" ${activeState.shadow === 'success-glow' ? 'selected' : ''}>Success Green Glow</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Sliders: Opacity & Scale -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <div style="display: flex; justify-content: space-between; font-size: 9px; color: #abb2bf;">
+                <span>Opacity:</span>
+                <span>${activeState.opacity !== undefined ? activeState.opacity : 1.0}</span>
+              </div>
+              <input type="range" min="0.1" max="1.0" step="0.05" value="${activeState.opacity !== undefined ? activeState.opacity : 1.0}" oninput="updateVisualStateProp('${viewerId}', '${selectedAtom.id}', 'opacity', parseFloat(this.value))" style="width: 100%; accent-color: #d4af37;" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <div style="display: flex; justify-content: space-between; font-size: 9px; color: #abb2bf;">
+                <span>Scale:</span>
+                <span>${activeState.scale !== undefined ? activeState.scale : 1.0}x</span>
+              </div>
+              <input type="range" min="0.8" max="1.25" step="0.02" value="${activeState.scale !== undefined ? activeState.scale : 1.0}" oninput="updateVisualStateProp('${viewerId}', '${selectedAtom.id}', 'scale', parseFloat(this.value))" style="width: 100%; accent-color: #d4af37;" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Smart Event & Feature Connectivity Link -->
         ${selectedAtom.id !== 'root-tile' ? `
           <div style="display: flex; flex-direction: column; gap: 10px; background: rgba(212,175,55,0.04); border: 1px solid rgba(212,175,55,0.25); padding: 10px; border-radius: 6px;">
             <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -2183,7 +2671,7 @@
               </select>
             </div>
 
-            <!-- B. Dynamic Feature Suggestor (Introspected from Code Asset & Graph) -->
+            <!-- B. Dynamic Feature Suggestor -->
             <div style="display: flex; flex-direction: column; gap: 3px;">
               <label style="font-size: 10px; color: #abb2bf;">Target Callable Feature / Operation:</label>
               <select onchange="updateAtomEventConfig('${viewerId}', 'targetId', this.value)" style="background: #0e0e12; border: 1px solid rgba(212,175,55,0.35); border-radius: 4px; padding: 5px 8px; color: #f5ede4; font-size: 11px; outline: none;">
@@ -2211,7 +2699,7 @@
               </select>
             </div>
 
-            <!-- Custom Payload Editor if mode is custom_payload -->
+            <!-- Custom Payload Editor -->
             ${cfg.payloadMode === 'custom_payload' ? `
               <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -2241,61 +2729,110 @@
               ` : ''}
             </div>
 
-            <button onclick="applyAtomActionBinding('${viewerId}')" style="background: #d4af37; color: #121212; border: none; border-radius: 4px; padding: 6px 12px; font-weight: bold; font-size: 10px; cursor: pointer; transition: transform 0.1s ease; box-shadow: 0 2px 8px rgba(212,175,55,0.3);">⚡ Apply Action & Bindings</button>
+            <!-- E. Visual State Transitions Section -->
+            <div style="background: rgba(212,175,55,0.02); border: 1px solid rgba(212,175,55,0.2); border-radius: 5px; padding: 8px; display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 10px; font-weight: bold; color: #d4af37;">CALLABLE STATE TRANSITIONS</span>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <label style="font-size: 9px; color: #abb2bf;">On Trigger Set State:</label>
+                  <select onchange="updateAtomTransition('${viewerId}', 'onTriggerState', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 4px; color: #f5ede4; font-size: 10px; outline: none;">
+                    ${Object.keys(selectedAtom.states).map(st => `
+                      <option value="${st}" ${trans.onTriggerState === st ? 'selected' : ''}>${st}</option>
+                    `).join('')}
+                  </select>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <label style="font-size: 9px; color: #abb2bf;">On Success Set State:</label>
+                  <select onchange="updateAtomTransition('${viewerId}', 'onSuccessState', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 4px; color: #f5ede4; font-size: 10px; outline: none;">
+                    ${Object.keys(selectedAtom.states).map(st => `
+                      <option value="${st}" ${trans.onSuccessState === st ? 'selected' : ''}>${st}</option>
+                    `).join('')}
+                  </select>
+                </div>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 2px; margin-top: 2px;">
+                <label style="font-size: 9px; color: #abb2bf;">Derive from Asset State (Expression):</label>
+                <input type="text" placeholder='e.g. state.cartItems?.length > 0 ? "default" : "disabled"' value="${trans.assetStateBinding || ''}" oninput="updateAtomTransition('${viewerId}', 'assetStateBinding', this.value)" style="background: #0e0e12; border: 1px solid #4b5263; border-radius: 4px; padding: 4px 6px; color: #98c379; font-family: monospace; font-size: 10px; outline: none;" />
+              </div>
+            </div>
+
+            <button onclick="applyAtomActionBinding('${viewerId}')" style="background: #d4af37; color: #121212; border: none; border-radius: 4px; padding: 6px 12px; font-weight: bold; font-size: 10px; cursor: pointer; transition: transform 0.1s ease; box-shadow: 0 2px 8px rgba(212,175,55,0.3);">⚡ Apply Action, States & Bindings</button>
           </div>
         ` : ''}
 
-        <!-- 3. Smart Isolated Component Code Snippet -->
+        <!-- 4. Embedded Monaco Editor for Component Code Snippet -->
         <div style="display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 6px;">
           <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="font-size: 10px; font-weight: bold; color: #abb2bf;">COMPONENT CODE SNIPPET</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 10px; font-weight: bold; color: #abb2bf;">COMPONENT MONACO SNIPPET</span>
+              <span style="font-size: 9px; color: #d4af37; font-family: monospace;">(TypeScript / JSX)</span>
+            </div>
             <button onclick="copyAtomSnippet('${viewerId}')" style="background: #21212b; color: #abb2bf; border: 1px solid #4b5263; padding: 2px 6px; border-radius: 3px; font-size: 9px; cursor: pointer;">📋 Copy Snippet</button>
           </div>
-          <pre id="snippet-${viewerId}" style="margin: 0; padding: 8px; background: #0a0a0e; border-radius: 4px; font-family: monospace; font-size: 10px; color: #98c379; overflow-x: auto; white-space: pre-wrap;">${generateAtomSnippet(selectedAtom, node)}</pre>
+          
+          <div id="snippet-monaco-wrap-${viewerId}" style="height: 190px; width: 100%; border: 1px solid rgba(212,175,55,0.3); border-radius: 5px; overflow: hidden; background: #0c0c10;">
+            <div id="snippet-monaco-${viewerId}" style="width: 100%; height: 100%;"></div>
+          </div>
         </div>
       `;
+
+      // Mount embedded Monaco Editor instance for the snippet
+      ensureMonacoReady(() => {
+        const monacoContainer = document.getElementById(`snippet-monaco-${viewerId}`);
+        if (!monacoContainer) return;
+        const code = generateAtomSnippet(selectedAtom, node);
+
+        if (viewer.snippetMonacoInstance) {
+          viewer.snippetMonacoInstance.setValue(code);
+        } else {
+          viewer.snippetMonacoInstance = monaco.editor.create(monacoContainer, {
+            value: code,
+            language: 'typescript',
+            theme: 'krnl-dark',
+            readOnly: true,
+            fontSize: 11,
+            automaticLayout: true,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            lineNumbers: 'on'
+          });
+        }
+      });
     }
 
-    function updateAtomProp(viewerId, propName, propVal) {
+    function updateVisualStateProp(viewerId, atomId, propName, propVal) {
       const viewer = spawnedViewers.get(viewerId);
       if (!viewer || !viewer.componentTree) return;
 
-      let atom = null;
-      if (viewer.selectedAtomId === 'root-tile') {
-        atom = viewer.componentTree;
-      } else {
-        atom = viewer.componentTree.children.find(c => c.id === viewer.selectedAtomId);
-      }
-
+      let atom = atomId === 'root-tile' ? viewer.componentTree : viewer.componentTree.children.find(c => c.id === atomId);
       if (!atom) return;
-      atom.props[propName] = propVal;
 
-      // Update snippet
-      const snippetEl = document.getElementById(`snippet-${viewerId}`);
-      if (snippetEl) {
-        snippetEl.textContent = generateAtomSnippet(atom, viewer.sourceNode);
-      }
+      const activeSt = atom.activeStateId || 'default';
+      if (!atom.states) atom.states = {};
+      if (!atom.states[activeSt]) atom.states[activeSt] = {};
 
-      // Re-render canvas and sync to monaco
+      atom.states[activeSt][propName] = propVal;
+
       renderBuilderTree(viewerId);
       syncTreeToMonaco(viewerId);
     }
 
-    function applyAtomActionBinding(viewerId) {
+    function updateAtomTransition(viewerId, field, value) {
       const viewer = spawnedViewers.get(viewerId);
       if (!viewer || !viewer.componentTree) return;
-      syncTreeToMonaco(viewerId);
-      renderBuilderTree(viewerId);
 
-      const feedback = document.getElementById('ui-file-badge-' + viewerId);
-      if (feedback) {
-        feedback.textContent = '⚡ Action & Bindings Applied!';
-        feedback.style.color = '#98c379';
-        setTimeout(() => {
-          feedback.textContent = viewer.sourceNode.uiFilePath ? viewer.sourceNode.uiFilePath.split('/').slice(-3).join('/') : 'New UI View';
-          feedback.style.color = '';
-        }, 1500);
+      let atom = viewer.componentTree.children.find(c => c.id === viewer.selectedAtomId);
+      if (!atom) return;
+
+      if (!atom.stateTransitions) atom.stateTransitions = {};
+      atom.stateTransitions[field] = value;
+
+      if (viewer.snippetMonacoInstance) {
+        viewer.snippetMonacoInstance.setValue(generateAtomSnippet(atom, viewer.sourceNode));
       }
+      syncTreeToMonaco(viewerId);
     }
 
     function updateAtomEventConfig(viewerId, field, value) {
@@ -2341,6 +2878,37 @@
       }
     }
 
+    function applyAtomActionBinding(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer || !viewer.componentTree) return;
+      syncTreeToMonaco(viewerId);
+      renderBuilderTree(viewerId);
+
+      const feedback = document.getElementById('ui-file-badge-' + viewerId);
+      if (feedback) {
+        feedback.textContent = '⚡ Action & States Applied!';
+        feedback.style.color = '#98c379';
+        setTimeout(() => {
+          feedback.textContent = viewer.sourceNode.uiFilePath ? viewer.sourceNode.uiFilePath.split('/').slice(-3).join('/') : 'New UI View';
+          feedback.style.color = '';
+        }, 1500);
+      }
+    }
+
+    async function copyAtomSnippet(viewerId) {
+      const viewer = spawnedViewers.get(viewerId);
+      if (!viewer) return;
+      let code = '';
+      if (viewer.snippetMonacoInstance) {
+        code = viewer.snippetMonacoInstance.getValue();
+      } else {
+        const tree = viewer.componentTree;
+        const selectedAtom = viewer.selectedAtomId === 'root-tile' ? tree : tree?.children.find(c => c.id === viewer.selectedAtomId);
+        code = generateAtomSnippet(selectedAtom, viewer.sourceNode);
+      }
+      await navigator.clipboard.writeText(code);
+    }
+
     function generateAtomSnippet(atom, node) {
       if (!atom) return '// No atom selected';
       if (atom.id === 'root-tile') {
@@ -2354,10 +2922,16 @@
         customPayload: '{}'
       };
 
+      const trans = atom.stateTransitions || {
+        onTriggerState: 'loading',
+        onSuccessState: 'success',
+        onErrorState: 'error',
+        resetAfterMs: 2000
+      };
+
       const callableTargets = getCallableTargetsForAsset(node);
       const target = callableTargets.find(t => t.id === cfg.targetId) || callableTargets[0];
 
-      // Formulate payload expression
       let payloadExpr = 'state';
       if (cfg.payloadMode === 'void') {
         payloadExpr = '';
@@ -2371,11 +2945,9 @@
           payloadExpr = cfg.customPayload || '{}';
         }
       } else {
-        // state_sync
         payloadExpr = 'state';
       }
 
-      // Generate target invocation code
       let actionCallCode = 'console.log("Action triggered");';
       if (target) {
         if (target.kind === 'test_runner') {
@@ -2385,26 +2957,20 @@
         }
       }
 
+      const atomVar = atom.id.replace(/[^a-zA-Z0-9_]/g, '_');
+      const statesJson = JSON.stringify(atom.states || {}, null, 2).split('\n').join('\n  ');
+
       if (atom.type === 'KrnlButton') {
         const handlerName = cfg.triggerEvent === 'onDoubleClick' ? 'onDoubleClick' : 'onClick';
-        return `KrnlButton({\n  label: '${atom.props.label || 'Action'}',\n  variant: '${atom.props.variant || 'primary'}',\n  ${handlerName}: async (e: Event) => {\n    ${actionCallCode}\n  }\n})`;
+        return `// 1. Reactive visual state & canonical style dictionary\nconst ${atomVar}_State = van.state('default');\nconst ${atomVar}_Styles: Record<string, Record<string, any>> = ${statesJson};\n\n// 2. State-driven style getter\nconst ${atomVar}_Current = () => ${atomVar}_Styles[${atomVar}_State.val] || ${atomVar}_Styles.default;\n\n// 3. Stateful KrnlButton Component\nKrnlButton({\n  label: () => ${atomVar}_Current().label || '${atom.props.label || 'Action'}',\n  style: () => Object.entries(${atomVar}_Current()).map(([k, v]) => \`\${k}: \${v}\`).join('; '),\n  ${handlerName}: async (e: Event) => {\n    ${atomVar}_State.val = '${trans.onTriggerState || 'loading'}';\n    try {\n      ${actionCallCode}\n      ${atomVar}_State.val = '${trans.onSuccessState || 'success'}';\n      setTimeout(() => { ${atomVar}_State.val = 'default'; }, ${trans.resetAfterMs || 2000});\n    } catch (err) {\n      ${atomVar}_State.val = '${trans.onErrorState || 'error'}';\n    }\n  }\n})`;
       } else if (atom.type === 'KrnlTextInput') {
         const fieldName = atom.props.name || 'field';
-        if (cfg.triggerEvent === 'onEnter') {
-          return `KrnlTextInput({\n  label: '${atom.props.label || 'Input'}',\n  placeholder: '${atom.props.placeholder || 'string'}',\n  value: state.${fieldName} || '',\n  onInput: (e: Event) => {\n    state.${fieldName} = (e.target as HTMLInputElement).value;\n  },\n  onKeyDown: async (e: KeyboardEvent) => {\n    if (e.key === 'Enter') {\n      ${actionCallCode}\n    }\n  }\n})`;
-        } else if (cfg.triggerEvent === 'onSpace') {
-          return `KrnlTextInput({\n  label: '${atom.props.label || 'Input'}',\n  placeholder: '${atom.props.placeholder || 'string'}',\n  value: state.${fieldName} || '',\n  onInput: (e: Event) => {\n    state.${fieldName} = (e.target as HTMLInputElement).value;\n  },\n  onKeyDown: async (e: KeyboardEvent) => {\n    if (e.key === ' ') {\n      ${actionCallCode}\n    }\n  }\n})`;
-        } else if (cfg.triggerEvent === 'onBlur') {
-          return `KrnlTextInput({\n  label: '${atom.props.label || 'Input'}',\n  placeholder: '${atom.props.placeholder || 'string'}',\n  value: state.${fieldName} || '',\n  onInput: (e: Event) => {\n    state.${fieldName} = (e.target as HTMLInputElement).value;\n  },\n  onBlur: async (e: FocusEvent) => {\n    ${actionCallCode}\n  }\n})`;
-        } else {
-          // onInput instant
-          return `KrnlTextInput({\n  label: '${atom.props.label || 'Input'}',\n  placeholder: '${atom.props.placeholder || 'string'}',\n  value: state.${fieldName} || '',\n  onInput: async (e: Event) => {\n    state.${fieldName} = (e.target as HTMLInputElement).value;\n    ${actionCallCode}\n  }\n})`;
-        }
+        return `// 1. Reactive visual state & canonical style dictionary\nconst ${atomVar}_State = van.state('default');\nconst ${atomVar}_Styles: Record<string, Record<string, any>> = ${statesJson};\n\n// 2. Stateful KrnlTextInput Component\nKrnlTextInput({\n  label: '${atom.props.label || 'Input'}',\n  placeholder: '${atom.props.placeholder || 'string'}',\n  value: state.${fieldName} || '',\n  style: () => Object.entries(${atomVar}_Styles[${atomVar}_State.val] || ${atomVar}_Styles.default).map(([k, v]) => \`\${k}: \${v}\`).join('; '),\n  onInput: (e: Event) => {\n    state.${fieldName} = (e.target as HTMLInputElement).value;\n  },\n  onKeyDown: async (e: KeyboardEvent) => {\n    if (e.key === '${cfg.triggerEvent === 'onSpace' ? ' ' : 'Enter'}') {\n      ${atomVar}_State.val = '${trans.onTriggerState || 'focus'}';\n      ${actionCallCode}\n    }\n  }\n})`;
       } else if (atom.type === 'KrnlDropdown') {
         const fieldName = atom.props.name || 'selectedOption';
-        return `KrnlDropdown({\n  label: '${atom.props.label || 'Select'}',\n  options: ${JSON.stringify(atom.props.options || ['Option 1', 'Option 2'])},\n  onChange: async (e: Event) => {\n    state.${fieldName} = (e.target as HTMLSelectElement).value;\n    ${actionCallCode}\n  }\n})`;
+        return `// Stateful KrnlDropdown Component\nconst ${atomVar}_State = van.state('default');\nKrnlDropdown({\n  label: '${atom.props.label || 'Select'}',\n  options: ${JSON.stringify(atom.props.options || ['Option 1', 'Option 2'])},\n  onChange: async (e: Event) => {\n    state.${fieldName} = (e.target as HTMLSelectElement).value;\n    ${actionCallCode}\n  }\n})`;
       } else if (atom.type === 'KrnlBadge') {
-        return `KrnlBadge({\n  text: '${atom.props.text || 'ACTIVE'}',\n  variant: '${atom.props.variant || 'success'}',\n  onClick: async (e: Event) => {\n    ${actionCallCode}\n  }\n})`;
+        return `// Stateful KrnlBadge Component\nconst ${atomVar}_State = van.state('default');\nKrnlBadge({\n  text: '${atom.props.text || 'ACTIVE'}',\n  variant: '${atom.props.variant || 'success'}',\n  onClick: async (e: Event) => {\n    ${actionCallCode}\n  }\n})`;
       } else {
         return `div({ class: 'krnl-box', onClick: async () => { ${actionCallCode} } }, 'Container')`;
       }
