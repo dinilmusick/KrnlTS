@@ -128,3 +128,19 @@ Before implementing backend logic for any application or sub-app, execute this c
    - [ ] Local Desktop / Electron / Tauri
    - [ ] Node.js Dedicated Container
    - [ ] Vercel Serverless / Edge Function (Stateless DB connection pooling + SSL required)
+
+---
+
+## 7. Zero-Leak UI & Anti-Copy Invariants (Frontend Governance)
+
+1. **Zero Leakage of Backend / System Jargon in UI**:
+   $$\text{RenderedUI} \cap \{ \text{"Control Plane"}, \text{"Data Plane"}, \text{"RBAC"}, \text{"Storage Adapter"}, \text{"SyncEngine"}, \text{"WorkspaceFS"}, \text{"Cluster"}, \text{"Failover"}, \text{"Endpoint ID"} \} = \emptyset$$
+   - Backend terms ("Control Plane", "Data Plane", "Storage Adapter", "SyncEngine", "WorkspaceFS", etc.) MUST NEVER be rendered as user-facing headers, labels, or UI views.
+   - Use high-level, human-friendly terms ("Account", "Workspaces", "Storage", "Google Drive", "Local", "Replicas").
+2. **Zero On-Screen Instructional / Promotional Text**:
+   - FORBID direct text descriptions, tutorial paragraphs, marketing copy, or "how-to" guidance rendered into the UI viewport.
+   - The UI must be quiet, minimal, and unobtrusive.
+3. **Strict Icon-Only Buttons (Zero Text Labels on Buttons)**:
+   - Buttons MUST NOT render text labels directly on their surface.
+   - Buttons contain strictly monochromatic vector/SVG icons.
+   - All button labels, action descriptions, and keyboard shortcuts appear **exclusively on hover tooltips**.

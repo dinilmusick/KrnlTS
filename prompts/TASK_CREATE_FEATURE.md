@@ -157,3 +157,9 @@ export const TrackUserActivityMetricsFunctionality = new krnlLocalFunctionality(
   ]
 });
 ```
+
+## 5. ZERO-LEAK UI & ANTI-COPY INVARIANTS (FEATURE FRONTEND RULES)
+1. **Zero UI Jargon**: Do not expose backend architecture terms ("Control Plane", "Data Plane", "RBAC", "Storage Adapter", "SyncEngine", "WorkspaceFS") in UI views or buttons.
+2. **Zero Promotional / Instructional Copy**: Do not inject tutorial or explanatory text into the UI layout.
+3. **Icon-Only Controls**: All buttons must be icon-only (SVG) with hover-only tooltips.
+```

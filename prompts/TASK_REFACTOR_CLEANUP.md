@@ -52,4 +52,9 @@ Refactored files MUST partition logic with bold visual demarcation lines:
 
 ## 5. REFACTORING WORKFLOW
 $$\text{Scan}(\mathcal{C}) \xrightarrow{\text{AST/Tokens}} \text{Extract } L_0/L_1 \xrightarrow{\text{Isolate}} \text{Wrap } L_2 \text{ in Providers} \xrightarrow{\text{Assemble}} \text{Map to Functionalities} \xrightarrow{\text{Verify}} \text{Zero Regression}$$
+
+## 6. ZERO-LEAK UI & ANTI-COPY INVARIANTS
+1. **Zero UI Leakage**: NEVER introduce backend architecture keywords ("Control Plane", "Data Plane", "RBAC", "Storage Adapter", "SyncEngine", "WorkspaceFS") into UI views or button labels.
+2. **Zero Promotional / Instructional Copy**: Do not inject tutorial or explanatory text into existing UI layouts.
+3. **Icon-Only Controls**: All buttons must be icon-only with text appearing strictly on hover tooltips.
 ```

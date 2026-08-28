@@ -167,3 +167,27 @@ const restoreResult = await runtime.syncEngine.restore(workspaceSpec.backupStora
 console.log(`Restored ${restoreResult.filesRestoredCount} files.`);
 ```
 
+## 6. ZERO-LEAK UI & ANTI-COPY INVARIANTS (MANDATORY IN ALL UI IMPLEMENTATIONS)
+1. **Zero Leakage of Backend / System Jargon in UI**:
+   $$\text{RenderedUI} \cap \{ \text{"Control Plane"}, \text{"Data Plane"}, \text{"RBAC"}, \text{"Storage Adapter"}, \text{"SyncEngine"}, \text{"WorkspaceFS"}, \text{"Cluster"}, \text{"Failover"}, \text{"Endpoint ID"} \} = \emptyset$$
+   - Technical terms belong exclusively in backend classes and in-code comments.
+   - User-facing UI MUST render ONLY high-level, human-friendly terms (e.g., "Account", "Workspaces", "Storage", "Google Drive", "Local", "Replicas").
+   - NEVER create UI views named "Control Plane Manager", "Data Plane Engine", or "Storage Adapter Hub".
+2. **Zero On-Screen Instructional / Promotional Text**:
+   - FORBID direct text descriptions, tutorial paragraphs, marketing copy, or "how-to" guidance rendered into the UI viewport.
+   - The UI must be quiet, minimal, and unobtrusive.
+3. **Strict Icon-Only Buttons (Zero Text Labels on Buttons)**:
+   - Buttons MUST NOT render text labels directly on their surface.
+   - Buttons contain strictly monochromatic vector/SVG icons.
+   - All button labels, action descriptions, and keyboard shortcuts appear **exclusively on hover tooltips**.
+4. **Subtle Neo-Brutalist Tactile Glow**:
+   - Apply subtle ambient glow (`box-shadow: 0 0 10px var(--krnl-accent-glow)` or `0 0 12px rgba(212, 163, 89, 0.22)`) on hover and active borders, preserving crisp Neo-Brutalist borders.
+
+## 7. APP REFACTORING PROTOCOL (ZERO LOGIC DELETION & ZERO UI CORRUPTION)
+$$\Delta(\text{BusinessLogic}) = 0 \quad \land \quad \Delta(\text{UserExperience}) = 0$$
+When refactoring an existing application to adhere to this architecture:
+1. **Do Not Alter User Flows or Invent Obtrusive UI**: Keep existing UI layouts intact; do not inject raw architecture widgets into existing user screens.
+2. **Preserve All Working Logic**: Refactor file I/O calls to `WorkspaceFS` and account auth to `ControlPlaneManager` behind the scenes.
+3. **Encapsulate Storage Selection**: Integrate storage connection options strictly inside existing Settings or dedicated minimalist Workspace selector modals.
+
+

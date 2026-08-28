@@ -73,4 +73,19 @@ Every folder created or maintained in the codebase MUST contain a `README.md` (o
 2. **Layer Classification**: The architectural layer ($L_0 \dots L_3$, Control Plane, Data Plane, Protocol Adapters, Frontend, Tools).
 3. **File Manifest**: Table of files with 1-line explanations of their utility.
 4. **Data Flow & Cross-Folder Interactivity**: How components in this folder receive data and dispatch events to sibling systems.
+
+## 5. ZERO-LEAK UI & ANTI-COPY INVARIANTS (MANDATORY IN ALL FRONTEND CODE)
+1. **Zero Leakage of Backend / System Jargon in UI**:
+   $$\text{RenderedUI} \cap \{ \text{"Control Plane"}, \text{"Data Plane"}, \text{"RBAC"}, \text{"Storage Adapter"}, \text{"SyncEngine"}, \text{"WorkspaceFS"}, \text{"Cluster"}, \text{"Endpoint ID"}, \text{"Cascade"} \} = \emptyset$$
+   - Technical concepts belong exclusively in backend architecture and in-code comments.
+   - User-facing UI MUST render ONLY high-level, human-friendly terms (e.g., "Account", "Workspaces", "Storage", "Google Drive", "Local", "Replicas").
+2. **Zero On-Screen Instructional / Promotional Text**:
+   - FORBID direct text descriptions, tutorial paragraphs, marketing copy, or "how-to" guidance rendered into the UI viewport.
+   - The UI must be quiet, minimal, and unobtrusive.
+3. **Strict Icon-Only Buttons (Zero Text Labels on Buttons)**:
+   - Buttons MUST NOT render text labels directly on their surface.
+   - Buttons contain strictly monochromatic vector/SVG icons.
+   - All button labels, action descriptions, and keyboard shortcuts appear **exclusively on hover tooltips**.
+4. **Subtle Neo-Brutalist Tactile Glow**:
+   - Apply subtle ambient glow (`box-shadow: 0 0 10px var(--krnl-accent-glow)` or `0 0 12px rgba(212, 163, 89, 0.22)`) on hover and active borders, preserving crisp Neo-Brutalist borders.
 ```
