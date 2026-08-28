@@ -1,6 +1,6 @@
 /**
  * @file index.ts
- * @description Universal Backend Architecture suite exports for KrnlTS (including DocuStack refinements).
+ * @description Universal Backend Architecture suite exports for KrnlTS (including Workspace Storage Spec).
  */
 
 export * from "./types.js";
@@ -15,7 +15,13 @@ export * from "./control_plane/AdminGuard.js";
 export * from "./control_plane/AuditLogger.js";
 export * from "./control_plane/DatabaseClusterManager.js";
 
-// Data Providers
+// Workspace Storage Architecture & Multi-Cloud Adapters
+export * from "./storage_adapters/index.js";
+export * from "./WorkspaceFS.js";
+export * from "./SyncEngine.js";
+export * from "./WorkspaceRuntime.js";
+
+// Legacy / Pluggable Data Providers
 export * from "./providers/data/SQLiteDataProvider.js";
 export * from "./providers/data/PostgresDataProvider.js";
 export * from "./providers/data/SupabaseDataProvider.js";
@@ -24,7 +30,7 @@ export * from "./providers/data/FirebaseDataProvider.js";
 export * from "./providers/data/TursoLibSQLDataProvider.js";
 export * from "./providers/data/MongoAtlasDataProvider.js";
 
-// Storage Providers
+// Legacy Storage Providers
 export * from "./providers/storage/FilesystemStorageProvider.js";
 export * from "./providers/storage/SupabaseStorageProvider.js";
 export * from "./providers/storage/S3StorageProvider.js";

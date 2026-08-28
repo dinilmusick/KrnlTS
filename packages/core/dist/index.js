@@ -1,7 +1,7 @@
 import {
   Entity,
   KrnlFlowBuilder
-} from "./chunk-MRQ3MITU.js";
+} from "./chunk-FYAZJYM5.js";
 import {
   KrnlRegistryClient
 } from "./chunk-6ULMHNXR.js";
@@ -10,15 +10,15 @@ import {
 } from "./chunk-7WUETJEV.js";
 import {
   KrnlSubAppLoader
-} from "./chunk-54GWZ5PC.js";
+} from "./chunk-3SMHVVLL.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-NDDOIRW7.js";
+} from "./chunk-IB4UHG5I.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-CR2ANE62.js";
+} from "./chunk-TR2BAIGI.js";
 import {
   KrnlApplicationOrchestrator,
   KrnlBootBarrier,
@@ -38,7 +38,7 @@ import {
   krnl,
   krnlSystemCommComponent,
   krnlSystemEntityBase
-} from "./chunk-ZZFRJGXM.js";
+} from "./chunk-OPDENPT4.js";
 import {
   KrnlFrontendBuilder,
   init_K_LIB_Krnl_Frontend_Builder
@@ -46,27 +46,38 @@ import {
 import {
   AdminGuard,
   AuditLogger,
+  BaseWorkspaceStorageAdapter,
   CUSTOM_ERROR_CODE,
   ControlPlaneManager,
   DatabaseClusterManager,
   FilesystemStorageProvider,
   FirebaseDataProvider,
+  FirebaseStorageAdapter,
   FirebaseStorageProvider,
   FunctionalityTable,
+  GoogleDriveStorageAdapter,
   HostedAccountProvider,
   LocalSQLiteAccountProvider,
+  LocalStorageAdapter,
   MemoryTransportAdapter,
   MongoAtlasDataProvider,
+  OneDriveStorageAdapter,
   PocketBaseDataProvider,
   PocketBaseStorageProvider,
   PostgresDataProvider,
   S3StorageProvider,
   SQLiteDataProvider,
+  StorageAdapterFactory,
   SupabaseDataProvider,
+  SupabaseStorageAdapter,
   SupabaseStorageProvider,
+  SyncEngine,
   TursoLibSQLDataProvider,
   VercelBlobStorageProvider,
   WorkspaceBackendFactory,
+  WorkspaceFS,
+  WorkspaceRuntime,
+  calculateContentHash,
   krnlCollector,
   krnlEmitter,
   krnlEntityBase,
@@ -80,8 +91,9 @@ import {
   krnlLocalFunctionality,
   krnlMessage,
   krnlRemoteFunctionality,
-  krnlTransportAdapter
-} from "./chunk-WN3M7O7H.js";
+  krnlTransportAdapter,
+  normalizeWorkspacePath
+} from "./chunk-ZQZBFG6F.js";
 import {
   CacheKit,
   FileCache,
@@ -450,6 +462,7 @@ export {
   AdminGuard,
   AsyncKit,
   AuditLogger,
+  BaseWorkspaceStorageAdapter,
   CUSTOM_ERROR_CODE,
   CacheKit,
   ControlPlaneManager,
@@ -462,9 +475,11 @@ export {
   FileLock,
   FilesystemStorageProvider,
   FirebaseDataProvider,
+  FirebaseStorageAdapter,
   FirebaseStorageProvider,
   FunctionalityTable,
   GitManager,
+  GoogleDriveStorageAdapter,
   HostedAccountProvider,
   KrnlAcpProtocol,
   KrnlAikoClient,
@@ -501,25 +516,33 @@ export {
   KrnlWatchVariablesTracker,
   LRUCache,
   LocalSQLiteAccountProvider,
+  LocalStorageAdapter,
   Logger,
   MemoryTransportAdapter,
   MongoAtlasDataProvider,
   ObjectKit,
+  OneDriveStorageAdapter,
   PocerBlock,
   PocketBaseDataProvider,
   PocketBaseStorageProvider,
   PostgresDataProvider,
   S3StorageProvider,
   SQLiteDataProvider,
+  StorageAdapterFactory,
   StringKit,
   SupabaseDataProvider,
+  SupabaseStorageAdapter,
   SupabaseStorageProvider,
+  SyncEngine,
   TTLCache,
   TursoLibSQLDataProvider,
   VercelBlobStorageProvider,
   WebSocketTransportAdapter,
   WorkspaceBackendFactory,
+  WorkspaceFS,
+  WorkspaceRuntime,
   buildEntityIntention,
+  calculateContentHash,
   createEnum,
   createHttpsAppAdapter,
   defaultConnectionBehaviour,
@@ -550,6 +573,7 @@ export {
   krnlTransportAdapter,
   krnlUnifiedHttpAdapter,
   magneticStorage,
+  normalizeWorkspacePath,
   subappLocalStorage,
   telemetry
 };

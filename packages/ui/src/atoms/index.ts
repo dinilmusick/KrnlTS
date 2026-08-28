@@ -11,3 +11,6 @@ export * from './KrnlReactive.js';
 export * from './KrnlSharedState.js';
 export * from './KrnlMonacoEditor.js';
 export * from './KrnlBackendConnectionWizard.js';
+export * from './KrnlWorkspaceTile.js';
+export * from './KrnlWorkspaceSelector.js';
+export * from './KrnlWorkspaceStorageSettings.js';

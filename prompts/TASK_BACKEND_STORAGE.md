@@ -93,3 +93,77 @@ export const ManageDocumentVaultRecordsFunctionality = new krnlLocalFunctionalit
   }
 });
 ```
+
+## 5. WORKSPACE STORAGE ARCHITECTURE & MULTI-CLOUD REPLICATION
+$$\text{GlobalUser} \xrightarrow{1:N} \text{AppUserContext} \xrightarrow{1:N} \text{Workspace} \xrightarrow{1:1} \text{PrimaryStorage} \oplus \text{BackupStorages}^{[0..N]}$$
+$$\text{ComparisonPriority} := \text{contentHash (SHA-256)} \succ \text{revision} \succ \text{modifiedAt} \succ \text{size}$$
+
+```typescript
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 4. WORKSPACE STORAGE ARCHITECTURE, WORKSPACE_FS & SYNC ENGINE
+// ══════════════════════════════════════════════════════════════════════════════════════════
+import {
+  WorkspaceRuntime,
+  StorageAdapterFactory,
+  Workspace,
+  WorkspaceFS,
+  SyncEngine
+} from "@dinilmusick/krnlts";
+
+// 1. Define Workspace with Primary (Local) + Backups (Drive + OneDrive + Supabase)
+const workspaceSpec: Workspace = {
+  id: "ws_music_production",
+  name: "Music Production",
+  primaryStorage: {
+    id: "ep_local_01",
+    provider: "local",
+    configuration: { provider: "local", basePath: "./workspace_data" },
+    enabled: true,
+    status: "CONNECTED",
+    syncState: "SYNCED"
+  },
+  backupStorages: [
+    {
+      id: "ep_drive_backup",
+      provider: "google_drive",
+      configuration: { provider: "google_drive", accountId: "dinil", rootFolderId: "root" },
+      enabled: true,
+      status: "CONNECTED"
+    },
+    {
+      id: "ep_supabase_backup",
+      provider: "supabase_storage",
+      configuration: { provider: "supabase_storage", projectUrl: "https://xxx.supabase.co", bucket: "vault" },
+      enabled: true,
+      status: "CONNECTED"
+    }
+  ],
+  sync: {
+    enabled: true,
+    mode: "on_write",
+    conflictStrategy: "primary_wins",
+    deletePropagation: true,
+    retry: { maxAttempts: 3, backoffMs: 1000 },
+    verification: { verifyChecksums: true }
+  },
+  preferences: {},
+  metadata: {},
+  createdAt: Date.now(),
+  updatedAt: Date.now()
+};
+
+// 2. Initialize Workspace Runtime container
+const runtime = await WorkspaceRuntime.create(workspaceSpec);
+
+// 3. Application interacts EXCLUSIVELY through WorkspaceFS
+await runtime.filesystem.write("projects/track1.wav", new Uint8Array([1, 2, 3]));
+const fileData = await runtime.filesystem.read("projects/track1.wav");
+
+// 4. Promote Backup to Primary without silent data loss
+await runtime.changePrimary("ep_drive_backup");
+
+// 5. Explicitly restore from backup if needed
+const restoreResult = await runtime.syncEngine.restore(workspaceSpec.backupStorages[0]);
+console.log(`Restored ${restoreResult.filesRestoredCount} files.`);
+```
+

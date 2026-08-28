@@ -245,4 +245,105 @@ interface KrnlBackendConnectionWizardProps {
  */
 declare function KrnlBackendConnectionWizard(props?: KrnlBackendConnectionWizardProps): HTMLDivElement;
 
-export { type ConnectionWizardStep, KrnlAgentBridge, KrnlAgentBridgeManager, KrnlBackendConnectionWizard, type KrnlBackendConnectionWizardProps, KrnlButton, type KrnlButtonProps, type KrnlComponentRegistration, type KrnlComponentState, KrnlDock, type KrnlDockItem, type KrnlDockProps, KrnlDropdown, type KrnlDropdownProps, KrnlJsonViewer, type KrnlJsonViewerProps, KrnlMonacoEditor, type KrnlMonacoProps, KrnlReactiveBridge, KrnlTextArea, type KrnlTextAreaProps, KrnlTextInput, type KrnlTextInputProps, KrnlTile, type KrnlTileProps, KrnlTooltip, type KrnlTooltipProps, type ProviderDescriptor, type ProviderFieldConfig, ProviderRegistry, type SharedSlot, type StorageSelectionMode, type WorkspaceBackendConnectionState, getSharedSlot };
+interface KrnlWorkspaceTileProps {
+    id: string;
+    name: string;
+    icon?: string;
+    primaryProvider: string;
+    backupProviders?: string[];
+    syncStatus?: "SYNCED" | "OUT_OF_SYNC" | "SYNCING" | "ERROR";
+    onSelectWorkspace?: (id: string) => void;
+    onOpenSettings?: (id: string) => void;
+}
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * COMPONENT: KrnlWorkspaceTile
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Direct-DOM reactive Neo-Brutalist tile rendering workspace identity, primary/backup
+ *          storage summary, and sync status with icon-only action buttons and ambient hover glow.
+ *
+ * Flow Chart:
+ *   [Workspace Tile] ───► [User Hover: Reveal Actions + Ambient Glow]
+ *                                   │
+ *                       (Click Tile) ├──► [onSelectWorkspace(id)]
+ *                     (Click Config) └──► [onOpenSettings(id)]
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare function KrnlWorkspaceTile({ id, name, icon, primaryProvider, backupProviders, syncStatus, onSelectWorkspace, onOpenSettings }: KrnlWorkspaceTileProps): HTMLElement;
+
+interface WorkspaceStorageSummary {
+    id: string;
+    name: string;
+    icon?: string;
+    primaryStorage: {
+        id: string;
+        provider: string;
+        syncState?: "SYNCED" | "OUT_OF_SYNC" | "SYNCING" | "ERROR";
+    };
+    backupStorages?: Array<{
+        id: string;
+        provider: string;
+        syncState?: string;
+    }>;
+}
+interface KrnlWorkspaceSelectorProps {
+    workspaces: WorkspaceStorageSummary[];
+    workspaceOrder?: string[];
+    onSelectWorkspace?: (id: string) => void;
+    onOpenSettings?: (id: string) => void;
+    onCreateWorkspace?: () => void;
+    onReorderWorkspaces?: (newOrder: string[]) => void;
+}
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * COMPONENT: KrnlWorkspaceSelector
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Post-login workspace selector screen rendering reorderable workspace tiles,
+ *          storage summaries, sync indicators, and action for creating new workspaces.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare function KrnlWorkspaceSelector({ workspaces, workspaceOrder, onSelectWorkspace, onOpenSettings, onCreateWorkspace }: KrnlWorkspaceSelectorProps): HTMLElement;
+
+interface WorkspaceStorageSettingsDescriptor {
+    id: string;
+    name: string;
+    primaryStorage: {
+        id: string;
+        provider: string;
+        status?: string;
+        syncState?: string;
+    };
+    backupStorages: Array<{
+        id: string;
+        provider: string;
+        status?: string;
+        syncState?: string;
+    }>;
+    sync?: {
+        mode: string;
+        conflictStrategy: string;
+        enabled: boolean;
+    };
+}
+interface KrnlWorkspaceStorageSettingsProps {
+    workspace: WorkspaceStorageSettingsDescriptor;
+    onTestConnection?: (endpointId: string) => Promise<{
+        ok: boolean;
+        latencyMs: number;
+    }>;
+    onChangePrimary?: (newPrimaryId: string) => void;
+    onAddBackup?: (endpoint: any) => void;
+    onDetachStorage?: (endpointId: string) => void;
+    onUpdateSyncConfig?: (config: any) => void;
+}
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * COMPONENT: KrnlWorkspaceStorageSettings
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Dedicated workspace storage and sync configuration panel located under
+ *          General Settings -> Workspace -> Storage.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare function KrnlWorkspaceStorageSettings({ workspace, onTestConnection, onChangePrimary, onDetachStorage }: KrnlWorkspaceStorageSettingsProps): HTMLElement;
+
+export { type ConnectionWizardStep, KrnlAgentBridge, KrnlAgentBridgeManager, KrnlBackendConnectionWizard, type KrnlBackendConnectionWizardProps, KrnlButton, type KrnlButtonProps, type KrnlComponentRegistration, type KrnlComponentState, KrnlDock, type KrnlDockItem, type KrnlDockProps, KrnlDropdown, type KrnlDropdownProps, KrnlJsonViewer, type KrnlJsonViewerProps, KrnlMonacoEditor, type KrnlMonacoProps, KrnlReactiveBridge, KrnlTextArea, type KrnlTextAreaProps, KrnlTextInput, type KrnlTextInputProps, KrnlTile, type KrnlTileProps, KrnlTooltip, type KrnlTooltipProps, KrnlWorkspaceSelector, type KrnlWorkspaceSelectorProps, KrnlWorkspaceStorageSettings, type KrnlWorkspaceStorageSettingsProps, KrnlWorkspaceTile, type KrnlWorkspaceTileProps, type ProviderDescriptor, type ProviderFieldConfig, ProviderRegistry, type SharedSlot, type StorageSelectionMode, type WorkspaceBackendConnectionState, type WorkspaceStorageSettingsDescriptor, type WorkspaceStorageSummary, getSharedSlot };

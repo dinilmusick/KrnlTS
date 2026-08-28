@@ -43,6 +43,9 @@ __export(index_exports, {
   KrnlTextInput: () => KrnlTextInput,
   KrnlTile: () => KrnlTile,
   KrnlTooltip: () => KrnlTooltip,
+  KrnlWorkspaceSelector: () => KrnlWorkspaceSelector,
+  KrnlWorkspaceStorageSettings: () => KrnlWorkspaceStorageSettings,
+  KrnlWorkspaceTile: () => KrnlWorkspaceTile,
   ProviderRegistry: () => ProviderRegistry,
   getSharedSlot: () => getSharedSlot
 });
@@ -1085,6 +1088,324 @@ function KrnlBackendConnectionWizard(props = {}) {
     }
   );
 }
+
+// src/atoms/KrnlWorkspaceTile.ts
+var import_vanjs_core13 = __toESM(require("vanjs-core"), 1);
+function KrnlWorkspaceTile({
+  id,
+  name,
+  icon = "\u{1F4C1}",
+  primaryProvider,
+  backupProviders = [],
+  syncStatus = "SYNCED",
+  onSelectWorkspace,
+  onOpenSettings
+}) {
+  const { div: div7, span: span3 } = import_vanjs_core13.default.tags;
+  const getStatusColor = () => {
+    switch (syncStatus) {
+      case "SYNCED":
+        return "#22c55e";
+      case "SYNCING":
+        return "#eab308";
+      case "OUT_OF_SYNC":
+        return "#f97316";
+      case "ERROR":
+        return "#ef4444";
+      default:
+        return "#8e8e93";
+    }
+  };
+  const backupsText = backupProviders.length > 0 ? `+ ${backupProviders.join(", ")}` : "No backups";
+  return div7(
+    {
+      class: "krnl-workspace-tile",
+      style: `
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 16px;
+        background: var(--krnl-bg-surface, #141416);
+        border: 1px solid var(--krnl-border, #2a2a2e);
+        border-radius: var(--krnl-radius, 6px);
+        min-width: 200px;
+        height: 140px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        box-shadow: 2px 2px 0px var(--krnl-border, #2a2a2e);
+      `,
+      onclick: () => onSelectWorkspace?.(id)
+    },
+    // Header Row: Icon, Name & Action Button
+    div7(
+      { style: "display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;" },
+      div7(
+        { style: "display: flex; align-items: center; gap: 8px;" },
+        span3({ style: "font-size: 20px;" }, icon),
+        span3({ style: "font-weight: 700; font-size: 14px; color: var(--krnl-text-primary, #ffffff);" }, name)
+      ),
+      KrnlButton({
+        icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+        tooltipLabel: `Manage storage for ${name}`,
+        onclick: (e) => {
+          e.stopPropagation();
+          onOpenSettings?.(id);
+        }
+      })
+    ),
+    // Footer Row: Storage Provider Summary & Status Pill
+    div7(
+      { style: "display: flex; flex-direction: column; gap: 4px;" },
+      div7(
+        { style: "display: flex; align-items: center; justify-content: space-between; font-size: 12px;" },
+        span3({ style: "font-weight: 600; color: var(--krnl-accent, #d4a359);" }, `Primary: ${primaryProvider}`),
+        div7(
+          { style: "display: flex; align-items: center; gap: 4px;" },
+          span3({ style: `width: 6px; height: 6px; border-radius: 50%; background: ${getStatusColor()}; display: inline-block;` }),
+          span3({ style: `font-size: 10px; font-weight: 700; color: ${getStatusColor()};` }, syncStatus)
+        )
+      ),
+      span3({ style: "font-size: 11px; color: var(--krnl-text-muted, #8e8e93);" }, backupsText)
+    )
+  );
+}
+
+// src/atoms/KrnlWorkspaceSelector.ts
+var import_vanjs_core14 = __toESM(require("vanjs-core"), 1);
+function KrnlWorkspaceSelector({
+  workspaces = [],
+  workspaceOrder = [],
+  onSelectWorkspace,
+  onOpenSettings,
+  onCreateWorkspace
+}) {
+  const { div: div7, h2, span: span3 } = import_vanjs_core14.default.tags;
+  const sortedWorkspaces = [...workspaces].sort((a, b) => {
+    const idxA = workspaceOrder.indexOf(a.id);
+    const idxB = workspaceOrder.indexOf(b.id);
+    if (idxA === -1 && idxB === -1) return 0;
+    if (idxA === -1) return 1;
+    if (idxB === -1) return -1;
+    return idxA - idxB;
+  });
+  return div7(
+    {
+      class: "krnl-workspace-selector",
+      style: `
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        padding: 24px;
+        background: var(--krnl-bg-primary, #0c0c0e);
+        min-height: 100%;
+      `
+    },
+    // Header Toolbar
+    div7(
+      { style: "display: flex; align-items: center; justify-content: space-between;" },
+      h2({ style: "margin: 0; font-size: 18px; font-weight: 700; color: var(--krnl-text-primary, #ffffff);" }, "WORKSPACES"),
+      KrnlButton({
+        icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+        tooltipLabel: "Create new workspace",
+        onclick: () => onCreateWorkspace?.()
+      })
+    ),
+    // Grid Container
+    div7(
+      {
+        style: `
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+          gap: 16px;
+        `
+      },
+      ...sortedWorkspaces.map(
+        (w) => KrnlWorkspaceTile({
+          id: w.id,
+          name: w.name,
+          icon: w.icon || "\u{1F4C1}",
+          primaryProvider: w.primaryStorage.provider,
+          backupProviders: (w.backupStorages || []).map((b) => b.provider),
+          syncStatus: w.primaryStorage.syncState || "SYNCED",
+          onSelectWorkspace,
+          onOpenSettings
+        })
+      ),
+      // + New Workspace Card
+      div7(
+        {
+          class: "krnl-new-workspace-card",
+          style: `
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 16px;
+            background: var(--krnl-bg-surface, #141416);
+            border: 1px dashed var(--krnl-border, #2a2a2e);
+            border-radius: var(--krnl-radius, 6px);
+            min-width: 200px;
+            height: 140px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+          `,
+          onclick: () => onCreateWorkspace?.()
+        },
+        KrnlButton({
+          icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+          tooltipLabel: "Add new project workspace",
+          onclick: () => onCreateWorkspace?.()
+        }),
+        span3({ style: "font-weight: 600; font-size: 13px; color: var(--krnl-text-muted, #8e8e93);" }, "+ NEW WORKSPACE")
+      )
+    )
+  );
+}
+
+// src/atoms/KrnlWorkspaceStorageSettings.ts
+var import_vanjs_core15 = __toESM(require("vanjs-core"), 1);
+function KrnlWorkspaceStorageSettings({
+  workspace,
+  onTestConnection,
+  onChangePrimary,
+  onDetachStorage
+}) {
+  const { div: div7, h3, h4: h42, span: span3 } = import_vanjs_core15.default.tags;
+  const latency = import_vanjs_core15.default.state(0);
+  const isProbing = import_vanjs_core15.default.state(false);
+  const handleProbe = async (endpointId) => {
+    isProbing.val = true;
+    try {
+      if (onTestConnection) {
+        const res = await onTestConnection(endpointId);
+        latency.val = res.latencyMs;
+      } else {
+        setTimeout(() => {
+          latency.val = 16;
+          isProbing.val = false;
+        }, 300);
+      }
+    } finally {
+      isProbing.val = false;
+    }
+  };
+  return div7(
+    {
+      class: "krnl-workspace-storage-settings",
+      style: `
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        padding: 20px;
+        background: var(--krnl-bg-surface, #141416);
+        border: 1px solid var(--krnl-border, #2a2a2e);
+        border-radius: var(--krnl-radius, 6px);
+      `
+    },
+    // Header
+    div7(
+      { style: "display: flex; align-items: center; justify-content: space-between;" },
+      h3({ style: "margin: 0; font-size: 16px; font-weight: 700;" }, `STORAGE SETTINGS: ${workspace.name.toUpperCase()}`),
+      div7(
+        { style: "display: flex; align-items: center; gap: 8px;" },
+        span3({ style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e;" }),
+        span3({ style: "font-size: 12px; font-weight: 600; color: #22c55e;" }, "ACTIVE")
+      )
+    ),
+    // Primary Storage Section
+    div7(
+      { style: "display: flex; flex-direction: column; gap: 10px;" },
+      h42({ style: "margin: 0; font-size: 13px; color: var(--krnl-text-muted, #8e8e93);" }, "PRIMARY STORAGE (CANONICAL)"),
+      div7(
+        {
+          style: `
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px;
+            background: var(--krnl-bg-primary, #0c0c0e);
+            border: 1px solid var(--krnl-border, #2a2a2e);
+            border-radius: var(--krnl-radius, 6px);
+          `
+        },
+        div7(
+          { style: "display: flex; flex-direction: column; gap: 4px;" },
+          span3({ style: "font-weight: 700; font-size: 14px;" }, workspace.primaryStorage.provider.toUpperCase()),
+          span3({ style: "font-size: 11px; color: var(--krnl-text-muted, #8e8e93);" }, `Endpoint ID: ${workspace.primaryStorage.id}`)
+        ),
+        div7(
+          { style: "display: flex; align-items: center; gap: 8px;" },
+          () => latency.val > 0 ? span3({ style: "font-size: 12px; color: #22c55e; font-weight: 600;" }, `${latency.val}ms`) : span3(),
+          KrnlButton({
+            icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>`,
+            tooltipLabel: "Test connection probe",
+            onclick: () => handleProbe(workspace.primaryStorage.id)
+          })
+        )
+      )
+    ),
+    // Backup Storages Section
+    div7(
+      { style: "display: flex; flex-direction: column; gap: 10px;" },
+      div7(
+        { style: "display: flex; align-items: center; justify-content: space-between;" },
+        h42({ style: "margin: 0; font-size: 13px; color: var(--krnl-text-muted, #8e8e93);" }, "BACKUP STORAGES (REPLICAS)"),
+        span3({ style: "font-size: 11px; color: var(--krnl-text-muted, #8e8e93);" }, `${workspace.backupStorages.length} active backup(s)`)
+      ),
+      ...workspace.backupStorages.map(
+        (b) => div7(
+          {
+            style: `
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              padding: 12px;
+              background: var(--krnl-bg-primary, #0c0c0e);
+              border: 1px solid var(--krnl-border, #2a2a2e);
+              border-radius: var(--krnl-radius, 6px);
+            `
+          },
+          div7(
+            { style: "display: flex; align-items: center; gap: 8px;" },
+            span3({ style: "font-size: 12px; font-weight: 600;" }, `\u2611 ${b.provider.toUpperCase()}`),
+            span3({ style: "font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #1a1a1e; color: #22c55e;" }, b.syncState || "SYNCED")
+          ),
+          div7(
+            { style: "display: flex; align-items: center; gap: 6px;" },
+            KrnlButton({
+              icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`,
+              tooltipLabel: `Promote ${b.provider} to Primary Storage`,
+              onclick: () => onChangePrimary?.(b.id)
+            }),
+            KrnlButton({
+              icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>`,
+              tooltipLabel: `Detach ${b.provider} (preserves remote data)`,
+              onclick: () => onDetachStorage?.(b.id)
+            })
+          )
+        )
+      )
+    ),
+    // Sync Configuration Info Pill
+    div7(
+      {
+        style: `
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 14px;
+          background: var(--krnl-bg-primary, #0c0c0e);
+          border: 1px solid var(--krnl-border, #2a2a2e);
+          border-radius: var(--krnl-radius, 6px);
+          font-size: 12px;
+        `
+      },
+      span3({ style: "color: var(--krnl-text-muted, #8e8e93);" }, "Sync Strategy:"),
+      span3({ style: "font-weight: 600; color: var(--krnl-accent, #d4a359);" }, `${workspace.sync?.mode ? workspace.sync.mode.toUpperCase() : "ON_WRITE"} (${workspace.sync?.conflictStrategy || "primary_wins"})`)
+    )
+  );
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   KrnlAgentBridge,
@@ -1100,6 +1421,9 @@ function KrnlBackendConnectionWizard(props = {}) {
   KrnlTextInput,
   KrnlTile,
   KrnlTooltip,
+  KrnlWorkspaceSelector,
+  KrnlWorkspaceStorageSettings,
+  KrnlWorkspaceTile,
   ProviderRegistry,
   getSharedSlot
 });

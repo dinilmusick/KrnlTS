@@ -4,11 +4,11 @@
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════════════════
- * TYPE DEFINITIONS: KrnlTS Universal Backend Architecture (DocuStack Refinements)
+ * TYPE DEFINITIONS: KrnlTS Universal Backend Architecture & Workspace Storage Spec
  * ──────────────────────────────────────────────────────────────────────────────────────────
- * Purpose: Complete type contracts for Control Plane (RBAC, Audit Logging, Database Clusters,
- *          Redundancy Sync), Workspace Data Plane (Multi-Engine Providers, Failover Cascades),
- *          and Built-in Functionality Table CRUD.
+ * Purpose: Complete type contracts for Control Plane (RBAC, Audit Logging, Multi-App User Context,
+ *          Database Clusters), Workspace Storage Architecture (Decoupled Storage Adapters,
+ *          Provider-Independent WorkspaceFS, Multi-Cloud Sync Engine, Conflict Resolution).
  * ══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -30,11 +30,33 @@ export type BackendServiceType =
   | "filesystem"
   | "s3"
   | "vercel_blob"
+  | "google_drive"
+  | "onedrive"
+  | "custom";
+
+export type StorageProviderType =
+  | "local"
+  | "google_drive"
+  | "onedrive"
+  | "supabase_storage"
+  | "firebase_storage"
+  | "s3"
+  | "vercel_blob"
   | "custom";
 
 export type UserRole = "USER" | "MODERATOR" | "ADMIN" | "user" | "moderator" | "admin";
 
 export type ClusterDatabaseRole = "primary" | "redundant_clone" | "read_replica";
+
+export type SyncMode = "on_write" | "interval" | "manual";
+
+export type ConflictStrategy = "primary_wins" | "newest_wins" | "manual";
+
+export type StorageEndpointStatus = "CONNECTED" | "DISCONNECTED" | "SYNCING" | "ERROR";
+
+export type StorageEndpointSyncState = "SYNCED" | "OUT_OF_SYNC" | "PENDING" | "ERROR";
+
+export type Unsubscribe = () => void;
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
 // 3. DATABASE & STORAGE CONFIGURATIONS
@@ -61,7 +83,7 @@ export interface DatabaseProviderConfig {
 }
 
 export interface StorageProviderConfig {
-  type: "filesystem" | "s3" | "supabase_storage" | "pocketbase_storage" | "firebase_storage" | "vercel_blob" | "custom";
+  type: "filesystem" | "s3" | "supabase_storage" | "pocketbase_storage" | "firebase_storage" | "vercel_blob" | "google_drive" | "onedrive" | "custom";
   basePath?: string;
   bucket?: string;
   region?: string;
@@ -71,6 +93,8 @@ export interface StorageProviderConfig {
   apiKey?: string;
   token?: string;
   projectId?: string;
+  accountId?: string;
+  rootFolderId?: string;
 }
 
 export interface AuthConfig {
@@ -92,7 +116,292 @@ export interface BackendConnectionConfig {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 4. DATABASE CLUSTER & REDUNDANCY TYPES
+// 4. WORKSPACE STORAGE ARCHITECTURE SPEC CONFIGURATIONS
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+export interface SecretReference {
+  vaultKey: string;
+  envVar?: string;
+}
+
+export interface LocalStorageConfiguration {
+  provider: "local";
+  directoryHandle?: any; // Browser FileSystemDirectoryHandle
+  basePath?: string; // Node.js local path
+  displayPath?: string;
+}
+
+export interface GoogleDriveConfiguration {
+  provider: "google_drive";
+  accountId: string;
+  rootFolderId: string;
+  authenticationReference?: SecretReference;
+  accessToken?: string;
+}
+
+export interface OneDriveConfiguration {
+  provider: "onedrive";
+  accountId: string;
+  rootFolderId: string;
+  authenticationReference?: SecretReference;
+  accessToken?: string;
+}
+
+export interface SupabaseStorageConfiguration {
+  provider: "supabase_storage";
+  projectUrl: string;
+  bucket: string;
+  authenticationReference?: SecretReference;
+  apiKey?: string;
+}
+
+export interface FirebaseStorageConfiguration {
+  provider: "firebase_storage";
+  projectId: string;
+  bucket: string;
+  authenticationReference?: SecretReference;
+  apiKey?: string;
+}
+
+export interface S3StorageConfiguration {
+  provider: "s3";
+  bucket: string;
+  region?: string;
+  endpoint?: string;
+  accessKey?: string;
+  secretKey?: string;
+}
+
+export interface CustomStorageConfiguration {
+  provider: "custom";
+  [key: string]: any;
+}
+
+export type ProviderConfiguration =
+  | LocalStorageConfiguration
+  | GoogleDriveConfiguration
+  | OneDriveConfiguration
+  | SupabaseStorageConfiguration
+  | FirebaseStorageConfiguration
+  | S3StorageConfiguration
+  | CustomStorageConfiguration;
+
+export interface StorageEndpoint {
+  id: string;
+  provider: StorageProviderType;
+  configuration: ProviderConfiguration;
+  enabled: boolean;
+  status: StorageEndpointStatus;
+  lastSyncAt?: number;
+  syncState?: StorageEndpointSyncState;
+  errorMessage?: string;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 5. FILE SYSTEM, METADATA & ADAPTER INTERFACES
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+export interface FileMetadata {
+  path: string;
+  type: "file" | "directory";
+  size: number;
+  modifiedAt: number;
+  contentHash?: string; // SHA-256
+  revision?: string;
+  mimeType?: string;
+}
+
+export interface FileEntry {
+  path: string;
+  name: string;
+  type: "file" | "directory";
+  size: number;
+  modifiedAt: number;
+}
+
+export type FileChangeCallback = (event: { type: "create" | "update" | "delete"; path: string; metadata?: FileMetadata }) => void;
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * INTERFACE: WorkspaceStorageAdapter
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Provider-independent contract implemented by Local, Google Drive, OneDrive,
+ *          Supabase, and Firebase storage providers.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+export interface WorkspaceStorageAdapter {
+  readonly provider: StorageProviderType;
+  readonly endpointId: string;
+  initialize(): Promise<void>;
+  exists(pathStr: string): Promise<boolean>;
+  stat(pathStr: string): Promise<FileMetadata>;
+  list(pathStr?: string): Promise<FileEntry[]>;
+  read(pathStr: string): Promise<Uint8Array>;
+  write(pathStr: string, data: Uint8Array | Buffer | string): Promise<void>;
+  mkdir(pathStr: string): Promise<void>;
+  delete(pathStr: string): Promise<void>;
+  move(source: string, destination: string): Promise<void>;
+  copy(source: string, destination: string): Promise<void>;
+  watch?(pathStr: string, callback: FileChangeCallback): Unsubscribe;
+  disconnect(): Promise<void>;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 6. SYNC ENGINE & REPLICATION CONTRACTS
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+export interface RetryConfiguration {
+  maxAttempts: number;
+  backoffMs: number;
+}
+
+export interface VerificationConfiguration {
+  verifyChecksums: boolean;
+  intervalMs?: number;
+}
+
+export interface SyncConfiguration {
+  enabled: boolean;
+  mode: SyncMode;
+  intervalMs?: number;
+  conflictStrategy: ConflictStrategy;
+  deletePropagation: boolean;
+  retry: RetryConfiguration;
+  verification: VerificationConfiguration;
+}
+
+export interface SyncResult {
+  ok: boolean;
+  syncedFiles: string[];
+  failedEndpoints: Array<{ endpointId: string; error: string }>;
+  timestamp: number;
+  durationMs: number;
+}
+
+export interface RestoreResult {
+  ok: boolean;
+  restoredFromEndpointId: string;
+  filesRestoredCount: number;
+  timestamp: number;
+  errorMessage?: string;
+}
+
+export interface VerificationResult {
+  ok: boolean;
+  totalFiles: number;
+  matchedFiles: number;
+  divergentFiles: Array<{ path: string; primaryHash?: string; backupHashes: Record<string, string> }>;
+  timestamp: number;
+}
+
+export interface ISyncEngine {
+  initialize(workspace: Workspace, primary: WorkspaceStorageAdapter, backups: WorkspaceStorageAdapter[]): Promise<void>;
+  sync(workspace: Workspace): Promise<SyncResult>;
+  syncFile(pathStr: string): Promise<SyncResult>;
+  restore(backup: StorageEndpoint): Promise<RestoreResult>;
+  verify(workspace: Workspace): Promise<VerificationResult>;
+  pause(): Promise<void>;
+  resume(): Promise<void>;
+  shutdown(): Promise<void>;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 7. WORKSPACE, PREFERENCES & APP USER CONTEXT
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+export interface WorkspacePreferences {
+  theme?: string;
+  autoSave?: boolean;
+  defaultView?: string;
+  customSettings?: Record<string, any>;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  icon?: string;
+  description?: string;
+  primaryStorage: StorageEndpoint;
+  backupStorages: StorageEndpoint[];
+  sync: SyncConfiguration;
+  preferences: WorkspacePreferences;
+  metadata: Record<string, unknown>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AppPreferences {
+  workspaceOrder?: string[]; // WorkspaceID[] for dnd-kit ordering
+  defaultWorkspaceId?: string;
+  customTheme?: string;
+  [key: string]: any;
+}
+
+export interface AppUserContext {
+  appId: string;
+  enabled: boolean;
+  preferences: AppPreferences;
+  workspaces: Workspace[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface GlobalUserIdentity {
+  displayName?: string;
+  avatarUrl?: string;
+  locale?: string;
+  timezone?: string;
+}
+
+export interface User {
+  id: string;
+  credentials: AuthCredentials;
+  identity: GlobalUserIdentity;
+  role: UserRole;
+  apps: Record<string, AppUserContext>; // appId -> AppUserContext
+  createdAt: number;
+  updatedAt: number;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 8. WORKSPACE RUNTIME & APPLICATION RUNTIME
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+export interface IWorkspaceFS {
+  exists(pathStr: string): Promise<boolean>;
+  stat(pathStr: string): Promise<FileMetadata>;
+  list(pathStr?: string): Promise<FileEntry[]>;
+  read(pathStr: string): Promise<Uint8Array>;
+  readText(pathStr: string): Promise<string>;
+  write(pathStr: string, data: Uint8Array | Buffer | string): Promise<void>;
+  mkdir(pathStr: string): Promise<void>;
+  delete(pathStr: string): Promise<void>;
+  move(source: string, destination: string): Promise<void>;
+  copy(source: string, destination: string): Promise<void>;
+}
+
+export interface IWorkspaceRuntime {
+  readonly workspace: Workspace;
+  readonly primary: WorkspaceStorageAdapter;
+  readonly backups: WorkspaceStorageAdapter[];
+  readonly filesystem: IWorkspaceFS;
+  readonly syncEngine: ISyncEngine;
+  initialize(): Promise<void>;
+  changePrimary(newPrimaryEndpointId: string): Promise<void>;
+  addBackup(endpoint: StorageEndpoint): Promise<void>;
+  detachStorage(endpointId: string): Promise<void>;
+  dispose(): Promise<void>;
+}
+
+export interface ApplicationRuntimeState {
+  currentUser: User;
+  currentApp: AppUserContext;
+  currentWorkspace?: Workspace;
+  workspaceRuntime?: IWorkspaceRuntime;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// 9. DATABASE CLUSTER & REDUNDANCY TYPES
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 export interface DatabaseClusterEntry {
@@ -115,7 +424,7 @@ export interface DatabaseClusterVault {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 5. AUDIT LOGGING TYPES
+// 10. AUDIT LOGGING TYPES
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 export interface AuditLogEntry {
@@ -131,14 +440,15 @@ export interface AuditLogEntry {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 6. USER, AUTH & SESSION PROFILES
+// 11. USER, AUTH & SESSION PROFILES
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 export interface WorkspaceDescriptor {
   id: string;
   ownerId: string;
   name: string;
-  backendConfig: BackendConnectionConfig;
+  backendConfig?: BackendConnectionConfig;
+  workspaceSpec?: Workspace;
   createdAt: number;
   updatedAt: number;
 }
@@ -158,6 +468,7 @@ export interface UserProfile {
   username?: string;
   role: UserRole;
   metadata?: Record<string, any>;
+  apps?: Record<string, AppUserContext>;
   createdAt: number;
 }
 
@@ -170,16 +481,19 @@ export interface AuthSession {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 7. PROVIDER INTERFACES
+// 12. PROVIDER INTERFACES
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 export interface IAccountProvider {
   getUser(userId: string): Promise<UserProfile | null>;
+  getFullUser?(userId: string): Promise<User | null>;
   authenticate(credentials: AuthCredentials): Promise<AuthSession>;
   verifySession(token: string | null): Promise<AuthSession | null>;
-  listWorkspaces(userId: string): Promise<WorkspaceDescriptor[]>;
-  createWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>): Promise<WorkspaceDescriptor>;
-  deleteWorkspace(userId: string, workspaceId: string): Promise<boolean>;
+  listWorkspaces(userId: string, appId?: string): Promise<WorkspaceDescriptor[]>;
+  createWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>, appId?: string): Promise<WorkspaceDescriptor>;
+  deleteWorkspace(userId: string, workspaceId: string, appId?: string): Promise<boolean>;
+  getAppUserContext?(userId: string, appId: string): Promise<AppUserContext | null>;
+  updateAppPreferences?(userId: string, appId: string, preferences: Partial<AppPreferences>): Promise<AppPreferences>;
 }
 
 export interface IWorkspaceDataProvider {
@@ -201,10 +515,10 @@ export interface IWorkspaceDataProvider {
 
 export interface IStorageProvider {
   readonly driver: string;
-  uploadFile(path: string, content: Buffer | Uint8Array | string | ReadableStream, mimeType?: string): Promise<{ url: string; size: number }>;
-  downloadFile(path: string): Promise<Buffer>;
-  deleteFile(path: string): Promise<boolean>;
-  getPublicUrl(path: string): string;
+  uploadFile(pathStr: string, content: Buffer | Uint8Array | string | ReadableStream, mimeType?: string): Promise<{ url: string; size: number }>;
+  downloadFile(pathStr: string): Promise<Buffer>;
+  deleteFile(pathStr: string): Promise<boolean>;
+  getPublicUrl(pathStr: string): string;
   listFiles(prefix?: string): Promise<Array<{ path: string; size: number; updatedAt: number }>>;
 }
 
@@ -218,7 +532,7 @@ export interface IWorkspaceBackend {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 8. BUILT-IN FUNCTIONALITY TABLE INTERFACE
+// 13. BUILT-IN FUNCTIONALITY TABLE INTERFACE
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 export interface IFunctionalityTable<T = any> {
@@ -260,5 +574,7 @@ export interface EntityBackendSettings {
   filesystem?: StorageProviderConfig;
   s3?: StorageProviderConfig;
   vercel_blob?: StorageProviderConfig;
+  google_drive?: StorageProviderConfig;
+  onedrive?: StorageProviderConfig;
   custom?: Record<string, any>;
 }

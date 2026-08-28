@@ -1,14 +1,26 @@
 /**
  * @file LocalSQLiteAccountProvider.ts
- * @description Local SQLite/JSON-backed Control Plane Account Provider for user accounts and workspace registry.
+ * @description Local SQLite/JSON-backed Control Plane Account Provider for user accounts,
+ *              AppUserContext, and Workspace Storage specifications.
  */
 
-import { IAccountProvider, UserProfile, AuthSession, AuthCredentials, WorkspaceDescriptor, UserRole } from "../types.js";
+import {
+  IAccountProvider,
+  UserProfile,
+  AuthSession,
+  AuthCredentials,
+  WorkspaceDescriptor,
+  UserRole,
+  User,
+  AppUserContext,
+  AppPreferences,
+  Workspace
+} from "../types.js";
 import { KrnlFS, FileLock } from "../../tools/KrnlFS.js";
 import path from "path";
 
 interface AccountsDBFile {
-  users: Record<string, UserProfile & { passwordHash?: string }>;
+  users: Record<string, UserProfile & { passwordHash?: string; apps?: Record<string, AppUserContext> }>;
   workspaces: Record<string, WorkspaceDescriptor[]>; // userId -> workspaces
 }
 
@@ -57,16 +69,33 @@ export class LocalSQLiteAccountProvider implements IAccountProvider {
     return profile;
   }
 
+  async getFullUser(userId: string): Promise<User | null> {
+    await this.load();
+    const user = this.db.users[userId];
+    if (!user) return null;
+    const { passwordHash, ...profile } = user;
+    return {
+      id: user.id,
+      credentials: { username: user.username, email: user.email },
+      identity: user.metadata || {},
+      role: user.role,
+      apps: user.apps || {},
+      createdAt: user.createdAt,
+      updatedAt: Date.now()
+    };
+  }
+
   async registerUser(credentials: AuthCredentials & { role?: UserRole }): Promise<UserProfile> {
     await this.load();
     const userId = credentials.username || credentials.email || `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const profile: UserProfile & { passwordHash?: string } = {
+    const profile: UserProfile & { passwordHash?: string; apps?: Record<string, AppUserContext> } = {
       id: userId,
       email: credentials.email,
       username: credentials.username || credentials.email,
       role: credentials.role || "USER",
       passwordHash: credentials.password,
       metadata: credentials.metadata || {},
+      apps: {},
       createdAt: Date.now()
     };
 
@@ -131,19 +160,80 @@ export class LocalSQLiteAccountProvider implements IAccountProvider {
     return null;
   }
 
-  async listWorkspaces(userId: string): Promise<WorkspaceDescriptor[]> {
+  async getAppUserContext(userId: string, appId: string): Promise<AppUserContext | null> {
     await this.load();
+    const user = this.db.users[userId];
+    if (!user) return null;
+    if (!user.apps) user.apps = {};
+
+    if (!user.apps[appId]) {
+      user.apps[appId] = {
+        appId,
+        enabled: true,
+        preferences: { workspaceOrder: [] },
+        workspaces: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await this.persist();
+    }
+
+    return user.apps[appId];
+  }
+
+  async updateAppPreferences(userId: string, appId: string, preferences: Partial<AppPreferences>): Promise<AppPreferences> {
+    await this.load();
+    const user = this.db.users[userId];
+    if (!user) throw new Error(`User not found: ${userId}`);
+    if (!user.apps) user.apps = {};
+    if (!user.apps[appId]) {
+      user.apps[appId] = {
+        appId,
+        enabled: true,
+        preferences: {},
+        workspaces: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+    }
+
+    user.apps[appId].preferences = {
+      ...user.apps[appId].preferences,
+      ...preferences
+    };
+    user.apps[appId].updatedAt = Date.now();
+    await this.persist();
+
+    return user.apps[appId].preferences;
+  }
+
+  async listWorkspaces(userId: string, appId?: string): Promise<WorkspaceDescriptor[]> {
+    await this.load();
+    if (appId) {
+      const appCtx = await this.getAppUserContext(userId, appId);
+      if (appCtx && appCtx.workspaces.length > 0) {
+        return appCtx.workspaces.map(w => ({
+          id: w.id,
+          ownerId: userId,
+          name: w.name,
+          workspaceSpec: w,
+          createdAt: w.createdAt,
+          updatedAt: w.updatedAt
+        }));
+      }
+    }
     return this.db.workspaces[userId] || [];
   }
 
-  async createWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>): Promise<WorkspaceDescriptor> {
+  async createWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>, appId?: string): Promise<WorkspaceDescriptor> {
     await this.load();
     if (!this.db.workspaces[userId]) {
       this.db.workspaces[userId] = [];
     }
 
+    const wsId = descriptor.id || `ws_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newWs: WorkspaceDescriptor = {
-      id: descriptor.id || `ws_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: wsId,
       ownerId: userId,
       name: descriptor.name || "Default Workspace",
       backendConfig: descriptor.backendConfig || {
@@ -153,24 +243,80 @@ export class LocalSQLiteAccountProvider implements IAccountProvider {
         database: { type: "sqlite", filePath: "./workspace.sqlite" },
         storage: { type: "filesystem", basePath: "./storage" }
       },
+      workspaceSpec: descriptor.workspaceSpec,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
 
     this.db.workspaces[userId].push(newWs);
+
+    if (appId) {
+      const user = this.db.users[userId];
+      if (user && user.apps && user.apps[appId]) {
+        const spec: Workspace = descriptor.workspaceSpec || {
+          id: wsId,
+          name: newWs.name,
+          primaryStorage: {
+            id: `endpoint_local_${wsId}`,
+            provider: "local",
+            configuration: { provider: "local", basePath: "./storage" },
+            enabled: true,
+            status: "CONNECTED",
+            syncState: "SYNCED"
+          },
+          backupStorages: [],
+          sync: {
+            enabled: true,
+            mode: "on_write",
+            conflictStrategy: "primary_wins",
+            deletePropagation: true,
+            retry: { maxAttempts: 3, backoffMs: 1000 },
+            verification: { verifyChecksums: true }
+          },
+          preferences: {},
+          metadata: {},
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+        user.apps[appId].workspaces.push(spec);
+        if (!user.apps[appId].preferences.workspaceOrder) {
+          user.apps[appId].preferences.workspaceOrder = [];
+        }
+        user.apps[appId].preferences.workspaceOrder.push(wsId);
+      }
+    }
+
     await this.persist();
     return newWs;
   }
 
-  async deleteWorkspace(userId: string, workspaceId: string): Promise<boolean> {
+  async deleteWorkspace(userId: string, workspaceId: string, appId?: string): Promise<boolean> {
     await this.load();
     const list = this.db.workspaces[userId] || [];
     const idx = list.findIndex(w => w.id === workspaceId);
+    let removed = false;
     if (idx !== -1) {
       list.splice(idx, 1);
-      await this.persist();
-      return true;
+      removed = true;
     }
-    return false;
+
+    if (appId) {
+      const user = this.db.users[userId];
+      if (user && user.apps && user.apps[appId]) {
+        const wIdx = user.apps[appId].workspaces.findIndex(w => w.id === workspaceId);
+        if (wIdx !== -1) {
+          user.apps[appId].workspaces.splice(wIdx, 1);
+          removed = true;
+        }
+        if (user.apps[appId].preferences.workspaceOrder) {
+          user.apps[appId].preferences.workspaceOrder = user.apps[appId].preferences.workspaceOrder.filter(id => id !== workspaceId);
+        }
+      }
+    }
+
+    if (removed) {
+      await this.persist();
+    }
+    return removed;
   }
 }
