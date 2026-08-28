@@ -68,6 +68,14 @@ async function testWorkspaceStorageArchitectureSpecification() {
     status: "CONNECTED"
   });
 
+  const icloudAdapter = StorageAdapterFactory.create({
+    id: "ep_icloud_01",
+    provider: "icloud",
+    configuration: { provider: "icloud", basePath: path.join(testDir, "icloud_sandbox") },
+    enabled: true,
+    status: "CONNECTED"
+  });
+
   const driveAdapter = StorageAdapterFactory.create({
     id: "ep_drive_01",
     provider: "google_drive",
@@ -102,13 +110,14 @@ async function testWorkspaceStorageArchitectureSpecification() {
 
   await Promise.all([
     localAdapter.initialize(),
+    icloudAdapter.initialize(),
     driveAdapter.initialize(),
     oneDriveAdapter.initialize(),
     supabaseAdapter.initialize(),
     firebaseAdapter.initialize()
   ]);
 
-  console.log("   ✅ Storage Adapters: Local, Google Drive, OneDrive, Supabase, and Firebase initialized cleanly.");
+  console.log("   ✅ Storage Adapters: Local, iCloud, Google Drive, OneDrive, Supabase, and Firebase initialized cleanly.");
 
   // ── 3. WorkspaceRuntime & Provider-Independent WorkspaceFS ────────────────────────────
   console.log("\n3. Testing WorkspaceRuntime & WorkspaceFS Operations...");
@@ -125,6 +134,14 @@ async function testWorkspaceStorageArchitectureSpecification() {
       syncState: "SYNCED"
     },
     backupStorages: [
+      {
+        id: "ep_icloud_01",
+        provider: "icloud",
+        configuration: { provider: "icloud", basePath: path.join(testDir, "icloud_sandbox") },
+        enabled: true,
+        status: "CONNECTED",
+        syncState: "SYNCED"
+      },
       {
         id: "ep_drive_01",
         provider: "google_drive",
@@ -190,11 +207,12 @@ async function testWorkspaceStorageArchitectureSpecification() {
     throw new Error(`SyncEngine replication failed: ${JSON.stringify(syncResult.failedEndpoints)}`);
   }
 
+  const icloudExists = await icloudAdapter.exists("audio/synth_lead.wav");
   const driveExists = await driveAdapter.exists("audio/synth_lead.wav");
   const onedriveExists = await oneDriveAdapter.exists("audio/synth_lead.wav");
   const supabaseExists = await supabaseAdapter.exists("audio/synth_lead.wav");
 
-  if (!driveExists || !onedriveExists || !supabaseExists) {
+  if (!icloudExists || !driveExists || !onedriveExists || !supabaseExists) {
     throw new Error("Backup replication failed to propagate across cloud adapters");
   }
 
@@ -203,7 +221,7 @@ async function testWorkspaceStorageArchitectureSpecification() {
     throw new Error("Checksum verification between Primary and Backups failed");
   }
 
-  console.log(`   ✅ SyncEngine: Replicated across 3 backup providers with 100% SHA-256 matching.`);
+  console.log(`   ✅ SyncEngine: Replicated across 4 backup providers (including iCloud) with 100% SHA-256 matching.`);
 
   // ── 5. Dynamic Primary Switch (Promotion) ─────────────────────────────────────────────
   console.log("\n5. Testing Dynamic Primary Promotion (Google Drive -> Primary)...");

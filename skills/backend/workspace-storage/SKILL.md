@@ -1,6 +1,6 @@
 ---
 name: workspace-storage-architecture
-description: Workspace Storage Architecture specification governing User -> AppUserContext -> Workspace storage hierarchy, decoupled WorkspaceStorageAdapters (Local, Google Drive, OneDrive, Supabase, Firebase), provider-independent WorkspaceFS, high-reliability SyncEngine, conflict resolution, and safe detachment semantics.
+description: Workspace Storage Architecture specification governing User -> AppUserContext -> Workspace storage hierarchy, decoupled WorkspaceStorageAdapters (Local, iCloud, Google Drive, OneDrive, Supabase, Firebase), provider-independent WorkspaceFS, high-reliability SyncEngine, conflict resolution, and safe detachment semantics. Workspaces use PURE FILESYSTEM STORAGE with ZERO DATABASE ENGINES.
 ---
 
 # WORKSPACE STORAGE ARCHITECTURE SPECIFICATION
@@ -30,9 +30,9 @@ $$\text{GlobalUser} \xrightarrow{1:N} \text{AppUserContext} \xrightarrow{1:N} \t
        │                      │
     PRIMARY (Canonical)   BACKUPS[] (0..N Replicas)
        │                      │
-       │              ┌───────┼────────┐
-       │              │       │        │
-     LOCAL          DRIVE  ONEDRIVE  SUPABASE
+       │              ┌───────┼────────┬────────┐
+       │              │       │        │        │
+     LOCAL          iCLOUD  DRIVE   ONEDRIVE  SUPABASE
        │
        ▼
    WorkspaceFS (Provider-Independent Interface)
@@ -54,10 +54,10 @@ $$\text{AdminDatabase} \cap \text{WorkspaceData} = \emptyset$$
    - Workspace definitions & metadata
    - Storage endpoint configurations & sync state
    - **MANDATORY INVARIANT**: Admin database MUST NOT store normal workspace content.
-2. **User Storage (Workspace Content ONLY)**:
-   - Project files & folders
-   - Domain documents & SQLite databases
-   - Media assets & binary data
+2. **User Storage (Workspace Content = PURE VIRTUAL FILESYSTEM ONLY)**:
+   - Project files & folders (stored as `.json`, `.md`, text, and binary assets).
+   - **STRICT INVARIANT**: Normal user workspace backends DO NOT use database engines (No SQLite, No Postgres, No Mongo). User data is strictly stored as files in folders.
+   - Storage Adapters: **Local Filesystem**, **Apple iCloud Drive**, **Google Drive**, **Microsoft OneDrive**, **Supabase Storage / S3**, **Firebase Storage**.
 3. **Canonical Primary vs Replicated Backups**:
    - Each workspace has **exactly 1 Primary Storage** and **0..$N$ Backup Storages**.
    - Primary is the single source of truth; all Backups represent the same workspace.
@@ -112,7 +112,7 @@ interface Workspace {
 
 interface StorageEndpoint {
   id: string;
-  provider: "local" | "google_drive" | "onedrive" | "supabase_storage" | "firebase_storage" | "s3";
+  provider: "local" | "icloud" | "google_drive" | "onedrive" | "supabase_storage" | "firebase_storage" | "s3";
   configuration: ProviderConfiguration;
   enabled: boolean;
   status: "CONNECTED" | "DISCONNECTED" | "SYNCING" | "ERROR";

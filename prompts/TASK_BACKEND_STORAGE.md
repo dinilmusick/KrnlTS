@@ -1,106 +1,54 @@
-# TASK: BACKEND_AND_STORAGE_PROTOCOL (UNIVERSAL_BACKEND_WITH_CLUSTERING)
-$ARCH := \text{ControlPlane} \otimes \text{WorkspaceDataPlane} \otimes \text{AppLogic}
-ASSERT(\text{UserAccountStorage} \cap \text{WorkspaceDataStorage} = \emptyset)
+# TASK: BACKEND_AND_STORAGE_PROTOCOL (PURE_FILESYSTEM_WORKSPACE_STORAGE)
+$ARCH := \text{ControlPlane (Auth Only)} \otimes \text{WorkspaceStorage (Filesystem Only)} \otimes \text{AppLogic}
+ASSERT(\text{WorkspaceData} \equiv \text{FilesystemHierarchy}) \quad \land \quad ASSERT(\text{WorkspaceData} \cap \text{SQL/NoSQL Database} = \emptyset)
 
-## 1. IN-CODE UTILITY DOCUMENTATION, SECTION DEMARCATION & NAMING RULES
-- **Naming**: Use long, descriptive names for all database tables, storage buckets, provider classes, and cluster managers (e.g., `UserWorkspaceMetadataStorageProvider.ts`, `DatabaseClusterRedundancyManager.ts`).
-- **Docblocks**: Document the utility of all data structures, credentials, and storage interfaces with ASCII flow charts showing data persistence and failover paths.
-- **Section Demarcation**: Partition imports, schemas, connection configurations, and CRUD operations with bold borders `// ══════════════════════════════════════════════════════════════════════════════════════════`.
+## 0. MANDATORY ARCHITECTURAL PRINCIPLES (MUST READ FIRST)
+1. **NO DATABASES FOR USER WORKSPACES**:
+   - User workspace data (documents, projects, settings, notes, tracks, media) MUST NEVER use database engines (No SQLite, No PostgreSQL, No MongoDB, No Turso, No DynamoDB).
+   - User workspace data is **STRICTLY FILE-BASED**, organized in directories and files (`.json`, `.md`, binary files) mimicking a local filesystem.
+   - The ONLY internal database permitted in the system is a lightweight SQLite file dedicated exclusively to the Control Plane for user accounts (`accounts.sqlite`).
+2. **USER STORAGE PROVIDERS (VIRTUAL FILESYSTEM ADAPTERS)**:
+   $$\text{StorageProviders} \in \{ \text{Local FS}, \text{iCloud Drive}, \text{Google Drive}, \text{OneDrive}, \text{Supabase Storage / S3}, \text{Firebase Storage} \}$$
+   - All providers implement the unified `WorkspaceStorageAdapter` contract mimicking a native OS filesystem.
+3. **APPLICATION ACCESS VIA `WorkspaceFS`**:
+   - Application logic reads and writes files **exclusively** through `WorkspaceFS` (e.g., `fs.write("vault/doc1.json", data)`, `fs.read("vault/doc1.json")`).
+   - `SyncEngine` asynchronously replicates file mutations from Primary Storage to configured Backup Storage replicas (e.g., Google Drive, iCloud, OneDrive).
 
-## 2. CONTROL_PLANE SETUP (RBAC, Audit Logging & Clustering)
-Let $CP = \langle \text{ControlPlaneManager}, \text{AdminGuard}, \text{DatabaseClusterManager}, \text{AuditLogger} \rangle$:
+---
+
+## 1. IN-CODE UTILITY DOCUMENTATION, SECTION DEMARCATION & NAMING
+- **Naming**: Use long, descriptive names for all classes and files (e.g., `UserWorkspaceFileStorageCoordinator.ts`, `ICloudWorkspaceStorageAdapter.ts`).
+- **Docblocks**: Document the utility of all functions and storage interfaces with ASCII flow charts showing file persistence and replication paths.
+- **Section Demarcation**: Partition imports, types, filesystem operations, and exports with bold borders `// ══════════════════════════════════════════════════════════════════════════════════════════`.
+
+---
+
+## 2. CONTROL PLANE SETUP (USER ACCOUNTS & AUTH ONLY)
+Control Plane manages global user accounts, authentication tokens, and app-scoped workspace registries:
 ```typescript
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 1. CONTROL PLANE, RBAC, CLUSTERING & AUDIT LOGGING
+// 1. CONTROL PLANE & USER ACCOUNT AUTHENTICATION (INTERNAL ACCOUNTS ONLY)
 // ══════════════════════════════════════════════════════════════════════════════════════════
-import {
-  ControlPlaneManager,
-  AdminGuard,
-  DatabaseClusterManager,
-  AuditLogger
-} from "@dinilmusick/krnlts";
+import { LocalSQLiteAccountProvider } from "@dinilmusick/krnlts";
 
-// 1. Initialize Control Plane & Audit Logging
-const auditLogger = new AuditLogger("./.krnl/control_plane/audit_trail.jsonl");
-const controlPlaneManager = ControlPlaneManager.createLocal("./accounts.sqlite");
+// 1. Initialize Account Provider (stores ONLY user credentials & workspace configs)
+const accountProvider = new LocalSQLiteAccountProvider("./accounts.sqlite");
 
-// 2. Authentication: "sess::<userId>::<timestamp>::<random>"
-const authSession = await controlPlaneManager.login({ username: "admin", password: "pwd" });
+// 2. Authenticate User Session
+const authSession = await accountProvider.authenticate({ username: "dinil", password: "pwd" });
 
-// 3. Strict Admin / Moderator Guard (RBAC)
-await AdminGuard.verify(authSession.token, controlPlaneManager.accountProvider);
-
-// 4. Database Redundancy Clustering & Failover
-const clusterManager = new DatabaseClusterManager("./.krnl/control_plane/database_cluster.json", auditLogger);
-await clusterManager.promoteToPrimary("cluster_turso_edge_01", authSession.userId);
+// 3. Resolve App-Scoped User Context & Workspace Order
+const appCtx = await accountProvider.getAppUserContext(authSession.userId, "MY_APP");
 ```
 
-## 3. WORKSPACE DATA PLANE & PLUGGABLE ENGINES
-$$\text{DataEngines} \in \{ \text{sqlite}, \text{postgres}, \text{supabase}, \text{turso}, \text{mongodb}, \text{pocketbase}, \text{firebase}, \text{custom\_api} \}$$
-$$\text{StorageEngines} \in \{ \text{filesystem}, \text{s3}, \text{supabase\_storage}, \text{vercel\_blob}, \text{pocketbase\_storage} \}$$
+---
+
+## 3. WORKSPACE VIRTUAL FILESYSTEM & MULTI-CLOUD ADAPTERS
+All workspace data is stored as files and directories across Local, iCloud, Google Drive, OneDrive, Supabase Storage, or Firebase Storage:
 
 ```typescript
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 2. WORKSPACE BACKEND FACTORY & CONNECTION LATENCY TESTING
-// ══════════════════════════════════════════════════════════════════════════════════════════
-import { WorkspaceBackendFactory } from "@dinilmusick/krnlts";
-
-// Live connection latency test before committing
-const latencyTest = await clusterManager.testDatabaseConnection({
-  type: "turso",
-  endpoint: "https://my-db.turso.io",
-  authToken: "..."
-});
-console.log(`Probe OK: ${latencyTest.ok}, Latency: ${latencyTest.latencyMs}ms`);
-
-// Create multi-engine workspace backend (e.g. Turso LibSQL + Vercel Blob)
-const workspaceBackend = WorkspaceBackendFactory.create({
-  id: "cloud-workspace",
-  provider: "turso",
-  mode: "remote",
-  database: { type: "turso", endpoint: "https://my-db.turso.io", authToken: "..." },
-  storage: { type: "vercel_blob", token: "..." }
-});
-```
-
-## 4. FUNCTIONALITY DEDICATED TABLE & CREDENTIAL CASCADES
-1. **Fallback Resolution Cascade**:
-   $$\text{Credentials} = \text{FeatureExplicit} \lor \text{EntityConfigured} \lor \text{LocalSQLiteFallback}$$
-2. **Dedicated Table CRUD Operations**:
-```typescript
-// ══════════════════════════════════════════════════════════════════════════════════════════
-// 3. ATOMIC FUNCTIONALITY WITH DEDICATED TABLE
-// ══════════════════════════════════════════════════════════════════════════════════════════
-
-/**
- * ──────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONALITY: ManageDocumentVaultRecordsFunctionality
- * ──────────────────────────────────────────────────────────────────────────────────────────
- * Purpose: Manages document indexing with automatic table creation & CRUD methods.
- *
- * Flow Chart:
- *   [Document Payload] ───► [L1: Validate] ───► [L2: table.upsert()] ───► [Return Record]
- * ──────────────────────────────────────────────────────────────────────────────────────────
- */
-export const ManageDocumentVaultRecordsFunctionality = new krnlLocalFunctionality({
-  id: "document_vault",
-  backend: "turso", // Auto-resolves credentials via cascade with local SQLite fallback
-  api: async (input, { table }) => {
-    // Built-in CRUD methods: find, findOne, create, insert, update, delete, upsert, count, query, clear
-    const documentRecord = await table.upsert({ id: input.docId, title: input.title }, "id");
-    const totalDocumentsCount = await table.count();
-    return { documentRecord, totalDocumentsCount };
-  }
-});
-```
-
-## 5. WORKSPACE STORAGE ARCHITECTURE & MULTI-CLOUD REPLICATION
-$$\text{GlobalUser} \xrightarrow{1:N} \text{AppUserContext} \xrightarrow{1:N} \text{Workspace} \xrightarrow{1:1} \text{PrimaryStorage} \oplus \text{BackupStorages}^{[0..N]}$$
-$$\text{ComparisonPriority} := \text{contentHash (SHA-256)} \succ \text{revision} \succ \text{modifiedAt} \succ \text{size}$$
-
-```typescript
-// ══════════════════════════════════════════════════════════════════════════════════════════
-// 4. WORKSPACE STORAGE ARCHITECTURE, WORKSPACE_FS & SYNC ENGINE
+// 2. WORKSPACE SPECIFICATION, FILESYSTEM (WorkspaceFS) & SYNC ENGINE
 // ══════════════════════════════════════════════════════════════════════════════════════════
 import {
   WorkspaceRuntime,
@@ -110,30 +58,30 @@ import {
   SyncEngine
 } from "@dinilmusick/krnlts";
 
-// 1. Define Workspace with Primary (Local) + Backups (Drive + OneDrive + Supabase)
+// 1. Define Workspace with Primary (Local / iCloud) + Backups (Google Drive / OneDrive / Supabase)
 const workspaceSpec: Workspace = {
-  id: "ws_music_production",
-  name: "Music Production",
+  id: "ws_user_vault_01",
+  name: "Personal Workspace",
   primaryStorage: {
-    id: "ep_local_01",
-    provider: "local",
-    configuration: { provider: "local", basePath: "./workspace_data" },
+    id: "ep_local_or_icloud",
+    provider: "icloud", // "local" | "icloud" | "google_drive" | "onedrive" | "supabase_storage" | "firebase_storage"
+    configuration: { provider: "icloud" },
     enabled: true,
     status: "CONNECTED",
     syncState: "SYNCED"
   },
   backupStorages: [
     {
-      id: "ep_drive_backup",
+      id: "ep_gdrive_backup",
       provider: "google_drive",
-      configuration: { provider: "google_drive", accountId: "dinil", rootFolderId: "root" },
+      configuration: { provider: "google_drive", accountId: "user_google", rootFolderId: "root" },
       enabled: true,
       status: "CONNECTED"
     },
     {
-      id: "ep_supabase_backup",
-      provider: "supabase_storage",
-      configuration: { provider: "supabase_storage", projectUrl: "https://xxx.supabase.co", bucket: "vault" },
+      id: "ep_onedrive_backup",
+      provider: "onedrive",
+      configuration: { provider: "onedrive", accountId: "user_ms", rootFolderId: "root" },
       enabled: true,
       status: "CONNECTED"
     }
@@ -152,27 +100,42 @@ const workspaceSpec: Workspace = {
   updatedAt: Date.now()
 };
 
-// 2. Initialize Workspace Runtime container
+// 2. Instantiate Workspace Runtime container
 const runtime = await WorkspaceRuntime.create(workspaceSpec);
 
-// 3. Application interacts EXCLUSIVELY through WorkspaceFS
-await runtime.filesystem.write("projects/track1.wav", new Uint8Array([1, 2, 3]));
-const fileData = await runtime.filesystem.read("projects/track1.wav");
+// 3. Application interacts EXCLUSIVELY via WorkspaceFS (Filesystem calls only)
+// Write Document File (JSON / Text / Binary)
+await runtime.filesystem.write("documents/project_brief.json", JSON.stringify({
+  id: "doc_101",
+  title: "Project Brief",
+  content: "Architecture specifications..."
+}));
 
-// 4. Promote Backup to Primary without silent data loss
-await runtime.changePrimary("ep_drive_backup");
+// Read Document File
+const fileContent = await runtime.filesystem.readText("documents/project_brief.json");
+const documentData = JSON.parse(fileContent);
 
-// 5. Explicitly restore from backup if needed
+// List Files & Folders in Workspace
+const filesList = await runtime.filesystem.list("documents");
+
+// Delete File (propagates to backups if deletePropagation is true)
+await runtime.filesystem.delete("documents/old_draft.json");
+
+// 4. Promote Backup to Primary (e.g. switch working copy to Google Drive)
+await runtime.changePrimary("ep_gdrive_backup");
+
+// 5. Restore from Backup if needed (Explicit & Non-Destructive)
 const restoreResult = await runtime.syncEngine.restore(workspaceSpec.backupStorages[0]);
-console.log(`Restored ${restoreResult.filesRestoredCount} files.`);
 ```
 
-## 6. ZERO-LEAK UI & ANTI-COPY INVARIANTS (MANDATORY IN ALL UI IMPLEMENTATIONS)
+---
+
+## 4. ZERO-LEAK UI & ANTI-COPY INVARIANTS (MANDATORY IN ALL UI CODE)
 1. **Zero Leakage of Backend / System Jargon in UI**:
    $$\text{RenderedUI} \cap \{ \text{"Control Plane"}, \text{"Data Plane"}, \text{"RBAC"}, \text{"Storage Adapter"}, \text{"SyncEngine"}, \text{"WorkspaceFS"}, \text{"Cluster"}, \text{"Failover"}, \text{"Endpoint ID"} \} = \emptyset$$
    - Technical terms belong exclusively in backend classes and in-code comments.
-   - User-facing UI MUST render ONLY high-level, human-friendly terms (e.g., "Account", "Workspaces", "Storage", "Google Drive", "Local", "Replicas").
-   - NEVER create UI views named "Control Plane Manager", "Data Plane Engine", or "Storage Adapter Hub".
+   - User-facing UI MUST render ONLY high-level, human-friendly terms (e.g., "Account", "Workspaces", "Storage", "Google Drive", "iCloud", "OneDrive", "Local", "Replicas").
+   - NEVER create UI views or modals titled with backend jargon.
 2. **Zero On-Screen Instructional / Promotional Text**:
    - FORBID direct text descriptions, tutorial paragraphs, marketing copy, or "how-to" guidance rendered into the UI viewport.
    - The UI must be quiet, minimal, and unobtrusive.
@@ -183,11 +146,12 @@ console.log(`Restored ${restoreResult.filesRestoredCount} files.`);
 4. **Subtle Neo-Brutalist Tactile Glow**:
    - Apply subtle ambient glow (`box-shadow: 0 0 10px var(--krnl-accent-glow)` or `0 0 12px rgba(212, 163, 89, 0.22)`) on hover and active borders, preserving crisp Neo-Brutalist borders.
 
-## 7. APP REFACTORING PROTOCOL (ZERO LOGIC DELETION & ZERO UI CORRUPTION)
+---
+
+## 5. APP REFACTORING PROTOCOL (REMOVE DATABASES, USE STORAGE ONLY)
 $$\Delta(\text{BusinessLogic}) = 0 \quad \land \quad \Delta(\text{UserExperience}) = 0$$
-When refactoring an existing application to adhere to this architecture:
-1. **Do Not Alter User Flows or Invent Obtrusive UI**: Keep existing UI layouts intact; do not inject raw architecture widgets into existing user screens.
-2. **Preserve All Working Logic**: Refactor file I/O calls to `WorkspaceFS` and account auth to `ControlPlaneManager` behind the scenes.
-3. **Encapsulate Storage Selection**: Integrate storage connection options strictly inside existing Settings or dedicated minimalist Workspace selector modals.
-
-
+When refactoring an existing application:
+1. **REMOVE Database Tables & Queries**: Remove all SQLite, PostgreSQL, MongoDB, or ORM tables used for storing user data.
+2. **REPLACE with `WorkspaceFS`**: Persist all user items (documents, notes, assets, state) as `.json` or binary files using `runtime.filesystem.write()` / `read()`.
+3. **ADD Storage Provider Selection**: Allow users to select their storage endpoint (Local, iCloud, Google Drive, OneDrive, Supabase Storage, Firebase Storage) inside Settings or Workspace creation modal.
+4. **Preserve Existing UI**: Keep user workflows intact; do not introduce complex architectural widgets into the main app view.

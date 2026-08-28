@@ -32,10 +32,12 @@ export type BackendServiceType =
   | "vercel_blob"
   | "google_drive"
   | "onedrive"
+  | "icloud"
   | "custom";
 
 export type StorageProviderType =
   | "local"
+  | "icloud"
   | "google_drive"
   | "onedrive"
   | "supabase_storage"
@@ -177,8 +179,17 @@ export interface CustomStorageConfiguration {
   [key: string]: any;
 }
 
+export interface ICloudStorageConfiguration {
+  provider: "icloud";
+  containerId?: string;
+  basePath?: string;
+  displayPath?: string;
+  authenticationReference?: SecretReference;
+}
+
 export type ProviderConfiguration =
   | LocalStorageConfiguration
+  | ICloudStorageConfiguration
   | GoogleDriveConfiguration
   | OneDriveConfiguration
   | SupabaseStorageConfiguration

@@ -1,7 +1,7 @@
 import {
   Entity,
   KrnlFlowBuilder
-} from "./chunk-FYAZJYM5.js";
+} from "./chunk-J7ZYNVRS.js";
 import {
   KrnlRegistryClient
 } from "./chunk-6ULMHNXR.js";
@@ -10,15 +10,15 @@ import {
 } from "./chunk-7WUETJEV.js";
 import {
   KrnlSubAppLoader
-} from "./chunk-3SMHVVLL.js";
+} from "./chunk-KIUEUI7K.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-IB4UHG5I.js";
+} from "./chunk-E6RLFHM5.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-TR2BAIGI.js";
+} from "./chunk-4UEL3DWJ.js";
 import {
   KrnlApplicationOrchestrator,
   KrnlBootBarrier,
@@ -38,7 +38,7 @@ import {
   krnl,
   krnlSystemCommComponent,
   krnlSystemEntityBase
-} from "./chunk-OPDENPT4.js";
+} from "./chunk-W6WBG5OY.js";
 import {
   KrnlFrontendBuilder,
   init_K_LIB_Krnl_Frontend_Builder
@@ -57,6 +57,7 @@ import {
   FunctionalityTable,
   GoogleDriveStorageAdapter,
   HostedAccountProvider,
+  ICloudStorageAdapter,
   LocalSQLiteAccountProvider,
   LocalStorageAdapter,
   MemoryTransportAdapter,
@@ -93,7 +94,7 @@ import {
   krnlRemoteFunctionality,
   krnlTransportAdapter,
   normalizeWorkspacePath
-} from "./chunk-ZQZBFG6F.js";
+} from "./chunk-XSCKNRCZ.js";
 import {
   CacheKit,
   FileCache,
@@ -481,6 +482,7 @@ export {
   GitManager,
   GoogleDriveStorageAdapter,
   HostedAccountProvider,
+  ICloudStorageAdapter,
   KrnlAcpProtocol,
   KrnlAikoClient,
   KrnlApplicationOrchestrator,

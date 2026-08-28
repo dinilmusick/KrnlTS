@@ -7,6 +7,7 @@ import {
   WorkspaceStorageAdapter
 } from "../types.js";
 import { LocalStorageAdapter } from "./LocalStorageAdapter.js";
+import { ICloudStorageAdapter } from "./ICloudStorageAdapter.js";
 import { GoogleDriveStorageAdapter } from "./GoogleDriveStorageAdapter.js";
 import { OneDriveStorageAdapter } from "./OneDriveStorageAdapter.js";
 import { SupabaseStorageAdapter } from "./SupabaseStorageAdapter.js";
@@ -23,7 +24,7 @@ export type AdapterConstructor = new (endpointId: string, configuration: any) =>
  * CLASS: StorageAdapterFactory
  * ──────────────────────────────────────────────────────────────────────────────────────────
  * Purpose: Decoupled factory instantiating and caching WorkspaceStorageAdapter instances
- *          for Local, Google Drive, OneDrive, Supabase, and Firebase storage endpoints.
+ *          for Local, iCloud, Google Drive, OneDrive, Supabase, and Firebase storage endpoints.
  * ──────────────────────────────────────────────────────────────────────────────────────────
  */
 export class StorageAdapterFactory {
@@ -32,6 +33,7 @@ export class StorageAdapterFactory {
 
   static {
     this.register("local", LocalStorageAdapter as any);
+    this.register("icloud", ICloudStorageAdapter as any);
     this.register("google_drive", GoogleDriveStorageAdapter as any);
     this.register("onedrive", OneDriveStorageAdapter as any);
     this.register("supabase_storage", SupabaseStorageAdapter as any);
