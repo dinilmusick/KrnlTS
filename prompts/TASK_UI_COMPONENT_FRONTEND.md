@@ -1,6 +1,48 @@
 # TASK: UI_COMPONENT_AND_FRONTEND_PROTOCOL
 $UI := \text{IconOnlyControls} \otimes \text{TooltipOnHover} \otimes \text{NeoBrutalistGlow} \otimes \text{CentralStyleAuthority}
 
+## 0. INVIOLABLE STRUCTURAL LAWS (FRONTEND — CHECK BEFORE WRITING ANY FILE)
+
+### LAW 1: Top-Level File Purity
+```
+App.tsx / index.tsx / main.tsx / _app.tsx MUST contain ONLY:
+  ✓ import statements
+  ✓ A single root export: export default function App() { return <AppShell /> }
+
+NEVER put in top-level files:
+  ✗ <div>, <span>, <button>, <section>, or ANY JSX/HTML
+  ✗ useState, useEffect, useRef, or ANY React hook
+  ✗ Inline styles, className logic, or layout code
+  ✗ Data fetching, API calls, business logic
+  ✗ Conditional rendering that produces markup
+
+VIOLATION → MANDATORY REFACTOR:
+  Extract all offending content into a named component file, then import it.
+```
+
+### LAW 2: One Component Per File
+```
+Each .tsx file = ONE exported React component (plus its Props type, nothing else major).
+
+If a component's JSX body exceeds ~50 lines OR the file approaches 150 lines:
+  SPLIT into a folder:
+    MyComponent/
+      MyComponent.tsx          ← orchestrator: renders sub-components only
+      MyComponentHeader.tsx    ← sub-component
+      MyComponentBody.tsx      ← sub-component
+      MyComponentFooter.tsx    ← sub-component
+      useMyComponentLogic.ts   ← stateful logic hook
+      MyComponent.types.ts     ← shared interfaces/types
+
+Two React components in a single file = IMMEDIATE VIOLATION.
+```
+
+### LAW 3: 200-Line Maximum
+```
+HARD LIMIT: 200 lines per .tsx / .ts file, no exceptions.
+At 180 lines → begin extraction.
+```
+
 ## 1. STRICT DESIGN & INTERACTION INVARIANTS (MANDATORY)
 1. **Zero On-Screen Explanatory/Marketing Text**:
    - FORBID direct text descriptions, tutorials, promotional copy, or verbose "how-to" guidance rendered into the UI view.

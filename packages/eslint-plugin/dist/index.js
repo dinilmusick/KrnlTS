@@ -16,7 +16,7 @@ var fileLineLimitRule = {
       }
     ],
     messages: {
-      fileLineLimitExceeded: "File has {{lines}} lines, which exceeds the strict Krnl limit of {{max}} lines. Decompose into quad-units or concept libraries."
+      fileLineLimitExceeded: "File has {{lines}} lines, which exceeds the strict Krnl limit of {{max}} lines. Decompose into sub-components, custom hooks, quad-units, or concept libraries."
     }
   },
   create(context) {
@@ -219,6 +219,162 @@ var noServerInSubappRule = {
   }
 };
 
+// src/rules/top-level-purity.ts
+var topLevelPurityRule = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "Enforce Top-Level File Purity: top-level files (App.tsx, main.ts, server.ts, etc.) must only import and compose components/modules without raw HTML/JSX markup, hooks, or route handlers.",
+      recommended: true
+    },
+    messages: {
+      topLevelRawMarkup: "Top-level file '{{filename}}' violates Top-Level Purity Law. Raw JSX/HTML tag '<{{tag}}>' is strictly forbidden. Top-level files must ONLY import and compose React components.",
+      topLevelHook: "Top-level file '{{filename}}' violates Top-Level Purity Law. React hook '{{hook}}' is forbidden in top-level files. Encapsulate state and effects inside dedicated component files.",
+      topLevelBackendRoute: "Backend entry file '{{filename}}' violates Entry Purity Law. Inline route definition '{{route}}' is forbidden. Delegate to dedicated route/controller modules."
+    }
+  },
+  create(context) {
+    const filename = context.filename || context.getFilename?.() || "";
+    const normalized = filename.replace(/\\/g, "/");
+    const baseName = normalized.split("/").pop() || "";
+    const isUiTopLevel = /^(App|main|index|_app|root)\.(tsx|jsx)$/i.test(baseName);
+    const isBackendTopLevel = /^(server|app|main|index)\.(ts|js)$/i.test(baseName) && (normalized.endsWith(`/${baseName}`) || normalized.includes("/src/") || !normalized.includes("/"));
+    if (!isUiTopLevel && !isBackendTopLevel) return {};
+    return {
+      JSXOpeningElement(node) {
+        if (!isUiTopLevel) return;
+        const tagName = getTagName(node.name);
+        if (tagName && /^[a-z]/.test(tagName)) {
+          context.report({
+            node,
+            messageId: "topLevelRawMarkup",
+            data: { filename: baseName, tag: tagName }
+          });
+        }
+      },
+      JSXSelfClosingElement(node) {
+        if (!isUiTopLevel) return;
+        const tagName = getTagName(node.name);
+        if (tagName && /^[a-z]/.test(tagName)) {
+          context.report({
+            node,
+            messageId: "topLevelRawMarkup",
+            data: { filename: baseName, tag: tagName }
+          });
+        }
+      },
+      CallExpression(node) {
+        if (isUiTopLevel) {
+          let calleeName = "";
+          if (node.callee.type === "Identifier") {
+            calleeName = node.callee.name;
+          } else if (node.callee.type === "MemberExpression" && node.callee.property.type === "Identifier") {
+            calleeName = node.callee.property.name;
+          }
+          if (["useState", "useEffect", "useRef", "useMemo", "useCallback", "useReducer", "useContext", "useLayoutEffect"].includes(calleeName) || /^use[A-Z]/.test(calleeName) && calleeName !== "use") {
+            context.report({
+              node,
+              messageId: "topLevelHook",
+              data: { filename: baseName, hook: calleeName }
+            });
+          }
+        }
+        if (isBackendTopLevel) {
+          if (node.callee.type === "MemberExpression") {
+            const objName = node.callee.object.name || "";
+            const propName = node.callee.property.name || "";
+            const httpMethods = ["get", "post", "put", "delete", "patch", "options", "head"];
+            if (["app", "router", "server"].includes(objName) && httpMethods.includes(propName.toLowerCase())) {
+              context.report({
+                node,
+                messageId: "topLevelBackendRoute",
+                data: { filename: baseName, route: `${objName}.${propName}` }
+              });
+            }
+          }
+        }
+      }
+    };
+  }
+};
+function getTagName(nameNode) {
+  if (!nameNode) return null;
+  if (nameNode.type === "JSXIdentifier") return nameNode.name;
+  if (nameNode.type === "JSXMemberExpression") return `${getTagName(nameNode.object)}.${nameNode.property.name}`;
+  return null;
+}
+
+// src/rules/one-component-per-file.ts
+var oneComponentPerFileRule = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "Enforce strictly one React component per file in .tsx/.jsx files.",
+      recommended: true
+    },
+    messages: {
+      multipleComponents: "File '{{filename}}' defines multiple React components ({{components}}). Krnl enforces strictly ONE component per file. Decompose into sub-component files."
+    }
+  },
+  create(context) {
+    const filename = context.filename || context.getFilename?.() || "";
+    if (!filename.endsWith(".tsx") && !filename.endsWith(".jsx")) return {};
+    const baseName = filename.replace(/\\/g, "/").split("/").pop() || "";
+    const componentDeclarations = [];
+    function hasJsx(node) {
+      if (!node) return false;
+      if (node.type === "JSXElement" || node.type === "JSXFragment") return true;
+      if (node.type === "ReturnStatement") return hasJsx(node.argument);
+      if (node.type === "BlockStatement") {
+        return node.body.some((stmt) => hasJsx(stmt));
+      }
+      if (node.type === "IfStatement") {
+        return hasJsx(node.consequent) || hasJsx(node.alternate);
+      }
+      return false;
+    }
+    return {
+      FunctionDeclaration(node) {
+        const name = node.id?.name;
+        if (name && /^[A-Z]/.test(name) && hasJsx(node.body)) {
+          componentDeclarations.push({ name, node });
+        }
+      },
+      VariableDeclarator(node) {
+        const name = node.id?.name;
+        if (!name || !/^[A-Z]/.test(name)) return;
+        const isFcType = node.id.typeAnnotation?.typeAnnotation?.typeName?.name === "FC" || node.id.typeAnnotation?.typeAnnotation?.typeName?.right?.name === "FC" || node.id.typeAnnotation?.typeAnnotation?.typeName?.right?.name === "FunctionComponent";
+        if (node.init && (node.init.type === "ArrowFunctionExpression" || node.init.type === "FunctionExpression")) {
+          if (isFcType || hasJsx(node.init.body)) {
+            componentDeclarations.push({ name, node });
+          }
+        }
+      },
+      ClassDeclaration(node) {
+        const name = node.id?.name;
+        if (name && node.superClass) {
+          const superName = node.superClass.name || node.superClass.property?.name;
+          if (["Component", "PureComponent"].includes(superName)) {
+            componentDeclarations.push({ name, node });
+          }
+        }
+      },
+      "Program:exit"() {
+        if (componentDeclarations.length > 1) {
+          const names = componentDeclarations.map((c) => c.name).join(", ");
+          for (let i = 1; i < componentDeclarations.length; i++) {
+            context.report({
+              node: componentDeclarations[i].node,
+              messageId: "multipleComponents",
+              data: { filename: baseName, components: names }
+            });
+          }
+        }
+      }
+    };
+  }
+};
+
 // src/index.ts
 var rules = {
   "file-line-limit": fileLineLimitRule,
@@ -226,7 +382,9 @@ var rules = {
   "helper-purity": helperPurityRule,
   "no-polling": noPollingRule,
   "context-destructuring": contextDestructuringRule,
-  "no-server-in-subapp": noServerInSubappRule
+  "no-server-in-subapp": noServerInSubappRule,
+  "top-level-purity": topLevelPurityRule,
+  "one-component-per-file": oneComponentPerFileRule
 };
 var plugin = {
   meta: {
@@ -245,7 +403,9 @@ var plugin = {
         "@dinilmusick/krnl/helper-purity": "error",
         "@dinilmusick/krnl/no-polling": "error",
         "@dinilmusick/krnl/context-destructuring": "error",
-        "@dinilmusick/krnl/no-server-in-subapp": "error"
+        "@dinilmusick/krnl/no-server-in-subapp": "error",
+        "@dinilmusick/krnl/top-level-purity": "error",
+        "@dinilmusick/krnl/one-component-per-file": "error"
       }
     }
   }

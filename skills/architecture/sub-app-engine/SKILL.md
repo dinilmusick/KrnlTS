@@ -76,11 +76,11 @@ import type {
   SubAppRegistrationContext,
   SubAppRegistration,
   OperationDefinition
-} from "@dinilmusick/krnlts";
+} from "@dinilmusick/krnl";
 import { CoreEngine } from "./engine/CoreEngine.js";
 
 export function register(context: SubAppRegistrationContext): SubAppRegistration {
-  context.logger?.log(`[SubApp] Initializing DataAnalyticsEngine on entity: ${context.entity?.id}`);
+  context.logger?.log?.(`[SubApp] Initializing DataAnalyticsEngine on entity: ${context.entity?.id}`);
 
   // 1. Instantiate the pure standalone engine
   const engine = new CoreEngine();
@@ -112,11 +112,12 @@ export function register(context: SubAppRegistrationContext): SubAppRegistration
     operations,
     ui: {
       title: "Data Analytics",
-      entryPath: "./ui/index.html"
+      entryPath: "./ui/index.html",
+      routePrefix: "/analytics"
     },
     onInitialize: async (ctx) => {
-      // Access injected host services (e.g. runtime store or event bus)
-      ctx.events.emit("analytics:ready", { timestamp: Date.now() });
+      // Access injected host services (e.g. event bus or workspace storage)
+      ctx.events?.emit?.("analytics:ready", { timestamp: Date.now() });
     },
     onDispose: async () => {
       engine.cleanup();
@@ -131,16 +132,42 @@ export default register;
 
 ## 5. DRAG-AND-DROP MOUNTING IN KRNLTS APPS
 
-When this app folder is dropped into a KrnlTS project:
+When this app folder is dropped into any KrnlTS project:
 ```bash
 # Simply drop or clone the app into subapps/
 cp -R my-engine-app /path/to/krnl-app/subapps/DataAnalyticsEngine
 ```
 
 At runtime:
-1. `KrnlMagneticLoader.loadAll(rootEntity)` or `rootEntity.discoverSubApps()` discovers `subapps/DataAnalyticsEngine/subapp.json`.
+1. `KrnlMagneticLoader.loadAll(rootEntity)` or `rootEntity.discoverSubApps()` discovers `subapps/DataAnalyticsEngine/subapp.json` across standard candidate paths (`subapps/`, `sub-apps/`, `src/sub-apps/`).
 2. Automatically wraps operations as qualified capabilities on the host entity:
    - `DataAnalyticsEngine.processData`
-3. Automatically exposes HTTP REST endpoint: `POST /call/DataAnalyticsEngine.processData`.
-4. Automatically exposes WebSocket RPC and MCP bridge tool.
-5. Emits and subscribes to events through the unified host event bus without port collisions.
+   - Direct alias `processData` (if no naming collision occurs).
+3. Automatically exposes HTTP REST endpoints:
+   - Qualified route: `POST /call/DataAnalyticsEngine.processData`
+   - Prefix route: `POST /dataanalyticsengine/processData` or `POST /api/dataanalyticsengine/processData`
+4. Automatically exposes WebSocket RPC and MCP bridge tools.
+5. Injects the host event bus (`ctx.events`) and services container (`ctx.services`) without port conflicts or duplicate servers.
+
+---
+
+## 6. SUB-APP LIFECYCLE & SERVICES INJECTION
+
+### Lifecycle State Machine
+$$\text{DISCOVERED} \longrightarrow \text{VALIDATING} \longrightarrow \text{LOADING} \longrightarrow \text{REGISTERED} \longrightarrow \text{INITIALIZING} \longrightarrow \text{READY} \longrightarrow \text{DISPOSED}$$
+
+- **`DISCOVERED`**: Manifest and registration files detected by `KrnlSubAppDiscovery`.
+- **`VALIDATING`**: Zod/AST validator checks manifest and collision safety against host capabilities.
+- **`LOADING`**: Dynamic ESM import loads `register.ts` / `register.js`.
+- **`REGISTERED`**: Operations wrapped into host entity capability surface.
+- **`INITIALIZING`**: `onInitialize(context)` lifecycle hook executed with injected services.
+- **`READY`**: Sub-app operations actively callable via HTTP, WebSocket, and MCP gateways.
+- **`DISPOSED`**: `onDispose()` hook cleans up memory, database handles, and subscriptions.
+
+### Injected Context Services (`context.services`)
+- `context.services.get('workspace')`: Access to the host `WorkspaceRuntime` and `WorkspaceFS`.
+- `context.services.get('storage')`: Access to `WorkspaceStorageAdapter` (iCloud, Drive, Local, S3, Firebase, Supabase).
+- `context.events.emit(event, data)`: Emits structured events onto host entity event emitters.
+- `context.events.on(event, handler)`: Listens for host entity events and state changes.
+- `context.logger`: Structured logger instance for diagnostic telemetry.
+

@@ -5,6 +5,69 @@ description: Universal Backend Architecture master router for multi-environment 
 
 # UNIVERSAL BACKEND ARCHITECTURE SUB-ROUTER
 
+## 0. INVIOLABLE BACKEND STRUCTURAL LAWS (ENFORCE BEFORE EVERY FILE WRITE)
+
+### LAW A: Top-Level Entry File Purity
+```
+BACKEND TOP-LEVEL FILES = { server.ts, index.ts, app.ts, main.ts, entry.ts }
+
+THESE FILES MUST CONTAIN ONLY:
+  ✓ Import statements (factories, providers, configuration loaders)
+  ✓ A single startup/bootstrap call (e.g., createApp().listen(PORT))
+  ✓ Optionally: environment variable reads for port/host
+
+ABSOLUTELY FORBIDDEN:
+  ✗ Route handler definitions (app.get(), router.post(), etc.)
+  ✗ Middleware registration (app.use(...))
+  ✗ Business logic, database queries, or service instantiation inline
+  ✗ More than ~10 lines of non-import, non-bootstrap code
+
+CANONICAL VALID server.ts:
+  import { createApp } from "./app/AppFactory";
+  const app = createApp();
+  app.listen(process.env.PORT ?? 3000);
+
+CANONICAL VALID AppFactory.ts:
+  import express from "express";
+  import { applyMiddleware } from "./middleware/applyMiddleware";
+  import { mountRoutes } from "./routes/mountRoutes";
+  export function createApp() {
+    const app = express();
+    applyMiddleware(app);
+    mountRoutes(app);
+    return app;
+  }
+```
+
+### LAW B: One Module Per File
+```
+Every .ts backend file exports exactly ONE primary entity:
+  ONE service class  |  ONE controller  |  ONE router factory  |  ONE utility
+
+FORBIDDEN:
+  ✗ Multiple service classes in one file
+  ✗ Multiple express Router definitions in one file
+  ✗ Mixed service + controller logic in one file
+
+DECOMPOSITION PATTERN (when a controller/service grows):
+  users/
+    UsersController.ts       ← route handlers only, delegates to service
+    UsersService.ts          ← business logic, calls repository
+    UsersRepository.ts       ← database queries only
+    users.routes.ts          ← router factory, mounts controller methods
+    users.types.ts           ← shared interfaces/types
+    users.validators.ts      ← zod/joi schemas for request validation
+```
+
+### LAW C: 200-Line Maximum (Backend = Same as Frontend)
+```
+HARD LIMIT: 200 lines per .ts file — no exceptions.
+At 180 lines → split into sub-modules.
+Applies to: controllers, services, repositories, route files, middleware, utilities.
+```
+
+---
+
 Architectural standard for constructing portable, scalable, environment-agnostic backends capable of running seamlessly on local runtimes (Node.js, Electron, Tauri), local-network services (Docker, LAN, self-hosted BaaS), or cloud serverless environments (Vercel, Supabase, AWS, Cloudflare).
 
 ---

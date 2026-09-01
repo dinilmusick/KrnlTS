@@ -4,9 +4,10 @@ import {
   generateMagneticDeclarations,
   runGenerate,
   runValidate
-} from "../chunk-PPOF3DJW.js";
+} from "../chunk-EEKLK7QJ.js";
 
 // src/bin/krnl.ts
+import * as path6 from "path";
 import * as fs6 from "fs";
 
 // ../studio/src/server/AstMutationEngine.ts
@@ -1805,7 +1806,7 @@ var StudioServer = class {
     return `<!DOCTYPE html><html><body><h1>Krnl Studio Error: studio.html template not found.</h1></body></html>`;
   }
   async start() {
-    return new Promise((resolve6) => {
+    return new Promise((resolve7) => {
       this.httpServer.listen(this.port, () => {
         console.log(`
 \u{1F680} [Krnl Studio] Omni Canvas IDE running at: http://localhost:${this.port}`);
@@ -1813,15 +1814,15 @@ var StudioServer = class {
         console.log(`\u{1F4E1} [Krnl Studio] REST API Suite available at: http://localhost:${this.port}/api/v1/*`);
         console.log(`\u{1F4E1} [Krnl Studio] WebSocket JSON-RPC protocol active on /studio/ws
 `);
-        resolve6();
+        resolve7();
       });
     });
   }
   async stop() {
     this.watcher.stop();
-    return new Promise((resolve6) => {
+    return new Promise((resolve7) => {
       this.wss.close(() => {
-        this.httpServer.close(() => resolve6());
+        this.httpServer.close(() => resolve7());
       });
     });
   }
@@ -1837,7 +1838,8 @@ var command = args[0] || "help";
 async function main() {
   switch (command) {
     case "validate": {
-      const valid = await runValidate(process.cwd());
+      const targetDir = args[1] && !args[1].startsWith("-") ? path6.resolve(process.cwd(), args[1]) : process.cwd();
+      const valid = await runValidate(targetDir);
       process.exit(valid ? 0 : 1);
       break;
     }

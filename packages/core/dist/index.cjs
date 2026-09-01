@@ -8903,7 +8903,31 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
             }
           }
         }
-        const isKrnlRoute = reqPath.startsWith("/call/") || reqPath.startsWith("/sse/") || reqPath.startsWith("/ui") || reqPath.startsWith("/mcp") || reqPath.startsWith("/acp") || reqPath === "/agent/job_complete" || reqPath === "/manifest" || reqPath === "/health";
+        const isKrnlRoute = reqPath.startsWith("/call/") || reqPath.startsWith("/sse/") || reqPath.startsWith("/ui") || reqPath.startsWith("/mcp") || reqPath.startsWith("/acp") || reqPath === "/agent/job_complete" || reqPath === "/subapps" || reqPath === "/api/subapps" || reqPath === "/manifest" || reqPath === "/health";
+        if (reqPath === "/subapps" || reqPath === "/api/subapps") {
+          const subappsList = [];
+          if (this.system._subApps && this.system._subApps.size > 0) {
+            for (const [id, inst] of this.system._subApps.entries()) {
+              subappsList.push({
+                id,
+                state: inst.state,
+                manifest: inst.manifest || null,
+                operations: Array.from(inst.operations?.values() || []).map((op) => ({
+                  name: op.name,
+                  description: op.description || "",
+                  method: op.method || "POST",
+                  metadata: op.metadata || {}
+                })),
+                ui: inst.registration?.ui || inst.manifest?.ui || null,
+                loadedAt: inst.loadedAt,
+                readyAt: inst.readyAt,
+                error: inst.error ? inst.error.message || String(inst.error) : null
+              });
+            }
+          }
+          this._sendJson(res, 200, { status: "success", entity: this.system.entityName, subapps: subappsList });
+          return;
+        }
         if (!isKrnlRoute) {
           if (reqPath === "/inspect" || reqPath.startsWith("/inspect/") || reqPath === "/frontend" || reqPath.startsWith("/frontend/")) {
             if (!this.system._frontend && this.system._entityDataDir) {
@@ -8937,9 +8961,28 @@ var init_K_LIB_Krnl_System_Unified_Http_Adapter = __esm({
           if (this.enableFriendlyRouting) {
             let fid = reqPath.slice(1);
             if (fid.endsWith("/")) fid = fid.slice(0, -1);
-            const resolvedCap = this.system.resolveCapability ? this.system.resolveCapability(fid) : null;
-            const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid) || (resolvedCap ? resolvedCap.owner.localFunctionalities.get(resolvedCap.fid) : null);
-            const resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
+            let resolvedCap = this.system.resolveCapability ? this.system.resolveCapability(fid) : null;
+            let functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid) || (resolvedCap ? resolvedCap.owner.localFunctionalities.get(resolvedCap.fid) : null);
+            let resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
+            if (!functionality) {
+              const cleanPath = reqPath.replace(/^\/api\//, "/").slice(1);
+              const segments = cleanPath.split("/").filter(Boolean);
+              if (segments.length >= 2) {
+                const subAppPrefix = segments[0];
+                const opSuffix = segments.slice(1).join(".");
+                const potentialFid = `${subAppPrefix}.${opSuffix}`;
+                const allKeys = Array.from(this.system.localFunctionalities.keys()).concat(
+                  Array.from(this.system.remoteFunctionalities.keys())
+                );
+                const match = allKeys.find((k) => k.toLowerCase() === potentialFid.toLowerCase());
+                if (match) {
+                  fid = match;
+                  resolvedCap = this.system.resolveCapability ? this.system.resolveCapability(fid) : null;
+                  functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid) || (resolvedCap ? resolvedCap.owner.localFunctionalities.get(resolvedCap.fid) : null);
+                  resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
+                }
+              }
+            }
             if (functionality) {
               const expectedMethod = (resolved || functionality).method || "POST";
               if (req.method !== expectedMethod) {
@@ -11812,13 +11855,21 @@ var init_K_LIB_Krnl_System_Magnetic_Loader = __esm({
             }
           }
         }
-        if (import_fs12.default.existsSync(subappsDir)) {
-          await this.syncParentSubAppDependencies(baseDir, subappsDir);
-          const apps = await import_fs12.default.promises.readdir(subappsDir, { withFileTypes: true });
+        const candidateSubappDirs = [
+          import_path18.default.join(baseDir, "subapps"),
+          import_path18.default.join(baseDir, "sub-apps"),
+          import_path18.default.join(baseDir, "src", "sub-apps")
+        ].filter((d) => import_fs12.default.existsSync(d));
+        const loadedSubAppPaths = /* @__PURE__ */ new Set();
+        for (const subappsDir2 of candidateSubappDirs) {
+          await this.syncParentSubAppDependencies(baseDir, subappsDir2);
+          const apps = await import_fs12.default.promises.readdir(subappsDir2, { withFileTypes: true });
           const subappConfigs = [];
           for (const dirent of apps) {
             if (dirent.isDirectory()) {
-              const appPath = import_path18.default.join(subappsDir, dirent.name);
+              const appPath = import_path18.default.join(subappsDir2, dirent.name);
+              if (loadedSubAppPaths.has(appPath)) continue;
+              loadedSubAppPaths.add(appPath);
               const buildOk = await this.ensureSubAppBuilt(appPath, dirent.name, entity, baseDir);
               if (!buildOk) {
                 continue;

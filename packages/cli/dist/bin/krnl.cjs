@@ -24,6 +24,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 
 // src/bin/krnl.ts
+var path9 = __toESM(require("path"), 1);
 var fs9 = __toESM(require("fs"), 1);
 
 // ../validate/dist/index.js
@@ -88,7 +89,7 @@ var KrnlValidatorEngine = class {
       errors.push({
         ruleId: "krnl/file-line-limit",
         filePath,
-        message: `File exceeds maximum length of ${this.maxFileLineLimit} lines (currently ${lines.length} lines).`,
+        message: `File exceeds maximum length of ${this.maxFileLineLimit} lines (currently ${lines.length} lines). Decompose into sub-components, custom hooks, quad-units, or concept libraries.`,
         severity: "error"
       });
     }
@@ -101,6 +102,100 @@ var KrnlValidatorEngine = class {
           filePath,
           line,
           message: `Relative import '${moduleSpec}' must end with '.js' for NodeNext module resolution.`,
+          severity: "error"
+        });
+      }
+    }
+    const isUiTopLevel = /^(App|main|index|_app|root)\.(tsx|jsx)$/i.test(baseName);
+    const isBackendTopLevel = /^(server|app)\.(ts|js)$/i.test(baseName) && (!filePath.includes("/components/") && !filePath.includes("/entities/") && !filePath.includes("/libraries/"));
+    if (isUiTopLevel) {
+      const jsxElements = sf.getDescendantsOfKind(import_ts_morph.SyntaxKind.JsxOpeningElement);
+      const jsxSelfClosing = sf.getDescendantsOfKind(import_ts_morph.SyntaxKind.JsxSelfClosingElement);
+      const allJsxTags = [...jsxElements, ...jsxSelfClosing];
+      for (const jsx of allJsxTags) {
+        const tagName = jsx.getTagNameNode().getText();
+        if (/^[a-z]/.test(tagName)) {
+          errors.push({
+            ruleId: "krnl/top-level-purity",
+            filePath,
+            line: jsx.getStartLineNumber(),
+            message: `Top-level file '${baseName}' violates Top-Level Purity Law. Raw JSX/HTML element '<${tagName}>' is strictly forbidden. Top-level files must ONLY import and compose React components.`,
+            severity: "error"
+          });
+        }
+      }
+      const calls2 = sf.getDescendantsOfKind(import_ts_morph.SyntaxKind.CallExpression);
+      for (const call of calls2) {
+        const exprText = call.getExpression().getText();
+        if (["useState", "useEffect", "useRef", "useMemo", "useCallback", "useReducer", "useContext", "useLayoutEffect"].includes(exprText) || /^use[A-Z]/.test(exprText) && exprText !== "use") {
+          errors.push({
+            ruleId: "krnl/top-level-purity",
+            filePath,
+            line: call.getStartLineNumber(),
+            message: `Top-level file '${baseName}' violates Top-Level Purity Law. React hook '${exprText}' is forbidden in top-level files. Encapsulate state and effects inside dedicated component files.`,
+            severity: "error"
+          });
+        }
+      }
+    }
+    if (isBackendTopLevel) {
+      const calls2 = sf.getDescendantsOfKind(import_ts_morph.SyntaxKind.CallExpression);
+      for (const call of calls2) {
+        const exprText = call.getExpression().getText();
+        if (/^(app|router|server)\.(get|post|put|delete|patch|options|head)$/.test(exprText)) {
+          errors.push({
+            ruleId: "krnl/top-level-purity",
+            filePath,
+            line: call.getStartLineNumber(),
+            message: `Backend entry file '${baseName}' violates Entry Purity Law. Inline route definition '${exprText}' is forbidden. Delegate to dedicated route/controller modules.`,
+            severity: "error"
+          });
+        }
+      }
+    }
+    if (filePath.endsWith(".tsx") || filePath.endsWith(".jsx")) {
+      const componentNames = [];
+      for (const fn of sf.getFunctions()) {
+        const name = fn.getName();
+        if (name && /^[A-Z]/.test(name)) {
+          const hasJsx = fn.getDescendantsOfKind(import_ts_morph.SyntaxKind.JsxElement).length > 0 || fn.getDescendantsOfKind(import_ts_morph.SyntaxKind.JsxSelfClosingElement).length > 0 || fn.getDescendantsOfKind(import_ts_morph.SyntaxKind.JsxFragment).length > 0;
+          if (hasJsx) {
+            componentNames.push(name);
+          }
+        }
+      }
+      for (const stmt of sf.getVariableStatements()) {
+        for (const decl of stmt.getDeclarations()) {
+          const name = decl.getName();
+          if (/^[A-Z]/.test(name)) {
+            const typeText = decl.getTypeNode()?.getText() || "";
+            const isFcType = typeText.includes("FC") || typeText.includes("FunctionComponent") || typeText.includes("ComponentType");
+            const init = decl.getInitializer();
+            if (init) {
+              const hasJsx = init.getDescendantsOfKind(import_ts_morph.SyntaxKind.JsxElement).length > 0 || init.getDescendantsOfKind(import_ts_morph.SyntaxKind.JsxSelfClosingElement).length > 0 || init.getDescendantsOfKind(import_ts_morph.SyntaxKind.JsxFragment).length > 0;
+              if (isFcType || hasJsx) {
+                if (!componentNames.includes(name)) {
+                  componentNames.push(name);
+                }
+              }
+            }
+          }
+        }
+      }
+      for (const cls of sf.getClasses()) {
+        const name = cls.getName();
+        const ext = cls.getExtends()?.getText() || "";
+        if (name && (ext.includes("Component") || ext.includes("PureComponent"))) {
+          if (!componentNames.includes(name)) {
+            componentNames.push(name);
+          }
+        }
+      }
+      if (componentNames.length > 1) {
+        errors.push({
+          ruleId: "krnl/one-component-per-file",
+          filePath,
+          message: `File '${baseName}' defines multiple React components (${componentNames.join(", ")}). Krnl strictly enforces ONE component per file. Decompose into sub-component files.`,
           severity: "error"
         });
       }
@@ -220,7 +315,7 @@ var KrnlValidatorEngine = class {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         this.collectSourceFiles(full, collected);
-      } else if (entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".js"))) {
+      } else if (entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".js") || entry.name.endsWith(".tsx") || entry.name.endsWith(".jsx"))) {
         collected.push(full);
       }
     }
@@ -2288,7 +2383,7 @@ var StudioServer = class {
     return `<!DOCTYPE html><html><body><h1>Krnl Studio Error: studio.html template not found.</h1></body></html>`;
   }
   async start() {
-    return new Promise((resolve7) => {
+    return new Promise((resolve8) => {
       this.httpServer.listen(this.port, () => {
         console.log(`
 \u{1F680} [Krnl Studio] Omni Canvas IDE running at: http://localhost:${this.port}`);
@@ -2296,15 +2391,15 @@ var StudioServer = class {
         console.log(`\u{1F4E1} [Krnl Studio] REST API Suite available at: http://localhost:${this.port}/api/v1/*`);
         console.log(`\u{1F4E1} [Krnl Studio] WebSocket JSON-RPC protocol active on /studio/ws
 `);
-        resolve7();
+        resolve8();
       });
     });
   }
   async stop() {
     this.watcher.stop();
-    return new Promise((resolve7) => {
+    return new Promise((resolve8) => {
       this.wss.close(() => {
-        this.httpServer.close(() => resolve7());
+        this.httpServer.close(() => resolve8());
       });
     });
   }
@@ -2320,7 +2415,8 @@ var command = args[0] || "help";
 async function main() {
   switch (command) {
     case "validate": {
-      const valid = await runValidate(process.cwd());
+      const targetDir = args[1] && !args[1].startsWith("-") ? path9.resolve(process.cwd(), args[1]) : process.cwd();
+      const valid = await runValidate(targetDir);
       process.exit(valid ? 0 : 1);
       break;
     }

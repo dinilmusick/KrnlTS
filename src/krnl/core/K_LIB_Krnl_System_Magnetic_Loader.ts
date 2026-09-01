@@ -97,7 +97,15 @@ export class KrnlMagneticLoader {
       }
     }
 
-    if (fs.existsSync(subappsDir)) {
+    const candidateSubappDirs = [
+      path.join(baseDir, 'subapps'),
+      path.join(baseDir, 'sub-apps'),
+      path.join(baseDir, 'src', 'sub-apps')
+    ].filter(d => fs.existsSync(d));
+
+    const loadedSubAppPaths = new Set<string>();
+
+    for (const subappsDir of candidateSubappDirs) {
       await this.syncParentSubAppDependencies(baseDir, subappsDir);
 
       const apps = await fs.promises.readdir(subappsDir, { withFileTypes: true });
@@ -105,6 +113,8 @@ export class KrnlMagneticLoader {
       for (const dirent of apps) {
         if (dirent.isDirectory()) {
           const appPath = path.join(subappsDir, dirent.name);
+          if (loadedSubAppPaths.has(appPath)) continue;
+          loadedSubAppPaths.add(appPath);
           const buildOk = await this.ensureSubAppBuilt(appPath, dirent.name, entity, baseDir);
           if (!buildOk) {
             continue;

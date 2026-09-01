@@ -36,7 +36,7 @@ description: Master router and deterministic dispatcher directing the AI agent t
 | `shared_utils`, `canonical_structs`, `concept_file`, `libraries_folder` | [`architecture/libraries-concepts/SKILL.md`](./architecture/libraries-concepts/SKILL.md) | `libraries/{Domain}Concepts.ts` at system root level with uniform polymorphic generic templates |
 | `5_turn_audit`, `deduplicate_structs`, `unify_functions`, `remediate_deviations` | [`architecture/deduplication/SKILL.md`](./architecture/deduplication/SKILL.md) | 5-turn periodic audit: KrnlTS quad-unit compliance, deduplication, 4-layer purity, anti-polling audit |
 | `skeleton`, `structural_entity`, `component_composition`, `behavioral_unit` | [`architecture/skeleton-components/SKILL.md`](./architecture/skeleton-components/SKILL.md) | `Entity<TState, TEvents>` Skeletons = Impure Orchestrators (`@role skeleton`), Components = Pure/Atomic (`@role component`) |
-| `file_length`, `line_limit`, `split_file`, `atomic_sizing`, `200_lines` | [`architecture/code-limits/SKILL.md`](./architecture/code-limits/SKILL.md) | 200 lines/file max, $\le 30$ lines in helpers before concept delegation, $\le 20$ lines in main before helper delegation |
+| `file_length`, `line_limit`, `split_file`, `atomic_sizing`, `200_lines`, `top_level_purity`, `one_component_per_file`, `app_tsx_raw_code`, `index_ts_raw_code` | [`architecture/code-limits/SKILL.md`](./architecture/code-limits/SKILL.md) | Top-level File Purity Law (App.tsx/main.ts/index.ts = imports only, zero raw JSX/HTML/logic), One Component Per File, 200 lines/file max (frontend + backend), ≤ 30 lines in helpers before concept delegation, ≤ 20 lines in main before helper delegation |
 | `subapp_engine`, `subapp_authoring`, `drag_and_drop_app`, `engine_wrapper`, `subapp_json` | [`architecture/sub-app-engine/SKILL.md`](./architecture/sub-app-engine/SKILL.md) | 100% drag-and-drop KrnlTS sub-app compatibility, zero-server rule, `subapp.json`, `register.ts`, pure operations |
 | `krnlts`, `krnl_entity`, `magnetic_loader`, `flow_builder`, `krnl_tools`, `krnlts_validate`, `subapp_worker` | [`krnlts/SKILL.md`](./krnlts/SKILL.md) | KrnlTS runtime library extensions (`loadAll`, `Entity<TState, TEvents>`, flows, port gateway, `KrnlFS`, `krnlts-validate`) |
 | `create_endpoint`, `expose_api`, `rpc_surface`, `external_trigger_ui_sync` | [`api/SKILL.md`](./api/SKILL.md) | Feature-to-API parity, external calls trigger visible UI state, zero phantom calls |
@@ -81,7 +81,81 @@ def resolve_and_execute(task_intent: str, modified_domains: list[str]):
 
 ---
 
-## 4. GLOBAL OUTPUT PREFERENCES
+## 4. GLOBAL INVIOLABLE STRUCTURAL INVARIANTS (ALL TASKS — NO EXCEPTIONS)
+
+These rules apply to EVERY code generation and editing action, regardless of domain or task type.
+The agent MUST verify compliance BEFORE finalizing any file write.
+
+### A. TOP-LEVEL FILE PURITY LAW
+```
+TOP-LEVEL FILES = { App.tsx, main.ts, index.ts, server.ts, app.ts, index.tsx, _app.tsx,
+                    main.tsx, entry.ts, entry.tsx, root.tsx }
+
+THESE FILES MUST CONTAIN ONLY:
+  1. Import statements
+  2. A single root export that wires together imported components / modules
+
+ABSOLUTELY FORBIDDEN IN TOP-LEVEL FILES:
+  ✗ Raw JSX / HTML markup of ANY kind
+  ✗ React hooks (useState, useEffect, useRef, useContext, etc.)
+  ✗ Inline styles, CSS objects, or className strings
+  ✗ Business logic, data fetching, API calls, conditionals that render markup
+  ✗ Event handler definitions
+  ✗ Backend route handlers, middleware registration, or Express/Fastify app config
+
+CANONICAL VALID App.tsx:
+  import React from "react";
+  import { AppShell } from "./components/AppShell/AppShell";
+  export default function App() { return <AppShell />; }
+
+CANONICAL VALID server.ts / index.ts (backend):
+  import { createApp } from "./app/AppFactory";
+  const app = createApp();
+  app.listen(process.env.PORT ?? 3000);
+
+VIOLATION RESPONSE: If the agent generates or modifies a top-level file that contains
+any forbidden content, it MUST immediately extract that content into a properly named
+component or factory module and import it.
+```
+
+### B. ONE COMPONENT / ONE MODULE PER FILE
+```
+RULE:
+  Every .tsx / .ts file contains exactly ONE primary exported entity:
+    - Frontend: ONE React component
+    - Backend:  ONE service class | ONE controller | ONE route-group factory | ONE utility
+
+PERMITTED ALONGSIDE the primary export (small helpers only):
+  ✓ Props interface / type (e.g., interface AppShellProps { ... })
+  ✓ Up to 3 pure helper functions, each < 20 lines, exclusively used by the primary export
+  ✓ Local enums / type aliases consumed only within this file
+
+FORBIDDEN:
+  ✗ Two or more React component definitions in one file
+  ✗ Two or more service / controller classes in one file
+  ✗ Unrelated utility functions bundled with a component
+
+DECOMPOSITION PATTERN (when a component grows):
+  ComponentName/
+    ComponentName.tsx              ← root orchestrator (imports sub-components only)
+    ComponentNameHeader.tsx        ← sub-component
+    ComponentNameBody.tsx          ← sub-component
+    ComponentNameSidebar.tsx       ← sub-component
+    useComponentNameLogic.ts       ← extracted hook (stateful logic)
+    ComponentName.types.ts         ← shared prop/state interfaces
+    ComponentName.constants.ts     ← constants / static data
+```
+
+### C. 200-LINE MAXIMUM (FRONTEND AND BACKEND)
+```
+HARD LIMIT: 200 lines per file — applies to ALL .ts / .tsx / .js / .jsx files.
+When a file reaches 180 lines, immediately begin extracting sub-units.
+No exceptions: backend controllers, service layers, and schemas obey this limit equally.
+```
+
+---
+
+## 5. GLOBAL OUTPUT PREFERENCES
 - **Style**: Minimal natural language. Prefer mathematics, pseudocode, graphs, flowcharts, and vector-space representations.
 - **Acronyms**: Fully expand all acronyms on first reference.
 - **Veracity**: Science-based and empirically verifiable claims only.

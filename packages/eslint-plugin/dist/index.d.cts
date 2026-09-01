@@ -111,6 +111,52 @@ declare const plugin: {
                 CallExpression(node: any): void;
             };
         };
+        'top-level-purity': {
+            meta: {
+                type: string;
+                docs: {
+                    description: string;
+                    recommended: boolean;
+                };
+                messages: {
+                    topLevelRawMarkup: string;
+                    topLevelHook: string;
+                    topLevelBackendRoute: string;
+                };
+            };
+            create(context: any): {
+                JSXOpeningElement?: undefined;
+                JSXSelfClosingElement?: undefined;
+                CallExpression?: undefined;
+            } | {
+                JSXOpeningElement(node: any): void;
+                JSXSelfClosingElement(node: any): void;
+                CallExpression(node: any): void;
+            };
+        };
+        'one-component-per-file': {
+            meta: {
+                type: string;
+                docs: {
+                    description: string;
+                    recommended: boolean;
+                };
+                messages: {
+                    multipleComponents: string;
+                };
+            };
+            create(context: any): {
+                FunctionDeclaration?: undefined;
+                VariableDeclarator?: undefined;
+                ClassDeclaration?: undefined;
+                'Program:exit'?: undefined;
+            } | {
+                FunctionDeclaration(node: any): void;
+                VariableDeclarator(node: any): void;
+                ClassDeclaration(node: any): void;
+                'Program:exit'(): void;
+            };
+        };
     };
     configs: {
         recommended: {
@@ -224,6 +270,52 @@ declare const plugin: {
                                 CallExpression(node: any): void;
                             };
                         };
+                        'top-level-purity': {
+                            meta: {
+                                type: string;
+                                docs: {
+                                    description: string;
+                                    recommended: boolean;
+                                };
+                                messages: {
+                                    topLevelRawMarkup: string;
+                                    topLevelHook: string;
+                                    topLevelBackendRoute: string;
+                                };
+                            };
+                            create(context: any): {
+                                JSXOpeningElement?: undefined;
+                                JSXSelfClosingElement?: undefined;
+                                CallExpression?: undefined;
+                            } | {
+                                JSXOpeningElement(node: any): void;
+                                JSXSelfClosingElement(node: any): void;
+                                CallExpression(node: any): void;
+                            };
+                        };
+                        'one-component-per-file': {
+                            meta: {
+                                type: string;
+                                docs: {
+                                    description: string;
+                                    recommended: boolean;
+                                };
+                                messages: {
+                                    multipleComponents: string;
+                                };
+                            };
+                            create(context: any): {
+                                FunctionDeclaration?: undefined;
+                                VariableDeclarator?: undefined;
+                                ClassDeclaration?: undefined;
+                                'Program:exit'?: undefined;
+                            } | {
+                                FunctionDeclaration(node: any): void;
+                                VariableDeclarator(node: any): void;
+                                ClassDeclaration(node: any): void;
+                                'Program:exit'(): void;
+                            };
+                        };
                     };
                 };
             };
@@ -234,6 +326,8 @@ declare const plugin: {
                 '@dinilmusick/krnl/no-polling': string;
                 '@dinilmusick/krnl/context-destructuring': string;
                 '@dinilmusick/krnl/no-server-in-subapp': string;
+                '@dinilmusick/krnl/top-level-purity': string;
+                '@dinilmusick/krnl/one-component-per-file': string;
             };
         };
     };

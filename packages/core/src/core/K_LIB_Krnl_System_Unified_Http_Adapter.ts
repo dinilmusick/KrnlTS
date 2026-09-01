@@ -241,8 +241,35 @@ export class krnlUnifiedHttpAdapter implements KrnlProtocolAdapter {
                            reqPath.startsWith('/mcp') || 
                            reqPath.startsWith('/acp') || 
                            reqPath === '/agent/job_complete' ||
+                           reqPath === '/subapps' ||
+                           reqPath === '/api/subapps' ||
                            reqPath === '/manifest' ||
                            reqPath === '/health';
+
+        if (reqPath === '/subapps' || reqPath === '/api/subapps') {
+            const subappsList: any[] = [];
+            if (this.system._subApps && this.system._subApps.size > 0) {
+                for (const [id, inst] of this.system._subApps.entries()) {
+                    subappsList.push({
+                        id,
+                        state: (inst as any).state,
+                        manifest: (inst as any).manifest || null,
+                        operations: Array.from(((inst as any).operations?.values() || []) as any[]).map((op: any) => ({
+                            name: op.name,
+                            description: op.description || '',
+                            method: op.method || 'POST',
+                            metadata: op.metadata || {}
+                        })),
+                        ui: (inst as any).registration?.ui || (inst as any).manifest?.ui || null,
+                        loadedAt: (inst as any).loadedAt,
+                        readyAt: (inst as any).readyAt,
+                        error: (inst as any).error ? ((inst as any).error.message || String((inst as any).error)) : null
+                    });
+                }
+            }
+            this._sendJson(res, 200, { status: "success", entity: this.system.entityName, subapps: subappsList });
+            return;
+        }
 
         if (!isKrnlRoute) {
             if (reqPath === '/inspect' || reqPath.startsWith('/inspect/') || reqPath === '/frontend' || reqPath.startsWith('/frontend/')) {
@@ -281,9 +308,30 @@ export class krnlUnifiedHttpAdapter implements KrnlProtocolAdapter {
                 let fid = reqPath.slice(1);
                 if (fid.endsWith('/')) fid = fid.slice(0, -1); 
 
-                const resolvedCap = this.system.resolveCapability ? this.system.resolveCapability(fid) : null;
-                const functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid) || (resolvedCap ? resolvedCap.owner.localFunctionalities.get(resolvedCap.fid) : null);
-                const resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
+                let resolvedCap = this.system.resolveCapability ? this.system.resolveCapability(fid) : null;
+                let functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid) || (resolvedCap ? resolvedCap.owner.localFunctionalities.get(resolvedCap.fid) : null);
+                let resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
+
+                // Sub-app prefix fallback (e.g. /krng/StoreKey or /api/krng/StoreKey -> Krng.StoreKey)
+                if (!functionality) {
+                    const cleanPath = reqPath.replace(/^\/api\//, '/').slice(1);
+                    const segments = cleanPath.split('/').filter(Boolean);
+                    if (segments.length >= 2) {
+                        const subAppPrefix = segments[0];
+                        const opSuffix = segments.slice(1).join('.');
+                        const potentialFid = `${subAppPrefix}.${opSuffix}`;
+                        const allKeys = Array.from(this.system.localFunctionalities.keys() as Iterable<string>).concat(
+                            Array.from(this.system.remoteFunctionalities.keys() as Iterable<string>)
+                        );
+                        const match = allKeys.find(k => k.toLowerCase() === potentialFid.toLowerCase());
+                        if (match) {
+                            fid = match;
+                            resolvedCap = this.system.resolveCapability ? this.system.resolveCapability(fid) : null;
+                            functionality = this.system.localFunctionalities.get(fid) || this.system.remoteFunctionalities.get(fid) || (resolvedCap ? resolvedCap.owner.localFunctionalities.get(resolvedCap.fid) : null);
+                            resolved = this.system.resolveLocalFunctionality ? this.system.resolveLocalFunctionality(fid) : null;
+                        }
+                    }
+                }
 
                 if (functionality) {
                     const expectedMethod = (resolved || functionality).method || 'POST';

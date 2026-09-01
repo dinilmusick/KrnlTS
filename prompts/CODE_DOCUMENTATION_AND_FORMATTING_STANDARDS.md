@@ -1,6 +1,53 @@
 ```markdown
 # TASK: CODE_DOCUMENTATION_FORMATTING_AND_NAMING_STANDARDS
-$RULES := \text{DocblocksWithFlowcharts} \otimes \text{BoldSectionDemarcation} \otimes \text{LongDescriptiveNames}
+$RULES := \text{DocblocksWithFlowcharts} \otimes \text{BoldSectionDemarcation} \otimes \text{LongDescriptiveNames} \otimes \text{TopLevelPurity} \otimes \text{OneComponentPerFile}$
+
+## 0. INVIOLABLE FILE STRUCTURE LAWS (MANDATORY — CHECK BEFORE GENERATING ANY FILE)
+
+### LAW 1: Top-Level File Purity
+```typescript
+// TOP-LEVEL FILES: App.tsx, main.ts, index.ts, server.ts, app.ts, index.tsx, _app.tsx
+// THESE FILES = IMPORT-ONLY WRAPPERS. NOTHING ELSE.
+//
+// ✅ ALLOWED:
+import React from "react";
+import { AppShell } from "./components/AppShell/AppShell";
+export default function App() { return <AppShell />; }
+//
+// ❌ FORBIDDEN in top-level files:
+//   - Any JSX/HTML (<div>, <span>, <button>, etc.)
+//   - React hooks (useState, useEffect, useRef, ...)
+//   - Inline styles or className strings
+//   - Business logic, data fetching, event handlers
+//   - Backend route/middleware registration
+```
+
+### LAW 2: One Component / One Module Per File
+```typescript
+// Every .tsx file = ONE React component.
+// Every .ts file  = ONE service | controller | utility | type module.
+//
+// WRONG — two components in one file:
+export const Header = () => <header>...</header>;
+export const Footer = () => <footer>...</footer>;  // ← VIOLATION
+//
+// RIGHT — split into Header.tsx and Footer.tsx
+//
+// When a component grows large, use folder decomposition:
+//   MyWidget/
+//     MyWidget.tsx           ← root orchestrator (imports only)
+//     MyWidgetHeader.tsx     ← sub-component
+//     MyWidgetBody.tsx       ← sub-component
+//     useMyWidgetLogic.ts    ← extracted stateful hook
+//     MyWidget.types.ts      ← interfaces/props types
+```
+
+### LAW 3: 200-Line Hard Maximum
+```
+Every .ts / .tsx / .js / .jsx file: MAX 200 lines.
+Frontend components, backend controllers, services, repos — ALL.
+At 180 lines → begin extracting sub-modules.
+```
 
 ## 1. IN-CODE UTILITY DOCUMENTATION & FLOWCHART REQUIREMENT
 Every function, class, type, interface, and data structure MUST include a comprehensive docblock with:

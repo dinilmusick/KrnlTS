@@ -1,18 +1,45 @@
 # TASK: REFACTOR_AND_CLEANUP_PROTOCOL
-$GOAL := \text{ReadState}(\mathcal{S}) \to \text{RefactorCodebase}(\mathcal{C}) \to \text{Verify}(\mathcal{C}_{\text{krnl}}) \to \text{ResetCadence}(\mathcal{S}) \quad \text{s.t.} \quad \text{Behavior}(\mathcal{C}_{\text{krnl}}) \equiv \text{Behavior}(\mathcal{C})
-CRITICAL_INVARIANT: \Delta(\text{BusinessLogic}) = 0 \quad (\text{ZERO LOGIC DELETION - RESTRUCTURE ONLY})
+$GOAL := \text{ReadState}(\mathcal{S}) \to \text{RefactorCodebase}(\mathcal{C}) \to \text{Verify}(\mathcal{C}_{\text{krnl}}) \to \text{ResetCadence}(\mathcal{S}) \quad \text{s.t.} \quad \text{Behavior}(\mathcal{C}_{\text{krnl}}) \equiv \text{Behavior}(\mathcal{C})$
+CRITICAL_INVARIANT: $\Delta(\text{BusinessLogic}) = 0 \quad (\text{ZERO LOGIC DELETION - RESTRUCTURE ONLY})$
 
 ## 0. TURN-COUNTER STATE GUARD (`.skipo/agent-state.json`)
 - Before executing refactor, read `.skipo/agent-state.json`.
 - Upon successful refactoring and regression verification, reset `turnsSinceLastAudit = 0` and record the refactor actions in `lastAudit.refactorsPerformed`.
 
+## 0-B. STRUCTURAL AUDIT CHECKLIST (RUN BEFORE AND AFTER EVERY REFACTOR)
+During every refactor pass, the agent MUST scan and remediate:
+
+```
+[ ] TOP-LEVEL FILE PURITY:
+      App.tsx / index.tsx / main.tsx / server.ts / index.ts contain ONLY imports + single root export.
+      If ANY raw JSX, hooks, or logic found → extract to named component/module file immediately.
+
+[ ] ONE COMPONENT / MODULE PER FILE:
+      Each .tsx file has exactly ONE React component definition.
+      Each .ts backend file has exactly ONE class/controller/service/router.
+      If multiple found → split into separate files.
+
+[ ] 200-LINE MAXIMUM (FRONTEND + BACKEND):
+      No .ts / .tsx file exceeds 200 lines.
+      Files at 150–200 lines → identify split candidates and extract.
+      Applies equally to: components, hooks, controllers, services, repositories, middleware.
+
+[ ] COMPONENT DECOMPOSITION PATTERN (when a component is too large):
+      MyComponent/
+        MyComponent.tsx            ← root: imports sub-components only
+        MyComponentHeader.tsx      ← sub-component
+        MyComponentBody.tsx        ← sub-component
+        useMyComponentLogic.ts     ← stateful hook
+        MyComponent.types.ts       ← interfaces/types
+```
+
 ## 1. COMPLEXITY, NAMING & CODE LIMITS (ENFORCED)
 $$\begin{array}{ll}
-\text{Max File Length} & \le 150 \text{ lines} \\
+\text{Max File Length} & \le 200 \text{ lines (hard limit — frontend AND backend)} \\
 \text{Max Function Length} & \le 40 \text{ lines} \\
 \text{Max Cyclomatic Complexity} & \le 10 \\
 \text{Naming Convention} & \text{Use long, descriptive names for all files, classes, and methods (Zero Cryptic Abbreviations)} \\
-\text{File Decomposition} & \text{If } | \text{Lines}(file) | > 150 \implies \text{Decompose into } L_0/L_1 \text{ helpers or sub-functionalities}
+\text{File Decomposition} & \text{If } | \text{Lines}(file) | > 200 \implies \text{Decompose into sub-components, hooks, or helpers}
 \end{array}$$
 
 ## 2. IN-CODE DOCUMENTATION & FLOWCHART MANDATE

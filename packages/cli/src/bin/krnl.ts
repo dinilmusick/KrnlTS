@@ -12,7 +12,8 @@ const command = args[0] || 'help';
 async function main() {
   switch (command) {
     case 'validate': {
-      const valid = await runValidate(process.cwd());
+      const targetDir = args[1] && !args[1].startsWith('-') ? path.resolve(process.cwd(), args[1]) : process.cwd();
+      const valid = await runValidate(targetDir);
       process.exit(valid ? 0 : 1);
       break;
     }

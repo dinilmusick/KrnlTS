@@ -673,13 +673,26 @@ interface KrnlIntentionEntity {
 declare function buildEntityIntention(entity: any): KrnlIntentionEntity;
 
 /**
- * @file types.ts
- * @description Core types and interfaces for the KrnlTS Universal Backend Architecture.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * TYPE DEFINITIONS: KrnlTS Universal Backend Architecture & Workspace Storage Spec
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Complete type contracts for Control Plane (RBAC, Audit Logging, Multi-App User Context,
+ *          Database Clusters), Workspace Storage Architecture (Decoupled Storage Adapters,
+ *          Provider-Independent WorkspaceFS, Multi-Cloud Sync Engine, Conflict Resolution).
+ * ══════════════════════════════════════════════════════════════════════════════════════════
  */
 type StorageMode = "local" | "local_hosted" | "remote";
-type BackendServiceType = "sqlite" | "postgres" | "supabase" | "pocketbase" | "firebase" | "filesystem" | "s3" | "custom";
+type BackendServiceType = "sqlite" | "postgres" | "supabase" | "pocketbase" | "firebase" | "turso" | "mongodb" | "custom_api" | "filesystem" | "s3" | "vercel_blob" | "google_drive" | "onedrive" | "icloud" | "custom";
+type StorageProviderType = "local" | "icloud" | "google_drive" | "onedrive" | "supabase_storage" | "firebase_storage" | "s3" | "vercel_blob" | "custom";
+type UserRole = "USER" | "MODERATOR" | "ADMIN" | "user" | "moderator" | "admin";
+type ClusterDatabaseRole = "primary" | "redundant_clone" | "read_replica";
+type SyncMode = "on_write" | "interval" | "manual";
+type ConflictStrategy = "primary_wins" | "newest_wins" | "manual";
+type StorageEndpointStatus = "CONNECTED" | "DISCONNECTED" | "SYNCING" | "ERROR";
+type StorageEndpointSyncState = "SYNCED" | "OUT_OF_SYNC" | "PENDING" | "ERROR";
+type Unsubscribe = () => void;
 interface DatabaseProviderConfig {
-    type: "sqlite" | "postgres" | "supabase" | "pocketbase" | "firebase" | "custom";
+    type: "sqlite" | "postgres" | "supabase" | "pocketbase" | "firebase" | "turso" | "mongodb" | "custom_api" | "custom";
     filePath?: string;
     enableWAL?: boolean;
     connectionString?: string;
@@ -692,10 +705,13 @@ interface DatabaseProviderConfig {
     poolSize?: number;
     endpoint?: string;
     apiKey?: string;
+    authToken?: string;
     projectId?: string;
+    collectionName?: string;
+    headers?: Record<string, string>;
 }
 interface StorageProviderConfig {
-    type: "filesystem" | "s3" | "supabase_storage" | "pocketbase_storage" | "firebase_storage" | "custom";
+    type: "filesystem" | "s3" | "supabase_storage" | "pocketbase_storage" | "firebase_storage" | "vercel_blob" | "google_drive" | "onedrive" | "custom";
     basePath?: string;
     bucket?: string;
     region?: string;
@@ -703,7 +719,10 @@ interface StorageProviderConfig {
     secretKey?: string;
     endpoint?: string;
     apiKey?: string;
+    token?: string;
     projectId?: string;
+    accountId?: string;
+    rootFolderId?: string;
 }
 interface AuthConfig {
     jwtSecret?: string;
@@ -721,11 +740,286 @@ interface BackendConnectionConfig {
     storage?: StorageProviderConfig;
     auth?: AuthConfig;
 }
+interface SecretReference {
+    vaultKey: string;
+    envVar?: string;
+}
+interface LocalStorageConfiguration {
+    provider: "local";
+    directoryHandle?: any;
+    basePath?: string;
+    displayPath?: string;
+}
+interface GoogleDriveConfiguration {
+    provider: "google_drive";
+    accountId: string;
+    rootFolderId: string;
+    authenticationReference?: SecretReference;
+    accessToken?: string;
+}
+interface OneDriveConfiguration {
+    provider: "onedrive";
+    accountId: string;
+    rootFolderId: string;
+    authenticationReference?: SecretReference;
+    accessToken?: string;
+}
+interface SupabaseStorageConfiguration {
+    provider: "supabase_storage";
+    projectUrl: string;
+    bucket: string;
+    authenticationReference?: SecretReference;
+    apiKey?: string;
+}
+interface FirebaseStorageConfiguration {
+    provider: "firebase_storage";
+    projectId: string;
+    bucket: string;
+    authenticationReference?: SecretReference;
+    apiKey?: string;
+}
+interface S3StorageConfiguration {
+    provider: "s3";
+    bucket: string;
+    region?: string;
+    endpoint?: string;
+    accessKey?: string;
+    secretKey?: string;
+}
+interface CustomStorageConfiguration {
+    provider: "custom";
+    [key: string]: any;
+}
+interface ICloudStorageConfiguration {
+    provider: "icloud";
+    containerId?: string;
+    basePath?: string;
+    displayPath?: string;
+    authenticationReference?: SecretReference;
+}
+type ProviderConfiguration = LocalStorageConfiguration | ICloudStorageConfiguration | GoogleDriveConfiguration | OneDriveConfiguration | SupabaseStorageConfiguration | FirebaseStorageConfiguration | S3StorageConfiguration | CustomStorageConfiguration;
+interface StorageEndpoint {
+    id: string;
+    provider: StorageProviderType;
+    configuration: ProviderConfiguration;
+    enabled: boolean;
+    status: StorageEndpointStatus;
+    lastSyncAt?: number;
+    syncState?: StorageEndpointSyncState;
+    errorMessage?: string;
+}
+interface FileMetadata {
+    path: string;
+    type: "file" | "directory";
+    size: number;
+    modifiedAt: number;
+    contentHash?: string;
+    revision?: string;
+    mimeType?: string;
+}
+interface FileEntry {
+    path: string;
+    name: string;
+    type: "file" | "directory";
+    size: number;
+    modifiedAt: number;
+}
+type FileChangeCallback = (event: {
+    type: "create" | "update" | "delete";
+    path: string;
+    metadata?: FileMetadata;
+}) => void;
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * INTERFACE: WorkspaceStorageAdapter
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Provider-independent contract implemented by Local, Google Drive, OneDrive,
+ *          Supabase, and Firebase storage providers.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+interface WorkspaceStorageAdapter {
+    readonly provider: StorageProviderType;
+    readonly endpointId: string;
+    initialize(): Promise<void>;
+    exists(pathStr: string): Promise<boolean>;
+    stat(pathStr: string): Promise<FileMetadata>;
+    list(pathStr?: string): Promise<FileEntry[]>;
+    read(pathStr: string): Promise<Uint8Array>;
+    write(pathStr: string, data: Uint8Array | Buffer | string): Promise<void>;
+    mkdir(pathStr: string): Promise<void>;
+    delete(pathStr: string): Promise<void>;
+    move(source: string, destination: string): Promise<void>;
+    copy(source: string, destination: string): Promise<void>;
+    watch?(pathStr: string, callback: FileChangeCallback): Unsubscribe;
+    disconnect(): Promise<void>;
+}
+interface RetryConfiguration {
+    maxAttempts: number;
+    backoffMs: number;
+}
+interface VerificationConfiguration {
+    verifyChecksums: boolean;
+    intervalMs?: number;
+}
+interface SyncConfiguration {
+    enabled: boolean;
+    mode: SyncMode;
+    intervalMs?: number;
+    conflictStrategy: ConflictStrategy;
+    deletePropagation: boolean;
+    retry: RetryConfiguration;
+    verification: VerificationConfiguration;
+}
+interface SyncResult {
+    ok: boolean;
+    syncedFiles: string[];
+    failedEndpoints: Array<{
+        endpointId: string;
+        error: string;
+    }>;
+    timestamp: number;
+    durationMs: number;
+}
+interface RestoreResult {
+    ok: boolean;
+    restoredFromEndpointId: string;
+    filesRestoredCount: number;
+    timestamp: number;
+    errorMessage?: string;
+}
+interface VerificationResult {
+    ok: boolean;
+    totalFiles: number;
+    matchedFiles: number;
+    divergentFiles: Array<{
+        path: string;
+        primaryHash?: string;
+        backupHashes: Record<string, string>;
+    }>;
+    timestamp: number;
+}
+interface ISyncEngine {
+    initialize(workspace: Workspace, primary: WorkspaceStorageAdapter, backups: WorkspaceStorageAdapter[]): Promise<void>;
+    sync(workspace: Workspace): Promise<SyncResult>;
+    syncFile(pathStr: string): Promise<SyncResult>;
+    restore(backup: StorageEndpoint): Promise<RestoreResult>;
+    verify(workspace: Workspace): Promise<VerificationResult>;
+    pause(): Promise<void>;
+    resume(): Promise<void>;
+    shutdown(): Promise<void>;
+}
+interface WorkspacePreferences {
+    theme?: string;
+    autoSave?: boolean;
+    defaultView?: string;
+    customSettings?: Record<string, any>;
+}
+interface Workspace {
+    id: string;
+    name: string;
+    icon?: string;
+    description?: string;
+    primaryStorage: StorageEndpoint;
+    backupStorages: StorageEndpoint[];
+    sync: SyncConfiguration;
+    preferences: WorkspacePreferences;
+    metadata: Record<string, unknown>;
+    createdAt: number;
+    updatedAt: number;
+}
+interface AppPreferences {
+    workspaceOrder?: string[];
+    defaultWorkspaceId?: string;
+    customTheme?: string;
+    [key: string]: any;
+}
+interface AppUserContext {
+    appId: string;
+    enabled: boolean;
+    preferences: AppPreferences;
+    workspaces: Workspace[];
+    createdAt: number;
+    updatedAt: number;
+}
+interface GlobalUserIdentity {
+    displayName?: string;
+    avatarUrl?: string;
+    locale?: string;
+    timezone?: string;
+}
+interface User {
+    id: string;
+    credentials: AuthCredentials;
+    identity: GlobalUserIdentity;
+    role: UserRole;
+    apps: Record<string, AppUserContext>;
+    createdAt: number;
+    updatedAt: number;
+}
+interface IWorkspaceFS {
+    exists(pathStr: string): Promise<boolean>;
+    stat(pathStr: string): Promise<FileMetadata>;
+    list(pathStr?: string): Promise<FileEntry[]>;
+    read(pathStr: string): Promise<Uint8Array>;
+    readText(pathStr: string): Promise<string>;
+    write(pathStr: string, data: Uint8Array | Buffer | string): Promise<void>;
+    mkdir(pathStr: string): Promise<void>;
+    delete(pathStr: string): Promise<void>;
+    move(source: string, destination: string): Promise<void>;
+    copy(source: string, destination: string): Promise<void>;
+}
+interface IWorkspaceRuntime {
+    readonly workspace: Workspace;
+    readonly primary: WorkspaceStorageAdapter;
+    readonly backups: WorkspaceStorageAdapter[];
+    readonly filesystem: IWorkspaceFS;
+    readonly syncEngine: ISyncEngine;
+    initialize(): Promise<void>;
+    changePrimary(newPrimaryEndpointId: string): Promise<void>;
+    addBackup(endpoint: StorageEndpoint): Promise<void>;
+    detachStorage(endpointId: string): Promise<void>;
+    dispose(): Promise<void>;
+}
+interface ApplicationRuntimeState {
+    currentUser: User;
+    currentApp: AppUserContext;
+    currentWorkspace?: Workspace;
+    workspaceRuntime?: IWorkspaceRuntime;
+}
+interface DatabaseClusterEntry {
+    id: string;
+    name: string;
+    role: ClusterDatabaseRole;
+    enabled: boolean;
+    config: DatabaseProviderConfig;
+    lastSyncTimestamp?: number;
+    lastHealthCheckLatencyMs?: number;
+    healthStatus?: "HEALTHY" | "DEGRADED" | "OFFLINE";
+    errorDetails?: string;
+}
+interface DatabaseClusterVault {
+    version: string;
+    primaryDatabaseId: string;
+    clusters: DatabaseClusterEntry[];
+    updatedAt: number;
+}
+interface AuditLogEntry {
+    id: string;
+    timestamp: number;
+    actorUserId: string;
+    actorRole: UserRole;
+    action: string;
+    resource: string;
+    details?: Record<string, any>;
+    ipAddress?: string;
+    status: "SUCCESS" | "FAILURE" | "SECURITY_DENIED";
+}
 interface WorkspaceDescriptor {
     id: string;
     ownerId: string;
     name: string;
-    backendConfig: BackendConnectionConfig;
+    backendConfig?: BackendConnectionConfig;
+    workspaceSpec?: Workspace;
     createdAt: number;
     updatedAt: number;
 }
@@ -741,31 +1035,29 @@ interface UserProfile {
     id: string;
     email?: string;
     username?: string;
-    role: "USER" | "ADMIN";
+    role: UserRole;
     metadata?: Record<string, any>;
+    apps?: Record<string, AppUserContext>;
     createdAt: number;
 }
 interface AuthSession {
     userId: string;
-    role: "USER" | "ADMIN";
+    role: UserRole;
     token: string;
     expiresAt: number;
     user?: UserProfile;
 }
-/**
- * Control Plane Account Provider interface
- */
 interface IAccountProvider {
     getUser(userId: string): Promise<UserProfile | null>;
+    getFullUser?(userId: string): Promise<User | null>;
     authenticate(credentials: AuthCredentials): Promise<AuthSession>;
     verifySession(token: string | null): Promise<AuthSession | null>;
-    listWorkspaces(userId: string): Promise<WorkspaceDescriptor[]>;
-    createWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>): Promise<WorkspaceDescriptor>;
-    deleteWorkspace(userId: string, workspaceId: string): Promise<boolean>;
+    listWorkspaces(userId: string, appId?: string): Promise<WorkspaceDescriptor[]>;
+    createWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>, appId?: string): Promise<WorkspaceDescriptor>;
+    deleteWorkspace(userId: string, workspaceId: string, appId?: string): Promise<boolean>;
+    getAppUserContext?(userId: string, appId: string): Promise<AppUserContext | null>;
+    updateAppPreferences?(userId: string, appId: string, preferences: Partial<AppPreferences>): Promise<AppPreferences>;
 }
-/**
- * Workspace Data Provider interface (Structured / Relational Records)
- */
 interface IWorkspaceDataProvider {
     readonly engine: BackendServiceType;
     connect(): Promise<void>;
@@ -797,27 +1089,21 @@ interface IWorkspaceDataProvider {
     count(table: string, filter?: Record<string, any>): Promise<number>;
     clear(table: string): Promise<void>;
 }
-/**
- * Workspace Storage Provider interface (Large Files / Binary Blobs)
- */
 interface IStorageProvider {
     readonly driver: string;
-    uploadFile(path: string, content: Buffer | Uint8Array | string | ReadableStream, mimeType?: string): Promise<{
+    uploadFile(pathStr: string, content: Buffer | Uint8Array | string | ReadableStream, mimeType?: string): Promise<{
         url: string;
         size: number;
     }>;
-    downloadFile(path: string): Promise<Buffer>;
-    deleteFile(path: string): Promise<boolean>;
-    getPublicUrl(path: string): string;
+    downloadFile(pathStr: string): Promise<Buffer>;
+    deleteFile(pathStr: string): Promise<boolean>;
+    getPublicUrl(pathStr: string): string;
     listFiles(prefix?: string): Promise<Array<{
         path: string;
         size: number;
         updatedAt: number;
     }>>;
 }
-/**
- * Aggregated Workspace Backend
- */
 interface IWorkspaceBackend {
     readonly id: string;
     readonly mode: StorageMode;
@@ -826,9 +1112,6 @@ interface IWorkspaceBackend {
     initialize(): Promise<void>;
     dispose(): Promise<void>;
 }
-/**
- * Built-in Table interface passed directly into Functionality execution context
- */
 interface IFunctionalityTable<T = any> {
     readonly tableName: string;
     readonly service: BackendServiceType;
@@ -852,9 +1135,6 @@ interface IFunctionalityTable<T = any> {
     query(rawQueryOrFilter: any, params?: any[]): Promise<any>;
     clear(): Promise<void>;
 }
-/**
- * Functionality-level backend configuration flags
- */
 type FunctionalityBackendFlag = boolean | BackendServiceType | FunctionalityBackendConfig;
 interface FunctionalityBackendConfig {
     enabled?: boolean;
@@ -863,9 +1143,6 @@ interface FunctionalityBackendConfig {
     schema?: Record<string, any>;
     credentials?: DatabaseProviderConfig;
 }
-/**
- * Entity-level backend configuration container
- */
 interface EntityBackendSettings {
     defaultService?: BackendServiceType;
     sqlite?: DatabaseProviderConfig;
@@ -873,8 +1150,14 @@ interface EntityBackendSettings {
     supabase?: DatabaseProviderConfig;
     pocketbase?: DatabaseProviderConfig;
     firebase?: DatabaseProviderConfig;
+    turso?: DatabaseProviderConfig;
+    mongodb?: DatabaseProviderConfig;
+    custom_api?: DatabaseProviderConfig;
     filesystem?: StorageProviderConfig;
     s3?: StorageProviderConfig;
+    vercel_blob?: StorageProviderConfig;
+    google_drive?: StorageProviderConfig;
+    onedrive?: StorageProviderConfig;
     custom?: Record<string, any>;
 }
 
@@ -911,20 +1194,47 @@ declare class FunctionalityTable<T = any> implements IFunctionalityTable<T> {
 }
 
 /**
- * @file WorkspaceBackendFactory.ts
- * @description Factory resolving decoupled Data Providers and Storage Providers for any storage mode.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: WorkspaceBackendFactory
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Resolves decoupled data and storage engine providers, performs live connection
+ *          latency probes, and resolves hierarchical credential cascades with local fallback.
+ *
+ * Cascade Resolution Flow Chart:
+ *   [Functionality Execution]
+ *              │
+ *              ▼
+ *   [1. Feature-Level Custom Credentials?] ──(Yes)──► [Use Feature Credentials]
+ *              │ (No)
+ *              ▼
+ *   [2. Host Entity Configured Backend?]   ──(Yes)──► [Use Entity Service Config]
+ *              │ (No / Fail)
+ *              ▼
+ *   [3. Fallback to Local SQLite/POSIX]    ─────────► [Use Safe Offline Engine]
+ *
+ * Example:
+ *   const backend = WorkspaceBackendFactory.createLocal("./workspace.sqlite", "./storage");
+ *   const credentials = WorkspaceBackendFactory.resolveCredentialsCascade(featureConfig, entitySettings);
+ * ──────────────────────────────────────────────────────────────────────────────────────────
  */
-
 declare class WorkspaceBackendFactory {
     static create(config: BackendConnectionConfig): IWorkspaceBackend;
     static createLocal(filePath?: string, storagePath?: string): IWorkspaceBackend;
+    /**
+     * Resolves the credential cascade hierarchy:
+     * 1. Feature-level explicit credentials
+     * 2. Host entity configured credentials
+     * 3. Fallback to local SQLite
+     */
+    static resolveCredentialsCascade(functionalityConfig?: FunctionalityBackendConfig | boolean | string, entitySettings?: EntityBackendSettings, defaultFallback?: DatabaseProviderConfig): DatabaseProviderConfig;
     static resolveDataProvider(config: BackendConnectionConfig): IWorkspaceDataProvider;
     static resolveStorageProvider(config: BackendConnectionConfig): IStorageProvider;
 }
 
 /**
  * @file LocalSQLiteAccountProvider.ts
- * @description Local SQLite/JSON-backed Control Plane Account Provider for user accounts and workspace registry.
+ * @description Local SQLite/JSON-backed Control Plane Account Provider for user accounts,
+ *              AppUserContext, and Workspace Storage specifications.
  */
 
 declare class LocalSQLiteAccountProvider implements IAccountProvider {
@@ -935,14 +1245,17 @@ declare class LocalSQLiteAccountProvider implements IAccountProvider {
     private load;
     private persist;
     getUser(userId: string): Promise<UserProfile | null>;
+    getFullUser(userId: string): Promise<User | null>;
     registerUser(credentials: AuthCredentials & {
-        role?: "USER" | "ADMIN";
+        role?: UserRole;
     }): Promise<UserProfile>;
     authenticate(credentials: AuthCredentials): Promise<AuthSession>;
     verifySession(token: string | null): Promise<AuthSession | null>;
-    listWorkspaces(userId: string): Promise<WorkspaceDescriptor[]>;
-    createWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>): Promise<WorkspaceDescriptor>;
-    deleteWorkspace(userId: string, workspaceId: string): Promise<boolean>;
+    getAppUserContext(userId: string, appId: string): Promise<AppUserContext | null>;
+    updateAppPreferences(userId: string, appId: string, preferences: Partial<AppPreferences>): Promise<AppPreferences>;
+    listWorkspaces(userId: string, appId?: string): Promise<WorkspaceDescriptor[]>;
+    createWorkspace(userId: string, descriptor: Partial<WorkspaceDescriptor>, appId?: string): Promise<WorkspaceDescriptor>;
+    deleteWorkspace(userId: string, workspaceId: string, appId?: string): Promise<boolean>;
 }
 
 /**
@@ -981,13 +1294,443 @@ declare class ControlPlaneManager {
 }
 
 /**
- * @file AdminGuard.ts
- * @description Strict backend API boundary authorization guard enforcing role checks.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: AdminGuard
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Strict API boundary authorization guard enforcing role-based access control
+ *          (RBAC: ADMIN / MODERATOR / USER) on administrative and sensitive operations.
+ *
+ * Flow Chart:
+ *   [Protected Action] ───► [Extract Bearer Token] ───► [Verify Session]
+ *                                                               │
+ *                                                               ▼
+ *                                                    [Check Allowed Roles]
+ *                                                    ├── (Match) ──► [Grant Access]
+ *                                                    └── (Fail)  ──► [Throw AccessDenied]
+ *
+ * Example Usage:
+ *   const session = await AdminGuard.verify(authHeader, accountProvider);
+ * ──────────────────────────────────────────────────────────────────────────────────────────
  */
-
 declare class AdminGuard {
+    /**
+     * Verifies that the session token is valid and belongs to an ADMIN.
+     */
     static verify(authHeaderOrToken: string | null | undefined, accountProvider: IAccountProvider): Promise<AuthSession>;
-    static enforce(session: AuthSession | null | undefined): void;
+    /**
+     * Verifies that the session token is valid and belongs to either a MODERATOR or ADMIN.
+     */
+    static verifyModeratorOrAdmin(authHeaderOrToken: string | null | undefined, accountProvider: IAccountProvider): Promise<AuthSession>;
+    /**
+     * Generalized RBAC verification against a list of allowed roles.
+     */
+    static verifyRole(authHeaderOrToken: string | null | undefined, accountProvider: IAccountProvider, allowedRoles?: UserRole[]): Promise<AuthSession>;
+    /**
+     * Synchronous assertion on pre-resolved session.
+     */
+    static enforce(session: AuthSession | null | undefined, allowedRoles?: UserRole[]): void;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: AuditLogger
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Records immutable audit trails for all administrative mutations, user status changes,
+ *          backend connection switches, and cluster failover events.
+ *
+ * Flow Chart:
+ *   [Admin Mutation / State Change] ───► [Construct AuditLogEntry]
+ *                                                    │
+ *                                                    ▼
+ *                                          [Append to Audit Vault] ───► [.krnl/audit_trail.jsonl]
+ *
+ * Example Usage:
+ *   const auditLogger = new AuditLogger("./.krnl/control_plane/audit_trail.jsonl");
+ *   await auditLogger.log({
+ *     actorUserId: "admin_01",
+ *     actorRole: "ADMIN",
+ *     action: "PROMOTE_DATABASE_PRIMARY",
+ *     resource: "cluster_db_turso",
+ *     status: "SUCCESS"
+ *   });
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class AuditLogger {
+    private filePath;
+    constructor(filePath?: string);
+    /**
+     * Records an immutable audit log entry.
+     */
+    log(params: {
+        actorUserId: string;
+        actorRole: UserRole;
+        action: string;
+        resource: string;
+        details?: Record<string, any>;
+        ipAddress?: string;
+        status?: "SUCCESS" | "FAILURE" | "SECURITY_DENIED";
+    }): Promise<AuditLogEntry>;
+    /**
+     * Retrieves historical audit entries with optional filtering.
+     */
+    query(filter?: {
+        actorUserId?: string;
+        action?: string;
+        status?: string;
+        actorRole?: UserRole;
+        limit?: number;
+    }): Promise<AuditLogEntry[]>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: DatabaseClusterManager
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Manages multi-backend redundancy clusters, real-time connection latency testing,
+ *          snapshot synchronization, dynamic primary promotion, and automatic failover.
+ *
+ * Topology Flow Chart:
+ *   [Admin / Health Monitor] ───► [Test Latencies] ───► [Detect Primary Spike / Failure]
+ *                                                               │
+ *                                                               ▼
+ *                                                    [Promote Redundant Clone]
+ *                                                               │
+ *                                                               ▼
+ *                                                    [Demote Old Primary] ───► [Audit Trail]
+ *
+ * Example Usage:
+ *   const clusterManager = new DatabaseClusterManager("./.krnl/control_plane/database_cluster.json");
+ *   await clusterManager.promoteToPrimary("cluster_turso_edge", "admin_01");
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class DatabaseClusterManager {
+    private vaultPath;
+    private auditLogger;
+    private inMemoryVault;
+    constructor(vaultPath?: string, auditLogger?: AuditLogger);
+    private init;
+    getVault(): DatabaseClusterVault;
+    private saveVault;
+    /**
+     * Tests a database connection and measures real-time round-trip latency in milliseconds.
+     */
+    testDatabaseConnection(config: DatabaseProviderConfig): Promise<{
+        ok: boolean;
+        latencyMs: number;
+        errorDetails?: string;
+    }>;
+    /**
+     * Promotes a redundant clone to the active primary role, auto-demoting the existing primary.
+     */
+    promoteToPrimary(targetDatabaseId: string, actorUserId?: string): Promise<DatabaseClusterVault>;
+    /**
+     * Adds or updates a database cluster entry.
+     */
+    upsertClusterEntry(entry: DatabaseClusterEntry, actorUserId?: string): Promise<DatabaseClusterVault>;
+    /**
+     * Synchronizes data snapshots across all enabled redundant backup clones.
+     */
+    syncRedundantDatabases(): Promise<{
+        syncedCount: number;
+        timestamp: number;
+    }>;
+}
+
+declare function calculateContentHash(data: Uint8Array | Buffer | string): string;
+declare function normalizeWorkspacePath(pathStr: string): string;
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: BaseWorkspaceStorageAdapter
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Abstract base implementing common event subscription, validation, and metadata logic.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare abstract class BaseWorkspaceStorageAdapter implements WorkspaceStorageAdapter {
+    abstract readonly provider: StorageProviderType;
+    abstract readonly endpointId: string;
+    protected watchers: Map<string, Set<FileChangeCallback>>;
+    protected isInitialized: boolean;
+    abstract initialize(): Promise<void>;
+    abstract exists(pathStr: string): Promise<boolean>;
+    abstract stat(pathStr: string): Promise<FileMetadata>;
+    abstract list(pathStr?: string): Promise<FileEntry[]>;
+    abstract read(pathStr: string): Promise<Uint8Array>;
+    abstract write(pathStr: string, data: Uint8Array | Buffer | string): Promise<void>;
+    abstract mkdir(pathStr: string): Promise<void>;
+    abstract delete(pathStr: string): Promise<void>;
+    abstract move(source: string, destination: string): Promise<void>;
+    abstract copy(source: string, destination: string): Promise<void>;
+    watch(pathStr: string, callback: FileChangeCallback): Unsubscribe;
+    protected notifyWatchers(event: {
+        type: "create" | "update" | "delete";
+        path: string;
+        metadata?: FileMetadata;
+    }): void;
+    disconnect(): Promise<void>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: LocalStorageAdapter
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Local filesystem storage adapter supporting POSIX filesystem (Node.js) and
+ *          File System Access API abstraction (Browser).
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class LocalStorageAdapter extends BaseWorkspaceStorageAdapter {
+    readonly provider: StorageProviderType;
+    readonly endpointId: string;
+    private basePath;
+    constructor(endpointId: string, config: LocalStorageConfiguration);
+    private getFullPath;
+    initialize(): Promise<void>;
+    exists(pathStr: string): Promise<boolean>;
+    stat(pathStr: string): Promise<FileMetadata>;
+    list(pathStr?: string): Promise<FileEntry[]>;
+    read(pathStr: string): Promise<Uint8Array>;
+    write(pathStr: string, data: Uint8Array | Buffer | string): Promise<void>;
+    mkdir(pathStr: string): Promise<void>;
+    delete(pathStr: string): Promise<void>;
+    move(source: string, destination: string): Promise<void>;
+    copy(source: string, destination: string): Promise<void>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: ICloudStorageAdapter
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Cloud/Local storage adapter targeting Apple iCloud Drive container directories
+ *          (e.g., ~/Library/Mobile Documents/com~apple~CloudDocs/ or CloudKit Document paths).
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class ICloudStorageAdapter extends BaseWorkspaceStorageAdapter {
+    readonly provider: StorageProviderType;
+    readonly endpointId: string;
+    private basePath;
+    constructor(endpointId: string, config: ICloudStorageConfiguration);
+    private getFullPath;
+    initialize(): Promise<void>;
+    exists(pathStr: string): Promise<boolean>;
+    stat(pathStr: string): Promise<FileMetadata>;
+    list(pathStr?: string): Promise<FileEntry[]>;
+    read(pathStr: string): Promise<Uint8Array>;
+    write(pathStr: string, data: Uint8Array | Buffer | string): Promise<void>;
+    mkdir(pathStr: string): Promise<void>;
+    delete(pathStr: string): Promise<void>;
+    move(source: string, destination: string): Promise<void>;
+    copy(source: string, destination: string): Promise<void>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: GoogleDriveStorageAdapter
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Cloud storage adapter for Google Drive REST API, managing virtual hierarchical
+ *          files and folders under a designated rootFolderId.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class GoogleDriveStorageAdapter extends BaseWorkspaceStorageAdapter {
+    readonly provider: StorageProviderType;
+    readonly endpointId: string;
+    private rootFolderId;
+    private accountId;
+    private virtualDrive;
+    constructor(endpointId: string, config: GoogleDriveConfiguration);
+    initialize(): Promise<void>;
+    exists(pathStr: string): Promise<boolean>;
+    stat(pathStr: string): Promise<FileMetadata>;
+    list(pathStr?: string): Promise<FileEntry[]>;
+    read(pathStr: string): Promise<Uint8Array>;
+    write(pathStr: string, data: Uint8Array | Buffer | string): Promise<void>;
+    mkdir(pathStr: string): Promise<void>;
+    delete(pathStr: string): Promise<void>;
+    move(source: string, destination: string): Promise<void>;
+    copy(source: string, destination: string): Promise<void>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: OneDriveStorageAdapter
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Cloud storage adapter for Microsoft OneDrive / Microsoft Graph REST API.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class OneDriveStorageAdapter extends BaseWorkspaceStorageAdapter {
+    readonly provider: StorageProviderType;
+    readonly endpointId: string;
+    private accountId;
+    private rootFolderId;
+    private items;
+    constructor(endpointId: string, config: OneDriveConfiguration);
+    initialize(): Promise<void>;
+    exists(pathStr: string): Promise<boolean>;
+    stat(pathStr: string): Promise<FileMetadata>;
+    list(pathStr?: string): Promise<FileEntry[]>;
+    read(pathStr: string): Promise<Uint8Array>;
+    write(pathStr: string, data: Uint8Array | Buffer | string): Promise<void>;
+    mkdir(pathStr: string): Promise<void>;
+    delete(pathStr: string): Promise<void>;
+    move(source: string, destination: string): Promise<void>;
+    copy(source: string, destination: string): Promise<void>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: SupabaseStorageAdapter
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Cloud storage adapter for Supabase Storage buckets (S3 / PostgREST compatible).
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class SupabaseStorageAdapter extends BaseWorkspaceStorageAdapter {
+    readonly provider: StorageProviderType;
+    readonly endpointId: string;
+    private projectUrl;
+    private bucket;
+    private objects;
+    constructor(endpointId: string, config: SupabaseStorageConfiguration);
+    initialize(): Promise<void>;
+    exists(pathStr: string): Promise<boolean>;
+    stat(pathStr: string): Promise<FileMetadata>;
+    list(pathStr?: string): Promise<FileEntry[]>;
+    read(pathStr: string): Promise<Uint8Array>;
+    write(pathStr: string, data: Uint8Array | Buffer | string): Promise<void>;
+    mkdir(pathStr: string): Promise<void>;
+    delete(pathStr: string): Promise<void>;
+    move(source: string, destination: string): Promise<void>;
+    copy(source: string, destination: string): Promise<void>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: FirebaseStorageAdapter
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Cloud storage adapter for Firebase Cloud Storage buckets (GCS REST API compatible).
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class FirebaseStorageAdapter extends BaseWorkspaceStorageAdapter {
+    readonly provider: StorageProviderType;
+    readonly endpointId: string;
+    private projectId;
+    private bucket;
+    private blobs;
+    constructor(endpointId: string, config: FirebaseStorageConfiguration);
+    initialize(): Promise<void>;
+    exists(pathStr: string): Promise<boolean>;
+    stat(pathStr: string): Promise<FileMetadata>;
+    list(pathStr?: string): Promise<FileEntry[]>;
+    read(pathStr: string): Promise<Uint8Array>;
+    write(pathStr: string, data: Uint8Array | Buffer | string): Promise<void>;
+    mkdir(pathStr: string): Promise<void>;
+    delete(pathStr: string): Promise<void>;
+    move(source: string, destination: string): Promise<void>;
+    copy(source: string, destination: string): Promise<void>;
+}
+
+type AdapterConstructor = new (endpointId: string, configuration: any) => WorkspaceStorageAdapter;
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: StorageAdapterFactory
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Decoupled factory instantiating and caching WorkspaceStorageAdapter instances
+ *          for Local, iCloud, Google Drive, OneDrive, Supabase, and Firebase storage endpoints.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class StorageAdapterFactory {
+    private static registry;
+    private static instanceCache;
+    static register(provider: string, adapterClass: AdapterConstructor): void;
+    static create(endpoint: StorageEndpoint): WorkspaceStorageAdapter;
+    static clearCache(): void;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: WorkspaceFS
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Provider-independent filesystem operating strictly on the Primary Storage Adapter
+ *          and coordinating with SyncEngine for asynchronous backup replication.
+ *
+ * Write Flow Chart:
+ *   [Application Write] ──► [WorkspaceFS.write()] ──► [Primary Adapter Write]
+ *                                                               │
+ *                                                   (Success) ──┴── (Failure)
+ *                                                       │               │
+ *                                                       ▼               ▼
+ *                                            [SyncEngine.syncFile()] [Throw Error]
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class WorkspaceFS implements IWorkspaceFS {
+    private primary;
+    private syncEngine?;
+    private workspace;
+    constructor(primary: WorkspaceStorageAdapter, workspace: Workspace, syncEngine?: ISyncEngine);
+    setPrimary(newPrimary: WorkspaceStorageAdapter): void;
+    setSyncEngine(engine: ISyncEngine): void;
+    exists(pathStr: string): Promise<boolean>;
+    stat(pathStr: string): Promise<FileMetadata>;
+    list(pathStr?: string): Promise<FileEntry[]>;
+    read(pathStr: string): Promise<Uint8Array>;
+    readText(pathStr: string): Promise<string>;
+    write(pathStr: string, data: Uint8Array | Buffer | string): Promise<void>;
+    mkdir(pathStr: string): Promise<void>;
+    delete(pathStr: string): Promise<void>;
+    move(source: string, destination: string): Promise<void>;
+    copy(source: string, destination: string): Promise<void>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: SyncEngine
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Replicates Primary Storage mutations to 0..N Backup Storage Adapters, executes
+ *          hash/revision conflict resolution, automated retry queues, and explicit restore.
+ *
+ * Comparison Priority:
+ *   contentHash (SHA-256) ──► revision ──► modifiedAt ──► size
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class SyncEngine implements ISyncEngine {
+    private workspace;
+    private primary;
+    private backups;
+    private intervalTimer;
+    private isPaused;
+    private retryQueue;
+    initialize(workspace: Workspace, primary: WorkspaceStorageAdapter, backups: WorkspaceStorageAdapter[]): Promise<void>;
+    updateAdapters(primary: WorkspaceStorageAdapter, backups: WorkspaceStorageAdapter[]): void;
+    sync(workspace: Workspace): Promise<SyncResult>;
+    syncFile(pathStr: string): Promise<SyncResult>;
+    private enqueueRetry;
+    private processRetryQueue;
+    restore(backupEndpoint: StorageEndpoint): Promise<RestoreResult>;
+    verify(workspace: Workspace): Promise<VerificationResult>;
+    pause(): Promise<void>;
+    resume(): Promise<void>;
+    shutdown(): Promise<void>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: WorkspaceRuntime
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Complete runtime container orchestrating a Workspace's Primary Storage Adapter,
+ *          Replicated Backup Adapters, WorkspaceFS abstraction, and SyncEngine lifecycle.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class WorkspaceRuntime implements IWorkspaceRuntime {
+    workspace: Workspace;
+    primary: WorkspaceStorageAdapter;
+    backups: WorkspaceStorageAdapter[];
+    filesystem: WorkspaceFS;
+    syncEngine: SyncEngine;
+    private isInitialized;
+    constructor(workspace: Workspace);
+    static create(workspace: Workspace): Promise<WorkspaceRuntime>;
+    initialize(): Promise<void>;
+    changePrimary(newPrimaryEndpointId: string): Promise<void>;
+    addBackup(endpoint: StorageEndpoint): Promise<void>;
+    detachStorage(endpointId: string): Promise<void>;
+    dispose(): Promise<void>;
 }
 
 /**
@@ -1206,6 +1949,81 @@ declare class FirebaseDataProvider implements IWorkspaceDataProvider {
 }
 
 /**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: TursoLibSQLDataProvider
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Provides high-speed, edge-distributed SQLite query execution over Turso LibSQL HTTP API.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class TursoLibSQLDataProvider implements IWorkspaceDataProvider {
+    readonly engine: BackendServiceType;
+    private config;
+    private isConnected;
+    constructor(config: DatabaseProviderConfig);
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    testConnection(): Promise<{
+        ok: boolean;
+        latencyMs: number;
+        details?: any;
+    }>;
+    ensureTable(tableName: string): Promise<void>;
+    query<T = any>(queryStr: string, params?: any[]): Promise<T[]>;
+    execute(commandStr: string, params?: any[]): Promise<{
+        affectedRows: number;
+    }>;
+    find<T = any>(table: string, filter?: Record<string, any>): Promise<T[]>;
+    findOne<T = any>(table: string, filter: Record<string, any> | string): Promise<T | null>;
+    insert<T = any>(table: string, data: T | T[]): Promise<T | T[]>;
+    update<T = any>(table: string, filter: Record<string, any> | string, patch: Partial<T>): Promise<{
+        affectedRows: number;
+    }>;
+    delete(table: string, filter: Record<string, any> | string): Promise<{
+        affectedRows: number;
+    }>;
+    count(table: string): Promise<number>;
+    clear(table: string): Promise<void>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: MongoAtlasDataProvider
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Provides serverless document querying and mutations against MongoDB Atlas Data API.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class MongoAtlasDataProvider implements IWorkspaceDataProvider {
+    readonly engine: BackendServiceType;
+    private config;
+    private isConnected;
+    constructor(config: DatabaseProviderConfig);
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    testConnection(): Promise<{
+        ok: boolean;
+        latencyMs: number;
+        details?: any;
+    }>;
+    ensureTable(tableName: string): Promise<void>;
+    private callAtlasAction;
+    query<T = any>(queryStr: string): Promise<T[]>;
+    execute(): Promise<{
+        affectedRows: number;
+    }>;
+    find<T = any>(table: string, filter?: Record<string, any>): Promise<T[]>;
+    findOne<T = any>(table: string, filter: Record<string, any> | string): Promise<T | null>;
+    insert<T = any>(table: string, data: T | T[]): Promise<T | T[]>;
+    update<T = any>(table: string, filter: Record<string, any> | string, patch: Partial<T>): Promise<{
+        affectedRows: number;
+    }>;
+    delete(table: string, filter: Record<string, any> | string): Promise<{
+        affectedRows: number;
+    }>;
+    count(table: string, filter?: Record<string, any>): Promise<number>;
+    clear(table: string): Promise<void>;
+}
+
+/**
  * @file FilesystemStorageProvider.ts
  * @description Local Filesystem Storage Provider using KrnlFS for zero-cloud file persistence.
  */
@@ -1325,6 +2143,32 @@ declare class FirebaseStorageProvider implements IStorageProvider {
     deleteFile(targetPath: string): Promise<boolean>;
     getPublicUrl(targetPath: string): string;
     listFiles(_prefix?: string): Promise<Array<{
+        path: string;
+        size: number;
+        updatedAt: number;
+    }>>;
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * CLASS: VercelBlobStorageProvider
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ * Purpose: Provides serverless blob storage uploading, downloading, and URL resolution
+ *          via Vercel Blob REST API.
+ * ──────────────────────────────────────────────────────────────────────────────────────────
+ */
+declare class VercelBlobStorageProvider implements IStorageProvider {
+    readonly driver = "vercel_blob";
+    private config;
+    constructor(config: StorageProviderConfig);
+    uploadFile(path: string, content: Buffer | Uint8Array | string, mimeType?: string): Promise<{
+        url: string;
+        size: number;
+    }>;
+    downloadFile(path: string): Promise<Buffer>;
+    deleteFile(path: string): Promise<boolean>;
+    getPublicUrl(path: string): string;
+    listFiles(): Promise<Array<{
         path: string;
         size: number;
         updatedAt: number;
@@ -4590,4 +5434,4 @@ declare class PocerBlock extends krnlSystemEntityBase {
     private _waitForPort;
 }
 
-export { AdminGuard, AsyncKit, type AuthConfig, type AuthCredentials, type AuthSession, type BackendConnectionConfig, type BackendServiceType, CUSTOM_ERROR_CODE, CacheKit, ControlPlaneManager, type DatabaseProviderConfig, type DefaultConnectionBehaviour, DefaultEventRegistrar, DefaultOperationRegistrar, DefaultServiceContainer, type EndpointCategory, Entity, type EntityBackendSettings, type EventRegistrar, FileCache, FileLock, FilesystemStorageProvider, FirebaseDataProvider, FirebaseStorageProvider, type FsmTransitionResult, type FunctionalityBackendConfig, type FunctionalityBackendFlag, FunctionalityTable, GitManager, HostedAccountProvider, type IAccountProvider, type IFunctionalityTable, type IGraph, type IStorageProvider, type IWorkspaceBackend, type IWorkspaceDataProvider, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlCapabilityResolution, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFlowBuilder, type KrnlFlowStep, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, type KrnlFunctionalityManifest, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlJobScheduler, type KrnlJobTicket, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlProtocolAdapter, KrnlPurityRules, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, KrnlSubAppDiscovery, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLifecycle, KrnlSubAppLoader, KrnlSubAppValidator, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, type KrnlWorkspaceRequirements, LRUCache, LocalSQLiteAccountProvider, type LogEntry, Logger, MemoryTransportAdapter, ObjectKit, type OperationDefinition, type OperationHandler, type OperationRegistrar, PocerBlock, PocketBaseDataProvider, PocketBaseStorageProvider, PostgresDataProvider, type PurityValidationResult, type ReleaseFn, S3StorageProvider, SQLiteDataProvider, type ServiceContainer, type SiblingMemberEntry, type SpawnHandle, type StorageMode, type StorageProviderConfig, StringKit, type SubAppDescriptor, type SubAppErrorDetail, type SubAppExecutionContext, type SubAppInstance, type SubAppLifecycleState, type SubAppManifest, type SubAppModule, type SubAppRegistration, type SubAppRegistrationContext, type SubAppUIConfig, SupabaseDataProvider, SupabaseStorageProvider, TTLCache, type TelemetrySnapshot, type UserProfile, type ValidationFailure, type ValidationReport, type ValidationResult, type ValidationSuccess, WebSocketTransportAdapter, WorkspaceBackendFactory, type WorkspaceDescriptor, assertSchema, buildEntityIntention, clamp, computeDelta, createEnum, createHttpsAppAdapter, createReducer, deduplicate, deepMerge, defaultConnectionBehaviour, formatZodErrors, groupBy, indexBy, interpolate, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, lens, lerp, magneticStorage, mapRange, paginate, partition, roundTo, sanitize, stats, subappLocalStorage, telemetry, toCase, toSlug, topologicalSort, transitionFSM, traverseGraph, truncate, validateSchema, vectorOp };
+export { type AdapterConstructor, AdminGuard, type AppPreferences, type AppUserContext, type ApplicationRuntimeState, AsyncKit, type AuditLogEntry, AuditLogger, type AuthConfig, type AuthCredentials, type AuthSession, type BackendConnectionConfig, type BackendServiceType, BaseWorkspaceStorageAdapter, CUSTOM_ERROR_CODE, CacheKit, type ClusterDatabaseRole, type ConflictStrategy, ControlPlaneManager, type CustomStorageConfiguration, type DatabaseClusterEntry, DatabaseClusterManager, type DatabaseClusterVault, type DatabaseProviderConfig, type DefaultConnectionBehaviour, DefaultEventRegistrar, DefaultOperationRegistrar, DefaultServiceContainer, type EndpointCategory, Entity, type EntityBackendSettings, type EventRegistrar, FileCache, type FileChangeCallback, type FileEntry, FileLock, type FileMetadata, FilesystemStorageProvider, FirebaseDataProvider, FirebaseStorageAdapter, type FirebaseStorageConfiguration, FirebaseStorageProvider, type FsmTransitionResult, type FunctionalityBackendConfig, type FunctionalityBackendFlag, FunctionalityTable, GitManager, type GlobalUserIdentity, type GoogleDriveConfiguration, GoogleDriveStorageAdapter, HostedAccountProvider, type IAccountProvider, ICloudStorageAdapter, type ICloudStorageConfiguration, type IFunctionalityTable, type IGraph, type IStorageProvider, type ISyncEngine, type IWorkspaceBackend, type IWorkspaceDataProvider, type IWorkspaceFS, type IWorkspaceRuntime, type IngressMemberEntry, type InteractionRecord, KrnlAcpProtocol, type KrnlAiExecutionTrace, KrnlAikoClient, KrnlApplicationOrchestrator, KrnlBootBarrier, KrnlBuildValidator, type KrnlCapabilityResolution, type KrnlEndpointAccessPolicy, KrnlEndpointAgent, type KrnlEndpointDefinition, KrnlEndpointScheduler, KrnlEnv, type KrnlEventIntention, KrnlFS, KrnlFlowBuilder, type KrnlFlowStep, KrnlFrontend, KrnlFrontendBuilder, KrnlFrontendGenerator, KrnlFrontendInspector, type KrnlFrontendOptions, type KrnlFunctionality, type KrnlFunctionalityManifest, KrnlHTTP, type KrnlHTTPOptions, KrnlIngressNetwork, type KrnlIngressNetworkMemberConfig, type KrnlIntelligenceSpec, type KrnlIntentionEntity, type KrnlIntentionFunctionality, type KrnlIntentionLibrary, type KrnlIntentionLibraryCategory, KrnlJobScheduler, type KrnlJobTicket, KrnlMagneticLoader, type KrnlManagedServiceConfig, type KrnlManagedServiceHandle, type KrnlManifest, type KrnlManifestDependencies, type KrnlManifestExports, KrnlMcpProtocol, KrnlNonKrnlAppAdapter, type KrnlOrchestratorMemory, type KrnlPeer, KrnlPlannerAgent, KrnlPolicy, type KrnlProtocolAdapter, KrnlPurityRules, type KrnlRegistryApp, KrnlRegistryClient, type KrnlRequiredRemote, type KrnlRequiresSpec, type KrnlResult, KrnlRuntimeStore, KrnlShell, KrnlSiblingNetwork, KrnlSourceAnalyzer, type KrnlSubAppConfig, type KrnlSubAppDependency, KrnlSubAppDiscovery, type KrnlSubAppEntry, type KrnlSubAppExecutionMode, KrnlSubAppLifecycle, KrnlSubAppLoader, KrnlSubAppValidator, KrnlSubAppWorkerHost, KrnlTaskList, KrnlTaskRunner, type KrnlTraceContext, type KrnlUiFieldSpec, type KrnlUiSpec, type KrnlWatchVariable, KrnlWatchVariablesTracker, type KrnlWorkspaceRequirements, LRUCache, LocalSQLiteAccountProvider, LocalStorageAdapter, type LocalStorageConfiguration, type LogEntry, Logger, MemoryTransportAdapter, MongoAtlasDataProvider, ObjectKit, type OneDriveConfiguration, OneDriveStorageAdapter, type OperationDefinition, type OperationHandler, type OperationRegistrar, PocerBlock, PocketBaseDataProvider, PocketBaseStorageProvider, PostgresDataProvider, type ProviderConfiguration, type PurityValidationResult, type ReleaseFn, type RestoreResult, type RetryConfiguration, type S3StorageConfiguration, S3StorageProvider, SQLiteDataProvider, type SecretReference, type ServiceContainer, type SiblingMemberEntry, type SpawnHandle, StorageAdapterFactory, type StorageEndpoint, type StorageEndpointStatus, type StorageEndpointSyncState, type StorageMode, type StorageProviderConfig, type StorageProviderType, StringKit, type SubAppDescriptor, type SubAppErrorDetail, type SubAppExecutionContext, type SubAppInstance, type SubAppLifecycleState, type SubAppManifest, type SubAppModule, type SubAppRegistration, type SubAppRegistrationContext, type SubAppUIConfig, SupabaseDataProvider, SupabaseStorageAdapter, type SupabaseStorageConfiguration, SupabaseStorageProvider, type SyncConfiguration, SyncEngine, type SyncMode, type SyncResult, TTLCache, type TelemetrySnapshot, TursoLibSQLDataProvider, type Unsubscribe, type User, type UserProfile, type UserRole, type ValidationFailure, type ValidationReport, type ValidationResult, type ValidationSuccess, VercelBlobStorageProvider, type VerificationConfiguration, type VerificationResult, WebSocketTransportAdapter, type Workspace, WorkspaceBackendFactory, type WorkspaceDescriptor, WorkspaceFS, type WorkspacePreferences, WorkspaceRuntime, type WorkspaceStorageAdapter, assertSchema, buildEntityIntention, calculateContentHash, clamp, computeDelta, createEnum, createHttpsAppAdapter, createReducer, deduplicate, deepMerge, defaultConnectionBehaviour, formatZodErrors, groupBy, indexBy, interpolate, krnlCollector, krnlData, krnlDataFactory, krnlEmitter, krnlEntityBase, krnlEntityCompositionalHierarchyManager, krnlError, krnlErrorCodes, krnlErrorMessages, krnlGlobalEmitterAddress, krnlInterface, krnlLocalEmitterAddress, krnlLocalFunctionality, krnlMessage, krnlNetworkOrchestratorEntityBase, krnlPrimitiveDataTypes, krnl as krnlProto, krnlRemoteFunctionality, krnlServiceSuitePorts, krnlServiceSuites, krnlSubSystemOrchestratorBase, krnlSystemCommComponent, krnlSystemEntityBase, krnlSystemTypes, krnlTransportAdapter, krnlUnifiedHttpAdapter, lens, lerp, magneticStorage, mapRange, normalizeWorkspacePath, paginate, partition, roundTo, sanitize, stats, subappLocalStorage, telemetry, toCase, toSlug, topologicalSort, transitionFSM, traverseGraph, truncate, validateSchema, vectorOp };

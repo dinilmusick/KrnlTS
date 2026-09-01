@@ -1,33 +1,24 @@
 import {
   Entity,
   KrnlFlowBuilder
-} from "./chunk-3YXHDIM4.js";
-import {
-  DefaultEventRegistrar,
-  DefaultOperationRegistrar,
-  DefaultServiceContainer,
-  KrnlSubAppDiscovery,
-  KrnlSubAppLifecycle,
-  KrnlSubAppValidator,
-  createHttpsAppAdapter
-} from "./chunk-EUWW3ZLC.js";
+} from "./chunk-J7ZYNVRS.js";
 import {
   KrnlRegistryClient
-} from "./chunk-4MELRUJ6.js";
+} from "./chunk-6ULMHNXR.js";
 import {
   KrnlSubAppWorkerHost
-} from "./chunk-UBJAGRZU.js";
+} from "./chunk-7WUETJEV.js";
 import {
   KrnlSubAppLoader
-} from "./chunk-VO6XDSLT.js";
+} from "./chunk-XVABPAUZ.js";
 import {
   KrnlMagneticLoader,
   magneticStorage,
   subappLocalStorage
-} from "./chunk-EIEVYD2F.js";
+} from "./chunk-JVLZU4K7.js";
 import {
   KrnlNonKrnlAppAdapter
-} from "./chunk-FOQJAGMV.js";
+} from "./chunk-A5KRAYDB.js";
 import {
   KrnlApplicationOrchestrator,
   KrnlBootBarrier,
@@ -47,34 +38,47 @@ import {
   krnl,
   krnlSystemCommComponent,
   krnlSystemEntityBase
-} from "./chunk-J7LPCRGW.js";
-import {
-  KrnlFrontendGenerator,
-  init_K_LIB_Krnl_Frontend_Generator
-} from "./chunk-CKLBXX4A.js";
+} from "./chunk-T2ZVN434.js";
 import {
   KrnlFrontendBuilder,
   init_K_LIB_Krnl_Frontend_Builder
-} from "./chunk-GUJKDC62.js";
+} from "./chunk-6QCYRS5L.js";
 import {
   AdminGuard,
+  AuditLogger,
+  BaseWorkspaceStorageAdapter,
   CUSTOM_ERROR_CODE,
   ControlPlaneManager,
+  DatabaseClusterManager,
   FilesystemStorageProvider,
   FirebaseDataProvider,
+  FirebaseStorageAdapter,
   FirebaseStorageProvider,
   FunctionalityTable,
+  GoogleDriveStorageAdapter,
   HostedAccountProvider,
+  ICloudStorageAdapter,
   LocalSQLiteAccountProvider,
+  LocalStorageAdapter,
   MemoryTransportAdapter,
+  MongoAtlasDataProvider,
+  OneDriveStorageAdapter,
   PocketBaseDataProvider,
   PocketBaseStorageProvider,
   PostgresDataProvider,
   S3StorageProvider,
   SQLiteDataProvider,
+  StorageAdapterFactory,
   SupabaseDataProvider,
+  SupabaseStorageAdapter,
   SupabaseStorageProvider,
+  SyncEngine,
+  TursoLibSQLDataProvider,
+  VercelBlobStorageProvider,
   WorkspaceBackendFactory,
+  WorkspaceFS,
+  WorkspaceRuntime,
+  calculateContentHash,
   krnlCollector,
   krnlEmitter,
   krnlEntityBase,
@@ -88,8 +92,9 @@ import {
   krnlLocalFunctionality,
   krnlMessage,
   krnlRemoteFunctionality,
-  krnlTransportAdapter
-} from "./chunk-WEW3N533.js";
+  krnlTransportAdapter,
+  normalizeWorkspacePath
+} from "./chunk-XSCKNRCZ.js";
 import {
   CacheKit,
   FileCache,
@@ -100,23 +105,32 @@ import {
   LRUCache,
   StringKit,
   TTLCache
-} from "./chunk-WK77QM4R.js";
+} from "./chunk-GADIRLRS.js";
 import {
   AsyncKit,
   FileLock,
   KrnlFS,
   KrnlHTTP,
   ObjectKit
-} from "./chunk-VSIHESQD.js";
-import "./chunk-GL23ZN7U.js";
+} from "./chunk-MLVWARD4.js";
+import "./chunk-P6XEM2LA.js";
 import {
   telemetry
-} from "./chunk-AHWZBXWV.js";
+} from "./chunk-DI27MOR7.js";
 import {
   KrnlAcpProtocol,
   KrnlMcpProtocol,
   krnlUnifiedHttpAdapter
-} from "./chunk-AX5FJY7Z.js";
+} from "./chunk-3ES4K2ZP.js";
+import {
+  DefaultEventRegistrar,
+  DefaultOperationRegistrar,
+  DefaultServiceContainer,
+  KrnlSubAppDiscovery,
+  KrnlSubAppLifecycle,
+  KrnlSubAppValidator,
+  createHttpsAppAdapter
+} from "./chunk-OEINUDSE.js";
 import {
   KrnlPolicy,
   Logger,
@@ -128,10 +142,14 @@ import {
   krnlServiceSuitePorts,
   krnlServiceSuites,
   krnlSystemTypes
-} from "./chunk-43SQEXFM.js";
+} from "./chunk-K54K2KZW.js";
+import {
+  KrnlFrontendGenerator,
+  init_K_LIB_Krnl_Frontend_Generator
+} from "./chunk-YXGL3ZEU.js";
 import "./chunk-KFQGP6VL.js";
 
-// src/krnl/core/K_ENT_Krnl_Sub_System_Orchestrator_Base.ts
+// src/core/K_ENT_Krnl_Sub_System_Orchestrator_Base.ts
 var krnlSubSystemOrchestratorBase = class extends krnlEntityBase {
   constructor(name, owner) {
     if (!owner) {
@@ -142,7 +160,7 @@ var krnlSubSystemOrchestratorBase = class extends krnlEntityBase {
   }
 };
 
-// src/krnl/core/K_ENT_Krnl_Network_Orchestrator_Entity_Base.ts
+// src/core/K_ENT_Krnl_Network_Orchestrator_Entity_Base.ts
 var krnlNetworkOrchestratorEntityBase = class extends krnlSystemEntityBase {
   constructor(name = "KrnlNetworkOrchestrator", owner = null, commPort = 10110, host = "0.0.0.0") {
     super(name, owner, commPort, host);
@@ -203,11 +221,11 @@ var krnlNetworkOrchestratorEntityBase = class extends krnlSystemEntityBase {
   }
 };
 
-// src/krnl/core/index.ts
+// src/core/index.ts
 init_K_LIB_Krnl_Frontend_Generator();
 init_K_LIB_Krnl_Frontend_Builder();
 
-// src/krnl/core/K_LIB_Krnl_Intention_Types.ts
+// src/core/K_LIB_Krnl_Intention_Types.ts
 function buildEntityIntention(entity) {
   const functionalities = [];
   if (entity.localFunctionalities) {
@@ -230,7 +248,7 @@ function buildEntityIntention(entity) {
   };
 }
 
-// src/krnl/core/K_LIB_Pocer_Block.ts
+// src/core/K_LIB_Pocer_Block.ts
 import http from "http";
 import net from "net";
 import { execSync, exec, spawn } from "child_process";
@@ -444,9 +462,12 @@ var PocerBlock = class extends krnlSystemEntityBase {
 export {
   AdminGuard,
   AsyncKit,
+  AuditLogger,
+  BaseWorkspaceStorageAdapter,
   CUSTOM_ERROR_CODE,
   CacheKit,
   ControlPlaneManager,
+  DatabaseClusterManager,
   DefaultEventRegistrar,
   DefaultOperationRegistrar,
   DefaultServiceContainer,
@@ -455,10 +476,13 @@ export {
   FileLock,
   FilesystemStorageProvider,
   FirebaseDataProvider,
+  FirebaseStorageAdapter,
   FirebaseStorageProvider,
   FunctionalityTable,
   GitManager,
+  GoogleDriveStorageAdapter,
   HostedAccountProvider,
+  ICloudStorageAdapter,
   KrnlAcpProtocol,
   KrnlAikoClient,
   KrnlApplicationOrchestrator,
@@ -494,22 +518,33 @@ export {
   KrnlWatchVariablesTracker,
   LRUCache,
   LocalSQLiteAccountProvider,
+  LocalStorageAdapter,
   Logger,
   MemoryTransportAdapter,
+  MongoAtlasDataProvider,
   ObjectKit,
+  OneDriveStorageAdapter,
   PocerBlock,
   PocketBaseDataProvider,
   PocketBaseStorageProvider,
   PostgresDataProvider,
   S3StorageProvider,
   SQLiteDataProvider,
+  StorageAdapterFactory,
   StringKit,
   SupabaseDataProvider,
+  SupabaseStorageAdapter,
   SupabaseStorageProvider,
+  SyncEngine,
   TTLCache,
+  TursoLibSQLDataProvider,
+  VercelBlobStorageProvider,
   WebSocketTransportAdapter,
   WorkspaceBackendFactory,
+  WorkspaceFS,
+  WorkspaceRuntime,
   buildEntityIntention,
+  calculateContentHash,
   createEnum,
   createHttpsAppAdapter,
   defaultConnectionBehaviour,
@@ -540,6 +575,7 @@ export {
   krnlTransportAdapter,
   krnlUnifiedHttpAdapter,
   magneticStorage,
+  normalizeWorkspacePath,
   subappLocalStorage,
   telemetry
 };

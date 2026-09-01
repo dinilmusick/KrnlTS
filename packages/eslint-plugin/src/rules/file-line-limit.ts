@@ -15,7 +15,7 @@ export const fileLineLimitRule = {
       },
     ],
     messages: {
-      fileLineLimitExceeded: "File has {{lines}} lines, which exceeds the strict Krnl limit of {{max}} lines. Decompose into quad-units or concept libraries.",
+      fileLineLimitExceeded: "File has {{lines}} lines, which exceeds the strict Krnl limit of {{max}} lines. Decompose into sub-components, custom hooks, quad-units, or concept libraries.",
     },
   },
   create(context: any) {

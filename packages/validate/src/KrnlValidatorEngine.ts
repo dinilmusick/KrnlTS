@@ -74,7 +74,7 @@ export class KrnlValidatorEngine {
       errors.push({
         ruleId: 'krnl/file-line-limit',
         filePath,
-        message: `File exceeds maximum length of ${this.maxFileLineLimit} lines (currently ${lines.length} lines).`,
+        message: `File exceeds maximum length of ${this.maxFileLineLimit} lines (currently ${lines.length} lines). Decompose into sub-components, custom hooks, quad-units, or concept libraries.`,
         severity: 'error'
       });
     }
@@ -94,7 +94,126 @@ export class KrnlValidatorEngine {
       }
     }
 
-    // 3. 4-Layer Hierarchy & Helper Rules
+    // 3. Top-Level File Purity Law
+    const isUiTopLevel = /^(App|main|index|_app|root)\.(tsx|jsx)$/i.test(baseName);
+    const isBackendTopLevel = /^(server|app)\.(ts|js)$/i.test(baseName) &&
+      (!filePath.includes('/components/') && !filePath.includes('/entities/') && !filePath.includes('/libraries/'));
+
+    if (isUiTopLevel) {
+      // Prohibit raw JSX / HTML elements in top-level file
+      const jsxElements = sf.getDescendantsOfKind(SyntaxKind.JsxOpeningElement);
+      const jsxSelfClosing = sf.getDescendantsOfKind(SyntaxKind.JsxSelfClosingElement);
+      const allJsxTags = [...jsxElements, ...jsxSelfClosing];
+
+      for (const jsx of allJsxTags) {
+        const tagName = jsx.getTagNameNode().getText();
+        if (/^[a-z]/.test(tagName)) {
+          errors.push({
+            ruleId: 'krnl/top-level-purity',
+            filePath,
+            line: jsx.getStartLineNumber(),
+            message: `Top-level file '${baseName}' violates Top-Level Purity Law. Raw JSX/HTML element '<${tagName}>' is strictly forbidden. Top-level files must ONLY import and compose React components.`,
+            severity: 'error'
+          });
+        }
+      }
+
+      // Prohibit React hooks in top-level file
+      const calls = sf.getDescendantsOfKind(SyntaxKind.CallExpression);
+      for (const call of calls) {
+        const exprText = call.getExpression().getText();
+        if (
+          ['useState', 'useEffect', 'useRef', 'useMemo', 'useCallback', 'useReducer', 'useContext', 'useLayoutEffect'].includes(exprText) ||
+          (/^use[A-Z]/.test(exprText) && exprText !== 'use')
+        ) {
+          errors.push({
+            ruleId: 'krnl/top-level-purity',
+            filePath,
+            line: call.getStartLineNumber(),
+            message: `Top-level file '${baseName}' violates Top-Level Purity Law. React hook '${exprText}' is forbidden in top-level files. Encapsulate state and effects inside dedicated component files.`,
+            severity: 'error'
+          });
+        }
+      }
+    }
+
+    if (isBackendTopLevel) {
+      const calls = sf.getDescendantsOfKind(SyntaxKind.CallExpression);
+      for (const call of calls) {
+        const exprText = call.getExpression().getText();
+        if (/^(app|router|server)\.(get|post|put|delete|patch|options|head)$/.test(exprText)) {
+          errors.push({
+            ruleId: 'krnl/top-level-purity',
+            filePath,
+            line: call.getStartLineNumber(),
+            message: `Backend entry file '${baseName}' violates Entry Purity Law. Inline route definition '${exprText}' is forbidden. Delegate to dedicated route/controller modules.`,
+            severity: 'error'
+          });
+        }
+      }
+    }
+
+    // 4. One Component Per File Rule (for .tsx/.jsx files)
+    if (filePath.endsWith('.tsx') || filePath.endsWith('.jsx')) {
+      const componentNames: string[] = [];
+
+      // A. Function declarations with JSX
+      for (const fn of sf.getFunctions()) {
+        const name = fn.getName();
+        if (name && /^[A-Z]/.test(name)) {
+          const hasJsx = fn.getDescendantsOfKind(SyntaxKind.JsxElement).length > 0 ||
+            fn.getDescendantsOfKind(SyntaxKind.JsxSelfClosingElement).length > 0 ||
+            fn.getDescendantsOfKind(SyntaxKind.JsxFragment).length > 0;
+          if (hasJsx) {
+            componentNames.push(name);
+          }
+        }
+      }
+
+      // B. Arrow functions / function expressions assigned to PascalCase variables
+      for (const stmt of sf.getVariableStatements()) {
+        for (const decl of stmt.getDeclarations()) {
+          const name = decl.getName();
+          if (/^[A-Z]/.test(name)) {
+            const typeText = decl.getTypeNode()?.getText() || '';
+            const isFcType = typeText.includes('FC') || typeText.includes('FunctionComponent') || typeText.includes('ComponentType');
+            const init = decl.getInitializer();
+            if (init) {
+              const hasJsx = init.getDescendantsOfKind(SyntaxKind.JsxElement).length > 0 ||
+                init.getDescendantsOfKind(SyntaxKind.JsxSelfClosingElement).length > 0 ||
+                init.getDescendantsOfKind(SyntaxKind.JsxFragment).length > 0;
+              if (isFcType || hasJsx) {
+                if (!componentNames.includes(name)) {
+                  componentNames.push(name);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // C. Class components
+      for (const cls of sf.getClasses()) {
+        const name = cls.getName();
+        const ext = cls.getExtends()?.getText() || '';
+        if (name && (ext.includes('Component') || ext.includes('PureComponent'))) {
+          if (!componentNames.includes(name)) {
+            componentNames.push(name);
+          }
+        }
+      }
+
+      if (componentNames.length > 1) {
+        errors.push({
+          ruleId: 'krnl/one-component-per-file',
+          filePath,
+          message: `File '${baseName}' defines multiple React components (${componentNames.join(', ')}). Krnl strictly enforces ONE component per file. Decompose into sub-component files.`,
+          severity: 'error'
+        });
+      }
+    }
+
+    // 5. 4-Layer Hierarchy & Helper Rules
     const isHelper = filePath.includes('helper_functions') || filePath.includes('/helpers/') || filePath.includes('\\helpers\\');
     const isMainLogic = filePath.endsWith('logic.ts') || filePath.endsWith('logic.js');
     const isRootConcept = filePath.includes('libraries/') || filePath.includes('Concepts.ts');
@@ -145,7 +264,7 @@ export class KrnlValidatorEngine {
       }
     }
 
-    // 4. Context Destructuring Trap ({ state, system } vs { state, entity })
+    // 6. Context Destructuring Trap ({ state, system } vs { state, entity })
     if (sourceText.includes('main = async') || sourceText.includes('export const main = async')) {
       const match = sourceText.match(/main\s*=\s*async\s*\([^,]+,\s*\{([^}]*)\}\s*\)/);
       if (match) {
@@ -161,7 +280,7 @@ export class KrnlValidatorEngine {
       }
     }
 
-    // 5. Anti-Polling Rule
+    // 7. Anti-Polling Rule
     const calls = sf.getDescendantsOfKind(SyntaxKind.CallExpression);
     for (const call of calls) {
       const exprText = call.getExpression().getText();
@@ -176,7 +295,7 @@ export class KrnlValidatorEngine {
       }
     }
 
-    // 6. Boot Order Rule in Entity Classes
+    // 8. Boot Order Rule in Entity Classes
     const isEntityClass = sf.getClasses().some(c => {
       const ext = c.getExtends();
       return ext && (ext.getText().includes('Entity') || ext.getText().includes('krnlEntityBase'));
@@ -227,7 +346,7 @@ export class KrnlValidatorEngine {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         this.collectSourceFiles(full, collected);
-      } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.js'))) {
+      } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.js') || entry.name.endsWith('.tsx') || entry.name.endsWith('.jsx'))) {
         collected.push(full);
       }
     }

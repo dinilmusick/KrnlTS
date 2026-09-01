@@ -95,7 +95,12 @@ export class KrnlSourceAnalyzer {
     errors.push(...KrnlPurityRules.checkHelperPurity(filePath, source));
     errors.push(...KrnlPurityRules.checkMainDelegation(filePath, source));
 
-    // 3. Boot order & uiSpec rules (Only on real Entity classes)
+    // 3. Top-Level Purity Law & One-Component-Per-File
+    errors.push(...KrnlPurityRules.checkTopLevelPurity(filePath, source));
+    const oneCompErr = KrnlPurityRules.checkOneComponentPerFile(filePath, source);
+    if (oneCompErr) errors.push(oneCompErr);
+
+    // 4. Boot order & uiSpec rules (Only on real Entity classes)
     if (isEntityClass && !filePath.includes('/bin/')) {
       const addLocals = this.getAddLocalCalls(source);
       const loaderLine = this.getMagneticLoaderLine(source);
@@ -117,7 +122,7 @@ export class KrnlSourceAnalyzer {
   static validateProject(projectRoot: string): ValidationReport {
     const allErrors: string[] = [];
     const allWarnings: string[] = [];
-    const scanDirs = ['src', 'entities', 'libraries', 'functionalities'];
+    const scanDirs = ['src', 'entities', 'libraries', 'functionalities', 'components', 'pages', 'app'];
 
     for (const d of scanDirs) {
       const targetDir = path.join(projectRoot, d);
@@ -128,6 +133,16 @@ export class KrnlSourceAnalyzer {
           allErrors.push(...report.errors);
           allWarnings.push(...report.warnings);
         }
+      }
+    }
+
+    // Also scan top-level root files (e.g. App.tsx, index.ts, server.ts)
+    const rootEntries = fs.readdirSync(projectRoot, { withFileTypes: true });
+    for (const entry of rootEntries) {
+      if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx') || entry.name.endsWith('.js') || entry.name.endsWith('.jsx'))) {
+        const report = this.validateEntitySource(path.join(projectRoot, entry.name));
+        allErrors.push(...report.errors);
+        allWarnings.push(...report.warnings);
       }
     }
 
@@ -142,7 +157,7 @@ export class KrnlSourceAnalyzer {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         this.scanSourceFiles(fullPath, found);
-      } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.js'))) {
+      } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.js') || entry.name.endsWith('.tsx') || entry.name.endsWith('.jsx'))) {
         found.push(fullPath);
       }
     }
