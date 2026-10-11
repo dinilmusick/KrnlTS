@@ -9,9 +9,13 @@ description: Directives for KrnlMagneticLoader auto-discovery, subapp execution 
 ```typescript
 import { KrnlMagneticLoader } from "@dinilmusick/krnlts";
 
-// Discovers functionalities/, entities/, subapps/, and protocol_adapters/
-await KrnlMagneticLoader.loadAll(rootEntity, projectRoot);
+// Discovers shared src/functionalities/, protocol_adapters/, and subapps/ for flat entities
+await KrnlMagneticLoader.loadAll(entity, import.meta.url);
 ```
+
+- **Flat Discovery**: Shared functionalities are loaded from `src/functionalities/` and bound to the entity.
+- **Entity Registration**: Every entity is registered into `KrnlEntityRegistry` during `loadAll()` to enable cross-entity orchestration.
+- **Zero Nested Entities**: Nested `entities/` folders are prohibited; all entities reside directly in `src/` at the same level.
 
 ### Critical Boot Order Invariant:
 ```

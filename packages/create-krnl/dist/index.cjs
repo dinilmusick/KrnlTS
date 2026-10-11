@@ -26,35 +26,49 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // src/index.ts
 var fs = __toESM(require("fs"), 1);
 var path = __toESM(require("path"), 1);
-var projectName = process.argv[2] || "my-krnl-app";
-var targetDir = path.resolve(process.cwd(), projectName);
+var import_krnl_core = require("@dinilmusick/krnl-core");
+var rawArg = process.argv[2] || "my-krnl-app";
+var targetDir = path.resolve(process.cwd(), rawArg);
+var projectName = path.basename(targetDir);
 console.log(`
-\u{1F680} [create-krnl] Scaffolding new Krnl project in: ${targetDir}
+\u{1F680} [create-krnl] Scaffolding new Krnl project with symmetric backend/frontend planes in: ${targetDir}
 `);
 if (fs.existsSync(targetDir)) {
-  console.error(`\u274C Directory '${projectName}' already exists.`);
+  console.error(`\u274C Directory "${projectName}" already exists.`);
   process.exit(1);
 }
 fs.mkdirSync(targetDir, { recursive: true });
-fs.mkdirSync(path.join(targetDir, "src", "entities", "App", "functionalities", "Hello", "main_function"), { recursive: true });
-fs.mkdirSync(path.join(targetDir, "src", "entities", "App", "functionalities", "Hello", "state_data"), { recursive: true });
-fs.mkdirSync(path.join(targetDir, "src", "entities", "App", "functionalities", "Hello", "helper_functions"), { recursive: true });
-fs.mkdirSync(path.join(targetDir, "src", "entities", "App", "functionalities", "Hello", "events"), { recursive: true });
-fs.mkdirSync(path.join(targetDir, "src", "libraries"), { recursive: true });
-fs.mkdirSync(path.join(targetDir, "src", "subapps"), { recursive: true });
-fs.mkdirSync(path.join(targetDir, "storage", "media"), { recursive: true });
+var bLibDir = path.join(targetDir, "krnl", "backend", "libraries", "AppConcepts");
+var bEntityDir = path.join(targetDir, "krnl", "backend", "entities", "App");
+var bFuncDir = path.join(targetDir, "krnl", "backend", "functionalities", "Hello");
+fs.mkdirSync(path.join(bLibDir, "tests"), { recursive: true });
+fs.mkdirSync(path.join(bEntityDir, "orchestrations"), { recursive: true });
+fs.mkdirSync(path.join(bEntityDir, "tests"), { recursive: true });
+fs.mkdirSync(path.join(bFuncDir, "main_function"), { recursive: true });
+fs.mkdirSync(path.join(bFuncDir, "state_data"), { recursive: true });
+fs.mkdirSync(path.join(bFuncDir, "helper_functions"), { recursive: true });
+fs.mkdirSync(path.join(bFuncDir, "events"), { recursive: true });
+fs.mkdirSync(path.join(bFuncDir, "tests"), { recursive: true });
+var fLibDir = path.join(targetDir, "krnl", "frontend", "libraries", "ButtonConcepts");
+var fEntityDir = path.join(targetDir, "krnl", "frontend", "entities", "App");
+var fFuncDir = path.join(targetDir, "krnl", "frontend", "functionalities", "Hello");
+fs.mkdirSync(path.join(fLibDir, "tests"), { recursive: true });
+fs.mkdirSync(path.join(fEntityDir, "tests"), { recursive: true });
+fs.mkdirSync(path.join(fFuncDir, "tests"), { recursive: true });
 fs.mkdirSync(path.join(targetDir, "docs"), { recursive: true });
+fs.mkdirSync(path.join(targetDir, ".skipo"), { recursive: true });
 fs.writeFileSync(path.join(targetDir, "package.json"), JSON.stringify({
   name: projectName,
   version: "1.0.0",
-  description: "Full-stack application powered by Krnl",
+  description: "Full-stack application powered by Krnl symmetric architecture",
   type: "module",
   main: "dist/index.js",
   scripts: {
     dev: "krnl dev",
     build: "krnl build",
     validate: "krnl validate",
-    watch: "krnl watch --watch"
+    test: "vitest run",
+    sync: "krnl sync"
   },
   dependencies: {
     "@dinilmusick/krnl": "^1.0.0",
@@ -65,7 +79,8 @@ fs.writeFileSync(path.join(targetDir, "package.json"), JSON.stringify({
     "@dinilmusick/krnl-cli": "^1.0.0",
     "@dinilmusick/krnl-validate": "^1.0.0",
     "@dinilmusick/eslint-plugin-krnl": "^1.0.0",
-    typescript: "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^1.6.0"
   }
 }, null, 2));
 fs.writeFileSync(path.join(targetDir, "tsconfig.json"), JSON.stringify({
@@ -74,48 +89,115 @@ fs.writeFileSync(path.join(targetDir, "tsconfig.json"), JSON.stringify({
     module: "NodeNext",
     moduleResolution: "NodeNext",
     lib: ["ESNext", "DOM"],
+    jsx: "react-jsx",
     strict: true,
     outDir: "./dist",
     skipLibCheck: true,
     resolveJsonModule: true,
     paths: {
-      "@/*": ["./src/*"]
+      "@/*": ["./krnl/*"]
     }
   },
-  include: ["src/**/*", "krnl-magnetic.d.ts"],
+  include: ["krnl/**/*", `${projectName}.ts`, "krnl-magnetic.d.ts"],
   exclude: ["node_modules", "dist"]
 }, null, 2));
-fs.writeFileSync(path.join(targetDir, "krnl.json"), JSON.stringify({
-  name: projectName,
-  version: "1.0.0",
-  entry: "src/entities/App/App.ts",
-  port: 8080,
-  backend: {
-    controlPlane: "sqlite",
-    dataPlane: "local"
-  }
-}, null, 2));
-fs.writeFileSync(path.join(targetDir, "src", "entities", "App", "App.ts"), `import { Entity, KrnlMagneticLoader } from '@dinilmusick/krnl-core';
+fs.writeFileSync(path.join(targetDir, `${projectName}.ts`), `import { defineApp, Protocols } from "@dinilmusick/krnl-core";
+import { App } from "./krnl/backend/entities/App/App.js";
 
+export default defineApp({
+  name: "${projectName}",
+  version: "1.0.0",
+  description: "${projectName} application entrypoint",
+  protocols: [
+    Protocols.HTTP({ port: 8080, prefix: "/api" }),
+    Protocols.WebSocket({ port: 8081 }),
+    Protocols.MCP({ name: "${projectName}-agent-tools" })
+  ],
+  entities: [
+    App
+  ],
+  frontend: {
+    rootEntity: "App",
+    variant: 0
+  }
+});
+`);
+fs.writeFileSync(path.join(bLibDir, "definitions.ts"), `/**
+ * @file definitions.ts
+ * @role component
+ * @description Types, interfaces, and contracts for AppConcepts.
+ */
+
+export interface AppTransformOptions {
+  normalize?: boolean;
+}
+`);
+fs.writeFileSync(path.join(bLibDir, "functions.ts"), `/**
+ * @file functions.ts
+ * @role component
+ * @description Pure functions (Layer 0A) for AppConcepts.
+ */
+
+import type { AppTransformOptions } from "./definitions.js";
+
+export function pureTransform<T>(data: T, _options?: AppTransformOptions): T {
+  return data;
+}
+`);
+fs.writeFileSync(path.join(bLibDir, "manifest.json"), JSON.stringify({
+  name: "AppConcepts",
+  description: "Core utility concept library for App",
+  dependencies: {}
+}, null, 2));
+fs.writeFileSync(path.join(bLibDir, "tests", "AppConcepts.test.ts"), `import { describe, it, expect } from "vitest";
+import { pureTransform } from "../functions.js";
+
+describe("AppConcepts", () => {
+  it("transforms data deterministically", () => {
+    expect(pureTransform(42)).toBe(42);
+  });
+});
+`);
+fs.writeFileSync(path.join(bEntityDir, "App.ts"), `import { Entity, KrnlMagneticLoader } from "@dinilmusick/krnl-core";
+
+/**
+ * @role skeleton
+ */
 export class App extends Entity {
   constructor() {
     super({
-      id: 'App',
-      version: '1.0.0',
-      description: 'Root application entity'
+      id: "App",
+      version: "1.0.0",
+      description: "Root application entity"
     });
   }
 
   async boot(): Promise<void> {
-    // Magnetic auto-discovery of functionalities and subapps
     await KrnlMagneticLoader.loadAll(this, import.meta.url);
   }
 }
 
 export default App;
 `);
-var helloDir = path.join(targetDir, "src", "entities", "App", "functionalities", "Hello");
-fs.writeFileSync(path.join(helloDir, "HelloAtom.ts"), `export interface HelloInput {
+fs.writeFileSync(path.join(bEntityDir, "orchestrations", "BootFlow.ts"), `import { KrnlFlowBuilder } from "@dinilmusick/krnl-core";
+
+export function configureBootFlow(entity: any) {
+  return entity.flow("bootSequence")
+    .thenFunctionality("Hello")
+    .register({ visibility: "public" });
+}
+`);
+fs.writeFileSync(path.join(bEntityDir, "tests", "App.test.ts"), `import { describe, it, expect } from "vitest";
+import { App } from "../App.js";
+
+describe("App Entity", () => {
+  it("initializes with id App", () => {
+    const app = new App();
+    expect(app.id).toBe("App");
+  });
+});
+`);
+fs.writeFileSync(path.join(bFuncDir, "HelloAtom.ts"), `export interface HelloInput {
   name?: string;
 }
 
@@ -124,18 +206,32 @@ export interface HelloOutput {
   timestamp: number;
 }
 `);
-fs.writeFileSync(path.join(helloDir, "main_function", "logic.ts"), `import { HelloInput, HelloOutput } from '../HelloAtom.js';
-import { formatGreeting } from '../helper_functions/formatGreeting.js';
+fs.writeFileSync(path.join(bFuncDir, "manifest.json"), JSON.stringify({
+  name: "Hello",
+  description: "Greeting quad-unit functionality",
+  dependencies: {}
+}, null, 2));
+fs.writeFileSync(path.join(bFuncDir, "main_function", "logic.ts"), `import type { HelloInput, HelloOutput } from "../HelloAtom.js";
+import { formatGreeting } from "../helper_functions/formatGreeting.js";
 
-export const main = async (input: HelloInput, { state, entity }: any): Promise<HelloOutput> => {
-  const greeting = formatGreeting(input.name || 'World');
+export const main = async (input: HelloInput, { state }: any): Promise<HelloOutput> => {
+  const greeting = formatGreeting(input.name || "World");
+  if (state) state.callCount = (state.callCount || 0) + 1;
   return {
     greeting,
     timestamp: Date.now()
   };
 };
 `);
-fs.writeFileSync(path.join(helloDir, "state_data", "state.ts"), `export interface HelloState {
+fs.writeFileSync(path.join(bFuncDir, "main_function", "lifecycle.ts"), `export async function onMount() {
+  console.log("[Hello] Mounted");
+}
+
+export async function onTeardown() {
+  console.log("[Hello] Teardown");
+}
+`);
+fs.writeFileSync(path.join(bFuncDir, "state_data", "state.ts"), `export interface HelloState {
   callCount: number;
 }
 
@@ -143,29 +239,152 @@ export const initialState: HelloState = {
   callCount: 0
 };
 `);
-fs.writeFileSync(path.join(helloDir, "helper_functions", "formatGreeting.ts"), `export function formatGreeting(name: string): string {
-  return \`Hello, \${name}! Welcome to Krnl.\`;
-}
-`);
-fs.writeFileSync(path.join(targetDir, "src", "libraries", "AppConcepts.ts"), `/**
- * @file AppConcepts.ts
+fs.writeFileSync(path.join(bFuncDir, "helper_functions", "formatGreeting.ts"), `/**
  * @role component
- * @description Layer 0 pure domain concept library for App.
  */
-
-export class AppConcepts {
-  static pureTransform<T>(data: T): T {
-    return data;
-  }
+export function formatGreeting(name: string): string {
+  return "Hello, " + name + "! Welcome to Krnl.";
 }
 `);
+fs.writeFileSync(path.join(bFuncDir, "events", "helloEvents.ts"), `/**
+ * @role component
+ */
+export interface HelloGreetedEvent {
+  name: string;
+  timestamp: number;
+}
+`);
+fs.writeFileSync(path.join(bFuncDir, "tests", "Hello.test.ts"), `import { describe, it, expect } from "vitest";
+import { formatGreeting } from "../helper_functions/formatGreeting.js";
+
+describe("Hello functionality", () => {
+  it("formats greeting properly", () => {
+    expect(formatGreeting("Alice")).toContain("Alice");
+  });
+});
+`);
+fs.writeFileSync(path.join(fLibDir, "definitions.ts"), `export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+
+export interface ButtonProps {
+  label: string;
+  variant?: ButtonVariant;
+  disabled?: boolean;
+  onClick?: () => void;
+}
+`);
+fs.writeFileSync(path.join(fLibDir, "components.tsx"), `import React from "react";
+import type { ButtonProps } from "./definitions.js";
+import "./styles.css";
+
+export const Button: React.FC<ButtonProps> = ({ label, variant = "primary", disabled, onClick }) => {
+  return (
+    <button className={"krnl-btn krnl-btn--" + variant} disabled={disabled} onClick={onClick}>
+      {label}
+    </button>
+  );
+};
+`);
+fs.writeFileSync(path.join(fLibDir, "styles.css"), `.krnl-btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 2px solid #111;
+  box-shadow: 2px 2px 0px #111;
+}
+.krnl-btn--primary {
+  background: #38bdf8;
+  color: #0f172a;
+}
+`);
+fs.writeFileSync(path.join(fLibDir, "manifest.json"), JSON.stringify({
+  name: "ButtonConcepts",
+  dependencies: {
+    "react": "^18.3.1"
+  }
+}, null, 2));
+fs.writeFileSync(path.join(fLibDir, "tests", "Button.test.tsx"), `import { describe, it, expect } from "vitest";
+
+describe("Button component", () => {
+  it("defined correctly", () => {
+    expect(true).toBe(true);
+  });
+});
+`);
+fs.writeFileSync(path.join(fEntityDir, "App0.tsx"), `import React from "react";
+import { Button } from "../../libraries/ButtonConcepts/components.js";
+
+export const App0: React.FC = () => {
+  return (
+    <div className="krnl-entity-app">
+      <h1>App View (Variant 0)</h1>
+      <Button label="Click Me" onClick={() => alert("Welcome to Krnl!")} />
+    </div>
+  );
+};
+
+export default App0;
+`);
+fs.writeFileSync(path.join(fEntityDir, "tests", "App0.test.tsx"), `import { describe, it, expect } from "vitest";
+
+describe("App0 Component", () => {
+  it("mounts variant 0", () => {
+    expect(true).toBe(true);
+  });
+});
+`);
+fs.writeFileSync(path.join(fFuncDir, "Hello0.tsx"), `import React from "react";
+
+export interface HelloProps {
+  greeting?: string;
+}
+
+export const Hello0: React.FC<HelloProps> = ({ greeting = "Hello World!" }) => {
+  return (
+    <div className="krnl-func-hello">
+      <p>{greeting}</p>
+    </div>
+  );
+};
+
+export default Hello0;
+`);
+fs.writeFileSync(path.join(fFuncDir, "manifest.json"), JSON.stringify({
+  name: "HelloUI",
+  dependencies: {
+    "react": "^18.3.1"
+  }
+}, null, 2));
+fs.writeFileSync(path.join(fFuncDir, "tests", "Hello0.test.tsx"), `import { describe, it, expect } from "vitest";
+
+describe("Hello0 Component", () => {
+  it("renders correctly", () => {
+    expect(true).toBe(true);
+  });
+});
+`);
+import_krnl_core.KrnlPackageReconciler.reconcile(targetDir, true);
 fs.writeFileSync(path.join(targetDir, "docs", "HISTORY.md"), `# ${projectName} - Project History & Invariants
 
 ## Initial Scaffolding
-- Initialized Krnl full-stack workspace.
-- Configured 4-layer function purity gates.
-- Setup App root entity and Hello functionality.
+- Initialized Krnl symmetric architecture (krnl/backend & krnl/frontend).
+- Configured code-as-config entrypoint: ${projectName}.ts.
+- Co-located manifest.json and tests/ across all concept libraries and functionalities.
+- Programmatically reconciled package.json dependencies.
 `);
+fs.writeFileSync(path.join(targetDir, ".skipo", "agent-state.json"), JSON.stringify({
+  schemaVersion: "1.0.0",
+  turnsSinceLastAudit: 0,
+  auditCadenceThreshold: 5,
+  totalTurns: 0,
+  lastAudit: {
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    status: "INITIALIZED",
+    refactorsPerformed: [],
+    checksPassed: ["symmetric_planes", "concept_folders", "manifest_reconciliation", "tests_colocation"]
+  },
+  history: []
+}, null, 2));
 console.log(`
 \u{1F389} Project successfully scaffolded at: ${targetDir}`);
 console.log(`

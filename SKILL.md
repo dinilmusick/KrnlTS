@@ -15,13 +15,13 @@ When working on any KrnlTS codebase or downstream application, the AI agent **al
 ```
 ∀ task ∈ Agent_Actions:
   1. Inspect workspace for KrnlTS Runtime usage:
-     if (has_dependency("@dinilmusick/krnlts") ∨ file_exists("krnl.json") ∨ has_import("@dinilmusick/krnlts")):
+     if (has_dependency("@dinilmusick/krnl") ∨ has_dependency("@dinilmusick/krnl-core") ∨ dir_exists("krnl") ∨ file_exists("krnl.json")):
          load_skill("./skills/krnlts/SKILL.md")  # Activate KrnlTS Runtime Subsystem Extensions
-  2. Classify task intent(s) into Domain(s).
-  3. Consult corresponding leaf SKILL.md in skills/ before proposing or writing code.
-  4. If task spans multiple domains, load all relevant skills in dependency order:
-     [ Backend / Database -> Architecture -> KrnlTS -> Data -> API -> UI -> Features -> Docs ]
-  5. Abide strictly by the loaded skill constraints.
+     2. Classify task intent(s) into Domain(s).
+     3. Consult corresponding leaf SKILL.md in skills/ before proposing or writing code.
+     4. If task spans multiple domains, load all relevant skills in dependency order:
+        [ Backend / Database -> Architecture -> KrnlTS -> Data -> API -> UI -> Features -> Docs ]
+     5. Abide strictly by the loaded skill constraints.
 ```
 
 ---

@@ -1,11 +1,15 @@
-export * from "./krnl/core/index.js";
-export * from "./krnl/tools/index.js";
-export * from "./krnl/backend/index.js";
+/**
+ * @file index.ts
+ * @description Main entrypoint for @dinilmusick/krnl Service & Protocol Kernel.
+ */
 
-// Explicitly export key base classes for convenience
-export { Entity } from "./krnl/core/K_ENT_Entity.js";
-export { KrnlFlowBuilder } from "./krnl/core/K_LIB_Krnl_Flow.js";
-export { krnlEntityBase } from "./krnl/core/K_ENT_Krnl_Entity_Base.js";
-export { krnlSystemEntityBase } from "./krnl/core/K_ENT_Krnl_System_Entity_Base.js";
-export { krnlNetworkOrchestratorEntityBase } from "./krnl/core/K_ENT_Krnl_Network_Orchestrator_Entity_Base.js";
-export { PocerBlock } from "./krnl/core/K_LIB_Pocer_Block.js";
+export * from './services/index.js';
+export * from './protocols/index.js';
+export * from './transports/index.js';
+export * from './runtime/index.js';
+export * from './registry/index.js';
+export * from './discovery/index.js';
+export * from './state/index.js';
+export * from './events/index.js';
+export * from './lifecycle/index.js';
+export * from './connectivity/index.js';

@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Project, SourceFile, SyntaxKind } from 'ts-morph';
+import { Project, SourceFile, SyntaxKind, Node } from 'ts-morph';
 import { ValidationError, ValidationSummary } from './types.js';
 
 export interface KrnlValidatorOptions {
@@ -17,8 +17,9 @@ export class KrnlValidatorEngine {
   private maxMainLogicLimit: number;
   private maxHelperLineLimit: number;
 
-  constructor(options: KrnlValidatorOptions) {
-    this.projectRoot = path.resolve(options.projectRoot);
+  constructor(optionsOrRoot: KrnlValidatorOptions | string) {
+    const options: KrnlValidatorOptions = typeof optionsOrRoot === 'string' ? { projectRoot: optionsOrRoot } : optionsOrRoot;
+    this.projectRoot = path.resolve(options.projectRoot || process.cwd());
     this.maxFileLineLimit = options.maxFileLineLimit ?? 200;
     this.maxMainLogicLimit = options.maxMainLogicLimit ?? 20;
     this.maxHelperLineLimit = options.maxHelperLineLimit ?? 30;
@@ -38,6 +39,9 @@ export class KrnlValidatorEngine {
     const files = this.collectSourceFiles(this.projectRoot);
     const errors: ValidationError[] = [];
     const warnings: ValidationError[] = [];
+
+    // Validate workspace layout invariants for flat multi-entity architecture
+    this.validateWorkspaceLayout(errors);
 
     for (const f of files) {
       const sf = this.project.addSourceFileAtPath(f);
@@ -82,7 +86,7 @@ export class KrnlValidatorEngine {
     // 2. NodeNext Import Suffix Rule
     for (const decl of sf.getImportDeclarations()) {
       const moduleSpec = decl.getModuleSpecifierValue();
-      if (moduleSpec.startsWith('.') && !moduleSpec.endsWith('.js') && !moduleSpec.endsWith('.json')) {
+      if (moduleSpec.startsWith('.') && !moduleSpec.endsWith('.js') && !moduleSpec.endsWith('.json') && !moduleSpec.endsWith('.css') && !moduleSpec.endsWith('.svg') && !moduleSpec.endsWith('.png')) {
         const line = decl.getStartLineNumber();
         errors.push({
           ruleId: 'krnl/import-suffix',
@@ -302,6 +306,20 @@ export class KrnlValidatorEngine {
     });
 
     if (isEntityClass) {
+      // Entity Library Prohibition Invariant: Entities must not import or call libraries directly
+      for (const decl of sf.getImportDeclarations()) {
+        const spec = decl.getModuleSpecifierValue();
+        if (spec.includes('libraries/') || spec.includes('Concepts')) {
+          errors.push({
+            ruleId: 'krnl/entity-no-libraries',
+            filePath,
+            line: decl.getStartLineNumber(),
+            message: `Entity class violates Library Calling Invariant. Entities must not call or import libraries directly ('${spec}'). Only functionalities in 'src/functionalities/' are permitted to call shared libraries.`,
+            severity: 'error'
+          });
+        }
+      }
+
       let loadAllLine = -1;
       const addLocalLines: Array<{ line: number; hasUiSpec: boolean; id: string }> = [];
 
@@ -333,9 +351,182 @@ export class KrnlValidatorEngine {
           }
         }
       }
+
+      // 9. Entity Purity Law (No custom procedural logic in entities)
+      for (const cls of sf.getClasses()) {
+        const ext = cls.getExtends();
+        if (ext && (ext.getText().includes('Entity') || ext.getText().includes('krnlEntityBase'))) {
+          // Check for forbidden loop statements inside any method
+          const loops = [
+            ...cls.getDescendantsOfKind(SyntaxKind.ForStatement),
+            ...cls.getDescendantsOfKind(SyntaxKind.ForOfStatement),
+            ...cls.getDescendantsOfKind(SyntaxKind.ForInStatement),
+            ...cls.getDescendantsOfKind(SyntaxKind.WhileStatement),
+            ...cls.getDescendantsOfKind(SyntaxKind.DoStatement)
+          ];
+
+          for (const loop of loops) {
+            errors.push({
+              ruleId: 'krnl/entity-purity',
+              filePath,
+              line: loop.getStartLineNumber(),
+              message: `Entity '${cls.getName() || 'Anonymous'}' violates Entity Purity Law. Loops and procedural algorithms are prohibited inside entities. Move logic to a functionality or a global library function.`,
+              severity: 'error'
+            });
+          }
+
+          // Check custom non-lifecycle methods
+          for (const method of cls.getMethods()) {
+            const methodName = method.getName();
+            if (!['boot', 'init', 'dispose'].includes(methodName)) {
+              errors.push({
+                ruleId: 'krnl/entity-purity',
+                filePath,
+                line: method.getStartLineNumber(),
+                message: `Entity '${cls.getName() || 'Anonymous'}' defines custom method '${methodName}'. Entities are purely declarative compositors/orchestrators. Define capabilities as functionalities or global library functions.`,
+                severity: 'error'
+              });
+            }
+          }
+        }
+      }
+
+      // 10. The 2-Function Rule in Orchestration Chains & 11. Function Source Rule
+      for (const call of calls) {
+        const callText = call.getText();
+        if (callText.startsWith('this.orchestration(') || callText.startsWith('this.flow(')) {
+          let currentExpr: any = call;
+          const chainCalls: Array<{ name: string; node: any; argText?: string }> = [];
+
+          while (currentExpr && Node.isCallExpression(currentExpr)) {
+            const propAccess = currentExpr.getExpression();
+            if (Node.isPropertyAccessExpression(propAccess)) {
+              const methodName = propAccess.getName();
+              const args = currentExpr.getArguments();
+              const argText = args.length > 0 ? args[0].getText() : undefined;
+              chainCalls.unshift({ name: methodName, node: currentExpr, argText });
+              currentExpr = propAccess.getExpression();
+            } else {
+              break;
+            }
+          }
+
+          let consecutiveFunctions = 0;
+          let chainId = 'orchestration';
+
+          for (const step of chainCalls) {
+            if (step.name === 'orchestration' || step.name === 'flow') {
+              chainId = step.argText ? step.argText.replace(/['"]/g, '') : 'orchestration';
+            } else if (step.name === 'thenFunctionality' || step.name === 'then') {
+              consecutiveFunctions = 0;
+            } else if (step.name === 'thenEntityOrchestration' || step.name === 'thenEntity') {
+              consecutiveFunctions = 0;
+            } else if (step.name === 'thenFunction') {
+              errors.push({
+                ruleId: 'krnl/entity-no-direct-library-calls',
+                filePath,
+                line: step.node.getStartLineNumber(),
+                message: `Orchestration chain '${chainId}' violates Entity Purity Law. Entities cannot chain direct library functions via thenFunction(). Entities must only orchestrate functionalities (thenFunctionality) and orchestrations from other entities (thenEntityOrchestration).`,
+                severity: 'error'
+              });
+            }
+          }
+        }
+      }
     }
 
     return { errors, warnings };
+  }
+
+  /**
+   * Validates workspace layout invariants for symmetric Krnl architecture.
+   */
+  private validateWorkspaceLayout(errors: ValidationError[]): void {
+    const krnlDir = path.join(this.projectRoot, "krnl");
+    const srcDir = path.join(this.projectRoot, "src");
+    const targetDir = fs.existsSync(krnlDir) ? krnlDir : (fs.existsSync(srcDir) ? srcDir : null);
+
+    if (!targetDir) return;
+
+    // Check for symmetric planes (krnl/backend & krnl/frontend)
+    const backendDir = path.join(targetDir, "backend");
+    const frontendDir = path.join(targetDir, "frontend");
+
+    if (fs.existsSync(backendDir)) {
+      // 1. Validate backend libraries have manifest.json and tests/
+      const bLibs = path.join(backendDir, "libraries");
+      if (fs.existsSync(bLibs)) {
+        for (const entry of fs.readdirSync(bLibs, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          const libPath = path.join(bLibs, entry.name);
+          const manifestPath = path.join(libPath, "manifest.json");
+          if (!fs.existsSync(manifestPath)) {
+            errors.push({
+              ruleId: "krnl/concept-manifest-required",
+              filePath: libPath,
+              message: `Backend concept library "${entry.name}" is missing a manifest.json file.`,
+              severity: "error"
+            });
+          }
+        }
+      }
+
+      // 2. Validate backend functionalities have manifest.json and tests/
+      const bFuncs = path.join(backendDir, "functionalities");
+      if (fs.existsSync(bFuncs)) {
+        for (const entry of fs.readdirSync(bFuncs, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          const funcPath = path.join(bFuncs, entry.name);
+          const manifestPath = path.join(funcPath, "manifest.json");
+          if (!fs.existsSync(manifestPath)) {
+            errors.push({
+              ruleId: "krnl/functionality-manifest-required",
+              filePath: funcPath,
+              message: `Backend functionality "${entry.name}" is missing a manifest.json file.`,
+              severity: "error"
+            });
+          }
+        }
+      }
+    }
+
+    if (fs.existsSync(frontendDir)) {
+      // 3. Validate frontend libraries have manifest.json
+      const fLibs = path.join(frontendDir, "libraries");
+      if (fs.existsSync(fLibs)) {
+        for (const entry of fs.readdirSync(fLibs, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          const libPath = path.join(fLibs, entry.name);
+          const manifestPath = path.join(libPath, "manifest.json");
+          if (!fs.existsSync(manifestPath)) {
+            errors.push({
+              ruleId: "krnl/frontend-concept-manifest-required",
+              filePath: libPath,
+              message: `Frontend concept library "${entry.name}" is missing a manifest.json file.`,
+              severity: "error"
+            });
+          }
+        }
+      }
+
+      // 4. Validate frontend functionalities have manifest.json
+      const fFuncs = path.join(frontendDir, "functionalities");
+      if (fs.existsSync(fFuncs)) {
+        for (const entry of fs.readdirSync(fFuncs, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          const funcPath = path.join(fFuncs, entry.name);
+          const manifestPath = path.join(funcPath, "manifest.json");
+          if (!fs.existsSync(manifestPath)) {
+            errors.push({
+              ruleId: "krnl/frontend-functionality-manifest-required",
+              filePath: funcPath,
+              message: `Frontend functionality "${entry.name}" is missing a manifest.json file.`,
+              severity: "error"
+            });
+          }
+        }
+      }
+    }
   }
 
   private collectSourceFiles(dir: string, collected: string[] = []): string[] {

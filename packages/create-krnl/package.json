@@ -11,10 +11,13 @@
     "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs"
+    "build": "tsup"
   },
   "devDependencies": {
     "tsup": "^8.4.0",
     "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@dinilmusick/krnl-core": "workspace:*"
   }
 }

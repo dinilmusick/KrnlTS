@@ -1,111 +1,105 @@
 ---
 name: entity-functionality-architecture
-description: Directives for Entity-Functionality folder architecture, main functionality files, helper folders, events, state isolation, and System Entity entry point.
+description: Directives for KrnlTS symmetric backend/frontend folder architecture, code-as-config <app_name>.ts entrypoint, entity orchestrations, quad-units, co-located manifests, and tests.
 ---
 
-# ENTITY & FUNCTIONALITY ARCHITECTURE GUIDELINES
+# KRNLTS SYMMETRIC ARCHITECTURE & ENTITY GUIDELINES
 
-## 1. GROSS ARCHITECTURAL HIERARCHY (KRNLTS-COMPATIBLE STANDARD)
-All projects authored or maintained by the AI agent MUST strictly conform to this recursive layout, **even when the core `@dinilmusick/krnlts` library is not an explicit project dependency**:
+## 1. GROSS ARCHITECTURAL HIERARCHY (SYMMETRIC DUAL-PLANE STANDARD)
+All KrnlTS-based projects authored or maintained by the AI agent MUST strictly conform to this symmetric dual-plane layout:
 
 ```
 PROJECT_ROOT/
-├── assembler.ts (or index.ts)       → System Entity entrypoint & gateway orchestrator
-├── krnl.json                         → System manifest & subapp configuration
+├── <app_name>.ts                     → [APP ENTRYPOINT & VARIANT CONFIG] (Replaces krnl.json)
+├── package.json                      → Derived programmatically from all manifest.json files
+├── tsconfig.json                     → TypeScript paths pointing to krnl/*
+├── .skipo/
+│   └── agent-state.json              → Step-0 turn counter & audit history
+├── docs/
+│   └── HISTORY.md                    → Project memory & intent tracking
 │
-├── libraries/                        → Universal Shared Concept Libraries
-│   ├── MathConcepts.ts               → Pure math, calculations, vector algorithms
-│   ├── DataConcepts.ts               → Canonical types, indexing, grouping, diffing, lenses
-│   ├── ValidationConcepts.ts         → Schema validation & assertion contracts
-│   ├── StringConcepts.ts             → Interpolation, slugification, casing, sanitization
-│   ├── GraphConcepts.ts              → Graph topology, traversal, topological sort
-│   ├── StateConcepts.ts              → State machine transitions & reducers
-│   └── UIConcepts.ts                 → Theme tokens, palettes, visual helpers
-│
-├── entities/                         → Recursive Domain Entity Tree
-│   └── <EntityName>/                 → e.g., Billing, User, Inventory, Device
-│       ├── <EntityName>.ts           → Entity orchestrator class (/** @role skeleton */)
-│       │
-│       ├── functionalities/          → Atomic capability units
-│       │   └── <FeatureName>/        → e.g., ProcessPayment, CreateUser, SyncOrder
-│       │       ├── <FeatureName>Atom.ts → Metadata descriptor & capability spec
-│       │       ├── main_function/
-│       │       │   ├── logic.ts      → Core orchestrator (receives input, { state, entity })
-│       │       │   └── lifecycle.ts  → onMount / onTeardown lifecycle hooks
-│       │       ├── state_data/
-│       │       │   └── state.ts      → State schema & atomic accessors (/** @role component */)
-│       │       ├── helper_functions/ → Pure functions (Layer 0A, /** @role component */)
-│       │       ├── events/           → Domain event emitters (/** @role component */)
-│       │       └── manifest.json     → Declared dependencies, tools, resources
-│       │
-│       └── entities/                 → Recursive child entities (arbitrary depth)
-│           └── <ChildEntityName>/
-│               ├── <ChildEntityName>.ts
-│               └── functionalities/
-│
-├── protocol_adapters/                → Ingress Network Adapters (HTTP, WSS, MCP)
-│   ├── HttpsAdapter.ts               → REST routes (/call/{fid}, /api/...)
-│   └── WssAdapter.ts                 → WebSocket RPC & live event mirroring
-│
-└── frontends/                        → UI Packages (Vite/React apps or Glass-Brutalist UIs)
+└── krnl/                             → [APPLICATION KERNEL] (Pure application code)
+    │
+    ├── backend/                      → [BACKEND PLANE]
+    │   │
+    │   ├── libraries/                → Concept libraries (one named folder per concept)
+    │   │   └── <ConceptName>/        → e.g. MathConcepts/, DataConcepts/
+    │   │       ├── definitions.ts    → Types, interfaces, constants (< 200 lines)
+    │   │       ├── functions.ts      → Pure calculation & algorithm functions (< 200 lines)
+    │   │       ├── manifest.json     → Co-located external dependencies
+    │   │       └── tests/            → Localized unit tests
+    │   │
+    │   ├── entities/                 → Named folder per entity
+    │   │   └── <EntityName>/         → e.g. UserSystem/
+    │   │       ├── <EntityName>.ts   → Main entity class (extends Entity from @dinilmusick/krnl-core)
+    │   │       ├── orchestrations/   → Modular flows & pipeline definitions
+    │   │       └── tests/            → Entity unit & integration tests
+    │   │
+    │   ├── functionalities/          → Named folder per functionality (Quad-Units)
+    │   │   └── <FeatureName>/        → e.g. ProcessPayment/
+    │   │       ├── <FeatureName>Atom.ts → Interface, input/output schemas
+    │   │       ├── manifest.json     → Declared dependencies & tools
+    │   │       ├── main_function/    → logic.ts (Layers 1 & 2), lifecycle.ts
+    │   │       ├── state_data/       → state.ts (Observable state & atomic accessors)
+    │   │       ├── helper_functions/ → Pure Layer 0A helper functions
+    │   │       ├── events/           → Domain event definitions & emitters
+    │   │       └── tests/            → Functionality tests
+    │   │
+    │   └── protocol_adapters/        → Ingress Network Adapters (HTTP, WSS, MCP)
+    │
+    └── frontend/                     → [FRONTEND PLANE]
+        │
+        ├── libraries/                → UI Concept Libraries (Atomic Primitives)
+        │   └── <ConceptName>/        → e.g. ButtonConcepts/, FieldConcepts/
+        │       ├── definitions.ts    → Props, variant types, states
+        │       ├── components.tsx    → React component implementations (< 200 lines)
+        │       ├── styles.css        → Scoped 2.5D Neo-Brutalist styles
+        │       ├── manifest.json     → Required UI npm packages
+        │       └── tests/            → Component tests
+        │
+        ├── entities/                 → Named folder per entity (Mirrors backend)
+        │   └── <EntityName>/         → e.g. UserSystem/
+        │       ├── <EntityName>0.tsx → Main UI variant 0 (default view)
+        │       ├── <EntityName>1.tsx → Main UI variant 1 (alternative mode)
+        │       ├── <Piece>.tsx       → Modular UI component pieces
+        │       └── tests/            → Entity component tests
+        │
+        └── functionalities/          → Named folder per functionality (Mirrors backend)
+            └── <FeatureName>/        → e.g. ProcessPayment/
+                ├── <FeatureName>0.tsx → Main UI variant 0 (default feature form)
+                ├── <FeatureName>1.tsx → Main UI variant 1 (compact / modal variant)
+                ├── <SubPiece>.tsx    → Modular UI sub-components
+                ├── manifest.json     → External UI deps
+                └── tests/            → Functionality tests
 ```
 
 ---
 
-## 2. FUNCTIONALITY SPECIFICATION (QUAD-UNIT PACKAGING)
-- **Folder Naming**: 1-to-1 matching feature name (`functionalities/<FeatureName>/`).
-- **Internal Quad-Unit Structure**:
-  - `main_function/logic.ts`: Primary orchestrator receiving `(input, { state, entity })`.
-  - `main_function/lifecycle.ts`: Optional `onMount` and `onTeardown` handlers.
-  - `state_data/state.ts`: Initial observable state schema and atomic getters/setters.
-  - `helper_functions/`: Subdirectory isolating modular, pure Layer 0A helper functions.
-  - `events/`: Subdirectory isolating domain event definitions and emitters.
-  - `manifest.json`: Declared npm packages and system tools required by this functionality.
-- **Stateless Preference**:
-  $$\text{Preference}(\text{Functionality}) = \text{Stateless} \succ \text{Stateful}$$
-  Use `state_data/state.ts` only when persistent runtime state is mandatory.
-
-### 2.1 EVENT-DRIVEN COMMUNICATION OVER ON-TICK / POLLING INVARIANT
-```
-∀ communication, synchronization, or change detection:
-  pattern ≡ EVENT_DRIVEN  (via events/*.ts, entity.emitEvent, entity.on, or reactive streams)
-  polling ≡ STRICTLY_FORBIDDEN (default)
-```
-- **Prohibit onTick / Polling Loops**: AI agents MUST NOT implement `onTick()`, `tick()`, `setInterval()`, or recursive `setTimeout()` loops for state synchronization, checking file changes, or waiting on task completions.
-- **Strict Event-Driven Pattern**: State mutations emit `state:changed`, domain events trigger down-stream actions via `entity.emitEvent("domain:action", payload)` and subscribers receive updates via `entity.on("domain:action", handler)`.
-- **Sole Exception for Polling**: Polling is permitted ONLY when integrating with external third-party systems that have no WebSockets, webhooks, SSE, or event streams. When required, use exponential backoff with jitter and document why event-driven mechanisms are unavailable.
+## 2. CODE-AS-CONFIG APP ENTRYPOINT (`<app_name>.ts`)
+- Replaces static `krnl.json` with a strongly-typed TypeScript configuration.
+- Declaratively specifies:
+  1. `protocols`: Active ingress gateways (`Protocols.HTTP`, `Protocols.WebSocket`, `Protocols.MCP`).
+  2. `entities`: The explicit subset of entities to compile and mount for this build.
+  3. `frontend`: Root entity and default variant (`variant: 0`).
+- Allows maintaining 100+ entities in `krnl/backend/entities/`, but only compiling the exact entities declared in `<app_name>.ts`.
 
 ---
 
-## 3. ENTITY SPECIFICATION (ORCHESTRATOR SKELETON)
-- **Role**: Groups and orchestrates child functionalities and recursive child entities.
-- **Orchestration**: Manages state, coordinates data flow across child functionalities, and constructs execution pipelines (`Flows`).
-- **Class Pattern**: Subclasses `Entity<TState, TEvents>` (or follows the `Entity` interface pattern).
-- **Metadata**: Annotated with `/** @role skeleton */` and enforced to be an impure orchestrator.
+## 3. UNIVERSAL MANIFEST.JSON & PROGRAMMATIC PACKAGE.JSON
+- **Universal Manifests**: Every functionality AND every concept library folder (both frontend and backend) MUST have a `manifest.json`.
+- **Programmatic Aggregation**: Root `package.json` dependencies are derived by scanning all `manifest.json` files via `KrnlPackageReconciler`.
+- **Auto-Sync**: Any change to a `manifest.json` triggers automatic reconciliation of `package.json`.
 
 ---
 
-## 4. SYSTEM ENTITY (APP ENTRYPOINT & INGRESS BOUNDARY)
-- **Root Entry Point**: `assembler.ts` (or `index.ts`) at the project root instantiates the top-level System Entity.
-- **External Surface**:
-  - Exposes REST endpoints (`/call/{fid}`), WebSocket RPC, or MCP tool servers.
-  - Acts as the single boundary for external services and client interfaces.
+## 4. LOCALIZED TESTS IN EVERY FOLDER
+- Every entity, functionality, and concept library folder on both frontend and backend has a co-located `tests/` directory.
+- Eliminates detached, monolithic test suites.
 
 ---
 
-## 5. STRUCTURAL CHANGE ENFORCEMENT
-```python
-def on_structural_code_change(intent):
-    """
-    MANDATORY PRE-CHECK BEFORE CREATING OR REFACTORING CODEBASE STRUCTURE:
-    1. Identify target Entity and Functionality.
-    2. Structure folder as: entities/<Entity>/functionalities/<Feature>/{main_function/, state_data/, helper_functions/, events/, manifest.json}
-    3. Ensure stateless design where possible.
-    4. Register functionality into Entity orchestrator.
-    5. Expose public operations through the System Entity entry point.
-    """
-    assert has_feature_folder(intent.functionality_name)
-    assert has_main_and_subdirs(main_function=True, helper_functions=True, state_data=True, events=True)
-    assert is_registered_in_entity(intent.parent_entity)
-    assert is_exposed_via_system_entity(intent.external_contract)
-```
+## 5. 200-LINE LIMIT & MULTI-FILE SPLITS
+- **Rule**: No file may exceed 200 lines.
+- **Concept Libraries**: Broken into `definitions.ts`, `functions.ts` (backend) or `definitions.ts`, `components.tsx`, `styles.css` (frontend).
+- **Entities**: Complex flows are extracted into `orchestrations/<FlowName>.ts`.
+- **UI Variants**: Alternate representations are numbered `<Name>0.tsx`, `<Name>1.tsx`, `<Name>2.tsx`.

@@ -1,6 +1,0 @@
-{
-  "name": "OrderSubApp",
-  "version": "1.0.0",
-  "description": "Self-contained Order Management Sub-App",
-  "registrationEntry": "./register.js"
-}

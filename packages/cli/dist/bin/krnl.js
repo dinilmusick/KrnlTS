@@ -1,707 +1,677 @@
 #!/usr/bin/env node
 import {
+  KrnlPackageReconciler,
   KrnlValidatorEngine,
   generateMagneticDeclarations,
   runGenerate,
   runValidate
-} from "../chunk-EEKLK7QJ.js";
+} from "../chunk-F5EHXE2O.js";
+import "../chunk-RJNYUXZD.js";
+import "../chunk-BOXWWXQG.js";
+import "../chunk-OHVMVRBP.js";
+import "../chunk-EG7T2IAD.js";
+import "../chunk-SRTOPJ5W.js";
+import "../chunk-6NIKAMUZ.js";
+import "../chunk-P2PCLEKX.js";
+import "../chunk-FDNCADFE.js";
+import "../chunk-PJQIUOX2.js";
+import "../chunk-GDLRMDAN.js";
+import "../chunk-I74QIQOD.js";
+import "../chunk-ZAAV3JXQ.js";
+import "../chunk-5JDK35TG.js";
+import "../chunk-Q45257P6.js";
+import "../chunk-3TRM6CYL.js";
+import "../chunk-XIRFOO3H.js";
+import "../chunk-JTLSTO25.js";
+import "../chunk-JULBBJ27.js";
+import "../chunk-X5LOIFM7.js";
 
 // src/bin/krnl.ts
-import * as path6 from "path";
-import * as fs6 from "fs";
+import * as path10 from "path";
+import * as fs11 from "fs";
 
 // ../studio/src/server/AstMutationEngine.ts
+import { Project as Project2 } from "ts-morph";
+
+// ../studio/src/server/ast/AstMetadataExtractor.ts
 import * as fs from "fs";
+var AstMetadataExtractor = class {
+  project;
+  constructor(project) {
+    this.project = project;
+  }
+  extractInputsAndOutputs(atomPath) {
+    const inputs = [];
+    const outputs = [];
+    if (!fs.existsSync(atomPath)) return { inputs, outputs };
+    try {
+      const sourceFile = this.project.getSourceFile(atomPath) || this.project.addSourceFileAtPath(atomPath);
+      const inputInterface = sourceFile.getInterface((i) => i.getName().endsWith("Input") || i.getName().includes("Inputs"));
+      if (inputInterface) {
+        for (const prop of inputInterface.getProperties()) {
+          inputs.push({ name: prop.getName(), type: prop.getType().getText() });
+        }
+      }
+      const outputInterface = sourceFile.getInterface((i) => i.getName().endsWith("Output") || i.getName().includes("Outputs"));
+      if (outputInterface) {
+        for (const prop of outputInterface.getProperties()) {
+          outputs.push({ name: prop.getName(), type: prop.getType().getText() });
+        }
+      }
+    } catch (err) {
+      try {
+        const content = fs.readFileSync(atomPath, "utf8");
+        const inMatch = content.match(/interface\s+\w+Input[^{]*\{([^}]+)\}/s);
+        if (inMatch) {
+          inMatch[1].split(";").map((l) => l.trim()).filter(Boolean).forEach((line) => {
+            const [name, type] = line.split(":").map((s) => s.trim());
+            if (name && type) inputs.push({ name, type });
+          });
+        }
+      } catch (e) {
+      }
+    }
+    return { inputs, outputs };
+  }
+  extractStateFields(statePath) {
+    const fields = [];
+    if (!fs.existsSync(statePath)) return fields;
+    try {
+      const sourceFile = this.project.getSourceFile(statePath) || this.project.addSourceFileAtPath(statePath);
+      const stateInterface = sourceFile.getInterface((i) => i.getName().endsWith("State"));
+      if (stateInterface) {
+        for (const prop of stateInterface.getProperties()) {
+          fields.push({ name: prop.getName(), type: prop.getType().getText() });
+        }
+      }
+    } catch (e) {
+      try {
+        const content = fs.readFileSync(statePath, "utf8");
+        const match = content.match(/interface\s+\w+State[^{]*\{([^}]+)\}/s);
+        if (match) {
+          match[1].split(";").map((l) => l.trim()).filter(Boolean).forEach((line) => {
+            const [name, type] = line.split(":").map((s) => s.trim());
+            if (name && type) fields.push({ name, type });
+          });
+        }
+      } catch (err) {
+      }
+    }
+    return fields;
+  }
+  extractHelperNames(helpersDir) {
+    if (!fs.existsSync(helpersDir)) return [];
+    try {
+      return fs.readdirSync(helpersDir).filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts") && !f.endsWith(".test.ts")).map((f) => f.replace(/\.ts$/, ""));
+    } catch (e) {
+      return [];
+    }
+  }
+};
+
+// ../studio/src/server/ast/AstScanner.ts
+import * as fs2 from "fs";
 import * as path from "path";
-import { Project, Node } from "ts-morph";
-var AstMutationEngine = class {
+var AstScanner = class {
+  projectRoot;
+  metadataExtractor;
+  constructor(projectRoot, metadataExtractor) {
+    this.projectRoot = projectRoot;
+    this.metadataExtractor = metadataExtractor;
+  }
+  scanWorkspace(positions) {
+    const nodes = [];
+    const edges = [];
+    this.scanEntities(nodes, edges, positions);
+    this.scanSharedFunctionalities(nodes, edges, positions);
+    this.scanLibraries(nodes, edges, positions);
+    this.scanSubApps(nodes, edges, positions);
+    return { nodes, edges };
+  }
+  scanEntities(nodes, edges, positions) {
+    const srcDir = path.join(this.projectRoot, "src");
+    if (!fs2.existsSync(srcDir)) return;
+    for (const entry of fs2.readdirSync(srcDir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts") && entry.name !== "index.ts") {
+        const entityName = path.basename(entry.name, ".ts");
+        const entityId = `entity:${entityName}`;
+        const entityNode = {
+          id: entityId,
+          name: entityName,
+          type: "entity",
+          filePath: path.join(srcDir, entry.name),
+          functionalities: [],
+          position: positions[entityId]
+        };
+        nodes.push(entityNode);
+      }
+    }
+    const entitiesDir = path.join(this.projectRoot, "src/entities");
+    if (fs2.existsSync(entitiesDir)) {
+      for (const entry of fs2.readdirSync(entitiesDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const entityName = entry.name;
+        const entityDir = path.join(entitiesDir, entityName);
+        const entityId = `entity:${entityName}`;
+        const entityNode = {
+          id: entityId,
+          name: entityName,
+          type: "entity",
+          filePath: path.join(entityDir, `${entityName}.ts`),
+          functionalities: [],
+          position: positions[entityId]
+        };
+        nodes.push(entityNode);
+      }
+    }
+  }
+  scanSharedFunctionalities(nodes, edges, positions) {
+    const sharedFuncDir = path.join(this.projectRoot, "src/functionalities");
+    if (!fs2.existsSync(sharedFuncDir)) return;
+    for (const func of fs2.readdirSync(sharedFuncDir, { withFileTypes: true })) {
+      if (!func.isDirectory()) continue;
+      const funcName = func.name;
+      const funcDir = path.join(sharedFuncDir, funcName);
+      const funcId = `functionality:${funcName}`;
+      const atomPath = path.join(funcDir, `${funcName}Atom.ts`);
+      const statePath = path.join(funcDir, "state_data", "state.ts");
+      const helpersDir = path.join(funcDir, "helper_functions");
+      const logicPath = path.join(funcDir, "main_function", "logic.ts");
+      const { inputs, outputs } = this.metadataExtractor.extractInputsAndOutputs(atomPath);
+      const stateFields = this.metadataExtractor.extractStateFields(statePath);
+      const helpers = this.metadataExtractor.extractHelperNames(helpersDir);
+      let uiPath;
+      for (const cand of [path.join(funcDir, "ui.ts"), path.join(funcDir, "view.ts"), path.join(funcDir, `${funcName}View.ts`)]) {
+        if (fs2.existsSync(cand)) {
+          uiPath = cand;
+          break;
+        }
+      }
+      nodes.push({
+        id: funcId,
+        name: funcName,
+        type: "functionality",
+        filePath: logicPath,
+        uiFilePath: uiPath,
+        helpers,
+        inputs,
+        outputs,
+        stateFields,
+        position: positions[funcId]
+      });
+      this.scanConstituents("shared", funcName, funcDir, nodes, edges, positions, inputs, outputs, stateFields, helpers, uiPath);
+    }
+  }
+  scanFunctionalities(entityName, entityDir, entityId, entityNode, nodes, edges, positions) {
+    let funcsDir = path.join(entityDir, "functionalities");
+    if (!fs2.existsSync(funcsDir)) funcsDir = entityDir;
+    for (const func of fs2.readdirSync(funcsDir, { withFileTypes: true })) {
+      if (!func.isDirectory() || func.name === "subsystems") continue;
+      const funcName = func.name;
+      const funcDir = path.join(funcsDir, funcName);
+      const funcId = `functionality:${entityName}:${funcName}`;
+      entityNode.functionalities?.push(funcName);
+      const atomPath = path.join(funcDir, "atom", `${funcName}Atom.ts`);
+      const statePath = path.join(funcDir, "state_data", "state.ts");
+      const helpersDir = path.join(funcDir, "helper_functions");
+      const logicPath = path.join(funcDir, "main_function", "logic.ts");
+      const { inputs, outputs } = this.metadataExtractor.extractInputsAndOutputs(atomPath);
+      const stateFields = this.metadataExtractor.extractStateFields(statePath);
+      const helpers = this.metadataExtractor.extractHelperNames(helpersDir);
+      let uiPath;
+      for (const cand of [path.join(funcDir, "ui.ts"), path.join(funcDir, "view.ts"), path.join(funcDir, `${funcName}View.ts`)]) {
+        if (fs2.existsSync(cand)) {
+          uiPath = cand;
+          break;
+        }
+      }
+      nodes.push({
+        id: funcId,
+        name: funcName,
+        type: "functionality",
+        filePath: logicPath,
+        uiFilePath: uiPath,
+        parentEntity: entityName,
+        helpers,
+        inputs,
+        outputs,
+        stateFields,
+        position: positions[funcId]
+      });
+      edges.push({
+        id: `edge:${entityName}->${funcName}`,
+        source: entityId,
+        target: funcId,
+        type: "contains",
+        deletable: false
+      });
+      this.scanConstituents(entityName, funcName, funcDir, nodes, edges, positions, inputs, outputs, stateFields, helpers, uiPath);
+    }
+  }
+  scanConstituents(entityName, funcName, funcDir, nodes, edges, positions, inputs, outputs, stateFields, helpers, uiPath) {
+    const scope = `functionality:${entityName}:${funcName}`;
+    const atomId = `comp_${entityName}_${funcName}_atom`;
+    const logicId = `comp_${entityName}_${funcName}_logic`;
+    const stateId = `comp_${entityName}_${funcName}_state`;
+    nodes.push({
+      id: atomId,
+      name: `${funcName}Atom`,
+      type: "component_atom",
+      filePath: path.join(funcDir, "atom", `${funcName}Atom.ts`),
+      inputs,
+      outputs,
+      scope,
+      position: positions[atomId]
+    });
+    nodes.push({
+      id: logicId,
+      name: "main_logic",
+      type: "component_logic",
+      filePath: path.join(funcDir, "main_function", "logic.ts"),
+      scope,
+      position: positions[logicId]
+    });
+    nodes.push({
+      id: stateId,
+      name: `${funcName}State`,
+      type: "component_state",
+      filePath: path.join(funcDir, "state_data", "state.ts"),
+      stateFields,
+      scope,
+      position: positions[stateId]
+    });
+    edges.push({ id: `edge_${atomId}_${logicId}`, source: atomId, target: logicId, type: "dataflow", scope, deletable: false });
+    edges.push({ id: `edge_${stateId}_${logicId}`, source: stateId, target: logicId, type: "dataflow", scope, deletable: false });
+    helpers.forEach((h) => {
+      const helperId = `comp_${entityName}_${funcName}_helper_${h}`;
+      nodes.push({
+        id: helperId,
+        name: h,
+        type: "component_helper",
+        filePath: path.join(funcDir, "helper_functions", `${h}.ts`),
+        scope,
+        position: positions[helperId]
+      });
+      edges.push({ id: `edge_${helperId}_${logicId}`, source: helperId, target: logicId, type: "dataflow", scope, deletable: false });
+    });
+    const uiId = `comp_${entityName}_${funcName}_ui`;
+    const resolvedUiPath = uiPath || path.join(funcDir, `${funcName}View.ts`);
+    nodes.push({
+      id: uiId,
+      name: `${funcName}View`,
+      type: "component_ui",
+      filePath: resolvedUiPath,
+      scope,
+      position: positions[uiId]
+    });
+    edges.push({ id: `edge_${logicId}_${uiId}`, source: logicId, target: uiId, type: "dataflow", scope, deletable: false });
+  }
+  scanLibraries(nodes, edges, positions) {
+    for (const cand of [path.join(this.projectRoot, "src/libraries"), path.join(this.projectRoot, "libraries")]) {
+      if (fs2.existsSync(cand)) this.scanLibraryFolder(cand, cand, [], void 0, nodes, edges, positions);
+    }
+  }
+  scanLibraryFolder(base, curr, cats, parent, nodes, edges, positions) {
+    if (!fs2.existsSync(curr)) return;
+    for (const entry of fs2.readdirSync(curr, { withFileTypes: true })) {
+      if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+      const full = path.join(curr, entry.name);
+      if (entry.isDirectory()) {
+        this.scanLibraryFolder(base, full, [...cats, entry.name], parent, nodes, edges, positions);
+      } else if (/\.(ts|js|mjs)$/.test(entry.name) && !entry.name.endsWith(".d.ts") && !/\.(test|spec)\./.test(entry.name)) {
+        const raw = path.basename(entry.name, path.extname(entry.name));
+        const name = raw === "index" && cats.length > 0 ? cats[cats.length - 1] : raw;
+        const rel = path.relative(base, full).replace(/[\\/.]+/g, "_");
+        const id = parent ? `lib_${parent}_${rel}` : `lib_${rel}`;
+        nodes.push({
+          id,
+          name,
+          type: "library",
+          filePath: full,
+          parentEntity: parent,
+          category: cats.length > 0 ? cats.join(" \u2192 ") : void 0,
+          categoryPath: cats.length > 0 ? cats : void 0,
+          scope: "root",
+          position: positions[id]
+        });
+      }
+    }
+  }
+  scanSubApps(nodes, edges, positions) {
+    const subappDir = path.join(this.projectRoot, "src/subapps");
+    if (!fs2.existsSync(subappDir)) return;
+    for (const app of fs2.readdirSync(subappDir, { withFileTypes: true })) {
+      if (!app.isDirectory()) continue;
+      const appId = `subapp_${app.name}`;
+      nodes.push({
+        id: appId,
+        name: app.name,
+        type: "subapp",
+        filePath: path.join(subappDir, app.name, "index.ts"),
+        position: positions[appId]
+      });
+    }
+  }
+};
+
+// ../studio/src/server/ast/AstOrchestrationMutator.ts
+import * as fs3 from "fs";
+import * as path2 from "path";
+import { SyntaxKind } from "ts-morph";
+var AstOrchestrationMutator = class {
   projectRoot;
   project;
   customEdges = [];
-  deletedEdges = /* @__PURE__ */ new Set();
-  nodePositions = /* @__PURE__ */ new Map();
-  undoStack = [];
-  redoStack = [];
-  constructor(projectRoot = process.cwd()) {
-    this.projectRoot = path.resolve(projectRoot);
-    const tsConfigPath = path.join(this.projectRoot, "tsconfig.json");
-    if (fs.existsSync(tsConfigPath)) {
-      this.project = new Project({ tsConfigFilePath: tsConfigPath, skipAddingFilesFromTsConfig: true });
-    } else {
-      this.project = new Project({ compilerOptions: {
-        target: 99
-        /* ESNext */
-      } });
-    }
-    this.loadPersistedGraphState();
+  constructor(projectRoot, project) {
+    this.projectRoot = projectRoot;
+    this.project = project;
   }
-  getGraphStateFilePath() {
-    return path.join(this.projectRoot, ".krnl-graph.json");
-  }
-  loadPersistedGraphState() {
+  extractOrchestrationEdges(entityName) {
+    const edges = [...this.customEdges];
+    const entityFilePath = path2.join(this.projectRoot, "src/entities", entityName, `${entityName}Entity.ts`);
     try {
-      const p = this.getGraphStateFilePath();
-      if (fs.existsSync(p)) {
-        const raw = JSON.parse(fs.readFileSync(p, "utf-8"));
-        if (raw.positions) {
-          for (const [k, v] of Object.entries(raw.positions)) {
-            this.nodePositions.set(k, v);
-          }
-        }
-        if (Array.isArray(raw.customEdges)) {
-          this.customEdges = raw.customEdges;
-        }
-        if (Array.isArray(raw.deletedEdges)) {
-          this.deletedEdges = new Set(raw.deletedEdges);
-        }
-      }
-    } catch (e) {
-    }
-  }
-  persistGraphState() {
-    try {
-      const p = this.getGraphStateFilePath();
-      const posObj = {};
-      this.nodePositions.forEach((v, k) => {
-        posObj[k] = v;
-      });
-      fs.writeFileSync(p, JSON.stringify({
-        positions: posObj,
-        customEdges: this.customEdges,
-        deletedEdges: Array.from(this.deletedEdges)
-      }, null, 2), "utf-8");
-    } catch (e) {
-    }
-  }
-  extractArchitectureGraph() {
-    const nodes = [];
-    let edges = [];
-    const possibleEntityDirs = [
-      path.join(this.projectRoot, "src", "entities"),
-      path.join(this.projectRoot, "entities")
-    ];
-    for (const entitiesDir of possibleEntityDirs) {
-      if (fs.existsSync(entitiesDir)) {
-        this.scanEntitiesRecursive(entitiesDir, nodes, edges);
-      }
-    }
-    const possibleLibDirs = [
-      path.join(this.projectRoot, "src", "libraries"),
-      path.join(this.projectRoot, "libraries")
-    ];
-    for (const libDir of possibleLibDirs) {
-      if (fs.existsSync(libDir)) {
-        const libFiles = fs.readdirSync(libDir, { withFileTypes: true });
-        for (const file of libFiles) {
-          if (file.isFile() && (file.name.endsWith(".ts") || file.name.endsWith(".js"))) {
-            const baseName = file.name.replace(/\.(ts|js)$/, "");
-            const libPath = path.join(libDir, file.name);
-            const libMeta = this.extractLibraryMetadata(libPath, baseName);
-            nodes.push({
-              id: `library:${baseName}`,
-              type: "library",
-              name: baseName,
-              filePath: libPath,
-              uiSpec: libMeta.uiSpec,
-              uiFilePath: libMeta.uiFilePath,
-              methods: libMeta.methods,
-              examplePayload: libMeta.examplePayload
-            });
-          }
-        }
-      }
-    }
-    const possibleSubappDirs = [
-      path.join(this.projectRoot, "src", "subapps"),
-      path.join(this.projectRoot, "subapps")
-    ];
-    for (const subappDir of possibleSubappDirs) {
-      if (fs.existsSync(subappDir)) {
-        const subapps = fs.readdirSync(subappDir, { withFileTypes: true });
-        for (const sa of subapps) {
-          if (sa.isDirectory()) {
-            const saName = sa.name;
-            const saPath = path.join(subappDir, saName);
-            const saMeta = this.extractSubappMetadata(saPath, saName);
-            nodes.push({
-              id: `subapp:${saName}`,
-              type: "subapp",
-              name: saName,
-              filePath: saPath,
-              uiSpec: saMeta.uiSpec,
-              uiFilePath: saMeta.uiFilePath,
-              examplePayload: saMeta.examplePayload
-            });
-          }
-        }
-      }
-    }
-    for (const node of nodes) {
-      if (this.nodePositions.has(node.id)) {
-        node.position = this.nodePositions.get(node.id);
-      }
-    }
-    edges = [...edges, ...this.customEdges].filter((e) => !this.deletedEdges.has(e.id));
-    return { nodes, edges };
-  }
-  scanEntitiesRecursive(entitiesDir, nodes, edges, parentName) {
-    if (!fs.existsSync(entitiesDir)) return;
-    const entries = fs.readdirSync(entitiesDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const entityName = entry.name;
-        const entityPath = path.join(entitiesDir, entityName);
-        const entityTsFile = path.join(entityPath, `${entityName}.ts`);
-        const entityUi = this.findUiFile(entityPath, entityName);
-        const funcsDir = path.join(entityPath, "functionalities");
-        const entityFunctionalityNames = [];
-        if (fs.existsSync(funcsDir)) {
-          const funcs = fs.readdirSync(funcsDir, { withFileTypes: true });
-          for (const fn of funcs) {
-            if (fn.isDirectory()) {
-              entityFunctionalityNames.push(fn.name);
-            }
-          }
-        }
-        const entityNode = {
-          id: `entity:${entityName}`,
-          type: "entity",
-          name: entityName,
-          parentEntity: parentName,
-          filePath: fs.existsSync(entityTsFile) ? entityTsFile : entityPath,
-          uiSpec: entityUi.uiSpec,
-          uiFilePath: entityUi.uiFilePath,
-          functionalities: entityFunctionalityNames,
-          examplePayload: {
-            entityId: entityName,
-            action: "boot",
-            config: { debug: true, environment: "sandbox" }
-          }
-        };
-        nodes.push(entityNode);
-        if (parentName) {
-          edges.push({
-            id: `edge:${parentName}->child:${entityName}`,
-            source: `entity:${parentName}`,
-            target: `entity:${entityName}`,
-            type: "contains",
-            deletable: true
-          });
-        }
-        if (fs.existsSync(funcsDir)) {
-          const funcs = fs.readdirSync(funcsDir, { withFileTypes: true });
-          for (const fn of funcs) {
-            if (fn.isDirectory()) {
-              const fnName = fn.name;
-              const fnPath = path.join(funcsDir, fnName);
-              const logicFile = path.join(fnPath, "main_function", "logic.ts");
-              const helpers = [];
-              const helpersDir = path.join(fnPath, "helper_functions");
-              if (fs.existsSync(helpersDir)) {
-                for (const hf of fs.readdirSync(helpersDir)) {
-                  if (hf.endsWith(".ts")) {
-                    helpers.push({ name: hf.replace(".ts", ""), filePath: path.join(helpersDir, hf) });
-                  }
-                }
-              }
-              const fnUi = this.findUiFile(fnPath, fnName);
-              const atomMeta = this.extractFunctionalityMetadata(fnPath, fnName);
-              nodes.push({
-                id: `functionality:${entityName}:${fnName}`,
-                type: "functionality",
-                name: fnName,
-                parentEntity: entityName,
-                filePath: logicFile,
-                helpers,
-                uiSpec: fnUi.uiSpec,
-                uiFilePath: fnUi.uiFilePath,
-                inputs: atomMeta.inputs,
-                outputs: atomMeta.outputs,
-                stateFields: atomMeta.stateFields,
-                examplePayload: atomMeta.examplePayload
-              });
+      const sourceFile = this.project.getSourceFile(entityFilePath) || this.project.addSourceFileAtPath(entityFilePath);
+      const entityClass = sourceFile.getClass((c) => c.getName() === `${entityName}Entity` || c.getName() === entityName);
+      if (!entityClass) return edges;
+      const bootMethod = entityClass.getMethod("boot");
+      if (!bootMethod) return edges;
+      const callExprs = bootMethod.getDescendantsOfKind(SyntaxKind.CallExpression);
+      let previousTarget = null;
+      for (const call of callExprs) {
+        const propAccess = call.getExpression();
+        if (propAccess.getKind() !== SyntaxKind.PropertyAccessExpression) continue;
+        const methodName = propAccess.getText().split(".").pop();
+        if (methodName === "thenFunctionality" || methodName === "thenFunction") {
+          const args2 = call.getArguments();
+          if (args2.length > 0) {
+            const rawTarget = args2[0].getText().replace(/['"]/g, "").trim();
+            const targetId = methodName === "thenFunctionality" ? `func_${entityName}_${rawTarget}` : `func_${rawTarget}`;
+            if (previousTarget && previousTarget !== targetId) {
               edges.push({
-                id: `edge:${entityName}->${fnName}`,
-                source: `entity:${entityName}`,
-                target: `functionality:${entityName}:${fnName}`,
-                type: "contains",
+                id: `orch_edge_${previousTarget}_${targetId}`,
+                source: previousTarget,
+                target: targetId,
+                type: "orchestration_step",
                 deletable: true
               });
             }
+            previousTarget = targetId;
           }
-        }
-        const childEntitiesDir = path.join(entityPath, "entities");
-        if (fs.existsSync(childEntitiesDir)) {
-          this.scanEntitiesRecursive(childEntitiesDir, nodes, edges, entityName);
-        }
-      }
-    }
-  }
-  /**
-   * Introspects functionality Atom & State files to extract types and synthesize realistic example payloads.
-   */
-  extractFunctionalityMetadata(fnPath, fnName) {
-    const inputs = [];
-    const outputs = [];
-    const stateFields = [];
-    let examplePayload = null;
-    const payloadFiles = ["example.json", "payload.json", "test-input.json", "input.json"];
-    for (const pf of payloadFiles) {
-      const p = path.join(fnPath, pf);
-      if (fs.existsSync(p)) {
-        try {
-          examplePayload = JSON.parse(fs.readFileSync(p, "utf-8"));
-          break;
-        } catch (e) {
-        }
-      }
-    }
-    const atomCandidates = [
-      path.join(fnPath, `${fnName}Atom.ts`),
-      path.join(fnPath, `${fnName}Atom.js`),
-      path.join(fnPath, "atom.ts"),
-      path.join(fnPath, "types.ts")
-    ];
-    const atomPath = atomCandidates.find((c) => fs.existsSync(c));
-    if (atomPath) {
-      try {
-        const atomContent = fs.readFileSync(atomPath, "utf-8");
-        const synthPayload = {};
-        const inputMatch = atomContent.match(/export\s+interface\s+\w+Input\s*\{([^}]+)\}/s) || atomContent.match(/interface\s+\w+Input\s*\{([^}]+)\}/s);
-        if (inputMatch && inputMatch[1]) {
-          const lines = inputMatch[1].split("\n");
-          for (const line of lines) {
-            const propMatch = line.trim().match(/^([a-zA-Z0-9_$]+)\??\s*:\s*([^;]+);?/);
-            if (propMatch) {
-              const propName = propMatch[1];
-              const propType = propMatch[2].trim();
-              inputs.push({ name: propName, type: propType });
-              synthPayload[propName] = this.synthesizeDefaultValue(propName, propType);
-            }
-          }
-        }
-        const outputMatch = atomContent.match(/export\s+interface\s+\w+Output\s*\{([^}]+)\}/s) || atomContent.match(/interface\s+\w+Output\s*\{([^}]+)\}/s);
-        if (outputMatch && outputMatch[1]) {
-          const lines = outputMatch[1].split("\n");
-          for (const line of lines) {
-            const propMatch = line.trim().match(/^([a-zA-Z0-9_$]+)\??\s*:\s*([^;]+);?/);
-            if (propMatch) {
-              outputs.push({ name: propMatch[1], type: propMatch[2].trim() });
-            }
-          }
-        }
-        if (!examplePayload && Object.keys(synthPayload).length > 0) {
-          examplePayload = synthPayload;
-        }
-      } catch (e) {
-      }
-    }
-    const stateFile = path.join(fnPath, "state_data", "state.ts");
-    if (fs.existsSync(stateFile)) {
-      try {
-        const stateContent = fs.readFileSync(stateFile, "utf-8");
-        const stateMatch = stateContent.match(/export\s+interface\s+\w+State\s*\{([^}]+)\}/s);
-        if (stateMatch && stateMatch[1]) {
-          const lines = stateMatch[1].split("\n");
-          for (const line of lines) {
-            const propMatch = line.trim().match(/^([a-zA-Z0-9_$]+)\??\s*:\s*([^;]+);?/);
-            if (propMatch) {
-              stateFields.push({ name: propMatch[1], type: propMatch[2].trim() });
-            }
-          }
-        }
-      } catch (e) {
-      }
-    }
-    if (!examplePayload) {
-      if (fnName.includes("Calc")) {
-        examplePayload = { op: "add", a: 10, b: 25 };
-      } else if (fnName.includes("Order") || fnName.includes("Cart")) {
-        examplePayload = { productId: "PROD-9821", quantity: 2, price: 49.99 };
-      } else {
-        examplePayload = { payload: `Sample input for ${fnName}` };
-      }
-    }
-    return { inputs, outputs, stateFields, examplePayload };
-  }
-  /**
-   * Introspects Concept Libraries to extract methods and example payloads.
-   */
-  extractLibraryMetadata(libPath, baseName) {
-    const ui = this.findUiFile(path.dirname(libPath), baseName);
-    let examplePayload = null;
-    let extractedMethods = [];
-    try {
-      const content = fs.readFileSync(libPath, "utf-8");
-      const staticMethodRegex = /static\s+([a-zA-Z0-9_$]+)\s*\(([^)]*)\)/g;
-      let match;
-      const methods = [];
-      while ((match = staticMethodRegex.exec(content)) !== null) {
-        const mName = match[1];
-        const rawParams = match[2].trim();
-        const paramNames = rawParams ? rawParams.split(",").map((p) => p.trim().split(":")[0].trim()) : [];
-        methods.push({ name: mName, params: paramNames });
-      }
-      extractedMethods = methods;
-      if (methods.length > 0) {
-        const primary = methods[0];
-        if (primary.params.length > 1) {
-          const sampleArgs = [];
-          for (const p of primary.params) {
-            sampleArgs.push(this.synthesizeDefaultValue(p, "number"));
-          }
-          examplePayload = { method: primary.name, args: sampleArgs };
-        } else if (primary.params.length === 1) {
-          const pName = primary.params[0];
-          examplePayload = { method: primary.name, args: [this.synthesizeDefaultValue(pName, "object")] };
-        } else {
-          examplePayload = { method: primary.name, args: [] };
         }
       }
     } catch (e) {
     }
-    if (!examplePayload) {
-      if (baseName.includes("Math")) {
-        examplePayload = { method: "add", args: [15, 30] };
-      } else if (baseName.includes("Commerce")) {
-        examplePayload = { method: "validateCart", args: [{ items: [{ productId: "PROD-101", quantity: 2, price: 29.99 }] }] };
-      } else {
-        examplePayload = { method: "process", args: [{ data: "sample" }] };
-      }
-    }
-    return { examplePayload, uiSpec: ui.uiSpec, uiFilePath: ui.uiFilePath, methods: extractedMethods };
-  }
-  /**
-   * Introspects SubApps to locate UI entries and operations.
-   */
-  extractSubappMetadata(saPath, saName) {
-    const ui = this.findUiFile(saPath, saName);
-    let examplePayload = null;
-    const manifestPath = path.join(saPath, "subapp.json");
-    if (fs.existsSync(manifestPath)) {
-      try {
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-        if (manifest.ui && manifest.ui.entryPath && !ui.uiFilePath) {
-          const entryAbs = path.resolve(saPath, manifest.ui.entryPath);
-          if (fs.existsSync(entryAbs)) {
-            ui.uiSpec = true;
-            ui.uiFilePath = entryAbs;
-          }
-        }
-      } catch (e) {
-      }
-    }
-    const opsDir = path.join(saPath, "operations");
-    if (fs.existsSync(opsDir)) {
-      const ops = fs.readdirSync(opsDir).filter((f) => f.endsWith(".ts") || f.endsWith(".js"));
-      if (ops.length > 0) {
-        const firstOp = ops[0].replace(/\.(ts|js)$/, "");
-        examplePayload = { operation: firstOp, payload: { action: "execute", timestamp: Date.now() } };
-      }
-    }
-    if (!examplePayload) {
-      examplePayload = { action: "initialize", subapp: saName, context: { debug: true } };
-    }
-    return { examplePayload, uiSpec: ui.uiSpec, uiFilePath: ui.uiFilePath };
-  }
-  /**
-   * Helper to scan for UI files across multiple standard conventions.
-   */
-  findUiFile(dirPath, baseName) {
-    const candidates = [
-      path.join(dirPath, `${baseName}View.tsx`),
-      path.join(dirPath, `${baseName}View.ts`),
-      path.join(dirPath, `${baseName}.view.tsx`),
-      path.join(dirPath, `${baseName}.view.ts`),
-      path.join(dirPath, "ui", `${baseName}View.tsx`),
-      path.join(dirPath, "ui", `${baseName}View.ts`),
-      path.join(dirPath, "ui", "App.tsx"),
-      path.join(dirPath, "ui", "index.tsx"),
-      path.join(dirPath, "src", "ui", "App.tsx"),
-      path.join(dirPath, "src", "ui", "index.tsx"),
-      path.join(dirPath, "view.tsx"),
-      path.join(dirPath, "view.ts")
-    ];
-    for (const c of candidates) {
-      if (fs.existsSync(c)) {
-        return { uiSpec: true, uiFilePath: c };
-      }
-    }
-    return { uiSpec: false };
-  }
-  /**
-   * Synthesizes realistic, intelligent mock values from property names and TypeScript types.
-   */
-  synthesizeDefaultValue(propName, typeText) {
-    const lowerName = propName.toLowerCase();
-    const cleanType = typeText.replace(/\s+/g, " ").trim();
-    if (cleanType.includes("|") && (cleanType.includes("'") || cleanType.includes('"'))) {
-      const match = cleanType.match(/['"]([^'"]+)['"]/);
-      if (match) return match[1];
-    }
-    if (cleanType.startsWith("number")) {
-      if (lowerName.includes("price") || lowerName.includes("cost") || lowerName.includes("amount") || lowerName.includes("subtotal")) {
-        return 49.99;
-      }
-      if (lowerName.includes("qty") || lowerName.includes("quantity") || lowerName.includes("count") || lowerName.includes("itemcount")) {
-        return 2;
-      }
-      if (lowerName === "a") return 10;
-      if (lowerName === "b") return 25;
-      if (lowerName.includes("port")) return 8080;
-      if (lowerName.includes("id") || lowerName.includes("code")) return 1001;
-      return 10;
-    }
-    if (cleanType.startsWith("string")) {
-      if (lowerName.includes("productid") || lowerName.includes("product_id") || lowerName.includes("itemid")) {
-        return "PROD-9821";
-      }
-      if (lowerName.includes("orderid") || lowerName.includes("order_id")) {
-        return "ORD-1049";
-      }
-      if (lowerName.includes("userid") || lowerName.includes("user_id")) {
-        return "USR-4402";
-      }
-      if (lowerName.includes("email")) {
-        return "alex.developer@krnl.io";
-      }
-      if (lowerName.includes("name")) {
-        return "Premium Subscription";
-      }
-      if (lowerName.includes("url")) {
-        return "https://api.krnl.io/v1/stream";
-      }
-      if (lowerName === "op" || lowerName === "operation") {
-        return "add";
-      }
-      return `Sample ${propName}`;
-    }
-    if (cleanType.startsWith("boolean")) {
-      return true;
-    }
-    if (cleanType.endsWith("[]") || cleanType.startsWith("Array<")) {
-      if (lowerName.includes("item") || lowerName.includes("product")) {
-        return [{ id: "ITEM-1", name: "Standard Item", price: 29.99, quantity: 1 }];
-      }
-      return ["sample-item-1", "sample-item-2"];
-    }
-    if (cleanType.startsWith("Record") || cleanType.startsWith("object") || cleanType === "any") {
-      return { sampleKey: "sampleValue" };
-    }
-    return "sample";
-  }
-  // --- Graph Manipulation & Controls ---
-  moveNode(nodeId, x, y) {
-    this.recordHistory();
-    this.nodePositions.set(nodeId, { x, y });
-    this.persistGraphState();
-    return { success: true, position: { x, y } };
-  }
-  moveMultipleNodes(positions) {
-    this.recordHistory();
-    for (const [id, pos] of Object.entries(positions)) {
-      this.nodePositions.set(id, pos);
-    }
-    this.persistGraphState();
-    return { success: true };
+    return edges;
   }
   connectNodes(source, target, type = "dataflow") {
-    this.recordHistory();
+    const isTargetFunction = target.startsWith("function:");
+    const isSourceFunction = source.startsWith("function:");
+    if (isTargetFunction && isSourceFunction) {
+      const hasPrecedingFunction = this.customEdges.some(
+        (e) => e.target === source && e.source.startsWith("function:")
+      );
+      if (hasPrecedingFunction) {
+        return {
+          success: false,
+          error: "Cannot chain more than 2 global functions between functionalities. Compose additional logic into a single library function instead."
+        };
+      }
+    }
     const edgeId = `edge:${source}->${target}:${Date.now()}`;
     const edge = { id: edgeId, source, target, type, deletable: true };
     this.customEdges.push(edge);
-    this.deletedEdges.delete(edgeId);
-    this.persistGraphState();
     return { success: true, edge };
   }
   deleteEdge(edgeId) {
-    this.recordHistory();
-    this.deletedEdges.add(edgeId);
     this.customEdges = this.customEdges.filter((e) => e.id !== edgeId);
-    this.persistGraphState();
     return { success: true, deletedEdgeId: edgeId };
   }
-  deleteNode(nodeId) {
-    this.recordHistory();
-    const graph = this.extractArchitectureGraph();
-    const targetNode = graph.nodes.find((n) => n.id === nodeId);
-    if (targetNode && fs.existsSync(targetNode.filePath)) {
-      const targetDir = fs.lstatSync(targetNode.filePath).isDirectory() ? targetNode.filePath : path.dirname(targetNode.filePath);
-      if (targetDir.startsWith(path.join(this.projectRoot, "src"))) {
-        fs.rmSync(targetDir, { recursive: true, force: true });
+  addFlowStep(entityFilePath, flowName, stepFunctionName) {
+    return true;
+  }
+  listGlobalLibraryFunctions() {
+    const res = [];
+    const libDir = path2.join(this.projectRoot, "src/libraries");
+    if (!fs3.existsSync(libDir)) return res;
+    try {
+      const libs = fs3.readdirSync(libDir, { withFileTypes: true });
+      for (const lib of libs) {
+        if (!lib.isDirectory()) continue;
+        const libName = lib.name.replace(/\.ts$/, "");
+        res.push({
+          name: `${libName}.process`,
+          libraryName: libName,
+          library: libName,
+          functionName: "process"
+        });
+      }
+    } catch (e) {
+    }
+    return res;
+  }
+  addOrchestrationStep(entityFilePathOrName, orchestrationNameOrFromId, stepTypeOrToId, targetName, libName) {
+    const entityName = entityFilePathOrName.includes("/") ? path2.basename(entityFilePathOrName).replace(/Entity\.ts$/, "") : entityFilePathOrName;
+    const entityFilePath = path2.isAbsolute(entityFilePathOrName) ? entityFilePathOrName : path2.join(this.projectRoot, "src/entities", entityName, `${entityName}Entity.ts`);
+    try {
+      const sourceFile = this.project.getSourceFile(entityFilePath) || this.project.addSourceFileAtPath(entityFilePath);
+      const entityClass = sourceFile.getClass((c) => c.getName() === `${entityName}Entity` || c.getName() === entityName);
+      if (!entityClass) return { success: false, message: `Entity ${entityName} not found` };
+      let bootMethod = entityClass.getMethod("boot");
+      if (!bootMethod) {
+        bootMethod = entityClass.addMethod({ name: "boot", returnType: "this", statements: "return this;" });
+      }
+      const cleanToName = (targetName || stepTypeOrToId).replace(/^func_[^_]+_/, "").replace(/^func_/, "");
+      const chainMethod = stepTypeOrToId === "function" || targetName ? "thenFunction" : "thenFunctionality";
+      const newCall = `.${chainMethod}('${cleanToName}')`;
+      const bodyText = bootMethod.getBodyText() || "return this;";
+      if (bodyText.includes("return this;")) {
+        bootMethod.setBodyText(bodyText.replace("return this;", `return this${newCall};`));
+      } else if (bodyText.includes("return this.")) {
+        bootMethod.setBodyText(bodyText.replace(";", `${newCall};`));
+      } else {
+        bootMethod.setBodyText(`return this${newCall};
+${bodyText}`);
+      }
+      sourceFile.saveSync();
+      return { success: true };
+    } catch (err) {
+      return { success: false, message: err.message || String(err) };
+    }
+  }
+};
+
+// ../studio/src/server/ast/AstNodeMutator.ts
+import * as fs4 from "fs";
+import * as path3 from "path";
+var AstNodeMutator = class {
+  projectRoot;
+  layoutPath;
+  undoStack = [];
+  redoStack = [];
+  constructor(projectRoot) {
+    this.projectRoot = projectRoot;
+    this.layoutPath = path3.join(projectRoot, ".krnl", "layout.json");
+  }
+  loadPositions() {
+    if (fs4.existsSync(this.layoutPath)) {
+      try {
+        return JSON.parse(fs4.readFileSync(this.layoutPath, "utf8"));
+      } catch (e) {
       }
     }
-    this.nodePositions.delete(nodeId);
-    this.persistGraphState();
-    return { success: true, deletedNodeId: nodeId };
+    return {};
+  }
+  savePositions(positions) {
+    try {
+      const dir = path3.dirname(this.layoutPath);
+      if (!fs4.existsSync(dir)) fs4.mkdirSync(dir, { recursive: true });
+      fs4.writeFileSync(this.layoutPath, JSON.stringify(positions, null, 2), "utf8");
+    } catch (e) {
+    }
+  }
+  moveNode(nodeId, x, y) {
+    const pos = this.loadPositions();
+    this.undoStack.push({ ...pos });
+    pos[nodeId] = { x, y };
+    this.savePositions(pos);
+    return { success: true, position: { x, y } };
+  }
+  moveMultipleNodes(positions) {
+    const pos = this.loadPositions();
+    this.undoStack.push({ ...pos });
+    Object.assign(pos, positions);
+    this.savePositions(pos);
+    return { success: true };
   }
   alignLayout(algorithm = "hierarchical") {
-    this.recordHistory();
-    const graph = this.extractArchitectureGraph();
-    const positions = {};
-    const entities = graph.nodes.filter((n) => n.type === "entity");
-    entities.forEach((node, idx) => {
-      const col = Math.floor(idx / 5);
-      const row = idx % 5;
-      const x = 60 + col * 360;
-      const y = 60 + row * 220;
-      positions[node.id] = { x, y };
-      this.nodePositions.set(node.id, { x, y });
-    });
-    const funcs = graph.nodes.filter((n) => n.type === "functionality");
-    funcs.forEach((node, idx) => {
-      const col = Math.floor(idx / 7);
-      const row = idx % 7;
-      const x = 800 + col * 320;
-      const y = 60 + row * 180;
-      positions[node.id] = { x, y };
-      this.nodePositions.set(node.id, { x, y });
-    });
-    const others = graph.nodes.filter((n) => n.type === "library" || n.type === "subapp");
-    others.forEach((node, idx) => {
-      const x = 1500;
-      const y = 60 + idx * 160;
-      positions[node.id] = { x, y };
-      this.nodePositions.set(node.id, { x, y });
-    });
-    this.persistGraphState();
+    const positions = this.loadPositions();
     return { success: true, positions };
-  }
-  recordHistory() {
-    this.undoStack.push(this.extractArchitectureGraph());
-    if (this.undoStack.length > 50) this.undoStack.shift();
-    this.redoStack = [];
   }
   undo() {
     if (this.undoStack.length === 0) return { success: false };
+    const cur = this.loadPositions();
+    this.redoStack.push(cur);
     const prev = this.undoStack.pop();
-    this.redoStack.push(this.extractArchitectureGraph());
-    this.nodePositions.clear();
-    for (const node of prev.nodes) {
-      if (node.position) this.nodePositions.set(node.id, node.position);
-    }
-    this.persistGraphState();
+    this.savePositions(prev);
     return { success: true };
   }
   redo() {
     if (this.redoStack.length === 0) return { success: false };
+    const cur = this.loadPositions();
+    this.undoStack.push(cur);
     const next = this.redoStack.pop();
-    this.undoStack.push(this.extractArchitectureGraph());
-    this.nodePositions.clear();
-    for (const node of next.nodes) {
-      if (node.position) this.nodePositions.set(node.id, node.position);
-    }
-    this.persistGraphState();
+    this.savePositions(next);
     return { success: true };
   }
-  createEntity(name) {
-    this.recordHistory();
-    const entitiesDir = path.join(this.projectRoot, "src", "entities");
-    const entityDir = path.join(entitiesDir, name);
-    fs.mkdirSync(entityDir, { recursive: true });
-    const entityFile = path.join(entityDir, `${name}.ts`);
-    const code = `import { Entity, KrnlMagneticLoader } from '@dinilmusick/krnl-core';
-
-export class ${name} extends Entity {
-  constructor() {
-    super({
-      id: '${name}',
-      version: '1.0.0',
-      description: '${name} Auto-Scaffolded System Entity'
-    });
+  deleteNode(nodeId) {
+    const pos = this.loadPositions();
+    delete pos[nodeId];
+    this.savePositions(pos);
+    return { success: true, deletedNodeId: nodeId };
   }
+  createEntity(entityName) {
+    const entityDir = path3.join(this.projectRoot, "src/entities", entityName);
+    fs4.mkdirSync(entityDir, { recursive: true });
+    const entityFilePath = path3.join(entityDir, `${entityName}Entity.ts`);
+    const content = `import { Entity } from '@dinilmusick/krnl-core';
 
-  async boot(): Promise<void> {
-    await KrnlMagneticLoader.loadAll(this, import.meta.url);
+export class ${entityName}Entity extends Entity {
+  public boot() {
+    return this;
   }
 }
-export default ${name};
 `;
-    fs.writeFileSync(entityFile, code, "utf-8");
-    return { success: true, filePath: entityFile };
+    fs4.writeFileSync(entityFilePath, content, "utf8");
+    return { success: true, filePath: entityFilePath };
   }
-  createFunctionality(entityName, name) {
-    this.recordHistory();
-    const fnDir = path.join(this.projectRoot, "src", "entities", entityName, "functionalities", name);
-    fs.mkdirSync(path.join(fnDir, "main_function"), { recursive: true });
-    fs.mkdirSync(path.join(fnDir, "state_data"), { recursive: true });
-    fs.mkdirSync(path.join(fnDir, "helper_functions"), { recursive: true });
-    const atomFile = path.join(fnDir, `${name}Atom.ts`);
-    const logicFile = path.join(fnDir, "main_function", "logic.ts");
-    const stateFile = path.join(fnDir, "state_data", "state.ts");
-    const helperFile = path.join(fnDir, "helper_functions", "executeStep.ts");
-    fs.writeFileSync(atomFile, `export interface ${name}Input { payload?: any; }
-export interface ${name}Output { success: boolean; timestamp: number; }
+  createFunctionality(entityName, funcName) {
+    const funcDir = path3.join(this.projectRoot, "src/entities", entityName, funcName);
+    fs4.mkdirSync(path3.join(funcDir, "atom"), { recursive: true });
+    fs4.mkdirSync(path3.join(funcDir, "state_data"), { recursive: true });
+    fs4.mkdirSync(path3.join(funcDir, "main_function"), { recursive: true });
+    fs4.mkdirSync(path3.join(funcDir, "helper_functions"), { recursive: true });
+    const f1 = path3.join(funcDir, "atom", `${funcName}Atom.ts`);
+    const f2 = path3.join(funcDir, "state_data", "state.ts");
+    const f3 = path3.join(funcDir, "main_function", "logic.ts");
+    fs4.writeFileSync(f1, `export interface ${funcName}Input { [k: string]: any; }
+export interface ${funcName}Output { success: boolean; }
 `);
-    fs.writeFileSync(stateFile, `export interface ${name}State { invocationCount: number; }
-export const initialState: ${name}State = { invocationCount: 0 };
+    fs4.writeFileSync(f2, `export interface ${funcName}State { active: boolean; }
 `);
-    fs.writeFileSync(helperFile, `export function executeStep(payload: any) { return { processed: true, data: payload }; }
-`);
-    fs.writeFileSync(logicFile, `import { ${name}Input, ${name}Output } from '../${name}Atom.js';
-import { executeStep } from '../helper_functions/executeStep.js';
+    fs4.writeFileSync(f3, `import { ${funcName}Input, ${funcName}Output } from '../atom/${funcName}Atom.js';
 
-export const main = async (input: ${name}Input, { state }: any): Promise<${name}Output> => {
-  executeStep(input.payload);
-  return { success: true, timestamp: Date.now() };
-};
+export async function main(input: ${funcName}Input): Promise<${funcName}Output> {
+  return { success: true };
+}
 `);
-    return { success: true, filesCreated: [atomFile, logicFile, stateFile, helperFile] };
+    return { success: true, filesCreated: [f1, f2, f3] };
   }
   createLibrary(name) {
-    this.recordHistory();
-    const cleanName = name.replace(/Concepts$/, "");
-    const fullLibName = `${cleanName}Concepts`;
-    const libDir = path.join(this.projectRoot, "src", "libraries");
-    fs.mkdirSync(libDir, { recursive: true });
-    const libFile = path.join(libDir, `${fullLibName}.ts`);
-    const code = `/**
- * Layer 0: Pure Domain Concept Library
- */
-export class ${fullLibName} {
-  static process(data: any): any {
-    return { valid: true, timestamp: Date.now() };
-  }
+    const clean = name.replace(/Concepts$/, "");
+    const libDir = path3.join(this.projectRoot, "src/libraries", `${clean}Concepts`);
+    fs4.mkdirSync(libDir, { recursive: true });
+    const f = path3.join(libDir, "index.ts");
+    fs4.writeFileSync(f, `export class ${clean}Concepts {
+  static process(d: any) { return { valid: true }; }
 }
-`;
-    fs.writeFileSync(libFile, code, "utf-8");
-    return { success: true, filePath: libFile };
+`);
+    return { success: true, filePath: f };
   }
-  addFlowStep(entityFilePath, flowName, stepFunctionName) {
-    this.recordHistory();
-    const absPath = path.resolve(this.projectRoot, entityFilePath);
-    if (!fs.existsSync(absPath)) return false;
-    const sourceFile = this.project.addSourceFileAtPath(absPath);
-    const classDec = sourceFile.getClasses()[0];
-    if (!classDec) return false;
-    const bootMethod = classDec.getMethod("boot");
-    if (!bootMethod) return false;
-    const body = bootMethod.getBody();
-    if (!body || !Node.isBlock(body)) return false;
-    const text = body.getText();
-    if (text.includes(`this.flow('${flowName}')`)) {
-      const lines = text.split("\n");
-      const newLines = lines.map((line) => {
-        if (line.includes(`this.flow('${flowName}')`)) {
-          return line.replace(`this.flow('${flowName}')`, `this.flow('${flowName}')
-      .then('${stepFunctionName}')`);
-        }
-        return line;
-      });
-      body.replaceWithText(newLines.join("\n"));
-    } else {
-      bootMethod.addStatements(`this.flow('${flowName}')
-  .then('${stepFunctionName}')
-  .register({ visibility: 'public' });`);
+};
+
+// ../studio/src/server/AstMutationEngine.ts
+var AstMutationEngine = class {
+  projectRoot;
+  project;
+  metadataExtractor;
+  scanner;
+  orchestrationMutator;
+  nodeMutator;
+  constructor(projectRoot) {
+    this.projectRoot = projectRoot;
+    this.project = new Project2({ skipAddingFilesFromTsConfig: true });
+    this.metadataExtractor = new AstMetadataExtractor(this.project);
+    this.scanner = new AstScanner(this.projectRoot, this.metadataExtractor);
+    this.orchestrationMutator = new AstOrchestrationMutator(this.projectRoot, this.project);
+    this.nodeMutator = new AstNodeMutator(this.projectRoot);
+  }
+  extractArchitectureGraph() {
+    const positions = this.nodeMutator.loadPositions();
+    const graph = this.scanner.scanWorkspace(positions);
+    const entities = graph.nodes.filter((n) => n.type === "entity");
+    for (const ent of entities) {
+      const orchEdges = this.orchestrationMutator.extractOrchestrationEdges(ent.name);
+      graph.edges.push(...orchEdges);
     }
-    sourceFile.saveSync();
-    return true;
+    return graph;
+  }
+  moveNode(nodeId, x, y) {
+    return this.nodeMutator.moveNode(nodeId, x, y);
+  }
+  moveMultipleNodes(positions) {
+    return this.nodeMutator.moveMultipleNodes(positions);
+  }
+  alignLayout(algorithm) {
+    return this.nodeMutator.alignLayout(algorithm);
+  }
+  undo() {
+    return this.nodeMutator.undo();
+  }
+  redo() {
+    return this.nodeMutator.redo();
+  }
+  deleteNode(nodeId) {
+    return this.nodeMutator.deleteNode(nodeId);
+  }
+  createEntity(entityName) {
+    return this.nodeMutator.createEntity(entityName);
+  }
+  createFunctionality(entityName, funcName) {
+    return this.nodeMutator.createFunctionality(entityName, funcName);
+  }
+  createLibrary(name) {
+    return this.nodeMutator.createLibrary(name);
+  }
+  connectNodes(source, target, type) {
+    return this.orchestrationMutator.connectNodes(source, target, type);
+  }
+  deleteEdge(edgeId) {
+    return this.orchestrationMutator.deleteEdge(edgeId);
+  }
+  addFlowStep(p1, p2, p3) {
+    return this.orchestrationMutator.addFlowStep(p1, p2, p3);
+  }
+  listGlobalLibraryFunctions() {
+    return this.orchestrationMutator.listGlobalLibraryFunctions();
+  }
+  addOrchestrationStep(p1, p2, p3, p4, p5) {
+    return this.orchestrationMutator.addOrchestrationStep(p1, p2, p3, p4, p5);
   }
 };
 
 // ../studio/src/server/FunctionExecutor.ts
-import * as path2 from "path";
-import * as fs2 from "fs";
+import * as path4 from "path";
+import * as fs5 from "fs";
 import { pathToFileURL } from "url";
 import * as esbuild from "esbuild";
 var FunctionExecutor = class {
@@ -712,8 +682,8 @@ var FunctionExecutor = class {
     const startTime = performance.now();
     const initialMem = process.memoryUsage().heapUsed;
     const logs = [];
-    let absPath = path2.resolve(request.filePath);
-    if (!fs2.existsSync(absPath)) {
+    let absPath = path4.resolve(request.filePath);
+    if (!fs5.existsSync(absPath)) {
       return {
         success: false,
         durationMs: 0,
@@ -722,15 +692,15 @@ var FunctionExecutor = class {
         logs: []
       };
     }
-    if (fs2.lstatSync(absPath).isDirectory()) {
-      const base = path2.basename(absPath);
+    if (fs5.lstatSync(absPath).isDirectory()) {
+      const base = path4.basename(absPath);
       const candidates = [
-        path2.join(absPath, "main_function/logic.ts"),
-        path2.join(absPath, `${base}.ts`),
-        path2.join(absPath, "index.ts"),
-        path2.join(absPath, "entity.ts")
+        path4.join(absPath, "main_function/logic.ts"),
+        path4.join(absPath, `${base}.ts`),
+        path4.join(absPath, "index.ts"),
+        path4.join(absPath, "entity.ts")
       ];
-      const found = candidates.find((c) => fs2.existsSync(c));
+      const found = candidates.find((c) => fs5.existsSync(c));
       if (found) {
         absPath = found;
       } else {
@@ -743,8 +713,8 @@ var FunctionExecutor = class {
         };
       }
     }
-    const dirOfEntry = path2.dirname(absPath);
-    const tempBundlePath = path2.join(
+    const dirOfEntry = path4.dirname(absPath);
+    const tempBundlePath = path4.join(
       dirOfEntry,
       `.krnl-exec-${Date.now()}-${Math.random().toString(36).substring(7)}.mjs`
     );
@@ -753,13 +723,13 @@ var FunctionExecutor = class {
       setup(build2) {
         build2.onResolve({ filter: /.*/ }, (args2) => {
           if (args2.path.startsWith(".")) {
-            const dir = args2.resolveDir || path2.dirname(args2.importer);
-            const candidateJs = path2.resolve(dir, args2.path);
+            const dir = args2.resolveDir || path4.dirname(args2.importer);
+            const candidateJs = path4.resolve(dir, args2.path);
             const candidateTs = candidateJs.replace(/\.js$/, ".ts");
-            if (fs2.existsSync(candidateTs)) {
+            if (fs5.existsSync(candidateTs)) {
               return { path: candidateTs };
             }
-            if (fs2.existsSync(candidateJs)) {
+            if (fs5.existsSync(candidateJs)) {
               return { path: candidateJs };
             }
           }
@@ -921,9 +891,9 @@ var FunctionExecutor = class {
         logs
       };
     } finally {
-      if (fs2.existsSync(tempBundlePath)) {
+      if (fs5.existsSync(tempBundlePath)) {
         try {
-          fs2.unlinkSync(tempBundlePath);
+          fs5.unlinkSync(tempBundlePath);
         } catch (e) {
         }
       }
@@ -932,26 +902,26 @@ var FunctionExecutor = class {
 };
 
 // ../studio/src/server/FileWatcher.ts
-import * as fs3 from "fs";
-import * as path3 from "path";
+import * as fs6 from "fs";
+import * as path5 from "path";
 var StudioFileWatcher = class {
   watcher = null;
   rootDir;
   listeners = /* @__PURE__ */ new Set();
   debounceTimers = /* @__PURE__ */ new Map();
   constructor(rootDir = process.cwd()) {
-    this.rootDir = path3.resolve(rootDir);
+    this.rootDir = path5.resolve(rootDir);
   }
   start() {
     if (this.watcher) return;
-    const srcDir = path3.join(this.rootDir, "src");
-    if (!fs3.existsSync(srcDir)) return;
-    this.watcher = fs3.watch(srcDir, { recursive: true }, (eventType, filename) => {
+    const srcDir = path5.join(this.rootDir, "src");
+    if (!fs6.existsSync(srcDir)) return;
+    this.watcher = fs6.watch(srcDir, { recursive: true }, (eventType, filename) => {
       if (!filename) return;
       if (filename.includes("node_modules") || filename.includes("dist") || filename.includes(".git") || filename.endsWith(".d.ts") || filename.endsWith(".log") || filename.endsWith(".tmp") || filename.includes(".krnl-graph") || filename.includes(".DS_Store")) {
         return;
       }
-      const fullPath = path3.join(srcDir, filename);
+      const fullPath = path5.join(srcDir, filename);
       if (this.debounceTimers.has(fullPath)) {
         clearTimeout(this.debounceTimers.get(fullPath));
       }
@@ -971,6 +941,11 @@ var StudioFileWatcher = class {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
   }
+  updateRoot(newRoot) {
+    this.stop();
+    this.rootDir = path5.resolve(newRoot);
+    this.start();
+  }
   stop() {
     if (this.watcher) {
       this.watcher.close();
@@ -980,8 +955,8 @@ var StudioFileWatcher = class {
 };
 
 // ../studio/src/server/JsonRpcRouter.ts
-import * as fs4 from "fs";
-import * as path4 from "path";
+import * as fs7 from "fs";
+import * as path6 from "path";
 
 // ../studio/src/server/PreemptiveDocManager.ts
 var PreemptiveDocManager = class {
@@ -1344,13 +1319,13 @@ var JsonRpcRouter = class {
   projectRoot;
   onMutationCallback;
   constructor(projectRoot = process.cwd(), onMutation) {
-    this.projectRoot = path4.resolve(projectRoot);
+    this.projectRoot = path6.resolve(projectRoot);
     this.astEngine = new AstMutationEngine(this.projectRoot);
     this.validator = new KrnlValidatorEngine({ projectRoot: this.projectRoot });
     this.onMutationCallback = onMutation;
   }
   setProjectRoot(newRoot) {
-    this.projectRoot = path4.resolve(newRoot);
+    this.projectRoot = path6.resolve(newRoot);
     this.astEngine = new AstMutationEngine(this.projectRoot);
     this.validator = new KrnlValidatorEngine({ projectRoot: this.projectRoot });
   }
@@ -1366,8 +1341,8 @@ var JsonRpcRouter = class {
         case "project.switch": {
           const targetPath = params.path || params.projectPath;
           if (!targetPath) throw new Error("Path is required to load project");
-          const abs = path4.resolve(this.projectRoot, targetPath);
-          if (!fs4.existsSync(abs)) throw new Error(`Project directory not found: ${targetPath}`);
+          const abs = path6.resolve(this.projectRoot, targetPath);
+          if (!fs7.existsSync(abs)) throw new Error(`Project directory not found: ${targetPath}`);
           this.setProjectRoot(abs);
           const graph = this.astEngine.extractArchitectureGraph();
           const decorated = PreemptiveDocManager.decorateResponse("project.load", { success: true, projectRoot: this.projectRoot, graph });
@@ -1415,6 +1390,9 @@ var JsonRpcRouter = class {
           const { source, target, type } = params;
           if (!source || !target) throw new Error("source and target node IDs are required");
           const res = this.astEngine.connectNodes(source, target, type);
+          if (!res.success) {
+            return { jsonrpc: "2.0", id, error: { code: -32002, message: res.error || "Connection rejected by validation rule" } };
+          }
           const graph = this.astEngine.extractArchitectureGraph();
           this.notifyMutation("graph.connectNodes", { source, target, ...res });
           const decorated = PreemptiveDocManager.decorateResponse("graph.connectNodes", { ...res, graph });
@@ -1500,38 +1478,49 @@ var JsonRpcRouter = class {
           const decorated = PreemptiveDocManager.decorateResponse("flow.addStep", { success, graph });
           return { jsonrpc: "2.0", id, result: decorated };
         }
+        case "library.listFunctions": {
+          const functions = this.astEngine.listGlobalLibraryFunctions();
+          return { jsonrpc: "2.0", id, result: { success: true, functions } };
+        }
+        case "orchestration.addStep": {
+          const { entityFilePath, orchestrationName, stepType, targetName, libName } = params;
+          const res = this.astEngine.addOrchestrationStep(entityFilePath, orchestrationName, stepType, targetName, libName);
+          const graph = this.astEngine.extractArchitectureGraph();
+          this.notifyMutation("orchestration.addStep", { orchestrationName, stepType, targetName, ...res });
+          return { jsonrpc: "2.0", id, result: { ...res, graph } };
+        }
         // 4. Code Mutation & Robust File Reading
         case "file.read": {
           const { filePath } = params;
-          let abs = path4.isAbsolute(filePath) ? filePath : path4.resolve(this.projectRoot, filePath);
-          if (!fs4.existsSync(abs)) throw new Error(`File not found: ${filePath}`);
+          let abs = path6.isAbsolute(filePath) ? filePath : path6.resolve(this.projectRoot, filePath);
+          if (!fs7.existsSync(abs)) throw new Error(`File not found: ${filePath}`);
           let content = "";
-          if (fs4.lstatSync(abs).isDirectory()) {
-            const base = path4.basename(abs);
-            const candidateTs = path4.join(abs, `${base}.ts`);
-            const candidateIndex = path4.join(abs, "index.ts");
-            if (fs4.existsSync(candidateTs)) {
+          if (fs7.lstatSync(abs).isDirectory()) {
+            const base = path6.basename(abs);
+            const candidateTs = path6.join(abs, `${base}.ts`);
+            const candidateIndex = path6.join(abs, "index.ts");
+            if (fs7.existsSync(candidateTs)) {
               abs = candidateTs;
-              content = fs4.readFileSync(candidateTs, "utf-8");
-            } else if (fs4.existsSync(candidateIndex)) {
+              content = fs7.readFileSync(candidateTs, "utf-8");
+            } else if (fs7.existsSync(candidateIndex)) {
               abs = candidateIndex;
-              content = fs4.readFileSync(candidateIndex, "utf-8");
+              content = fs7.readFileSync(candidateIndex, "utf-8");
             } else {
-              const files = fs4.readdirSync(abs);
+              const files = fs7.readdirSync(abs);
               content = `// Directory: ${base}
 // Files in directory:
 ` + files.map((f) => `// - ${f}`).join("\n");
             }
           } else {
-            content = fs4.readFileSync(abs, "utf-8");
+            content = fs7.readFileSync(abs, "utf-8");
           }
           const decorated = PreemptiveDocManager.decorateResponse("file.read", { filePath: abs, content });
           return { jsonrpc: "2.0", id, result: decorated };
         }
         case "file.edit": {
           const { filePath, newContent } = params;
-          const abs = path4.resolve(this.projectRoot, filePath);
-          fs4.writeFileSync(abs, newContent, "utf-8");
+          const abs = path6.resolve(this.projectRoot, filePath);
+          fs7.writeFileSync(abs, newContent, "utf-8");
           this.notifyMutation("file.edit", { filePath });
           const decorated = PreemptiveDocManager.decorateResponse("file.edit", { success: true, filePath: abs });
           return { jsonrpc: "2.0", id, result: decorated };
@@ -1540,9 +1529,9 @@ var JsonRpcRouter = class {
           const { componentTree, componentName, targetFilePath } = params;
           const code = VanJSCodeGenerator.generateCode(componentTree, componentName || "GeneratedView");
           if (targetFilePath) {
-            const abs = path4.resolve(this.projectRoot, targetFilePath);
-            fs4.mkdirSync(path4.dirname(abs), { recursive: true });
-            fs4.writeFileSync(abs, code, "utf-8");
+            const abs = path6.resolve(this.projectRoot, targetFilePath);
+            fs7.mkdirSync(path6.dirname(abs), { recursive: true });
+            fs7.writeFileSync(abs, code, "utf-8");
             this.notifyMutation("ui.generate", { targetFilePath });
           }
           const decorated = PreemptiveDocManager.decorateResponse("ui.generate", { code, targetFilePath });
@@ -1592,12 +1581,136 @@ var JsonRpcRouter = class {
 
 // ../studio/src/server/StudioServer.ts
 import * as http from "http";
-import * as fs5 from "fs";
-import * as path5 from "path";
-import { fileURLToPath } from "url";
+import * as fs10 from "fs";
+import * as path9 from "path";
 import { WebSocketServer, WebSocket } from "ws";
-var __filename = fileURLToPath(import.meta.url);
-var __dirname = path5.dirname(__filename);
+
+// ../studio/src/server/StaticFileServer.ts
+import * as fs8 from "fs";
+import * as path7 from "path";
+var MIME_TYPES = {
+  ".js": "application/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png"
+};
+var StaticFileServer = class {
+  baseDirs;
+  constructor() {
+    const base = typeof __dirname !== "undefined" ? __dirname : process.cwd();
+    this.baseDirs = [
+      path7.join(base, "../ui"),
+      path7.join(base, "../../src/ui"),
+      path7.join(process.cwd(), "packages/studio/src/ui"),
+      path7.join(process.cwd(), "src/ui")
+    ];
+  }
+  serveFile(req, res, relativePath) {
+    const cleanPath = path7.normalize(relativePath.replace(/^\/ui\/?/, "")).replace(/^(\.\.[\/\\])+/, "");
+    for (const baseDir of this.baseDirs) {
+      const fullPath = path7.join(baseDir, cleanPath);
+      if (fs8.existsSync(fullPath) && fs8.statSync(fullPath).isFile()) {
+        const ext = path7.extname(fullPath).toLowerCase();
+        const mime = MIME_TYPES[ext] || "text/plain; charset=utf-8";
+        const content = fs8.readFileSync(fullPath);
+        res.writeHead(200, {
+          "Content-Type": mime,
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Content-Length": Buffer.byteLength(content)
+        });
+        res.end(content);
+        return true;
+      }
+    }
+    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end(`File not found: ${cleanPath}`);
+    return false;
+  }
+};
+
+// ../studio/src/server/HttpRouteHandler.ts
+import * as fs9 from "fs";
+import * as path8 from "path";
+var ROUTE_MAP = {
+  "/api/v1/project/create": "project.create",
+  "/api/v1/project/load": "project.load",
+  "/api/v1/project/graph": "graph.getArchitecture",
+  "/api/v1/project/status": "project.getStatus",
+  "/api/v1/graph/moveNode": "graph.moveNode",
+  "/api/v1/graph/moveMultipleNodes": "graph.moveMultipleNodes",
+  "/api/v1/graph/connectNodes": "graph.connectNodes",
+  "/api/v1/graph/deleteEdge": "graph.deleteEdge",
+  "/api/v1/graph/deleteNode": "graph.deleteNode",
+  "/api/v1/graph/alignLayout": "graph.alignLayout",
+  "/api/v1/graph/undo": "graph.undo",
+  "/api/v1/graph/redo": "graph.redo",
+  "/api/v1/entity/create": "entity.create",
+  "/api/v1/functionality/create": "functionality.create",
+  "/api/v1/library/create": "library.create",
+  "/api/v1/flow/addStep": "flow.addStep",
+  "/api/v1/file/read": "file.read",
+  "/api/v1/file/edit": "file.edit",
+  "/api/v1/ui/generate": "ui.generate",
+  "/api/v1/validate/audit": "validate.audit",
+  "/api/v1/test/execute": "test.executeFunction",
+  "/api/v1/docs/endpoints": "docs.endpoints"
+};
+var HttpRouteHandler = class {
+  static async handleApiRequest(req, res, url, router, onGraphUpdate) {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
+    req.on("end", async () => {
+      try {
+        let params = {};
+        if (body.trim()) {
+          try {
+            params = JSON.parse(body);
+          } catch (e) {
+          }
+        }
+        const method = ROUTE_MAP[url] || "graph.getArchitecture";
+        const rpcRes = await router.handle({
+          jsonrpc: "2.0",
+          id: "http-req-" + Date.now(),
+          method,
+          params
+        });
+        if (rpcRes.error) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(rpcRes.error, null, 2));
+        } else {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(rpcRes.result, null, 2));
+          onGraphUpdate();
+        }
+      } catch (err) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message || String(err) }));
+      }
+    });
+  }
+  static getStudioHtml() {
+    const base = typeof __dirname !== "undefined" ? __dirname : process.cwd();
+    const candidates = [
+      path8.join(base, "studio.html"),
+      path8.join(base, "../../src/server/studio.html"),
+      path8.join(process.cwd(), "packages/studio/src/server/studio.html"),
+      path8.join(process.cwd(), "src/server/studio.html")
+    ];
+    for (const candidate of candidates) {
+      if (fs9.existsSync(candidate)) {
+        return fs9.readFileSync(candidate, "utf8");
+      }
+    }
+    return `<!DOCTYPE html><html><body><h1>Krnl Studio Error: studio.html not found.</h1></body></html>`;
+  }
+};
+
+// ../studio/src/server/StudioServer.ts
 var StudioServer = class {
   port;
   projectRoot;
@@ -1606,53 +1719,40 @@ var StudioServer = class {
   router;
   watcher;
   astEngine;
+  staticServer;
   constructor(options = {}) {
     this.port = options.port || 8080;
-    const initialRoot = path5.resolve(options.projectRoot || process.cwd());
-    const unifiedPath = path5.join(initialRoot, "examples/unified-workspace");
-    if (!fs5.existsSync(path5.join(initialRoot, "src/entities")) && fs5.existsSync(unifiedPath)) {
-      this.projectRoot = unifiedPath;
-    } else {
-      this.projectRoot = initialRoot;
-    }
+    const initialRoot = path9.resolve(options.projectRoot || process.cwd());
+    const unifiedPath = path9.join(initialRoot, "examples/unified-workspace");
+    this.projectRoot = !fs10.existsSync(path9.join(initialRoot, "src/entities")) && fs10.existsSync(unifiedPath) ? unifiedPath : initialRoot;
     this.astEngine = new AstMutationEngine(this.projectRoot);
     this.watcher = new StudioFileWatcher(this.projectRoot);
+    this.staticServer = new StaticFileServer();
     this.router = new JsonRpcRouter(this.projectRoot, (mutation) => {
       this.broadcastAgentActivity(mutation);
     });
     this.httpServer = http.createServer((req, res) => this.handleHttpRequest(req, res));
-    this.httpServer.on("error", (err) => console.error("HTTP Server Error:", err));
     this.wss = new WebSocketServer({ server: this.httpServer, path: "/studio/ws", perMessageDeflate: false });
-    this.wss.on("error", (err) => console.error("WSS Error:", err));
+    this.wss.on("error", (err) => console.warn("WSS Error:", err));
     this.initWebSocket();
     this.initFileWatcher();
   }
   initWebSocket() {
     this.wss.on("connection", (ws) => {
-      ws.on("error", (err) => {
-        console.warn("WS Client connection error handled:", err.message);
-      });
-      try {
-        const initialGraph = this.astEngine.extractArchitectureGraph();
-        ws.send(JSON.stringify({ jsonrpc: "2.0", method: "graph.init", params: { ...initialGraph, projectRoot: this.projectRoot } }));
-      } catch (e) {
-      }
+      ws.on("error", (err) => console.warn("WS Client Error:", err?.message));
+      const graph = this.astEngine.extractArchitectureGraph();
+      ws.send(JSON.stringify({ jsonrpc: "2.0", method: "graph.init", params: { ...graph, projectRoot: this.projectRoot } }));
       ws.on("message", async (data) => {
         try {
           const req = JSON.parse(data.toString());
-          if (req.method === "project.switch" || req.method === "project.load") {
-            const targetPath = req.params.path || req.params.projectPath;
-            const newPath = path5.isAbsolute(targetPath) ? targetPath : path5.resolve(process.cwd(), targetPath);
-            if (fs5.existsSync(newPath)) {
-              this.projectRoot = newPath;
-              this.router.setProjectRoot(this.projectRoot);
+          if (req.method === "project.openDirectory" && req.params?.directory) {
+            const targetPath = path9.resolve(req.params.directory);
+            if (fs10.existsSync(targetPath)) {
+              this.projectRoot = targetPath;
               this.astEngine = new AstMutationEngine(this.projectRoot);
-              this.watcher.stop();
-              this.watcher = new StudioFileWatcher(this.projectRoot);
-              this.initFileWatcher();
-              const graph = this.astEngine.extractArchitectureGraph();
-              const decorated = PreemptiveDocManager.decorateResponse("project.load", { success: true, projectRoot: this.projectRoot, graph });
-              ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, result: decorated }));
+              this.router.setProjectRoot(this.projectRoot);
+              this.watcher.updateRoot(this.projectRoot);
+              ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, result: { success: true, projectRoot: this.projectRoot } }));
               this.broadcastGraphUpdate();
             } else {
               ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, error: { code: -32001, message: "Directory does not exist: " + targetPath } }));
@@ -1660,18 +1760,13 @@ var StudioServer = class {
             return;
           }
           const res = await this.router.handle(req);
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify(res));
-          }
+          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(res));
           if (req.method && (req.method.startsWith("graph.") || req.method.startsWith("entity.") || req.method.startsWith("functionality.") || req.method.startsWith("library."))) {
             this.broadcastGraphUpdate();
           }
         } catch (e) {
           if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              jsonrpc: "2.0",
-              error: { code: -32700, message: "Parse error: " + (e.message || String(e)) }
-            }));
+            ws.send(JSON.stringify({ jsonrpc: "2.0", error: { code: -32700, message: "Parse error: " + (e.message || String(e)) } }));
           }
         }
       });
@@ -1679,37 +1774,23 @@ var StudioServer = class {
   }
   initFileWatcher() {
     this.watcher.start();
-    this.watcher.subscribe(() => {
-      this.broadcastGraphUpdate();
-    });
+    this.watcher.subscribe(() => this.broadcastGraphUpdate());
   }
   broadcastGraphUpdate() {
     try {
       const graph = this.astEngine.extractArchitectureGraph();
       const payload = JSON.stringify({ jsonrpc: "2.0", method: "graph.updated", params: { ...graph, projectRoot: this.projectRoot } });
       for (const client of this.wss.clients) {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(payload);
-        }
+        if (client.readyState === WebSocket.OPEN) client.send(payload);
       }
     } catch (e) {
     }
   }
   broadcastAgentActivity(mutation) {
     try {
-      const payload = JSON.stringify({
-        jsonrpc: "2.0",
-        method: "agent.activity",
-        params: {
-          action: mutation.action,
-          params: mutation.params,
-          timestamp: Date.now()
-        }
-      });
+      const payload = JSON.stringify({ jsonrpc: "2.0", method: "agent.activity", params: { action: mutation.action, params: mutation.params, timestamp: Date.now() } });
       for (const client of this.wss.clients) {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(payload);
-        }
+        if (client.readyState === WebSocket.OPEN) client.send(payload);
       }
     } catch (e) {
     }
@@ -1730,83 +1811,19 @@ var StudioServer = class {
       res.end(JSON.stringify({ status: "success", payload: graph, projectRoot: this.projectRoot }, null, 2));
       return;
     }
+    if (url.startsWith("/ui/")) {
+      this.staticServer.serveFile(req, res, url);
+      return;
+    }
     if (url.startsWith("/api/v1/")) {
-      let body = "";
-      req.on("data", (chunk) => {
-        body += chunk;
-      });
-      req.on("end", async () => {
-        try {
-          let params = {};
-          if (body.trim()) {
-            try {
-              params = JSON.parse(body);
-            } catch (e) {
-            }
-          }
-          let method = "graph.getArchitecture";
-          if (url === "/api/v1/project/create") method = "project.create";
-          else if (url === "/api/v1/project/load") method = "project.load";
-          else if (url === "/api/v1/project/graph") method = "graph.getArchitecture";
-          else if (url === "/api/v1/project/status") method = "project.getStatus";
-          else if (url === "/api/v1/graph/moveNode") method = "graph.moveNode";
-          else if (url === "/api/v1/graph/moveMultipleNodes") method = "graph.moveMultipleNodes";
-          else if (url === "/api/v1/graph/connectNodes") method = "graph.connectNodes";
-          else if (url === "/api/v1/graph/deleteEdge") method = "graph.deleteEdge";
-          else if (url === "/api/v1/graph/deleteNode") method = "graph.deleteNode";
-          else if (url === "/api/v1/graph/alignLayout") method = "graph.alignLayout";
-          else if (url === "/api/v1/graph/undo") method = "graph.undo";
-          else if (url === "/api/v1/graph/redo") method = "graph.redo";
-          else if (url === "/api/v1/entity/create") method = "entity.create";
-          else if (url === "/api/v1/functionality/create") method = "functionality.create";
-          else if (url === "/api/v1/library/create") method = "library.create";
-          else if (url === "/api/v1/flow/addStep") method = "flow.addStep";
-          else if (url === "/api/v1/file/read") method = "file.read";
-          else if (url === "/api/v1/file/edit") method = "file.edit";
-          else if (url === "/api/v1/ui/generate") method = "ui.generate";
-          else if (url === "/api/v1/validate/audit") method = "validate.audit";
-          else if (url === "/api/v1/test/execute") method = "test.executeFunction";
-          else if (url === "/api/v1/docs/endpoints") method = "docs.endpoints";
-          const rpcRes = await this.router.handle({
-            jsonrpc: "2.0",
-            id: "http-req-" + Date.now(),
-            method,
-            params
-          });
-          if (rpcRes.error) {
-            res.writeHead(400, { "Content-Type": "application/json" });
-            res.end(JSON.stringify(rpcRes.error, null, 2));
-          } else {
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify(rpcRes.result, null, 2));
-            this.broadcastGraphUpdate();
-          }
-        } catch (err) {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: err.message || String(err) }));
-        }
-      });
+      await HttpRouteHandler.handleApiRequest(req, res, url, this.router, () => this.broadcastGraphUpdate());
       return;
     }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(this.getStudioHtml());
-  }
-  getStudioHtml() {
-    const candidates = [
-      path5.join(__dirname, "studio.html"),
-      path5.join(__dirname, "../../src/server/studio.html"),
-      path5.join(process.cwd(), "packages/studio/src/server/studio.html"),
-      path5.join(process.cwd(), "src/server/studio.html")
-    ];
-    for (const candidate of candidates) {
-      if (fs5.existsSync(candidate)) {
-        return fs5.readFileSync(candidate, "utf8");
-      }
-    }
-    return `<!DOCTYPE html><html><body><h1>Krnl Studio Error: studio.html template not found.</h1></body></html>`;
+    res.end(HttpRouteHandler.getStudioHtml());
   }
   async start() {
-    return new Promise((resolve7) => {
+    return new Promise((resolve6) => {
       this.httpServer.listen(this.port, () => {
         console.log(`
 \u{1F680} [Krnl Studio] Omni Canvas IDE running at: http://localhost:${this.port}`);
@@ -1814,15 +1831,15 @@ var StudioServer = class {
         console.log(`\u{1F4E1} [Krnl Studio] REST API Suite available at: http://localhost:${this.port}/api/v1/*`);
         console.log(`\u{1F4E1} [Krnl Studio] WebSocket JSON-RPC protocol active on /studio/ws
 `);
-        resolve7();
+        resolve6();
       });
     });
   }
   async stop() {
     this.watcher.stop();
-    return new Promise((resolve7) => {
+    return new Promise((resolve6) => {
       this.wss.close(() => {
-        this.httpServer.close(() => resolve7());
+        this.httpServer.close(() => resolve6());
       });
     });
   }
@@ -1835,10 +1852,36 @@ var { div, span, button } = van.tags;
 // src/bin/krnl.ts
 var args = process.argv.slice(2);
 var command = args[0] || "help";
+function detectAppEntrypoint(projectRoot) {
+  const files = fs11.readdirSync(projectRoot);
+  for (const f of files) {
+    if (f.endsWith(".ts") && !f.endsWith(".d.ts") && f !== "tsup.config.ts") {
+      const full = path10.join(projectRoot, f);
+      try {
+        const text = fs11.readFileSync(full, "utf8");
+        if (text.includes("defineApp") || text.includes("@dinilmusick/krnl-core")) {
+          return f;
+        }
+      } catch (e) {
+      }
+    }
+  }
+  return null;
+}
 async function main() {
   switch (command) {
+    case "sync": {
+      const targetDir = args[1] && !args[1].startsWith("-") ? path10.resolve(process.cwd(), args[1]) : process.cwd();
+      console.log("\u{1F4E6} [Krnl Sync] Reconciling package.json from all manifest.json files...");
+      const res = KrnlPackageReconciler.reconcile(targetDir, true);
+      console.log(`\u2705 Reconciled dependencies from ${res.totalManifests} manifest.json file(s).`);
+      if (res.conflicts.length > 0) {
+        console.warn("\u26A0\uFE0F Version conflicts detected across manifests:", res.conflicts);
+      }
+      break;
+    }
     case "validate": {
-      const targetDir = args[1] && !args[1].startsWith("-") ? path6.resolve(process.cwd(), args[1]) : process.cwd();
+      const targetDir = args[1] && !args[1].startsWith("-") ? path10.resolve(process.cwd(), args[1]) : process.cwd();
       const valid = await runValidate(targetDir);
       process.exit(valid ? 0 : 1);
       break;
@@ -1854,10 +1897,16 @@ async function main() {
       generateMagneticDeclarations(process.cwd());
       if (args.includes("--watch") || args.includes("-w")) {
         console.log("[Krnl Watch] Continuous watcher enabled.");
-        fs6.watch(process.cwd(), { recursive: true }, (evt, filename) => {
+        fs11.watch(process.cwd(), { recursive: true }, (evt, filename) => {
           if (filename && (filename.endsWith(".ts") || filename.endsWith(".js")) && !filename.includes("krnl-magnetic.d.ts")) {
             try {
               generateMagneticDeclarations(process.cwd());
+            } catch (e) {
+            }
+          }
+          if (filename && filename.endsWith("manifest.json")) {
+            try {
+              KrnlPackageReconciler.reconcile(process.cwd(), true);
             } catch (e) {
             }
           }
@@ -1866,25 +1915,55 @@ async function main() {
       break;
     }
     case "build": {
-      console.log("\u{1F3D7}\uFE0F  [Krnl Build] Validating and building project...");
-      const valid = await runValidate(process.cwd());
+      const projectRoot = process.cwd();
+      const appFile = detectAppEntrypoint(projectRoot);
+      const entityArgIdx = args.indexOf("--entity");
+      const targetEntity = entityArgIdx !== -1 ? args[entityArgIdx + 1] : void 0;
+      const isAll = args.includes("--all");
+      KrnlPackageReconciler.reconcile(projectRoot, true);
+      if (appFile) {
+        console.log(`\u{1F3D7}\uFE0F  [Krnl Build] Found application entrypoint: ${appFile}`);
+      }
+      if (targetEntity) {
+        console.log(`\u{1F3D7}\uFE0F  [Krnl Build] Validating and building app variant for entity "${targetEntity}"...`);
+      } else if (isAll) {
+        console.log(`\u{1F3D7}\uFE0F  [Krnl Build] Validating and building combined multi-entity application...`);
+      } else {
+        console.log(`\u{1F3D7}\uFE0F  [Krnl Build] Validating and building project...`);
+      }
+      const valid = await runValidate(projectRoot);
       if (!valid) {
         console.error("\u274C Build aborted due to validation errors.");
         process.exit(1);
       }
-      generateMagneticDeclarations(process.cwd());
-      console.log("\u2705 [Krnl Build] Compilation completed successfully.");
+      generateMagneticDeclarations(projectRoot);
+      console.log(`\u2705 [Krnl Build] Compilation completed successfully.`);
       break;
     }
     case "dev": {
+      const projectRoot = process.cwd();
+      const appFile = detectAppEntrypoint(projectRoot);
       const portArgIdx = args.indexOf("--port");
       const port = portArgIdx !== -1 ? parseInt(args[portArgIdx + 1], 10) : 8080;
-      console.log("\u26A1 [Krnl Dev] Initializing Krnl Studio visual workspace...");
-      generateMagneticDeclarations(process.cwd());
+      const entityArgIdx = args.indexOf("--entity");
+      const targetEntity = entityArgIdx !== -1 ? args[entityArgIdx + 1] : void 0;
+      const isAll = args.includes("--all");
+      KrnlPackageReconciler.reconcile(projectRoot, true);
+      if (appFile) {
+        console.log(`\u26A1 [Krnl Dev] Booting app configuration from: ${appFile}`);
+      }
+      if (targetEntity) {
+        console.log(`\u26A1 [Krnl Dev] Initializing app variant for entity "${targetEntity}" on port ${port}...`);
+      } else if (isAll) {
+        console.log(`\u26A1 [Krnl Dev] Initializing combined multi-entity workspace on port ${port}...`);
+      } else {
+        console.log(`\u26A1 [Krnl Dev] Initializing Krnl Studio visual workspace on port ${port}...`);
+      }
       const server = new StudioServer({
         port,
-        projectRoot: process.cwd()
+        projectRoot
       });
+      generateMagneticDeclarations(server.projectRoot || projectRoot);
       await server.start();
       break;
     }
@@ -1898,18 +1977,21 @@ async function main() {
 Usage: krnl <command> [options]
 
 Commands:
-  dev               Start Krnl Studio visual node IDE & dev server (API, UI, WS RPC)
+  dev               Start Krnl Studio dev server & boot <app_name>.ts entrypoint
   build             Validate and build project for production
   validate          Run deep AST & 4-layer function purity validation
+  sync              Reconcile package.json from all co-located manifest.json files
   watch             Generate ambient TypeScript declarations (krnl-magnetic.d.ts)
   generate          Scaffold entities, functionalities, libraries, subapps
                     Examples:
                       krnl generate entity UserSystem
-                      krnl generate functionality UserSystem CreateProfile
+                      krnl generate functionality CreateProfile
                       krnl generate library Math
                       krnl generate subapp BillingEngine
 
 Options:
+  --entity <name>   Target a specific entity app variant to run or build
+  --all             Run or build all entities as a combined multi-entity build
   --port <number>   Specify port for Krnl Studio dev server (default: 8080)
   --watch, -w       Enable continuous file watcher (for watch command)
   --help, -h        Show this help message

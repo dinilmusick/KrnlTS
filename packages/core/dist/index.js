@@ -1,581 +1,704 @@
-import {
-  Entity,
-  KrnlFlowBuilder
-} from "./chunk-J7ZYNVRS.js";
-import {
-  KrnlRegistryClient
-} from "./chunk-6ULMHNXR.js";
-import {
-  KrnlSubAppWorkerHost
-} from "./chunk-7WUETJEV.js";
-import {
-  KrnlSubAppLoader
-} from "./chunk-XVABPAUZ.js";
-import {
-  KrnlMagneticLoader,
-  magneticStorage,
-  subappLocalStorage
-} from "./chunk-JVLZU4K7.js";
-import {
-  KrnlNonKrnlAppAdapter
-} from "./chunk-A5KRAYDB.js";
-import {
-  KrnlApplicationOrchestrator,
-  KrnlBootBarrier,
-  KrnlEndpointAgent,
-  KrnlEndpointScheduler,
-  KrnlFrontend,
-  KrnlFrontendInspector,
-  KrnlIngressNetwork,
-  KrnlJobScheduler,
-  KrnlPlannerAgent,
-  KrnlRuntimeStore,
-  KrnlSiblingNetwork,
-  KrnlTaskList,
-  KrnlTaskRunner,
-  KrnlWatchVariablesTracker,
-  WebSocketTransportAdapter,
-  krnl,
-  krnlSystemCommComponent,
-  krnlSystemEntityBase
-} from "./chunk-T2ZVN434.js";
-import {
-  KrnlFrontendBuilder,
-  init_K_LIB_Krnl_Frontend_Builder
-} from "./chunk-6QCYRS5L.js";
-import {
-  AdminGuard,
-  AuditLogger,
-  BaseWorkspaceStorageAdapter,
-  CUSTOM_ERROR_CODE,
-  ControlPlaneManager,
-  DatabaseClusterManager,
-  FilesystemStorageProvider,
-  FirebaseDataProvider,
-  FirebaseStorageAdapter,
-  FirebaseStorageProvider,
-  FunctionalityTable,
-  GoogleDriveStorageAdapter,
-  HostedAccountProvider,
-  ICloudStorageAdapter,
-  LocalSQLiteAccountProvider,
-  LocalStorageAdapter,
-  MemoryTransportAdapter,
-  MongoAtlasDataProvider,
-  OneDriveStorageAdapter,
-  PocketBaseDataProvider,
-  PocketBaseStorageProvider,
-  PostgresDataProvider,
-  S3StorageProvider,
-  SQLiteDataProvider,
-  StorageAdapterFactory,
-  SupabaseDataProvider,
-  SupabaseStorageAdapter,
-  SupabaseStorageProvider,
-  SyncEngine,
-  TursoLibSQLDataProvider,
-  VercelBlobStorageProvider,
-  WorkspaceBackendFactory,
-  WorkspaceFS,
-  WorkspaceRuntime,
-  calculateContentHash,
-  krnlCollector,
-  krnlEmitter,
-  krnlEntityBase,
-  krnlEntityCompositionalHierarchyManager,
-  krnlError,
-  krnlErrorCodes,
-  krnlErrorMessages,
-  krnlGlobalEmitterAddress,
-  krnlInterface,
-  krnlLocalEmitterAddress,
-  krnlLocalFunctionality,
-  krnlMessage,
-  krnlRemoteFunctionality,
-  krnlTransportAdapter,
-  normalizeWorkspacePath
-} from "./chunk-XSCKNRCZ.js";
-import {
-  CacheKit,
-  FileCache,
-  GitManager,
-  KrnlAikoClient,
-  KrnlEnv,
-  KrnlShell,
-  LRUCache,
-  StringKit,
-  TTLCache
-} from "./chunk-GADIRLRS.js";
-import {
-  AsyncKit,
-  FileLock,
-  KrnlFS,
-  KrnlHTTP,
-  ObjectKit
-} from "./chunk-MLVWARD4.js";
-import "./chunk-P6XEM2LA.js";
-import {
-  telemetry
-} from "./chunk-DI27MOR7.js";
-import {
-  KrnlAcpProtocol,
-  KrnlMcpProtocol,
-  krnlUnifiedHttpAdapter
-} from "./chunk-3ES4K2ZP.js";
-import {
-  DefaultEventRegistrar,
-  DefaultOperationRegistrar,
-  DefaultServiceContainer,
-  KrnlSubAppDiscovery,
-  KrnlSubAppLifecycle,
-  KrnlSubAppValidator,
-  createHttpsAppAdapter
-} from "./chunk-OEINUDSE.js";
-import {
-  KrnlPolicy,
-  Logger,
-  createEnum,
-  defaultConnectionBehaviour,
-  krnlData,
-  krnlDataFactory,
-  krnlPrimitiveDataTypes,
-  krnlServiceSuitePorts,
-  krnlServiceSuites,
-  krnlSystemTypes
-} from "./chunk-K54K2KZW.js";
-import {
-  KrnlFrontendGenerator,
-  init_K_LIB_Krnl_Frontend_Generator
-} from "./chunk-YXGL3ZEU.js";
-import "./chunk-KFQGP6VL.js";
-
-// src/core/K_ENT_Krnl_Sub_System_Orchestrator_Base.ts
-var krnlSubSystemOrchestratorBase = class extends krnlEntityBase {
-  constructor(name, owner) {
-    if (!owner) {
-      throw new Error("A sub-system orchestrator must be owned by a parent entity.");
+// src/state/ServiceStateStore.ts
+var ServiceStateStore = class {
+  state;
+  listeners = /* @__PURE__ */ new Set();
+  constructor(initialState) {
+    this.state = { ...initialState };
+  }
+  getState() {
+    return Object.freeze({ ...this.state });
+  }
+  setState(mutation) {
+    this.state = { ...this.state, ...mutation };
+    const snapshot = this.getState();
+    for (const listener of this.listeners) {
+      listener(snapshot, mutation);
     }
-    super(name, owner);
-    this.systemType = "SubSystemOrchestrator";
+  }
+  subscribe(listener) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+  reset(newState) {
+    this.state = { ...newState || {} };
   }
 };
 
-// src/core/K_ENT_Krnl_Network_Orchestrator_Entity_Base.ts
-var krnlNetworkOrchestratorEntityBase = class extends krnlSystemEntityBase {
-  constructor(name = "KrnlNetworkOrchestrator", owner = null, commPort = 10110, host = "0.0.0.0") {
-    super(name, owner, commPort, host);
-    this.systemType = "NetworkOrchestrator";
-  }
-  async getPeerManifest(peerId) {
-    const peer = this.peers.get(peerId);
-    if (!peer) throw new Error(`Peer ${peerId} not discovered.`);
-    return await this.commComponent.callWsRpc(peer.address, "get-manifest", {});
-  }
-  async listPeerRoutes(peerId) {
-    const peer = this.peers.get(peerId);
-    if (!peer) throw new Error(`Peer ${peerId} not discovered.`);
-    return await this.commComponent.callWsRpc(peer.address, "list-routes", {});
-  }
-  /**
-   * Connects source system emitter -> target system collector.
-   */
-  async connectSystems(sourcePeerId, targetPeerId, options) {
-    const source = this.peers.get(sourcePeerId);
-    const target = this.peers.get(targetPeerId);
-    if (!source) throw new Error(`Source peer ${sourcePeerId} not discovered.`);
-    if (!target) throw new Error(`Target peer ${targetPeerId} not discovered.`);
-    if (source.busy && source.reservedBy !== this.entityName) {
-      throw new Error(`Source peer ${sourcePeerId} is reserved by ${source.reservedBy || "another service"}.`);
+// src/events/ServiceEventBus.ts
+var ServiceEventBus = class {
+  handlers = /* @__PURE__ */ new Map();
+  on(event, handler) {
+    if (!this.handlers.has(event)) {
+      this.handlers.set(event, /* @__PURE__ */ new Set());
     }
-    if (target.busy && target.reservedBy !== this.entityName) {
-      throw new Error(`Target peer ${targetPeerId} is reserved by ${target.reservedBy || "another service"}.`);
-    }
-    const {
-      sourceEmitter,
-      targetCollector,
-      externallyMutable = true,
-      metadata = {}
-    } = options;
-    return await this.commComponent.callWsRpc(source.address, "connect-to-target", {
-      sourceEmitter,
-      targetAddress: target.address,
-      targetCollector,
-      targetName: target.name,
-      requester: this.entityName,
-      connectionPolicy: {
-        managedBy: this.entityName,
-        externallyMutable,
-        metadata
+    const set = this.handlers.get(event);
+    set.add(handler);
+    return () => {
+      set.delete(handler);
+    };
+  }
+  emit(event, payload) {
+    const set = this.handlers.get(event);
+    if (!set) return;
+    for (const handler of Array.from(set)) {
+      try {
+        handler(payload);
+      } catch (err) {
+        console.error(`[ServiceEventBus] Handler error for '${event}':`, err);
       }
-    });
+    }
   }
-  async disconnectPeerRoute(peerId, routeId, options = {}) {
-    const peer = this.peers.get(peerId);
-    if (!peer) throw new Error(`Peer ${peerId} not discovered.`);
-    const { force = false } = options;
-    return await this.commComponent.callWsRpc(peer.address, "disconnect-route", {
-      routeId,
-      force,
-      requester: this.entityName
-    });
+  clear() {
+    this.handlers.clear();
   }
 };
 
-// src/core/index.ts
-init_K_LIB_Krnl_Frontend_Generator();
-init_K_LIB_Krnl_Frontend_Builder();
+// src/lifecycle/LifecycleManager.ts
+var LifecycleManager = class {
+  status = "uninitialized";
+  getStatus() {
+    return this.status;
+  }
+  setStatus(next) {
+    this.status = next;
+  }
+  assertRunning(serviceName) {
+    if (this.status !== "running") {
+      throw new Error(`[Service:${serviceName}] Cannot invoke operation while status is '${this.status}' (expected 'running').`);
+    }
+  }
+};
 
-// src/core/K_LIB_Krnl_Intention_Types.ts
-function buildEntityIntention(entity) {
-  const functionalities = [];
-  if (entity.localFunctionalities) {
-    for (const func of entity.localFunctionalities.values()) {
-      if (func.intention) {
-        functionalities.push(func.intention);
+// src/services/ServiceInstance.ts
+var ServiceInstance = class {
+  constructor(definition) {
+    this.definition = definition;
+    this.id = definition.id;
+    this.name = definition.name;
+    this.version = definition.version;
+    this.lifecycle = new LifecycleManager();
+    this.eventBus = new ServiceEventBus();
+    if (definition.state?.initial) {
+      this.stateStore = new ServiceStateStore(definition.state.initial);
+    }
+  }
+  definition;
+  id;
+  name;
+  version;
+  stateStore;
+  eventBus;
+  lifecycle;
+  getDefinition() {
+    return this.definition;
+  }
+  async start() {
+    this.lifecycle.setStatus("starting");
+    if (this.definition.lifecycle?.onInit) {
+      await this.definition.lifecycle.onInit();
+    }
+    if (this.definition.lifecycle?.onStart) {
+      await this.definition.lifecycle.onStart();
+    }
+    this.lifecycle.setStatus("running");
+  }
+  async stop() {
+    this.lifecycle.setStatus("stopping");
+    if (this.definition.lifecycle?.onStop) {
+      await this.definition.lifecycle.onStop();
+    }
+    if (this.definition.lifecycle?.onDispose) {
+      await this.definition.lifecycle.onDispose();
+    }
+    this.lifecycle.setStatus("stopped");
+  }
+  async call(op, input, ctx = {}) {
+    this.lifecycle.assertRunning(this.name);
+    const operation = this.definition.operations[op];
+    if (!operation) {
+      throw new Error(`[Service:${this.name}] Operation '${op}' not found.`);
+    }
+    return await operation.handler(input, ctx);
+  }
+  getState() {
+    if (!this.stateStore) {
+      return Object.freeze({});
+    }
+    return this.stateStore.getState();
+  }
+  setState(mutation) {
+    if (!this.stateStore) {
+      this.stateStore = new ServiceStateStore(mutation);
+      return;
+    }
+    this.stateStore.setState(mutation);
+  }
+  on(event, handler) {
+    return this.eventBus.on(event, handler);
+  }
+  emit(event, payload) {
+    this.eventBus.emit(event, payload);
+  }
+};
+
+// src/services/ServiceProxy.ts
+var ServiceProxy = class {
+  constructor(definition, adapter, endpoint) {
+    this.definition = definition;
+    this.adapter = adapter;
+    this.endpoint = endpoint;
+    this.id = definition.id;
+    this.name = definition.name;
+    this.version = definition.version;
+    this.stateCache = definition.state?.initial || {};
+  }
+  definition;
+  adapter;
+  endpoint;
+  id;
+  name;
+  version;
+  stateCache;
+  eventHandlers = /* @__PURE__ */ new Map();
+  getDefinition() {
+    return this.definition;
+  }
+  async start() {
+  }
+  async stop() {
+  }
+  async call(op, input, ctx = {}) {
+    if (!this.adapter.send) {
+      throw new Error(`[ServiceProxy:${this.name}] Adapter does not support send().`);
+    }
+    const envelope = {
+      id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: "request",
+      operation: op,
+      payload: input,
+      timestamp: Date.now()
+    };
+    const response = await this.adapter.send(this.endpoint, envelope);
+    if (response.error) {
+      throw new Error(`[ServiceProxy:${this.name}] Remote error: ${response.error}`);
+    }
+    return response.payload;
+  }
+  getState() {
+    return Object.freeze({ ...this.stateCache });
+  }
+  setState(mutation) {
+    this.stateCache = { ...this.stateCache, ...mutation };
+  }
+  on(event, handler) {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, /* @__PURE__ */ new Set());
+    }
+    const handlers = this.eventHandlers.get(event);
+    handlers.add(handler);
+    return () => {
+      handlers.delete(handler);
+    };
+  }
+  emit(event, payload) {
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      for (const handler of Array.from(handlers)) {
+        handler(payload);
       }
     }
   }
-  const componentEntities = [];
-  if (entity.hierarchyManager && entity.hierarchyManager.ownedComponents) {
-    for (const child of entity.hierarchyManager.ownedComponents.values()) {
-      componentEntities.push(buildEntityIntention(child));
-    }
-  }
-  return {
-    purpose: entity.intention?.purpose || entity.description || "",
-    functionalities,
-    componentEntities
-  };
+};
+
+// src/services/ServiceGenerators.ts
+function createServiceDefinition(definition) {
+  return definition;
+}
+function createService(definition) {
+  return new ServiceInstance(definition);
+}
+function createServiceProxy(definition, adapter, endpoint) {
+  return new ServiceProxy(definition, adapter, endpoint);
 }
 
-// src/core/K_LIB_Pocer_Block.ts
+// src/protocols/HttpProtocolAdapter.ts
 import http from "http";
-import net from "net";
-import { execSync, exec, spawn } from "child_process";
-import { promisify } from "util";
-import fs from "fs";
-import path from "path";
-var execAsync = promisify(exec);
-var PocerBlock = class extends krnlSystemEntityBase {
-  blockConfig;
-  _containerReady = false;
-  _startedByUs = false;
-  _dockerProvider = null;
-  constructor(name, blockConfig) {
-    super(name, null, -1, "127.0.0.1", { Singleton: true, _skipMagneticLoading: true });
-    this.blockConfig = blockConfig;
-    this._isIngressNetworkMember = true;
-    this.unifiedHttpAdapter._handleRequest = async (req, res) => {
-      await this.proxyRequest(req, res, req.url || "/");
-    };
-  }
-  async startApp() {
-    const { containerName, image, hostPort, containerPort, environment } = this.blockConfig;
-    console.log(`[PocerBlock:${this.entityName}] Booting container '${containerName}'...`);
-    await this.ensureDockerEngine();
-    await this.loadLocalImageArchive(image);
-    const isAlreadyRunning = await this._isContainerRunning(containerName);
-    if (isAlreadyRunning) {
-      console.log(`[PocerBlock:${this.entityName}] Container '${containerName}' is already running.`);
-    } else {
-      const exists = await this._containerExists(containerName);
-      if (exists) {
-        console.log(`[PocerBlock:${this.entityName}] Container '${containerName}' exists but is stopped. Starting...`);
-        await execAsync(`docker start ${containerName}`);
-      } else {
-        console.log(`[PocerBlock:${this.entityName}] Creating and starting container '${containerName}'...`);
-        const envArgs = Object.entries(environment ?? {}).map(([k, v]) => `-e "${k}=${v}"`).join(" ");
-        const cmd = [
-          "docker run -d",
-          `--name ${containerName}`,
-          `-p ${hostPort}:${containerPort}`,
-          envArgs,
-          image
-        ].filter(Boolean).join(" ");
-        await execAsync(cmd);
-      }
-    }
-    await this._waitForPort(hostPort, 2e4);
-    this._containerReady = true;
-    console.log(`[PocerBlock:${this.entityName}] Container '${containerName}' is ready on host port ${hostPort}.`);
-  }
-  async proxyRequest(req, res, subPath) {
-    if (!this._containerReady || this.blockConfig.hostPort === -1) {
-      res.writeHead(533, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "error", message: `[PocerBlock:${this.entityName}] Container not ready.` }));
-      return;
-    }
-    const options = {
-      hostname: "127.0.0.1",
-      port: this.blockConfig.hostPort,
-      path: subPath,
-      method: req.method,
-      headers: {
-        ...req.headers,
-        host: `127.0.0.1:${this.blockConfig.hostPort}`
-      }
-    };
-    const proxyReq = http.request(options, (proxyRes) => {
-      res.writeHead(proxyRes.statusCode ?? 500, proxyRes.headers);
-      proxyRes.pipe(res, { end: true });
-    });
-    proxyReq.on("error", (err) => {
-      res.writeHead(502, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "error", message: `[PocerBlock:${this.entityName}] Bad Gateway: ${err.message}` }));
-    });
-    req.pipe(proxyReq, { end: true });
-  }
-  getManifest() {
-    const base = super.getManifest();
-    return {
-      ...base,
-      pocerBlock: {
-        image: this.blockConfig.image,
-        containerName: this.blockConfig.containerName,
-        hostPort: this.blockConfig.hostPort,
-        containerPort: this.blockConfig.containerPort,
-        protocol: this.blockConfig.protocol,
-        ready: this._containerReady
-      }
-    };
-  }
-  dispose() {
-    if (this.blockConfig.stopOnDispose) {
-      try {
-        console.log(`[PocerBlock:${this.entityName}] Stopping container '${this.blockConfig.containerName}'...`);
-        execSync(`docker stop ${this.blockConfig.containerName}`, { stdio: "ignore" });
-      } catch (_) {
-      }
-    }
-    if (this._startedByUs) {
-      try {
-        if (this._dockerProvider === "colima") {
-          console.log(`[PocerBlock:${this.entityName}] Stopping block-initiated Colima VM...`);
-          execSync("colima stop", { stdio: "ignore" });
-        } else if (this._dockerProvider === "docker-desktop") {
-          console.log(`[PocerBlock:${this.entityName}] Stopping block-initiated Docker Desktop...`);
-          execSync(`osascript -e 'quit app "Docker"'`, { stdio: "ignore" });
-        }
-      } catch (_) {
-      }
-    }
-    super.dispose();
-  }
-  // ─── Self-Containing Infrastructure (VM & Docker Engine Setup) ─────────────
-  async ensureDockerEngine() {
-    try {
-      await execAsync("docker ps");
-      return;
-    } catch (_) {
-    }
-    console.log(`[PocerBlock:${this.entityName}] Docker not running. Attempting to start virtualization engine...`);
-    const colimaPath = await this._locateBinary("colima");
-    if (colimaPath) {
-      console.log(`[PocerBlock:${this.entityName}] Found Colima binary. Starting VM...`);
-      const proc = spawn("colima", ["start", "--runtime", "docker"], { stdio: "ignore", detached: true });
-      proc.unref();
-      this._dockerProvider = "colima";
-      this._startedByUs = true;
-    } else {
-      console.log(`[PocerBlock:${this.entityName}] Colima not found. Attempting to launch Docker Desktop...`);
-      const proc = spawn("open", ["-g", "-a", "Docker"], { stdio: "ignore", detached: true });
-      proc.unref();
-      this._dockerProvider = "docker-desktop";
-      this._startedByUs = true;
-    }
-    const deadline = Date.now() + 6e4;
-    while (Date.now() < deadline) {
-      try {
-        const { stdout } = await execAsync("docker ps");
-        if (stdout.includes("CONTAINER ID")) {
-          console.log(`[PocerBlock:${this.entityName}] Virtualization engine online.`);
-          return;
-        }
-      } catch (_) {
-      }
-      await new Promise((r) => setTimeout(r, 2e3));
-    }
-    throw new Error(`[PocerBlock:${this.entityName}] Failed to start or connect to virtualization engine.`);
-  }
-  async loadLocalImageArchive(image) {
-    const localImagesDir = path.join(process.cwd(), "subapps", this.entityName, "images");
-    const safeImageName = image.replace(/[^a-zA-Z0-9]/g, "_");
-    const archivePath = path.join(localImagesDir, `${safeImageName}.tar`);
-    if (fs.existsSync(archivePath)) {
-      try {
-        const { stdout } = await execAsync(`docker images -q ${image}`);
-        if (stdout.trim().length > 0) {
-          console.log(`[PocerBlock:${this.entityName}] Image '${image}' already cached in Docker daemon.`);
-          return;
-        }
-      } catch (_) {
-      }
-      console.log(`[PocerBlock:${this.entityName}] Loading image archive from local block repository: ${archivePath}`);
-      await execAsync(`docker load -i "${archivePath}"`);
-    } else {
-      console.log(`[PocerBlock:${this.entityName}] No local image archive found at: ${archivePath}. Pulling from remote registry...`);
-      await execAsync(`docker pull ${image}`);
-    }
-  }
-  // ─── Private Helpers ───────────────────────────────────────────────────────
-  async _locateBinary(name) {
-    try {
-      const { stdout } = await execAsync(`which ${name}`);
-      return stdout.trim();
-    } catch {
-      return null;
-    }
-  }
-  async _isContainerRunning(name) {
-    try {
-      const { stdout } = await execAsync(`docker inspect --format "{{.State.Running}}" ${name} 2>/dev/null`);
-      return stdout.trim() === "true";
-    } catch {
-      return false;
-    }
-  }
-  async _containerExists(name) {
-    try {
-      await execAsync(`docker inspect --format "{{.State.Status}}" ${name} 2>/dev/null`);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-  async _waitForPort(port, timeoutMs) {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const open = await new Promise((resolve) => {
-        const socket = net.connect(port, "127.0.0.1");
-        socket.on("connect", () => {
-          socket.destroy();
-          resolve(true);
-        });
-        socket.on("error", () => resolve(false));
+var HttpProtocolAdapter = class {
+  protocol = "http";
+  capabilities = {
+    requestResponse: true,
+    streaming: true,
+    pubSub: false,
+    datagram: false,
+    peerToPeer: false,
+    signaling: false,
+    discovery: false
+  };
+  server;
+  listeningPort;
+  async listen(port, host = "127.0.0.1") {
+    this.server = http.createServer();
+    await new Promise((resolve, reject) => {
+      this.server.listen(port, host, () => {
+        const addr = this.server.address();
+        this.listeningPort = addr.port;
+        resolve();
       });
-      if (open) return;
-      await new Promise((r) => setTimeout(r, 250));
+      this.server.on("error", reject);
+    });
+    return {
+      protocol: "http",
+      address: host,
+      port: this.listeningPort,
+      capabilities: ["requestResponse", "streaming"]
+    };
+  }
+  async expose(service, port = 0) {
+    this.server = http.createServer(async (req, res) => {
+      res.setHeader("Content-Type", "application/json");
+      const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+      if (url.pathname === "/manifest") {
+        res.writeHead(200);
+        res.end(JSON.stringify(service.getDefinition()));
+        return;
+      }
+      if (url.pathname === "/health") {
+        res.writeHead(200);
+        res.end(JSON.stringify({ status: "ok", service: service.name }));
+        return;
+      }
+      if (url.pathname.startsWith("/call/")) {
+        const op = url.pathname.slice("/call/".length);
+        let body = "";
+        req.on("data", (c) => body += c);
+        req.on("end", async () => {
+          try {
+            const parsed = body ? JSON.parse(body) : {};
+            const result = await service.call(op, parsed);
+            res.writeHead(200);
+            res.end(JSON.stringify({ status: "success", payload: result }));
+          } catch (err) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ status: "error", error: err.message || String(err) }));
+          }
+        });
+        return;
+      }
+      res.writeHead(404);
+      res.end(JSON.stringify({ error: "Route not found" }));
+    });
+    await new Promise((resolve, reject) => {
+      this.server.listen(port, "127.0.0.1", () => {
+        const addr = this.server.address();
+        this.listeningPort = addr.port;
+        resolve();
+      });
+      this.server.on("error", reject);
+    });
+    return {
+      protocol: "http",
+      address: "127.0.0.1",
+      port: this.listeningPort,
+      capabilities: ["requestResponse", "streaming"]
+    };
+  }
+  async send(endpoint, envelope) {
+    const url = `http://${endpoint.address}:${endpoint.port}/call/${envelope.operation}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(envelope.payload || {})
+    });
+    const json = await res.json();
+    return {
+      id: `res-${Date.now()}`,
+      type: "response",
+      correlationId: envelope.id,
+      payload: json.payload,
+      error: json.error,
+      timestamp: Date.now()
+    };
+  }
+  async stop() {
+    if (this.server) {
+      await new Promise((resolve) => this.server.close(() => resolve()));
+      this.server = void 0;
     }
-    throw new Error(`[PocerBlock:${this.entityName}] Timed out waiting for container port ${port} after ${timeoutMs}ms.`);
+  }
+};
+
+// src/protocols/WebSocketProtocolAdapter.ts
+import http2 from "http";
+import { WebSocketServer, WebSocket } from "ws";
+var WebSocketProtocolAdapter = class {
+  protocol = "ws";
+  capabilities = {
+    requestResponse: true,
+    streaming: true,
+    pubSub: true,
+    datagram: false,
+    peerToPeer: false,
+    signaling: false,
+    discovery: false
+  };
+  server;
+  wss;
+  port;
+  async expose(service, port = 0) {
+    this.server = http2.createServer();
+    this.wss = new WebSocketServer({ server: this.server });
+    this.wss.on("connection", (ws) => {
+      ws.on("message", async (raw) => {
+        try {
+          const envelope = JSON.parse(raw.toString());
+          if (envelope.type === "request" && envelope.operation) {
+            try {
+              const res = await service.call(envelope.operation, envelope.payload);
+              ws.send(JSON.stringify({
+                id: `res-${Date.now()}`,
+                type: "response",
+                correlationId: envelope.id,
+                payload: res,
+                timestamp: Date.now()
+              }));
+            } catch (err) {
+              ws.send(JSON.stringify({
+                id: `res-${Date.now()}`,
+                type: "response",
+                correlationId: envelope.id,
+                error: err.message || String(err),
+                timestamp: Date.now()
+              }));
+            }
+          }
+        } catch (_) {
+        }
+      });
+    });
+    await new Promise((resolve, reject) => {
+      this.server.listen(port, "127.0.0.1", () => {
+        const addr = this.server.address();
+        this.port = addr.port;
+        resolve();
+      });
+      this.server.on("error", reject);
+    });
+    return {
+      protocol: "ws",
+      address: "127.0.0.1",
+      port: this.port,
+      capabilities: ["requestResponse", "pubSub", "streaming"]
+    };
+  }
+  async send(endpoint, envelope) {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(`ws://${endpoint.address}:${endpoint.port}`);
+      ws.on("open", () => {
+        ws.send(JSON.stringify(envelope));
+      });
+      ws.on("message", (data) => {
+        try {
+          const res = JSON.parse(data.toString());
+          ws.close();
+          resolve(res);
+        } catch (e) {
+          ws.close();
+          reject(e);
+        }
+      });
+      ws.on("error", (err) => {
+        reject(err);
+      });
+    });
+  }
+  async stop() {
+    if (this.wss) {
+      await new Promise((r) => this.wss.close(() => r()));
+      this.wss = void 0;
+    }
+    if (this.server) {
+      await new Promise((r) => this.server.close(() => r()));
+      this.server = void 0;
+    }
+  }
+};
+
+// src/protocols/UdpProtocolAdapter.ts
+import dgram from "dgram";
+var UdpProtocolAdapter = class {
+  protocol = "udp";
+  capabilities = {
+    requestResponse: true,
+    streaming: false,
+    pubSub: false,
+    datagram: true,
+    peerToPeer: false,
+    signaling: false,
+    discovery: true
+  };
+  socket;
+  port;
+  async expose(service, port = 0) {
+    this.socket = dgram.createSocket("udp4");
+    this.socket.on("message", async (msg, rinfo) => {
+      try {
+        const envelope = JSON.parse(msg.toString());
+        if (envelope.type === "request" && envelope.operation) {
+          try {
+            const res = await service.call(envelope.operation, envelope.payload);
+            const resp = JSON.stringify({
+              id: `res-${Date.now()}`,
+              type: "response",
+              correlationId: envelope.id,
+              payload: res,
+              timestamp: Date.now()
+            });
+            this.socket.send(resp, rinfo.port, rinfo.address);
+          } catch (err) {
+            const resp = JSON.stringify({
+              id: `res-${Date.now()}`,
+              type: "response",
+              correlationId: envelope.id,
+              error: err.message || String(err),
+              timestamp: Date.now()
+            });
+            this.socket.send(resp, rinfo.port, rinfo.address);
+          }
+        }
+      } catch (_) {
+      }
+    });
+    await new Promise((resolve) => {
+      this.socket.bind(port, "127.0.0.1", () => {
+        this.port = this.socket.address().port;
+        resolve();
+      });
+    });
+    return {
+      protocol: "udp",
+      address: "127.0.0.1",
+      port: this.port,
+      capabilities: ["datagram", "requestResponse"]
+    };
+  }
+  async send(endpoint, envelope) {
+    return new Promise((resolve, reject) => {
+      const client = dgram.createSocket("udp4");
+      const payload = Buffer.from(JSON.stringify(envelope));
+      client.on("message", (msg) => {
+        try {
+          const res = JSON.parse(msg.toString());
+          client.close();
+          resolve(res);
+        } catch (e) {
+          client.close();
+          reject(e);
+        }
+      });
+      client.on("error", (err) => {
+        client.close();
+        reject(err);
+      });
+      client.send(payload, endpoint.port, endpoint.address);
+    });
+  }
+  async stop() {
+    if (this.socket) {
+      await new Promise((r) => this.socket.close(() => r()));
+      this.socket = void 0;
+    }
+  }
+};
+
+// src/protocols/P2PProtocolAdapter.ts
+var P2PProtocolAdapter = class _P2PProtocolAdapter {
+  protocol = "p2p";
+  capabilities = {
+    requestResponse: true,
+    streaming: true,
+    pubSub: true,
+    datagram: false,
+    peerToPeer: true,
+    signaling: true,
+    discovery: true
+  };
+  static peerHub = /* @__PURE__ */ new Map();
+  async expose(service) {
+    _P2PProtocolAdapter.peerHub.set(service.id, service);
+    return {
+      protocol: "p2p",
+      address: `p2p://${service.id}`,
+      capabilities: ["peerToPeer", "requestResponse", "pubSub"]
+    };
+  }
+  async send(endpoint, envelope) {
+    const peerId = endpoint.address.replace("p2p://", "");
+    const service = _P2PProtocolAdapter.peerHub.get(peerId);
+    if (!service) {
+      return {
+        id: `res-${Date.now()}`,
+        type: "response",
+        correlationId: envelope.id,
+        error: `Peer '${peerId}' not discovered or offline.`,
+        timestamp: Date.now()
+      };
+    }
+    try {
+      const res = await service.call(envelope.operation || "", envelope.payload);
+      return {
+        id: `res-${Date.now()}`,
+        type: "response",
+        correlationId: envelope.id,
+        payload: res,
+        timestamp: Date.now()
+      };
+    } catch (err) {
+      return {
+        id: `res-${Date.now()}`,
+        type: "response",
+        correlationId: envelope.id,
+        error: err.message || String(err),
+        timestamp: Date.now()
+      };
+    }
+  }
+  async stop() {
+    _P2PProtocolAdapter.peerHub.clear();
+  }
+};
+
+// src/transports/MemoryTransport.ts
+var MemoryTransport = class {
+  handlers = /* @__PURE__ */ new Set();
+  onMessage(handler) {
+    this.handlers.add(handler);
+    return () => {
+      this.handlers.delete(handler);
+    };
+  }
+  async send(envelope) {
+    for (const handler of this.handlers) {
+      const res = await handler(envelope);
+      if (res) return res;
+    }
+    return {
+      id: `res-${Date.now()}`,
+      type: "response",
+      correlationId: envelope.id,
+      payload: null,
+      timestamp: Date.now()
+    };
+  }
+};
+
+// src/registry/ServiceRegistry.ts
+var ServiceRegistry = class {
+  services = /* @__PURE__ */ new Map();
+  register(definition, endpoints = []) {
+    this.services.set(definition.id, {
+      definition,
+      endpoints,
+      registeredAt: Date.now()
+    });
+  }
+  unregister(serviceId) {
+    this.services.delete(serviceId);
+  }
+  get(serviceId) {
+    return this.services.get(serviceId);
+  }
+  list() {
+    return Array.from(this.services.values());
+  }
+  findByCapability(capabilityName) {
+    return this.list().filter(
+      (record) => record.definition.capabilities?.some((cap) => cap.name === capabilityName)
+    );
+  }
+};
+
+// src/runtime/ServiceRuntime.ts
+var ServiceRuntime = class {
+  instances = /* @__PURE__ */ new Map();
+  registry;
+  constructor(registry) {
+    this.registry = registry || new ServiceRegistry();
+  }
+  register(service) {
+    this.instances.set(service.id, service);
+    this.registry.register(service.getDefinition());
+    return this;
+  }
+  get(serviceId) {
+    return this.instances.get(serviceId);
+  }
+  async execute(target, operation, input, ctx) {
+    const service = this.instances.get(target);
+    if (!service) {
+      throw new Error(`[ServiceRuntime] Target service '${target}' not found.`);
+    }
+    return await service.call(operation, input, ctx);
+  }
+  async startAll() {
+    for (const service of this.instances.values()) {
+      await service.start();
+    }
+  }
+  async stopAll() {
+    for (const service of this.instances.values()) {
+      await service.stop();
+    }
+  }
+};
+
+// src/discovery/ServiceDiscovery.ts
+var ServiceDiscovery = class {
+  peers = /* @__PURE__ */ new Map();
+  registerPeer(id, name, endpoints) {
+    this.peers.set(id, {
+      id,
+      name,
+      endpoints,
+      lastSeen: Date.now()
+    });
+  }
+  getPeers() {
+    return Array.from(this.peers.values());
+  }
+  findPeer(id) {
+    return this.peers.get(id);
+  }
+};
+
+// src/connectivity/ProtocolResolver.ts
+var ProtocolResolver = class {
+  static selectProtocol(requiredCapabilities, availableEndpoints) {
+    return availableEndpoints.find(
+      (ep) => requiredCapabilities.every((req) => ep.capabilities.includes(req))
+    );
+  }
+  static getSupportedProtocols(definition) {
+    return definition.protocols || ["http"];
   }
 };
 export {
-  AdminGuard,
-  AsyncKit,
-  AuditLogger,
-  BaseWorkspaceStorageAdapter,
-  CUSTOM_ERROR_CODE,
-  CacheKit,
-  ControlPlaneManager,
-  DatabaseClusterManager,
-  DefaultEventRegistrar,
-  DefaultOperationRegistrar,
-  DefaultServiceContainer,
-  Entity,
-  FileCache,
-  FileLock,
-  FilesystemStorageProvider,
-  FirebaseDataProvider,
-  FirebaseStorageAdapter,
-  FirebaseStorageProvider,
-  FunctionalityTable,
-  GitManager,
-  GoogleDriveStorageAdapter,
-  HostedAccountProvider,
-  ICloudStorageAdapter,
-  KrnlAcpProtocol,
-  KrnlAikoClient,
-  KrnlApplicationOrchestrator,
-  KrnlBootBarrier,
-  KrnlEndpointAgent,
-  KrnlEndpointScheduler,
-  KrnlEnv,
-  KrnlFS,
-  KrnlFlowBuilder,
-  KrnlFrontend,
-  KrnlFrontendBuilder,
-  KrnlFrontendGenerator,
-  KrnlFrontendInspector,
-  KrnlHTTP,
-  KrnlIngressNetwork,
-  KrnlJobScheduler,
-  KrnlMagneticLoader,
-  KrnlMcpProtocol,
-  KrnlNonKrnlAppAdapter,
-  KrnlPlannerAgent,
-  KrnlPolicy,
-  KrnlRegistryClient,
-  KrnlRuntimeStore,
-  KrnlShell,
-  KrnlSiblingNetwork,
-  KrnlSubAppDiscovery,
-  KrnlSubAppLifecycle,
-  KrnlSubAppLoader,
-  KrnlSubAppValidator,
-  KrnlSubAppWorkerHost,
-  KrnlTaskList,
-  KrnlTaskRunner,
-  KrnlWatchVariablesTracker,
-  LRUCache,
-  LocalSQLiteAccountProvider,
-  LocalStorageAdapter,
-  Logger,
-  MemoryTransportAdapter,
-  MongoAtlasDataProvider,
-  ObjectKit,
-  OneDriveStorageAdapter,
-  PocerBlock,
-  PocketBaseDataProvider,
-  PocketBaseStorageProvider,
-  PostgresDataProvider,
-  S3StorageProvider,
-  SQLiteDataProvider,
-  StorageAdapterFactory,
-  StringKit,
-  SupabaseDataProvider,
-  SupabaseStorageAdapter,
-  SupabaseStorageProvider,
-  SyncEngine,
-  TTLCache,
-  TursoLibSQLDataProvider,
-  VercelBlobStorageProvider,
-  WebSocketTransportAdapter,
-  WorkspaceBackendFactory,
-  WorkspaceFS,
-  WorkspaceRuntime,
-  buildEntityIntention,
-  calculateContentHash,
-  createEnum,
-  createHttpsAppAdapter,
-  defaultConnectionBehaviour,
-  krnlCollector,
-  krnlData,
-  krnlDataFactory,
-  krnlEmitter,
-  krnlEntityBase,
-  krnlEntityCompositionalHierarchyManager,
-  krnlError,
-  krnlErrorCodes,
-  krnlErrorMessages,
-  krnlGlobalEmitterAddress,
-  krnlInterface,
-  krnlLocalEmitterAddress,
-  krnlLocalFunctionality,
-  krnlMessage,
-  krnlNetworkOrchestratorEntityBase,
-  krnlPrimitiveDataTypes,
-  krnl as krnlProto,
-  krnlRemoteFunctionality,
-  krnlServiceSuitePorts,
-  krnlServiceSuites,
-  krnlSubSystemOrchestratorBase,
-  krnlSystemCommComponent,
-  krnlSystemEntityBase,
-  krnlSystemTypes,
-  krnlTransportAdapter,
-  krnlUnifiedHttpAdapter,
-  magneticStorage,
-  normalizeWorkspacePath,
-  subappLocalStorage,
-  telemetry
+  HttpProtocolAdapter,
+  LifecycleManager,
+  MemoryTransport,
+  P2PProtocolAdapter,
+  ProtocolResolver,
+  ServiceDiscovery,
+  ServiceEventBus,
+  ServiceInstance,
+  ServiceProxy,
+  ServiceRegistry,
+  ServiceRuntime,
+  ServiceStateStore,
+  UdpProtocolAdapter,
+  WebSocketProtocolAdapter,
+  createService,
+  createServiceDefinition,
+  createServiceProxy
 };

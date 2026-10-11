@@ -43,15 +43,17 @@ export class OrderEntity extends Entity<OrderState, OrderEvents> {
 
 ---
 
-## 3. FIRST-CLASS FLOWS (`KrnlFlowBuilder`)
+## 3. FIRST-CLASS FLOWS & CROSS-ENTITY ORCHESTRATION (`KrnlFlowBuilder`)
 ```typescript
 myEntity.flow("checkoutPipeline")
-  .then("validateCart")
-  .then("calculateTaxes")
-  .branch((res) => res.isApproved, "chargeCard", "cancelOrder")
+  .thenFunctionality("validateCart")
+  .thenEntityOrchestration("BillingSystem", "chargeCustomer")
+  .branch((res) => res.isApproved, "fulfillOrder", "cancelOrder")
   .register({
     visibility: "public",
     description: "Multi-step checkout pipeline"
   });
 ```
 - Flows are registered as regular functionalities and invoked via `entity.call("checkoutPipeline", payload)`.
+- **Cross-Entity Orchestration**: `.thenEntityOrchestration(entityName, orchestrationId)` allows flat entities to invoke peer entity orchestrations seamlessly via `KrnlEntityRegistry`.
+- **Library Prohibition Invariant**: Entities MUST NOT call libraries directly via `thenFunction()`. Only functionalities in `src/functionalities/` are permitted to call shared libraries (`src/libraries/*`).

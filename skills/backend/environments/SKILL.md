@@ -29,9 +29,10 @@ When deploying backends to Vercel, Next.js API routes, or Cloudflare Workers:
 1. **Stateless Functions**: Serverless functions can spin up and tear down at any time. Never rely on in-memory global state across requests.
 2. **Database Connection Pooling**: Direct PostgreSQL connections can quickly exhaust database pool limits under traffic spikes. Always use a connection pooler (e.g. Supabase Transaction Pooler / PgBouncer / Prisma Accelerate / Neon Serverless Driver).
 3. **SSL Enforcement**: Remote Postgres connections must enforce `ssl: { rejectUnauthorized: false }` or appropriate CA certificate validation.
-4. **Environment Variables**:
-   - `DATABASE_URL` / `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
-   - `STORAGE_BUCKET_URL` / `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY`
+4. **Environment Variables & Infrastructure Credential Invariant**:
+   - Applications strictly possess ONLY `SYSTEM_DATABASE_URL_1`, `SYSTEM_DATABASE_URL_2`, and `SYSTEM_DATABASE_URL_3`.
+   - Secondary and tertiary database URLs are optional redundant fallbacks.
+   - All system-level infrastructure credentials—including the **System Bucket** link/credentials and **admin email/password**—are stored directly in the system database inside the `ultrst_credentials` table. Zero external bucket or admin env vars are used.
 5. **No Ephemeral Local Disk for Persistence**: `/tmp` is ephemeral and lost between cold starts. All persistent workspace files must be directed to cloud object storage.
 
 ---

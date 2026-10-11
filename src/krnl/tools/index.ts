@@ -17,3 +17,4 @@ export * from "./StringConcepts.js";
 export * from "./GraphConcepts.js";
 export * from "./StateConcepts.js";
 
+export * from "./KrnlPackageReconciler.js";

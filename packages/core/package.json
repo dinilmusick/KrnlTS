@@ -15,8 +15,7 @@
     "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "proto": "pbjs -t static-module -w es6 -o src/core/krnl_pb.js src/core/krnl.proto && pbts -o src/core/krnl_pb.d.ts src/core/krnl_pb.js",
-    "build": "npm run proto && tsup src/index.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema,esbuild"
+    "build": "tsup src/index.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema,esbuild"
   },
   "dependencies": {
     "esbuild": "^0.25.0",

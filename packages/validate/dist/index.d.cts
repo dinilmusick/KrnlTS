@@ -27,7 +27,7 @@ declare class KrnlValidatorEngine {
     private maxFileLineLimit;
     private maxMainLogicLimit;
     private maxHelperLineLimit;
-    constructor(options: KrnlValidatorOptions);
+    constructor(optionsOrRoot: KrnlValidatorOptions | string);
     /**
      * Scans and validates all source files in the project.
      */
@@ -39,6 +39,10 @@ declare class KrnlValidatorEngine {
         errors: ValidationError[];
         warnings: ValidationError[];
     };
+    /**
+     * Validates workspace layout invariants for symmetric Krnl architecture.
+     */
+    private validateWorkspaceLayout;
     private collectSourceFiles;
 }
 

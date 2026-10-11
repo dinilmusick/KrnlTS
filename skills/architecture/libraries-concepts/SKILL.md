@@ -1,54 +1,52 @@
 ---
 name: libraries-concepts-guidelines
-description: Directives for the root-level libraries folder, {Name}Concepts naming convention, shared data structures, and cross-cutting utility functions.
+description: Directives for concept libraries as named folders with multi-file splits (<200 lines), definitions, functions, components, styles, co-located manifest.json, and tests.
 ---
 
-# LIBRARIES & CONCEPTS GUIDELINES
+# CONCEPT LIBRARIES ARCHITECTURE GUIDELINES
 
-## 1. ARCHITECTURAL PLACEMENT
-```
-[Root / System Level]
-├── SystemEntity.ts (Entry Point / System Entity extending Entity)
-├── entities/       (Domain Entities & Functionalities)
-└── libraries/      (Universal Shared Utilities & Concepts)
-      ├── MathConcepts.ts
-      ├── DataConcepts.ts
-      ├── ValidationConcepts.ts
-      ├── GraphConcepts.ts
-      ├── StringConcepts.ts
-      ├── StateConcepts.ts
-      └── UIConcepts.ts
-```
-- **Built-in Standard Library**: `@dinilmusick/krnlts` exports pre-built uniform template modules (`DataConcepts`, `ValidationConcepts`, `MathConcepts`, `StringConcepts`, `GraphConcepts`, `StateConcepts`).
-- **Project-Level Extensions**: Custom domain concepts live in `libraries/{Domain}Concepts.ts`.
+## 1. ARCHITECTURAL PLACEMENT & NAMED FOLDER CONVENTION
+Loose concept files are replaced by **named folders** in both backend and frontend planes:
 
----
-
-## 2. NAMING CONVENTION (`{Name}Concepts`)
 ```
-∀ file ∈ libraries/:
-  filename(file) ≡ `${DomainName}Concepts.${ext}`
+krnl/
+├── backend/libraries/
+│   └── <ConceptName>/                 → e.g. MathConcepts/, DataConcepts/
+│       ├── definitions.ts             → Interfaces, types, contracts (< 200 lines)
+│       ├── functions.ts               → Pure Layer 0A utility functions (< 200 lines)
+│       ├── manifest.json              → Declared external dependencies
+│       └── tests/                     → Localized unit tests
+│           └── <ConceptName>.test.ts
+│
+└── frontend/libraries/
+    └── <ConceptName>/                 → e.g. ButtonConcepts/, FieldConcepts/
+        ├── definitions.ts             → Component props, variants, states
+        ├── components.tsx             → React component implementations (< 200 lines)
+        ├── styles.css                 → Scoped 2.5D Neo-Brutalist styling
+        ├── manifest.json              → Declared UI external dependencies
+        └── tests/                     → Component tests
+            └── <ConceptName>.test.tsx
 ```
-- **Rule**: Every utility/library file MUST strictly follow the `{Name}Concepts` naming pattern (e.g. `StringConcepts.ts`, `TreeConcepts.ts`, `CacheConcepts.ts`).
-- **Convention Equivalent**: Replaces conventional `utils/` or `helpers/` bags with domain-bounded Concept files.
 
 ---
 
-## 3. CONTENTS & RESPONSIBILITIES
-- **Shared Data Structures**: Canonical interfaces, types, schemas, and data structures utilized across multiple entities.
-- **Common Functions**: Pure, deterministic polymorphic template functions (`<TIn, TOut>`) invoked across diverse codebase assets.
-- **Uniform Calling Syntax**: Functions follow standard operator signatures (`Concept.transform`, `Concept.validate`, `Concept.query`, `Concept.extract`).
-- **Independence**: Concept files must remain decoupled from specific entity state or backend runtime bindings.
+## 2. FILE TYPES PER CONCEPT FOLDER
+A concept folder may contain from 1 to all of the following file types:
+1. `definitions.ts`: Type definitions, schemas, prop interfaces, constants.
+2. `functions.ts`: Pure deterministic functions (Layer 0A).
+3. `components.tsx`: UI component implementations (frontend).
+4. `styles.css`: Scoped component styling (frontend).
+5. `manifest.json`: Co-located npm packages required by this concept.
+6. `tests/`: Dedicated unit test suite for the concept.
 
 ---
 
-## 4. CODE REUSE RULE
-```python
-def on_utility_creation(function_or_struct, domain):
-    target_file = f"libraries/{domain}Concepts.ts"
-    if is_used_across_multiple_entities(function_or_struct):
-        append_to_concept_library(target_file, function_or_struct)
-    else:
-        # Local to single functionality
-        place_in_feature_helpers_folder(function_or_struct)
-```
+## 3. FRONTEND UI PRIMITIVES INVARIANT
+- `frontend/libraries/` defines the fundamental atomic primitives (buttons, text fields, dropdowns, scrollbars, tooltips, tiles).
+- These primitives are the **exclusive building blocks** for composing all entity and functionality UIs across the entire application.
+
+---
+
+## 4. UNIVERSAL MANIFEST & DEPENDENCY AGGREGATION
+- Every concept library declares its external dependencies in its own `manifest.json`.
+- The root `package.json` aggregates all concept manifests via `KrnlPackageReconciler`.

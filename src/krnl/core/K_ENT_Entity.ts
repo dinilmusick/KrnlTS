@@ -15,7 +15,7 @@
 import { krnlEntityBase } from "./K_ENT_Krnl_Entity_Base.js";
 import type { KrnlProtocolAdapter, KrnlCapabilityResolution } from "./K_LIB_Krnl_Protocol_Adapter.js";
 import { krnlLocalFunctionality, type KrnlFunctionalityManifest, type KrnlWorkspaceRequirements } from "./K_LIB_Krnl_Functionality_Types.js";
-import { KrnlFlowBuilder } from "./K_LIB_Krnl_Flow.js";
+import { KrnlFlowBuilder, OrchestrationChain, OrchestrationRuleViolationError } from "./K_LIB_Krnl_Flow.js";
 import type {
   SubAppDescriptor,
   SubAppInstance,
@@ -30,6 +30,7 @@ import {
   KrnlSubAppValidator
 } from "./K_LIB_Krnl_SubApp_Engine.js";
 import { ObjectKit } from "../tools/ObjectKit.js";
+import { KrnlEntityRegistry } from "./K_LIB_Krnl_Entity_Registry.js";
 
 export class Entity<
   TState extends Record<string, any> = any,
@@ -65,6 +66,7 @@ export class Entity<
     super(name, owner, options);
     this.systemType = "Entity";
     this.state = (options.initialState ?? {}) as TState;
+    KrnlEntityRegistry.register(this);
   }
 
   /**
@@ -800,19 +802,41 @@ export class Entity<
     return list;
   }
 
-  // ── Flow Factory ─────────────────────────────────────────────────────────
+  // ── Orchestration & Flow Factory ─────────────────────────────────────────
+
+  /**
+   * Create an OrchestrationChain instance bound to this entity.
+   * Defines declarative orchestration of local functionalities and global library functions.
+   */
+  orchestration(id: string): OrchestrationChain {
+    return new OrchestrationChain(this, id);
+  }
 
   /**
    * Create a FlowBuilder instance bound to this entity.
    */
-  flow(id: string): KrnlFlowBuilder {
-    return new KrnlFlowBuilder(this, id);
+  flow(id: string): OrchestrationChain {
+    return new OrchestrationChain(this, id);
+  }
+
+  /**
+   * Directly invokes a capability or orchestration on a peer entity in the flat multi-entity architecture.
+   */
+  async callEntity(entityName: string, fidOrOrchestration: string, input?: any): Promise<any> {
+    const target = KrnlEntityRegistry.get(entityName);
+    if (!target) {
+      throw new Error(
+        `[Entity:${this.id || this.entityName}] Cannot resolve target entity '${entityName}'. Ensure the entity is registered in KrnlEntityRegistry.`
+      );
+    }
+    return await target.call(fidOrOrchestration, input);
   }
 
   /**
    * Clean disposal of all entity resources, sub-apps, child components, and adapters.
    */
   dispose(): void {
+    KrnlEntityRegistry.unregister(this);
     if (this._selfHosting) {
       this.stopHosting().catch(() => {});
     }

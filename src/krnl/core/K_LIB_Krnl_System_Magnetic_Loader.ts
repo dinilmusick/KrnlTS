@@ -1,9 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { pathToFileURL } from 'url';
+import { pathToFileURL, fileURLToPath } from 'url';
 import { AsyncLocalStorage } from 'async_hooks';
 import { krnlSystemEntityBase } from './K_ENT_Krnl_System_Entity_Base.js';
 import type { KrnlSubAppConfig } from './types.js';
+import { KrnlEntityRegistry } from './K_LIB_Krnl_Entity_Registry.js';
 
 export const magneticStorage = new AsyncLocalStorage<{
   helpers: Record<string, any>;
@@ -19,12 +20,37 @@ export class KrnlMagneticLoader {
   /**
    * Scans and dynamically loads entities, functionalities, and subapps for the given entity or system.
    */
-  static async loadAll(entity: any, baseDir: string): Promise<void> {
+  static async loadAll(entity: any, rawBaseDir: string): Promise<void> {
+    let baseDir = rawBaseDir;
+    if (typeof baseDir === 'string' && baseDir.startsWith('file:')) {
+      baseDir = fileURLToPath(baseDir);
+    }
+    if (typeof baseDir === 'string' && fs.existsSync(baseDir) && fs.statSync(baseDir).isFile()) {
+      baseDir = path.dirname(baseDir);
+    }
+
     const entityLabel = entity.entityName || entity.id || 'Entity';
     console.log(`[MagneticLoader] loadAll called for entity '${entityLabel}' with baseDir '${baseDir}'`);
-    // 1. Scan and load functionalities
-    const functionalitiesDir = path.join(baseDir, 'functionalities');
-    if (fs.existsSync(functionalitiesDir)) {
+
+    // Register entity into global registry for cross-entity orchestration
+    KrnlEntityRegistry.register(entity);
+
+    // 1. Scan and load shared functionalities
+    const candidateFuncDirs = [
+      path.join(baseDir, 'functionalities'),
+      path.join(baseDir, '..', 'functionalities'),
+      path.join(process.cwd(), 'src', 'functionalities'),
+      path.join(process.cwd(), 'functionalities')
+    ];
+    let functionalitiesDir: string | null = null;
+    for (const cand of candidateFuncDirs) {
+      if (fs.existsSync(cand) && fs.statSync(cand).isDirectory()) {
+        functionalitiesDir = cand;
+        break;
+      }
+    }
+
+    if (functionalitiesDir) {
       const funcDirs = await fs.promises.readdir(functionalitiesDir, { withFileTypes: true });
       for (const dirent of funcDirs) {
         if (dirent.isDirectory()) {
@@ -33,9 +59,10 @@ export class KrnlMagneticLoader {
       }
     }
 
-    // 2. Scan and load nested entities
+    // 2. Scan and load nested entities (Deprecated in flat multi-entity architecture)
     const entitiesDir = path.join(baseDir, 'entities');
     if (fs.existsSync(entitiesDir)) {
+      console.warn(`[MagneticLoader] Deprecation: Nested 'entities/' found under '${baseDir}'. Krnl uses a flat multi-entity architecture where all entities are placed directly in 'src/' at the same level.`);
       const entDirs = await fs.promises.readdir(entitiesDir, { withFileTypes: true });
       for (const dirent of entDirs) {
         if (dirent.isDirectory()) {
@@ -224,23 +251,31 @@ export class KrnlMagneticLoader {
     }
 
     // 5. Scan and load protocol adapters (declarative attachment — does NOT start servers)
-    const adaptersDir = path.join(baseDir, 'protocol_adapters');
-    if (fs.existsSync(adaptersDir) && typeof (entity as any).attachAdapter === 'function') {
-      try {
-        const adapterFiles = await fs.promises.readdir(adaptersDir);
-        for (const file of adapterFiles) {
-          if (file.endsWith('.js') || file.endsWith('.ts')) {
-            const mod = await import(pathToFileURL(path.join(adaptersDir, file)).href);
-            const AdapterClass = mod.default || mod[path.basename(file, path.extname(file))];
-            if (AdapterClass && typeof AdapterClass === 'function') {
-              const adapterInstance = new AdapterClass();
-              (entity as any).attachAdapter(adapterInstance);
-              console.log(`[MagneticLoader] Attached protocol adapter '${adapterInstance.name || file}' to entity '${entityLabel}'.`);
+    const candidateAdapterDirs = [
+      path.join(baseDir, 'protocol_adapters'),
+      path.join(baseDir, '..', 'protocol_adapters'),
+      path.join(process.cwd(), 'src', 'protocol_adapters'),
+      path.join(process.cwd(), 'protocol_adapters')
+    ];
+    for (const adaptersDir of candidateAdapterDirs) {
+      if (fs.existsSync(adaptersDir) && fs.statSync(adaptersDir).isDirectory() && typeof (entity as any).attachAdapter === 'function') {
+        try {
+          const adapterFiles = await fs.promises.readdir(adaptersDir);
+          for (const file of adapterFiles) {
+            if (file.endsWith('.js') || file.endsWith('.ts')) {
+              const mod = await import(pathToFileURL(path.join(adaptersDir, file)).href);
+              const AdapterClass = mod.default || mod[path.basename(file, path.extname(file))];
+              if (AdapterClass && typeof AdapterClass === 'function') {
+                const adapterInstance = new AdapterClass();
+                (entity as any).attachAdapter(adapterInstance);
+                console.log(`[MagneticLoader] Attached protocol adapter '${adapterInstance.name || file}' to entity '${entityLabel}'.`);
+              }
             }
           }
+        } catch (err: any) {
+          console.warn(`[MagneticLoader] Error scanning protocol_adapters in '${adaptersDir}':`, err.message || err);
         }
-      } catch (err: any) {
-        console.warn(`[MagneticLoader] Error scanning protocol_adapters in '${baseDir}':`, err.message || err);
+        break;
       }
     }
 
@@ -266,8 +301,43 @@ export class KrnlMagneticLoader {
       }
     }
 
+    // 4. Scan and dynamically load libraries
+    for (const cand of ['libraries', 'library']) {
+      const librariesDir = path.join(baseDir, cand);
+      if (fs.existsSync(librariesDir)) {
+        await this.loadLibraries(entity, librariesDir);
+      }
+    }
+
     (entity as any).setFlag?.('krnl:magnetic_load_complete');
   }
+
+  static async loadLibraries(entity: any, libDir: string): Promise<void> {
+    if (!fs.existsSync(libDir)) return;
+    entity.libraries = entity.libraries || {};
+
+    const scanRecursive = async (currDir: string) => {
+      const entries = await fs.promises.readdir(currDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+        const fullPath = path.join(currDir, entry.name);
+        if (entry.isDirectory()) {
+          await scanRecursive(fullPath);
+        } else if (/\.(ts|js|mjs)$/.test(entry.name) && !entry.name.endsWith('.d.ts')) {
+          try {
+            const raw = path.basename(entry.name, path.extname(entry.name));
+            const mod = await import(pathToFileURL(fullPath).href);
+            entity.libraries[raw] = mod.default || mod;
+            console.log(`[MagneticLoader] Dynamically loaded library '${raw}' from '${fullPath}'`);
+          } catch (e: any) {
+            console.warn(`[MagneticLoader] Warning: Could not dynamically load library at '${fullPath}': ${e.message}`);
+          }
+        }
+      }
+    };
+    await scanRecursive(libDir);
+  }
+
 
   static async loadFunctionality(entity: krnlSystemEntityBase, funcDir: string, funcName: string): Promise<void> {
     // Look for explicit descriptor first (e.g. StockUpdate.js)

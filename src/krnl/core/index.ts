@@ -23,6 +23,7 @@ export * from "./K_LIB_Krnl_Frontend_Generator.js";
 export * from "./K_LIB_Krnl_Frontend_Builder.js";
 export * from "./K_LIB_Krnl_Frontend_Inspector.js";
 export * from "./K_LIB_Krnl_Registry_Client.js";
+export * from "./K_LIB_Krnl_Entity_Registry.js";
 export { telemetry } from "./K_LIB_Krnl_Telemetry.js";
 export type {
   KrnlIntentionFunctionality,
@@ -65,3 +66,6 @@ export {
 // Universal Backend Exports
 export * from "../backend/index.js";
 
+
+// Code-as-Configuration Application Entry
+export * from "./K_LIB_Krnl_App_Config.js";
