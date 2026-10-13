@@ -383,7 +383,6 @@ var HttpProtocolAdapter = class {
 
 // src/protocols/WebSocketProtocolAdapter.ts
 var import_http2 = __toESM(require("http"), 1);
-var import_ws = require("ws");
 var WebSocketProtocolAdapter = class {
   protocol = "ws";
   capabilities = {
@@ -399,8 +398,10 @@ var WebSocketProtocolAdapter = class {
   wss;
   port;
   async expose(service, port = 0) {
+    const wsMod = await import("ws");
+    const WebSocketServer = wsMod.WebSocketServer || wsMod.default?.WebSocketServer || wsMod.Server;
     this.server = import_http2.default.createServer();
-    this.wss = new import_ws.WebSocketServer({ server: this.server });
+    this.wss = new WebSocketServer({ server: this.server });
     this.wss.on("connection", (ws) => {
       ws.on("message", async (raw) => {
         try {
@@ -445,8 +446,10 @@ var WebSocketProtocolAdapter = class {
     };
   }
   async send(endpoint, envelope) {
+    const wsMod = await import("ws");
+    const WS = wsMod.WebSocket || wsMod.default || globalThis.WebSocket;
     return new Promise((resolve, reject) => {
-      const ws = new import_ws.WebSocket(`ws://${endpoint.address}:${endpoint.port}`);
+      const ws = new WS(`ws://${endpoint.address}:${endpoint.port}`);
       ws.on("open", () => {
         ws.send(JSON.stringify(envelope));
       });

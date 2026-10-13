@@ -1,7 +1,7 @@
 {
   "name": "@dinilmusick/krnl-cli",
-  "version": "1.0.0",
-  "description": "Unified CLI for the Krnl Framework",
+  "version": "1.0.1",
+  "description": "Unified CLI for the Krnl Backend Service Framework",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

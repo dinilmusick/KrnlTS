@@ -1,7 +1,7 @@
 {
   "name": "@dinilmusick/krnl-validate",
-  "version": "1.0.0",
-  "description": "Deep AST Validation and 4-Layer Function Purity Engine for Krnl",
+  "version": "1.0.1",
+  "description": "Deep AST validation and 4-layer function purity engine for Krnl backend services",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

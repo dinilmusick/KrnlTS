@@ -122,7 +122,7 @@ async function main() {
       } else if (isAll) {
         console.log(`⚡ [Krnl Dev] Initializing combined multi-entity workspace on port ${port}...`);
       } else {
-        console.log(`⚡ [Krnl Dev] Initializing Krnl Studio visual workspace on port ${port}...`);
+        console.log(`⚡ [Krnl Dev] Initializing Krnl backend service workspace on port ${port}...`);
       }
 
       const server = new StudioServer({
@@ -139,13 +139,13 @@ async function main() {
     default: {
       console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
-║                      Krnl Framework CLI                       ║
+║             Krnl Backend Service Framework CLI                ║
 ╚═══════════════════════════════════════════════════════════════╝
 
 Usage: krnl <command> [options]
 
 Commands:
-  dev               Start Krnl Studio dev server & boot <app_name>.ts entrypoint
+  dev               Start Krnl service dev server & boot service entrypoint
   build             Validate and build project for production
   validate          Run deep AST & 4-layer function purity validation
   sync              Reconcile package.json from all co-located manifest.json files
@@ -160,7 +160,7 @@ Commands:
 Options:
   --entity <name>   Target a specific entity app variant to run or build
   --all             Run or build all entities as a combined multi-entity build
-  --port <number>   Specify port for Krnl Studio dev server (default: 8080)
+  --port <number>   Specify port for Krnl service dev server (default: 8080)
   --watch, -w       Enable continuous file watcher (for watch command)
   --help, -h        Show this help message
 `);

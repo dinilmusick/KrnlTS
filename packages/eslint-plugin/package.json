@@ -1,7 +1,7 @@
 {
   "name": "@dinilmusick/eslint-plugin-krnl",
-  "version": "1.0.0",
-  "description": "ESLint plugin enforcing Krnl 4-layer function purity, line limits, and architectural paradigms",
+  "version": "1.0.1",
+  "description": "ESLint plugin enforcing Krnl backend service purity, 4-layer architecture, and backend standards",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

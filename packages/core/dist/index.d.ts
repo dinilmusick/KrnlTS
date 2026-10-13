@@ -203,7 +203,7 @@ declare class HttpProtocolAdapter implements ProtocolAdapter {
 
 /**
  * @file WebSocketProtocolAdapter.ts
- * @description WebSocket full-duplex protocol adapter for services.
+ * @description WebSocket full-duplex protocol adapter for services (browser + Node safe).
  */
 
 declare class WebSocketProtocolAdapter implements ProtocolAdapter {

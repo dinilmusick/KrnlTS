@@ -1,7 +1,7 @@
 {
   "name": "@dinilmusick/krnl-core",
-  "version": "1.0.0",
-  "description": "Core runtime engine, Entity system, Flows, and Universal Backend for Krnl",
+  "version": "1.0.1",
+  "description": "Core runtime engine, Service facades, Protocols, Transports, and Execution flows for Krnl backend services",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

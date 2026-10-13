@@ -1,10 +1,9 @@
 /**
  * @file WebSocketProtocolAdapter.ts
- * @description WebSocket full-duplex protocol adapter for services.
+ * @description WebSocket full-duplex protocol adapter for services (browser + Node safe).
  */
 
 import http from 'http';
-import { WebSocketServer, WebSocket } from 'ws';
 import type { ProtocolAdapter, ProtocolCapabilities, ProtocolEnvelope } from './ProtocolAdapter.js';
 import type { EndpointDescriptor, IService } from '../services/ServiceContract.js';
 
@@ -21,14 +20,16 @@ export class WebSocketProtocolAdapter implements ProtocolAdapter {
   };
 
   private server?: http.Server;
-  private wss?: WebSocketServer;
+  private wss?: any;
   private port?: number;
 
   async expose(service: IService, port = 0): Promise<EndpointDescriptor> {
+    const wsMod: any = await import('ws');
+    const WebSocketServer = wsMod.WebSocketServer || wsMod.default?.WebSocketServer || wsMod.Server;
     this.server = http.createServer();
     this.wss = new WebSocketServer({ server: this.server });
 
-    this.wss.on('connection', (ws: WebSocket) => {
+    this.wss.on('connection', (ws: any) => {
       ws.on('message', async (raw: any) => {
         try {
           const envelope = JSON.parse(raw.toString()) as ProtocolEnvelope;
@@ -74,8 +75,10 @@ export class WebSocketProtocolAdapter implements ProtocolAdapter {
   }
 
   async send(endpoint: EndpointDescriptor, envelope: ProtocolEnvelope): Promise<ProtocolEnvelope> {
+    const wsMod: any = await import('ws');
+    const WS = wsMod.WebSocket || wsMod.default || (globalThis as any).WebSocket;
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(`ws://${endpoint.address}:${endpoint.port}`);
+      const ws = new WS(`ws://${endpoint.address}:${endpoint.port}`);
       ws.on('open', () => {
         ws.send(JSON.stringify(envelope));
       });
@@ -89,7 +92,7 @@ export class WebSocketProtocolAdapter implements ProtocolAdapter {
           reject(e);
         }
       });
-      ws.on('error', (err) => {
+      ws.on('error', (err: any) => {
         reject(err);
       });
     });

@@ -1,5 +1,24 @@
 # KrnlTS Project History Timeline
 
+## [2026-10-13] - Krnl Alignment: Backend Service Framework for Skipo
+
+### User Intent & Rationale:
+- **Goal**: Align all descriptions, package metadata, keywords, CLI help strings, and repository documentation with the fact that Krnl is the Backend Service Framework for Skipo (where services are backend modules).
+- **Rationale**: Previous descriptions mentioning full-stack multiplatform frameworks, direct-DOM VanJS reactivity, and visual node IDEs were obsolete and misleading following the refactor to a pure backend service kernel.
+
+### Architectural Decisions & Changes:
+- **Description & Metadata Standardization**:
+  - Root `package.json` updated to `"Krnl: Backend Service Framework for Skipo — authoring, executing, and validating modular backend services, facades, and workflows"`.
+  - Subpackage descriptions updated across `packages/core`, `packages/cli`, `packages/validate`, `packages/eslint-plugin`, and `packages/create-krnl`.
+  - Package keywords aligned around backend services, service facades, protocols, and workflows.
+- **Documentation Overhaul (`README.md`)**:
+  - Replaced obsolete studio/UI instructions with service definition, flow execution, and AST purity validation workflows (`krnl validate`, `krnl dev`, `krnl build`).
+  - Purged obsolete references to `@dinilmusick/krnl-ui` and `@dinilmusick/krnl-studio`.
+- **CLI Clean-up (`krnl.ts`)**:
+  - Updated banner and help menu to reflect `Krnl Backend Service Framework CLI`.
+
+---
+
 ## [2026-08-27] - Krnl Studio UI Expansion, Visual State Presets, and Clean Monaco Integration
 
 ### User Intent & Rationale:
