@@ -24,25 +24,13 @@ interface KrnlValidatorOptions {
 declare class KrnlValidatorEngine {
     private project;
     private projectRoot;
-    private maxFileLineLimit;
-    private maxMainLogicLimit;
-    private maxHelperLineLimit;
+    private limitOptions;
     constructor(optionsOrRoot: KrnlValidatorOptions | string);
-    /**
-     * Scans and validates all source files in the project.
-     */
     validateAll(): ValidationSummary;
-    /**
-     * Validates a single SourceFile.
-     */
     validateSourceFile(sf: SourceFile): {
         errors: ValidationError[];
         warnings: ValidationError[];
     };
-    /**
-     * Validates workspace layout invariants for symmetric Krnl architecture.
-     */
-    private validateWorkspaceLayout;
     private collectSourceFiles;
 }
 

@@ -5,9 +5,8 @@ export default defineConfig({
   dts: true,
   format: ['esm', 'cjs'],
   noExternal: [
-    '@dinilmusick/krnl-studio',
     '@dinilmusick/krnl-validate',
     '@dinilmusick/krnl-core'
   ],
-  external: ['ts-morph', 'ws', 'esbuild', 'vanjs-core', 'rete', 'rete-area-plugin']
+  external: ['ts-morph', 'ws', 'esbuild']
 });

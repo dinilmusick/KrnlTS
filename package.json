@@ -41,7 +41,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "pnpm --filter @dinilmusick/krnl-core run build",
+    "build": "pnpm -r run build",
     "test": "vitest run",
     "validate": "node packages/cli/dist/bin/krnl.js validate",
     "dev": "node packages/cli/dist/bin/krnl.js dev",

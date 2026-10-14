@@ -310,6 +310,28 @@ declare class ServiceDiscovery {
     findPeer(id: string): PeerRecord | undefined;
 }
 
+interface ReconcileResult {
+    updated: boolean;
+    totalManifests: number;
+    addedDependencies: Record<string, string>;
+    addedDevDependencies: Record<string, string>;
+    conflicts: Array<{
+        package: string;
+        versions: string[];
+    }>;
+}
+declare class KrnlPackageReconciler {
+    /**
+     * Scans all manifest.json files across backend and frontend and reconciles root package.json.
+     */
+    static reconcile(projectRoot?: string, writeChanges?: boolean): ReconcileResult;
+    /**
+     * Discovers all manifest.json files in krnl/ (or src/)
+     */
+    static findManifests(projectRoot: string): string[];
+    private static scanRecursive;
+}
+
 /**
  * @file ServiceStateStore.ts
  * @description State management primitive for stateful services.
@@ -357,4 +379,4 @@ declare class ProtocolResolver {
     static getSupportedProtocols(definition: ServiceDefinition): ProtocolType[];
 }
 
-export { type Connection, type DependencyContract, type EndpointDescriptor, type EventContract, HttpProtocolAdapter, type IService, type LifecycleContract, LifecycleManager, MemoryTransport, type OperationContext, type OperationContract, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type RegisteredServiceRecord, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, UdpProtocolAdapter, WebSocketProtocolAdapter, createService, createServiceDefinition, createServiceProxy };
+export { type Connection, type DependencyContract, type EndpointDescriptor, type EventContract, HttpProtocolAdapter, type IService, KrnlPackageReconciler, type LifecycleContract, LifecycleManager, MemoryTransport, type OperationContext, type OperationContract, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, UdpProtocolAdapter, WebSocketProtocolAdapter, createService, createServiceDefinition, createServiceProxy };

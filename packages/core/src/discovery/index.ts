@@ -4,3 +4,4 @@
  */
 
 export * from './ServiceDiscovery.js';
+export * from './KrnlPackageReconciler.js';

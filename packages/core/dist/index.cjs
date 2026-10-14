@@ -31,6 +31,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   HttpProtocolAdapter: () => HttpProtocolAdapter,
+  KrnlPackageReconciler: () => KrnlPackageReconciler,
   LifecycleManager: () => LifecycleManager,
   MemoryTransport: () => MemoryTransport,
   P2PProtocolAdapter: () => P2PProtocolAdapter,
@@ -727,6 +728,126 @@ var ServiceDiscovery = class {
   }
 };
 
+// src/discovery/KrnlPackageReconciler.ts
+var fs = __toESM(require("fs"), 1);
+var path = __toESM(require("path"), 1);
+var KrnlPackageReconciler = class {
+  /**
+   * Scans all manifest.json files across backend and frontend and reconciles root package.json.
+   */
+  static reconcile(projectRoot = process.cwd(), writeChanges = true) {
+    const manifests = this.findManifests(projectRoot);
+    const aggregatedDeps = {};
+    const aggregatedDevDeps = {};
+    for (const mPath of manifests) {
+      try {
+        const raw = fs.readFileSync(mPath, "utf8");
+        const json = JSON.parse(raw);
+        if (json.dependencies && typeof json.dependencies === "object") {
+          for (const [pkg, ver] of Object.entries(json.dependencies)) {
+            if (!aggregatedDeps[pkg]) aggregatedDeps[pkg] = [];
+            if (!aggregatedDeps[pkg].includes(String(ver))) {
+              aggregatedDeps[pkg].push(String(ver));
+            }
+          }
+        }
+        if (json.devDependencies && typeof json.devDependencies === "object") {
+          for (const [pkg, ver] of Object.entries(json.devDependencies)) {
+            if (!aggregatedDevDeps[pkg]) aggregatedDevDeps[pkg] = [];
+            if (!aggregatedDevDeps[pkg].includes(String(ver))) {
+              aggregatedDevDeps[pkg].push(String(ver));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`[KrnlPackageReconciler] Warning: Could not parse ${mPath}:`, err);
+      }
+    }
+    const conflicts = [];
+    const resolvedDeps = {};
+    const resolvedDevDeps = {};
+    for (const [pkg, versions] of Object.entries(aggregatedDeps)) {
+      if (versions.length > 1) {
+        conflicts.push({ package: pkg, versions });
+      }
+      resolvedDeps[pkg] = versions[versions.length - 1];
+    }
+    for (const [pkg, versions] of Object.entries(aggregatedDevDeps)) {
+      if (versions.length > 1 && !conflicts.some((c) => c.package === pkg)) {
+        conflicts.push({ package: pkg, versions });
+      }
+      resolvedDevDeps[pkg] = versions[versions.length - 1];
+    }
+    const pkgJsonPath = path.join(projectRoot, "package.json");
+    let updated = false;
+    if (fs.existsSync(pkgJsonPath)) {
+      const pkgContent = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
+      pkgContent.dependencies = pkgContent.dependencies || {};
+      pkgContent.devDependencies = pkgContent.devDependencies || {};
+      let hasChanges = false;
+      for (const [pkg, ver] of Object.entries(resolvedDeps)) {
+        if (pkgContent.dependencies[pkg] !== ver) {
+          pkgContent.dependencies[pkg] = ver;
+          hasChanges = true;
+        }
+      }
+      for (const [pkg, ver] of Object.entries(resolvedDevDeps)) {
+        if (!pkgContent.dependencies[pkg] && pkgContent.devDependencies[pkg] !== ver) {
+          pkgContent.devDependencies[pkg] = ver;
+          hasChanges = true;
+        }
+      }
+      if (hasChanges && writeChanges) {
+        fs.writeFileSync(pkgJsonPath, JSON.stringify(pkgContent, null, 2) + "\n");
+        updated = true;
+        console.log(`[KrnlPackageReconciler] Reconciled package.json from ${manifests.length} manifest(s).`);
+      }
+    }
+    return {
+      updated,
+      totalManifests: manifests.length,
+      addedDependencies: resolvedDeps,
+      addedDevDependencies: resolvedDevDeps,
+      conflicts
+    };
+  }
+  /**
+   * Discovers all manifest.json files in krnl/ (or src/)
+   */
+  static findManifests(projectRoot) {
+    const searchDirs = [
+      path.join(projectRoot, "krnl", "backend", "libraries"),
+      path.join(projectRoot, "krnl", "backend", "functionalities"),
+      path.join(projectRoot, "krnl", "frontend", "libraries"),
+      path.join(projectRoot, "krnl", "frontend", "functionalities"),
+      path.join(projectRoot, "src", "functionalities"),
+      path.join(projectRoot, "src", "libraries")
+    ];
+    const found = [];
+    for (const dir of searchDirs) {
+      if (fs.existsSync(dir)) {
+        this.scanRecursive(dir, found);
+      }
+    }
+    return found;
+  }
+  static scanRecursive(dir, found) {
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name === "node_modules" || entry.name === "dist" || entry.name === ".git") continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          this.scanRecursive(full, found);
+        } else if (entry.isFile() && entry.name === "manifest.json") {
+          found.push(full);
+        }
+      }
+    } catch {
+    }
+  }
+};
+
 // src/connectivity/ProtocolResolver.ts
 var ProtocolResolver = class {
   static selectProtocol(requiredCapabilities, availableEndpoints) {
@@ -741,6 +862,7 @@ var ProtocolResolver = class {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   HttpProtocolAdapter,
+  KrnlPackageReconciler,
   LifecycleManager,
   MemoryTransport,
   P2PProtocolAdapter,

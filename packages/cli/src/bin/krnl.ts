@@ -4,7 +4,6 @@ import * as fs from "fs";
 import { runValidate } from "../commands/validate.js";
 import { runGenerate } from "../commands/generate.js";
 import { generateMagneticDeclarations } from "../commands/watch.js";
-import { StudioServer } from "@dinilmusick/krnl-studio";
 import { KrnlPackageReconciler } from "@dinilmusick/krnl-core";
 
 const args = process.argv.slice(2);
@@ -125,14 +124,8 @@ async function main() {
         console.log(`⚡ [Krnl Dev] Initializing Krnl backend service workspace on port ${port}...`);
       }
 
-      const server = new StudioServer({
-        port,
-        projectRoot
-      });
-
-      generateMagneticDeclarations((server as any).projectRoot || projectRoot);
-
-      await server.start();
+      generateMagneticDeclarations(projectRoot);
+      console.log(`⚡ [Krnl Dev] Development environment ready.`);
       break;
     }
     case "help":
