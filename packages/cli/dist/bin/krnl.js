@@ -4,7 +4,7 @@ import {
   generateMagneticDeclarations,
   runGenerate,
   runValidate
-} from "../chunk-FZ6X7PHR.js";
+} from "../chunk-ESTKOQ7T.js";
 
 // src/bin/krnl.ts
 import * as path from "path";

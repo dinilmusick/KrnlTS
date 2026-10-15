@@ -383,7 +383,6 @@ var HttpProtocolAdapter = class {
 };
 
 // src/protocols/WebSocketProtocolAdapter.ts
-var import_http2 = __toESM(require("http"), 1);
 var WebSocketProtocolAdapter = class {
   protocol = "ws";
   capabilities = {
@@ -399,9 +398,14 @@ var WebSocketProtocolAdapter = class {
   wss;
   port;
   async expose(service, port = 0) {
-    const wsMod = await import("ws");
+    const httpMod = await import("http");
+    const http2 = httpMod.default || httpMod;
+    const wsMod = await import("ws").catch(() => null);
+    if (!wsMod) {
+      throw new Error('WebSocketProtocolAdapter.expose requires "ws" package in Node.js environment.');
+    }
     const WebSocketServer = wsMod.WebSocketServer || wsMod.default?.WebSocketServer || wsMod.Server;
-    this.server = import_http2.default.createServer();
+    this.server = http2.createServer();
     this.wss = new WebSocketServer({ server: this.server });
     this.wss.on("connection", (ws) => {
       ws.on("message", async (raw) => {
@@ -447,8 +451,14 @@ var WebSocketProtocolAdapter = class {
     };
   }
   async send(endpoint, envelope) {
-    const wsMod = await import("ws");
-    const WS = wsMod.WebSocket || wsMod.default || globalThis.WebSocket;
+    let WS = globalThis.WebSocket;
+    if (!WS) {
+      const wsMod = await import("ws").catch(() => null);
+      WS = wsMod?.WebSocket || wsMod?.default?.WebSocket || wsMod;
+    }
+    if (!WS) {
+      throw new Error("No WebSocket client implementation available in this environment.");
+    }
     return new Promise((resolve, reject) => {
       const ws = new WS(`ws://${endpoint.address}:${endpoint.port}`);
       ws.on("open", () => {
