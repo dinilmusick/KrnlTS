@@ -1,6 +1,6 @@
 {
-  "name": "@dinilmusick/krnl-cli",
-  "version": "1.0.1",
+  "name": "@ultrst-armada/krnl-cli",
+  "version": "1.0.2",
   "description": "Unified CLI for the Krnl Backend Service Framework",
   "type": "module",
   "main": "dist/index.js",
@@ -10,25 +10,32 @@
   },
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
     }
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup"
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@dinilmusick/krnl-core": "workspace:*",
-    "@dinilmusick/krnl-validate": "workspace:*",
     "esbuild": "^0.28.2",
     "ts-morph": "^25.0.1",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "@ultrst-armada/krnl-core": "workspace:*",
+    "@ultrst-armada/krnl-validate": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.4.0",
-    "typescript": "^5.7.3"
-  }
+    "typescript": "^5.7.3",
+    "vitest": "^3.1.0"
+  },
+  "module": "dist/index.js"
 }
