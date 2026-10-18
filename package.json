@@ -2,7 +2,7 @@
   "name": "@ultrst-armada/krnl",
   "version": "1.0.2",
   "private": false,
-  "description": "Krnl: Backend Service Framework for Skipo — authoring, executing, and validating modular backend services, facades, and workflows",
+  "description": "KrnlTS backend semantic kernel for authoring, validating, and running modular TypeScript services",
   "type": "module",
   "main": "./packages/core/dist/index.js",
   "module": "./packages/core/dist/index.js",
@@ -48,7 +48,6 @@
   },
   "keywords": [
     "krnl",
-    "skipo",
     "service-framework",
     "backend",
     "backend-modules",
