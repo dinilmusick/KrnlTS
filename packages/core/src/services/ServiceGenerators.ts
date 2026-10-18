@@ -8,6 +8,12 @@ import { ServiceInstance } from './ServiceInstance.js';
 import { ServiceProxy } from './ServiceProxy.js';
 import type { ProtocolAdapter } from '../protocols/ProtocolAdapter.js';
 
+function assertRecord(value: unknown, field: string): asserts value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error("[KrnlTS] Invalid service definition: '" + field + "' must be an object.");
+  }
+}
+
 function assertNonEmptyString(value: unknown, field: string): asserts value is string {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error("[KrnlTS] Invalid service definition: '" + field + "' must be a non-empty string.");
@@ -36,6 +42,8 @@ export function validateServiceDefinition<
     }
     assertNonEmptyString(operation.id, "operations." + key + ".id");
     assertNonEmptyString(operation.name, "operations." + key + ".name");
+    if (operation.inputSchema !== undefined) assertRecord(operation.inputSchema, "operations." + key + ".inputSchema");
+    if (operation.outputSchema !== undefined) assertRecord(operation.outputSchema, "operations." + key + ".outputSchema");
     if (typeof operation.handler !== 'function') {
       throw new Error("[Service:" + definition.name + "] Operation '" + key + "' must define a handler.");
     }
@@ -47,6 +55,10 @@ export function validateServiceDefinition<
     }
     assertNonEmptyString(event.name, "events." + key + ".name");
   }
+
+  for (const [key, schema] of Object.entries(definition.inputs ?? {})) assertRecord(schema, 'inputs.' + key);
+  for (const [key, schema] of Object.entries(definition.outputs ?? {})) assertRecord(schema, 'outputs.' + key);
+  if (definition.state?.schema !== undefined) assertRecord(definition.state.schema, 'state.schema');
 
   for (const capability of definition.capabilities ?? []) {
     assertNonEmptyString(capability.id, 'capability.id');
