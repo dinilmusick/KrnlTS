@@ -103,5 +103,6 @@ export interface IService<
   getStatus(): ServiceStatus;
   start(): Promise<void>;
   stop(): Promise<void>;
+  dispose(): Promise<void>;
   getDefinition(): ServiceDefinition<TState, TEvents>;
 }
