@@ -70,6 +70,8 @@ Proxy lifecycle is local client lifecycle. Proxy state is a local cache and prox
 
 Do not describe local proxy state/events as authoritative remote state.
 
+Event handlers are best-effort: one handler throwing is isolated and logged; it must not prevent later handlers from receiving the event.
+
 ## 6. Runtime semantics
 
 `ServiceRuntime` owns registered service instances and their registry records.
