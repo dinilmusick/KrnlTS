@@ -57,6 +57,8 @@ SERVICE := {
   lifecycle
 }
 
+LIFECYCLE := restartable stop + terminal idempotent dispose.
+
 FRAMEWORK_CODE ⊃ reusable runtime primitives.
 APPLICATION_CODE ∉ KRNLTS.
 
@@ -107,6 +109,7 @@ REPO_TEST:
 
 CONTRACT_TEST:
   public API shape
+  lifecycle/disposal semantics
   input/output validation
   deterministic error behavior
   package export integrity
