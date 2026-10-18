@@ -52,13 +52,13 @@ Proxy lifecycle is local client lifecycle. Proxy state is a local cache and prox
 KrnlTS has two complementary validation layers:
 
 1. **Runtime contract validation** — validates service definitions and registration boundaries.
-2. **AST/static validation** — validates source architecture and purity rules through `@dinilmusick/krnl-validate`.
+2. **AST/static validation** — validates source architecture and purity rules through `@ultrst-armada/krnl-validate`.
 
 Both are part of the framework contract and require regression coverage.
 
 ## CLI
 
-The `@dinilmusick/krnl-cli` package exposes:
+The `@ultrst-armada/krnl-cli` package exposes:
 
 ```bash
 krnl validate
@@ -73,9 +73,9 @@ krnl generate <entity|functionality|library|subapp> <Name>
 
 | Package | Purpose |
 |---|---|
-| `@dinilmusick/krnl-core` | Canonical runtime and framework primitives |
-| `@dinilmusick/krnl-validate` | AST/static validation |
-| `@dinilmusick/krnl-cli` | CLI tooling |
+| `@ultrst-armada/krnl-core` | Canonical runtime and framework primitives |
+| `@ultrst-armada/krnl-validate` | AST/static validation |
+| `@ultrst-armada/krnl-cli` | CLI tooling |
 | `@ultrst-armada/krnl` | Root distribution package/export surface |
 
 The legacy root `src/` tree is compatibility-only. Canonical implementations live under `packages/core/src`.
