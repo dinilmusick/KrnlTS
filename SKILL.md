@@ -1,51 +1,104 @@
 ---
 name: krnlts-guide
-description: Master router guiding agents through the unified Skipo Base Skills (architecture, UI, API, data, database, docs, features) with KrnlTS runtime library extensions.
+description: Canonical agent guidance for the KrnlTS backend service framework.
 ---
 
-# KRNLTS & SKIPO UNIFIED AGENT ROUTER
+# KrnlTS Agent Guide
 
-KrnlTS incorporates the **Skipo Skill System** as its primary base layer of architectural conventions, file/folder layouts, and UI directives.
+KrnlTS is the backend semantic kernel for authoring, validating, and running executable services.
 
-When working on any KrnlTS codebase or downstream application, the AI agent **always reads the Skipo skills first**. When the agent identifies that the project is using `@dinilmusick/krnlts`, it seamlessly activates the **KrnlTS Runtime Extension Sub-Skills** (`skills/krnlts/`).
+## 1. Canonical architecture
 
----
+The authoritative implementation is the workspace package tree:
 
-## 1. MANDATORY PRE-ACTION ROUTING PROTOCOL
-```
-∀ task ∈ Agent_Actions:
-  1. Inspect workspace for KrnlTS Runtime usage:
-     if (has_dependency("@dinilmusick/krnl") ∨ has_dependency("@dinilmusick/krnl-core") ∨ dir_exists("krnl") ∨ file_exists("krnl.json")):
-         load_skill("./skills/krnlts/SKILL.md")  # Activate KrnlTS Runtime Subsystem Extensions
-     2. Classify task intent(s) into Domain(s).
-     3. Consult corresponding leaf SKILL.md in skills/ before proposing or writing code.
-     4. If task spans multiple domains, load all relevant skills in dependency order:
-        [ Backend / Database -> Architecture -> KrnlTS -> Data -> API -> UI -> Features -> Docs ]
-     5. Abide strictly by the loaded skill constraints.
-```
+- `packages/core` — service contracts, runtime, lifecycle, registry, protocols, transports, state, events, discovery, and connectivity.
+- `packages/validate` — AST/static validation.
+- `packages/cli` — public CLI and tooling.
+- `IMPLEMENTATION-SPEC.md` — canonical architecture and acceptance rules.
 
----
+The legacy `src/` surface is compatibility-only and must not become a second implementation. Core files under `src/` re-export the canonical `packages/core` implementation.
 
-## 2. UNIFIED DOMAIN DISPATCH MATRIX
+## 2. Dependency direction
 
-| Task Domain | Target Skill File | Directives & Scope |
-| :--- | :--- | :--- |
-| **Universal Backend & Storage** | [`skills/backend/SKILL.md`](./skills/backend/SKILL.md) | Control vs Data plane separation, Local FS / Local-Hosted / Remote modes, decoupled Data/Storage providers, Admin authorization, Vercel/Desktop readiness |
-| **Architecture Base** | [`skills/architecture/SKILL.md`](./skills/architecture/SKILL.md) | Quad-units, 4-layer function purity, `{Domain}Concepts.ts`, line limits, anti-polling |
-| **KrnlTS Runtime Extensions** | [`skills/krnlts/SKILL.md`](./skills/krnlts/SKILL.md) | `Entity<TState, TEvents>`, `loadAll()`, Flows, port gateway, `KrnlFS`, `krnlts-validate` |
-| **UI & Styling** | [`skills/ui/SKILL.md`](./skills/ui/SKILL.md) | Neo-Brutalism 2.5D biome, `@dnd-kit` tiled menus, top-edge downward tooltips, reactive wiring |
-| **API & Ingress** | [`skills/api/SKILL.md`](./skills/api/SKILL.md) | Endpoint parity, external triggers, WebSocket RPC, MCP bridges |
-| **Data & Zero-Mock** | [`skills/data/SKILL.md`](./skills/data/SKILL.md) | Zero mock data, real backend responses, explicit error handling |
-| **Database** | [`skills/database/SKILL.md`](./skills/database/SKILL.md) | SQLite WAL, PostgreSQL/Supabase, latency ping tests |
-| **Feature Lifecycle** | [`skills/features/SKILL.md`](./skills/features/SKILL.md) | Incremental evolution (anti-nuke), absolute 100% zero-trace purge (no zombie code) |
-| **Project History & Docs** | [`skills/docs/SKILL.md`](./skills/docs/SKILL.md) | `docs/HISTORY.md` intent tracking, pre-refactor memory refresh protocol |
+KrnlTS may be consumed by downstream service libraries and applications.
 
----
+KrnlTS MUST NOT import or own:
 
-## 3. KRNLTS RUNTIME EXTENSIONS (WHEN USING `@dinilmusick/krnlts`)
-When `@dinilmusick/krnlts` is detected, consult the concrete runtime sub-skills:
-- **Core Runtime & Flows**: [`skills/krnlts/runtime/SKILL.md`](./skills/krnlts/runtime/SKILL.md)
-- **Magnetic Auto-Discovery**: [`skills/krnlts/magnetic-loader/SKILL.md`](./skills/krnlts/magnetic-loader/SKILL.md)
-- **Utility Tools Suite (`KrnlFS`, `KrnlEnv`, `AsyncKit`)**: [`skills/krnlts/utility-tools/SKILL.md`](./skills/krnlts/utility-tools/SKILL.md)
-- **Unified Port Ingress**: [`skills/krnlts/network-ingress/SKILL.md`](./skills/krnlts/network-ingress/SKILL.md)
-- **AST Validator CLI (`krnlts-validate`)**: [`skills/krnlts/validation-cli/SKILL.md`](./skills/krnlts/validation-cli/SKILL.md)
+- KLOKS
+- FLOKS
+- SKIPO
+- KRUSBL
+- CRUCIBLE
+
+Do not add ecosystem-specific abstractions to the kernel.
+
+## 3. Public framework rules
+
+Every public framework API must be:
+
+- strongly typed
+- runtime-validatable at semantic boundaries
+- deterministic where applicable
+- independently testable
+- covered by regression/contract tests
+
+Service lifecycle is an explicit state machine:
+
+`uninitialized -> initializing -> ready -> starting -> running -> stopping -> stopped`
+
+A stopped service may transition to `starting` for restart. Invalid transitions must throw.
+
+## 4. Service contract
+
+A service consists of:
+
+- identity
+- operations and input/output contracts
+- execution handlers
+- state
+- events
+- lifecycle
+- dependencies/capabilities/protocol metadata
+
+Use `createServiceDefinition`, `createService`, and `createServiceProxy` for validated construction.
+
+## 5. Proxy semantics
+
+A `ServiceProxy` implements the same service contract while remote operation execution is mediated by a `ProtocolAdapter`.
+
+Proxy lifecycle is local client lifecycle. Proxy state is a local cache and proxy events are local subscriptions unless a protocol adapter explicitly provides remote synchronization.
+
+Do not describe local proxy state/events as authoritative remote state.
+
+## 6. Runtime semantics
+
+`ServiceRuntime` owns registered service instances and their registry records.
+
+- duplicate service IDs are rejected unless the same instance is registered again
+- startup is ordered and rolls back services started earlier when a later service fails
+- shutdown is reverse-ordered and attempts every service before surfacing the first failure
+- registry metadata is validated at registration
+
+## 7. Static validation and CLI
+
+Static AST/purity validation remains authoritative and must not be replaced by runtime validation.
+
+Runtime contract validation and AST validation solve different problems:
+
+- runtime validation checks framework objects at execution/registration boundaries
+- AST validation checks source-code architecture and purity rules
+
+Both must remain covered by tests.
+
+## 8. Agent workflow
+
+Before changing KrnlTS:
+
+1. Read `IMPLEMENTATION-SPEC.md`.
+2. Inspect the canonical package under `packages/`.
+3. Preserve working APIs unless a specification or verified contract requires change.
+4. Add regression tests for every invariant changed.
+5. Run build, typecheck, tests, validation, CLI checks, and public export checks.
+6. Re-run the complete suite after fixes.
+
+Do not reintroduce a parallel implementation under `src/`.
