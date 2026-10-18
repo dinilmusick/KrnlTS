@@ -5,6 +5,17 @@
 
 import type { ServiceDefinition, EndpointDescriptor, ServiceCapability } from '../services/ServiceContract.js';
 import { validateServiceDefinition } from '../services/ServiceGenerators.js';
+import type { ProtocolType } from '../services/ServiceContract.js';
+
+const PROTOCOLS: readonly ProtocolType[] = ['http','https','ws','wss','udp','p2p','signaling','memory'];
+
+function validateEndpoint(endpoint: EndpointDescriptor): void {
+  if (!endpoint || typeof endpoint !== 'object') throw new Error('[ServiceRegistry] Invalid endpoint.');
+  if (!PROTOCOLS.includes(endpoint.protocol)) throw new Error('[ServiceRegistry] Unsupported endpoint protocol.');
+  if (typeof endpoint.address !== 'string' || endpoint.address.trim() === '') throw new Error('[ServiceRegistry] Endpoint address must be non-empty.');
+  if (endpoint.port !== undefined && (!Number.isInteger(endpoint.port) || endpoint.port < 0 || endpoint.port > 65535)) throw new Error('[ServiceRegistry] Endpoint port is invalid.');
+  if (!Array.isArray(endpoint.capabilities)) throw new Error('[ServiceRegistry] Endpoint capabilities must be an array.');
+}
 
 export interface RegisteredServiceRecord {
   definition: ServiceDefinition;
@@ -17,6 +28,7 @@ export class ServiceRegistry {
 
   register(definition: ServiceDefinition, endpoints: EndpointDescriptor[] = []): void {
     validateServiceDefinition(definition);
+    for (const endpoint of endpoints) validateEndpoint(endpoint);
     const existing = this.services.get(definition.id);
     if (existing && existing.definition.version !== definition.version) {
       throw new Error(
