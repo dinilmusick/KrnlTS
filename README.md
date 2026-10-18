@@ -79,8 +79,7 @@ krnl validate
 krnl build
 krnl dev
 krnl sync
-krnl watch
-krnl generate <orchestration|functionality|library> <Name>
+krnl generate <service|orchestration|functionality|library> <Name> [parentService]
 ```
 
 ## Packages

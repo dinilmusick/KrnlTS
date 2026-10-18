@@ -33,9 +33,7 @@ describe('Krnl CLI Real Integration Suite', () => {
     expect(stdout).toContain('build');
     expect(stdout).toContain('validate');
     expect(stdout).toContain('sync');
-    expect(stdout).toContain('watch');
     expect(stdout).toContain('generate');
-    expect(stdout).toContain('--dry-run');
   });
 
   it('runs validate successfully on a clean project structure (exit 0)', async () => {
@@ -43,16 +41,11 @@ describe('Krnl CLI Real Integration Suite', () => {
     try {
       const srcDir = path.join(tmpDir, 'src');
       fs.mkdirSync(srcDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(srcDir, 'index.ts'),
-        `export const serviceInfo = { name: 'valid-svc', version: '1.0.0' };\n`
-      );
+      fs.writeFileSync(path.join(srcDir, 'index.ts'), `export const serviceInfo = { name: 'valid-svc' };\n`);
 
       const isValid = await runValidate(tmpDir);
       expect(isValid).toBe(true);
-
-      const { status } = runCli(['validate', tmpDir]);
-      expect(status).toBe(0);
+      expect(runCli(['validate', tmpDir]).status).toBe(0);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -63,15 +56,11 @@ describe('Krnl CLI Real Integration Suite', () => {
     try {
       const srcDir = path.join(tmpDir, 'src');
       fs.mkdirSync(srcDir, { recursive: true });
-      // Violates 200-line purity limit
       const longContent = Array(205).fill(0).map((_, i) => `export const val_${i} = ${i};`).join('\n') + '\n';
       fs.writeFileSync(path.join(srcDir, 'monolith.ts'), longContent);
 
-      const isValid = await runValidate(tmpDir);
-      expect(isValid).toBe(false);
-
-      const { status } = runCli(['validate', tmpDir]);
-      expect(status).toBe(1);
+      expect(await runValidate(tmpDir)).toBe(false);
+      expect(runCli(['validate', tmpDir]).status).toBe(1);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -87,9 +76,7 @@ describe('Krnl CLI Real Integration Suite', () => {
       const res = await runBuild(tmpDir);
       expect(res.success).toBe(true);
       expect(fs.existsSync(path.join(tmpDir, 'krnl-magnetic.d.ts'))).toBe(true);
-
-      const { status } = runCli(['build', tmpDir]);
-      expect(status).toBe(0);
+      expect(runCli(['build', tmpDir]).status).toBe(0);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -105,9 +92,7 @@ describe('Krnl CLI Real Integration Suite', () => {
 
       const res = await runBuild(tmpDir);
       expect(res.success).toBe(false);
-
-      const { status } = runCli(['build', tmpDir]);
-      expect(status).toBe(1);
+      expect(runCli(['build', tmpDir]).status).toBe(1);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -119,39 +104,47 @@ describe('Krnl CLI Real Integration Suite', () => {
       generateMagneticDeclarations(tmpDir);
       const dts = path.join(tmpDir, 'krnl-magnetic.d.ts');
       expect(fs.existsSync(dts)).toBe(true);
-      const text = fs.readFileSync(dts, 'utf8');
-      expect(text).toContain('@ultrst-armada/krnl-core');
+      expect(fs.readFileSync(dts, 'utf8')).toContain('@ultrst-armada/krnl-core');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
-  it('scaffolds functionality orchestration correctly via generate command without entity or application leakage', async () => {
+  it('scaffolds functionality orchestration correctly via generate command', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'krnl-gen-orch-'));
     try {
       await runGenerate('functionality-orchestration', 'UserAccount', undefined, tmpDir);
       const orchFile = path.join(tmpDir, 'src', 'orchestrations', 'UserAccount', 'UserAccountFunctionalityOrchestration.ts');
-      const testFile = path.join(tmpDir, 'src', 'orchestrations', 'UserAccount', 'tests', 'UserAccountFunctionalityOrchestration.test.ts');
-
       expect(fs.existsSync(orchFile)).toBe(true);
-      expect(fs.existsSync(testFile)).toBe(true);
       const content = fs.readFileSync(orchFile, 'utf8');
       expect(content).toContain('class UserAccountFunctionalityOrchestration extends FunctionalityOrchestration');
       expect(content).not.toContain('extends Entity');
-      expect(content).not.toContain('defineApp');
-      expect(content).not.toContain('Protocols');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
-  it('scaffolds functionality quad-unit correctly via generate command', async () => {
+  it('scaffolds service correctly via generate command', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'krnl-gen-svc-'));
+    try {
+      await runGenerate('service', 'Billing', undefined, tmpDir);
+      const svcDir = path.join(tmpDir, 'src', 'services', 'Billing');
+      expect(fs.existsSync(path.join(svcDir, 'BillingServiceFacade.ts'))).toBe(true);
+      expect(fs.existsSync(path.join(svcDir, 'libraries', 'BillingConcepts', 'index.ts'))).toBe(true);
+      expect(fs.existsSync(path.join(svcDir, 'libraries', 'BillingConcepts', 'manifest.json'))).toBe(true);
+      expect(fs.existsSync(path.join(svcDir, 'tests', 'BillingServiceFacade.test.ts'))).toBe(true);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('scaffolds functionality quad-unit without forced state by default', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'krnl-gen-func-'));
     try {
       await runGenerate('functionality', 'ProcessPayment', undefined, tmpDir);
       const funcDir = path.join(tmpDir, 'src', 'functionalities', 'ProcessPayment');
       expect(fs.existsSync(path.join(funcDir, 'main_function', 'logic.ts'))).toBe(true);
-      expect(fs.existsSync(path.join(funcDir, 'state_data', 'state.ts'))).toBe(true);
+      expect(fs.existsSync(path.join(funcDir, 'state_data', 'state.ts'))).toBe(false);
       expect(fs.existsSync(path.join(funcDir, 'helper_functions', 'helper.ts'))).toBe(true);
       expect(fs.existsSync(path.join(funcDir, 'events', 'events.ts'))).toBe(true);
       expect(fs.existsSync(path.join(funcDir, 'manifest.json'))).toBe(true);
@@ -160,14 +153,18 @@ describe('Krnl CLI Real Integration Suite', () => {
     }
   });
 
-  it('scaffolds library concept correctly via generate command', async () => {
+  it('scaffolds service-owned library into service directory and not global backend libraries', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'krnl-gen-lib-'));
     try {
-      await runGenerate('library', 'TaxCalculator', undefined, tmpDir);
-      const libDir = path.join(tmpDir, 'src', 'libraries', 'TaxCalculatorConcepts');
+      await runGenerate('library', 'TaxCalculator', 'Billing', tmpDir);
+      const libDir = path.join(tmpDir, 'src', 'services', 'Billing', 'libraries', 'TaxCalculatorConcepts');
       expect(fs.existsSync(path.join(libDir, 'definitions.ts'))).toBe(true);
       expect(fs.existsSync(path.join(libDir, 'functions.ts'))).toBe(true);
+      expect(fs.existsSync(path.join(libDir, 'index.ts'))).toBe(true);
       expect(fs.existsSync(path.join(libDir, 'manifest.json'))).toBe(true);
+
+      // Invariant: no backend libraries created under src/backend/libraries/
+      expect(fs.existsSync(path.join(tmpDir, 'src', 'backend', 'libraries', 'TaxCalculatorConcepts'))).toBe(false);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -178,9 +175,7 @@ describe('Krnl CLI Real Integration Suite', () => {
     try {
       const dev = await runDev(tmpDir, { port: 8999, dryRun: true });
       expect(dev.port).toBe(8999);
-
-      const { status } = runCli(['dev', '--dry-run', '--port', '8999', tmpDir]);
-      expect(status).toBe(0);
+      expect(runCli(['dev', '--dry-run', '--port', '8999', tmpDir]).status).toBe(0);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

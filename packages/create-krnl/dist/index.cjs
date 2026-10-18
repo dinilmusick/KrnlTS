@@ -106,15 +106,14 @@ export default AppServiceFacade;
 var fs = __toESM(require("fs"), 1);
 var path = __toESM(require("path"), 1);
 function scaffoldBackend(targetDir2) {
-  const bLibDir = path.join(targetDir2, "krnl", "backend", "libraries", "AppConcepts");
-  const bOrchDir = path.join(targetDir2, "krnl", "backend", "orchestrations", "App");
   const bServiceDir = path.join(targetDir2, "krnl", "backend", "services", "App");
-  const bFuncDir = path.join(targetDir2, "krnl", "backend", "functionalities", "Hello");
+  const bLibDir = path.join(bServiceDir, "libraries", "AppConcepts");
+  const bOrchDir = path.join(bServiceDir, "orchestrations", "App");
+  const bFuncDir = path.join(bServiceDir, "functionalities", "Hello");
   fs.mkdirSync(path.join(bLibDir, "tests"), { recursive: true });
   fs.mkdirSync(path.join(bOrchDir, "tests"), { recursive: true });
   fs.mkdirSync(path.join(bServiceDir, "tests"), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, "main_function"), { recursive: true });
-  fs.mkdirSync(path.join(bFuncDir, "state_data"), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, "helper_functions"), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, "events"), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, "tests"), { recursive: true });
@@ -130,8 +129,14 @@ export function pureTransform<T>(data: T, _options?: AppTransformOptions): T { r
 `
   );
   fs.writeFileSync(
+    path.join(bLibDir, "index.ts"),
+    `export * from "./definitions.js";
+export * from "./functions.js";
+`
+  );
+  fs.writeFileSync(
     path.join(bLibDir, "manifest.json"),
-    JSON.stringify({ name: "AppConcepts", description: "Core utility concept library for App", dependencies: {} }, null, 2)
+    JSON.stringify({ name: "AppConcepts", service: "App", description: "Core utility concept library for App", dependencies: {} }, null, 2)
   );
   fs.writeFileSync(
     path.join(bLibDir, "tests", "AppConcepts.test.ts"),
@@ -176,7 +181,8 @@ describe("AppFunctionalityOrchestration", () => { it("initializes flow correctly
   fs.writeFileSync(
     path.join(bServiceDir, "AppServiceFacade.ts"),
     `import { ServiceFacade } from "@ultrst-armada/krnl-core";
-import { AppFunctionalityOrchestration } from "../../orchestrations/App/AppFunctionalityOrchestration.js";
+import { AppFunctionalityOrchestration } from "./orchestrations/App/AppFunctionalityOrchestration.js";
+import * as appConcepts from "./libraries/AppConcepts/index.js";
 
 export const AppServiceFacade = new ServiceFacade({
   id: "app.service",
@@ -185,6 +191,9 @@ export const AppServiceFacade = new ServiceFacade({
   description: "Primary application service facade",
   functionalityOrchestrations: {
     App: new AppFunctionalityOrchestration(),
+  },
+  libraries: {
+    AppConcepts: appConcepts,
   },
 });
 
@@ -195,7 +204,14 @@ export default AppServiceFacade;
     path.join(bServiceDir, "tests", "AppServiceFacade.test.ts"),
     `import { describe, it, expect } from "vitest";
 import { AppServiceFacade } from "../AppServiceFacade.js";
-describe("AppServiceFacade", () => { it("exposes orchestrations correctly", () => { expect(AppServiceFacade.id).toBe("app.service"); expect(AppServiceFacade.functionalityOrchestrations.App).toBeDefined(); }); });
+describe("AppServiceFacade", () => {
+  it("exposes orchestrations and libraries correctly", () => {
+    expect(AppServiceFacade.id).toBe("app.service");
+    expect(AppServiceFacade.functionalityOrchestrations.App).toBeDefined();
+    expect(AppServiceFacade.libraries.AppConcepts).toBeDefined();
+    expect(typeof AppServiceFacade.libraries.AppConcepts.pureTransform).toBe("function");
+  });
+});
 `
   );
   fs.writeFileSync(
@@ -206,15 +222,14 @@ export interface HelloOutput { greeting: string; timestamp: number; }
   );
   fs.writeFileSync(
     path.join(bFuncDir, "manifest.json"),
-    JSON.stringify({ name: "Hello", description: "Greeting quad-unit functionality", dependencies: {} }, null, 2)
+    JSON.stringify({ name: "Hello", service: "App", description: "Greeting quad-unit functionality", dependencies: {} }, null, 2)
   );
   fs.writeFileSync(
     path.join(bFuncDir, "main_function", "logic.ts"),
     `import type { HelloInput, HelloOutput } from "../HelloAtom.js";
 import { formatGreeting } from "../helper_functions/formatGreeting.js";
-export const main = async (input: HelloInput, { state }: any): Promise<HelloOutput> => {
+export const main = async (input: HelloInput, _ctx: any): Promise<HelloOutput> => {
   const greeting = formatGreeting(input.name || "World");
-  if (state) state.callCount = (state.callCount || 0) + 1;
   return { greeting, timestamp: Date.now() };
 };
 `
@@ -223,12 +238,6 @@ export const main = async (input: HelloInput, { state }: any): Promise<HelloOutp
     path.join(bFuncDir, "main_function", "lifecycle.ts"),
     `export async function onMount() {}
 export async function onTeardown() {}
-`
-  );
-  fs.writeFileSync(
-    path.join(bFuncDir, "state_data", "state.ts"),
-    `export interface HelloState { callCount: number; }
-export const initialState: HelloState = { callCount: 0 };
 `
   );
   fs.writeFileSync(

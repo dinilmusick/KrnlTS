@@ -123,5 +123,47 @@ export class BadOrch extends Orchestration {
       rmSync(rootInvalid, { recursive: true, force: true });
     }
   });
+
+  it('enforces service boundaries against direct cross-service library filesystem imports', () => {
+    const root = mkdtempSync(join(tmpdir(), 'krnl-boundary-test-'));
+    try {
+      const serviceBFile = join(root, 'src', 'backend', 'services', 'ServiceB', 'functionalities', 'Process', 'main_function', 'logic.ts');
+      mkdirSync(join(root, 'src', 'backend', 'services', 'ServiceB', 'functionalities', 'Process', 'main_function'), { recursive: true });
+
+      // Service B illegally attempts direct filesystem import of Service A's library
+      const illegalCode = `
+import { validateUser } from "../../../../ServiceA/libraries/UserConcepts/functions.js";
+
+export const main = async () => {
+  return validateUser();
+};
+`;
+      writeFileSync(serviceBFile, illegalCode);
+
+      const report = new KrnlValidatorEngine(root).validateAll();
+      expect(report.valid).toBe(false);
+      const boundaryError = report.errors.find((e) => e.ruleId === 'krnl/no-cross-service-library-imports');
+      expect(boundaryError).toBeDefined();
+      expect(boundaryError?.message).toContain("Service 'ServiceB' cannot import 'ServiceA' libraries directly via filesystem");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('enforces manifest requirements for service-owned libraries', () => {
+    const root = mkdtempSync(join(tmpdir(), 'krnl-svc-lib-manifest-test-'));
+    try {
+      const sLibDir = join(root, 'krnl', 'backend', 'services', 'Billing', 'libraries', 'InvoiceLib');
+      mkdirSync(sLibDir, { recursive: true });
+      writeFileSync(join(sLibDir, 'functions.ts'), 'export const compute = () => 1;');
+
+      const report = new KrnlValidatorEngine(root).validateAll();
+      expect(report.valid).toBe(false);
+      expect(report.errors.some((e) => e.ruleId === 'krnl/concept-manifest-required')).toBe(true);
+      expect(report.errors.some((e) => e.message.includes('Billing/InvoiceLib'))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
 

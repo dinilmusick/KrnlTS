@@ -3,16 +3,59 @@ import * as path from 'path';
 import { KrnlPackageReconciler } from '@ultrst-armada/krnl-core';
 import { getPlaneRoots } from './common.js';
 
-export function generateFunctionality(name: string, projectRoot: string): void {
+export interface FunctionalityGeneratorOptions {
+  parentService?: string;
+  withState?: boolean;
+}
+
+export function generateFunctionality(
+  name: string,
+  projectRoot: string,
+  parentServiceOrOptions?: string | FunctionalityGeneratorOptions
+): void {
   const { backend, frontend } = getPlaneRoots(projectRoot);
 
-  // Backend Functionality
-  const bFuncDir = path.join(backend, 'functionalities', name);
+  const options: FunctionalityGeneratorOptions =
+    typeof parentServiceOrOptions === 'string'
+      ? { parentService: parentServiceOrOptions }
+      : parentServiceOrOptions || {};
+
+  let targetService = options.parentService;
+  if (!targetService) {
+    const servicesDir = path.join(backend, 'services');
+    if (fs.existsSync(servicesDir)) {
+      const existing = fs.readdirSync(servicesDir, { withFileTypes: true }).filter((d) => d.isDirectory());
+      if (existing.length === 1) {
+        targetService = existing[0].name;
+      }
+    }
+  }
+
+  // If a targetService is identified, place functionality inside that service; else fallback to root functionalities
+  const bFuncDir = targetService
+    ? path.join(backend, 'services', targetService, 'functionalities', name)
+    : path.join(backend, 'functionalities', name);
+
   fs.mkdirSync(path.join(bFuncDir, 'main_function'), { recursive: true });
-  fs.mkdirSync(path.join(bFuncDir, 'state_data'), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, 'helper_functions'), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, 'events'), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, 'tests'), { recursive: true });
+
+  // Only create state_data if explicitly requested withState
+  if (options.withState) {
+    fs.mkdirSync(path.join(bFuncDir, 'state_data'), { recursive: true });
+    fs.writeFileSync(
+      path.join(bFuncDir, 'state_data', 'state.ts'),
+      `export interface ${name}State {
+  executionCount: number;
+}
+
+export const initialState: ${name}State = {
+  executionCount: 0
+};
+`
+    );
+  }
 
   fs.writeFileSync(
     path.join(bFuncDir, `${name}Atom.ts`),
@@ -32,6 +75,7 @@ export interface ${name}Output {
     JSON.stringify(
       {
         name,
+        service: targetService || undefined,
         description: `${name} quad-unit functionality`,
         dependencies: {},
       },
@@ -44,7 +88,7 @@ export interface ${name}Output {
     path.join(bFuncDir, 'main_function', 'logic.ts'),
     `import type { ${name}Input, ${name}Output } from "../${name}Atom.js";
 
-export const main = async (input: ${name}Input, { state }: any): Promise<${name}Output> => {
+export const main = async (input: ${name}Input, context: any): Promise<${name}Output> => {
   return {
     success: true,
     timestamp: Date.now()
@@ -57,18 +101,6 @@ export const main = async (input: ${name}Input, { state }: any): Promise<${name}
     path.join(bFuncDir, 'main_function', 'lifecycle.ts'),
     `export async function onMount() {}
 export async function onTeardown() {}
-`
-  );
-
-  fs.writeFileSync(
-    path.join(bFuncDir, 'state_data', 'state.ts'),
-    `export interface ${name}State {
-  executionCount: number;
-}
-
-export const initialState: ${name}State = {
-  executionCount: 0
-};
 `
   );
 
@@ -144,6 +176,6 @@ describe("${name}0 Component", () => {
   );
 
   KrnlPackageReconciler.reconcile(projectRoot, true);
-  console.log(`✅ Created Backend Functionality Quad-Unit: krnl/backend/functionalities/${name}/`);
-  console.log(`✅ Created Frontend Functionality: krnl/frontend/functionalities/${name}/`);
+  console.log(`✅ Created Backend Functionality: ${path.relative(projectRoot, bFuncDir)}/`);
+  console.log(`✅ Created Frontend Functionality: ${path.relative(projectRoot, fFuncDir)}/`);
 }

@@ -104,11 +104,12 @@ Commands:
   validate          Run deep AST & 4-layer function purity validation
   sync              Reconcile package.json from all co-located manifest.json files
   watch             Generate ambient TypeScript declarations (krnl-magnetic.d.ts)
-  generate          Scaffold functionality-orchestrations, functionalities, libraries
+  generate          Scaffold services, functionality-orchestrations, functionalities, libraries
                     Examples:
+                      krnl generate service Payment
                       krnl generate functionality-orchestration Payment
-                      krnl generate functionality ProcessPayment
-                      krnl generate library Math
+                      krnl generate functionality ProcessPayment Payment
+                      krnl generate library TaxCalculator Payment
 
 Options:
   --service <name>  Target a specific service variant to run or build

@@ -824,14 +824,38 @@ var KrnlPackageReconciler = class {
 };
 
 // src/commands/generators/functionalityGenerator.ts
-function generateFunctionality(name, projectRoot) {
+function generateFunctionality(name, projectRoot, parentServiceOrOptions) {
   const { backend, frontend } = getPlaneRoots(projectRoot);
-  const bFuncDir = path7.join(backend, "functionalities", name);
+  const options = typeof parentServiceOrOptions === "string" ? { parentService: parentServiceOrOptions } : parentServiceOrOptions || {};
+  let targetService = options.parentService;
+  if (!targetService) {
+    const servicesDir = path7.join(backend, "services");
+    if (fs6.existsSync(servicesDir)) {
+      const existing = fs6.readdirSync(servicesDir, { withFileTypes: true }).filter((d) => d.isDirectory());
+      if (existing.length === 1) {
+        targetService = existing[0].name;
+      }
+    }
+  }
+  const bFuncDir = targetService ? path7.join(backend, "services", targetService, "functionalities", name) : path7.join(backend, "functionalities", name);
   fs6.mkdirSync(path7.join(bFuncDir, "main_function"), { recursive: true });
-  fs6.mkdirSync(path7.join(bFuncDir, "state_data"), { recursive: true });
   fs6.mkdirSync(path7.join(bFuncDir, "helper_functions"), { recursive: true });
   fs6.mkdirSync(path7.join(bFuncDir, "events"), { recursive: true });
   fs6.mkdirSync(path7.join(bFuncDir, "tests"), { recursive: true });
+  if (options.withState) {
+    fs6.mkdirSync(path7.join(bFuncDir, "state_data"), { recursive: true });
+    fs6.writeFileSync(
+      path7.join(bFuncDir, "state_data", "state.ts"),
+      `export interface ${name}State {
+  executionCount: number;
+}
+
+export const initialState: ${name}State = {
+  executionCount: 0
+};
+`
+    );
+  }
   fs6.writeFileSync(
     path7.join(bFuncDir, `${name}Atom.ts`),
     `export interface ${name}Input {
@@ -849,6 +873,7 @@ export interface ${name}Output {
     JSON.stringify(
       {
         name,
+        service: targetService || void 0,
         description: `${name} quad-unit functionality`,
         dependencies: {}
       },
@@ -860,7 +885,7 @@ export interface ${name}Output {
     path7.join(bFuncDir, "main_function", "logic.ts"),
     `import type { ${name}Input, ${name}Output } from "../${name}Atom.js";
 
-export const main = async (input: ${name}Input, { state }: any): Promise<${name}Output> => {
+export const main = async (input: ${name}Input, context: any): Promise<${name}Output> => {
   return {
     success: true,
     timestamp: Date.now()
@@ -872,17 +897,6 @@ export const main = async (input: ${name}Input, { state }: any): Promise<${name}
     path7.join(bFuncDir, "main_function", "lifecycle.ts"),
     `export async function onMount() {}
 export async function onTeardown() {}
-`
-  );
-  fs6.writeFileSync(
-    path7.join(bFuncDir, "state_data", "state.ts"),
-    `export interface ${name}State {
-  executionCount: number;
-}
-
-export const initialState: ${name}State = {
-  executionCount: 0
-};
 `
   );
   fs6.writeFileSync(
@@ -949,17 +963,30 @@ describe("${name}0 Component", () => {
 `
   );
   KrnlPackageReconciler.reconcile(projectRoot, true);
-  console.log(`\u2705 Created Backend Functionality Quad-Unit: krnl/backend/functionalities/${name}/`);
-  console.log(`\u2705 Created Frontend Functionality: krnl/frontend/functionalities/${name}/`);
+  console.log(`\u2705 Created Backend Functionality: ${path7.relative(projectRoot, bFuncDir)}/`);
+  console.log(`\u2705 Created Frontend Functionality: ${path7.relative(projectRoot, fFuncDir)}/`);
 }
 
 // src/commands/generators/libraryGenerator.ts
 var fs7 = __toESM(require("fs"), 1);
 var path8 = __toESM(require("path"), 1);
-function generateLibrary(name, projectRoot) {
+function generateLibrary(name, projectRoot, parentService) {
   const { backend, frontend } = getPlaneRoots(projectRoot);
   const conceptName = name.endsWith("Concepts") ? name : `${name}Concepts`;
-  const bLibDir = path8.join(backend, "libraries", conceptName);
+  let targetService = parentService;
+  if (!targetService) {
+    const servicesDir = path8.join(backend, "services");
+    if (fs7.existsSync(servicesDir)) {
+      const existing = fs7.readdirSync(servicesDir, { withFileTypes: true }).filter((d) => d.isDirectory());
+      if (existing.length === 1) {
+        targetService = existing[0].name;
+      }
+    }
+  }
+  if (!targetService) {
+    targetService = "App";
+  }
+  const bLibDir = path8.join(backend, "services", targetService, "libraries", conceptName);
   fs7.mkdirSync(path8.join(bLibDir, "tests"), { recursive: true });
   fs7.writeFileSync(
     path8.join(bLibDir, "definitions.ts"),
@@ -986,16 +1013,23 @@ export function ${name.toLowerCase()}Transform<T>(data: T, _opts?: ${conceptName
 `
   );
   fs7.writeFileSync(
+    path8.join(bLibDir, "index.ts"),
+    `export * from "./definitions.js";
+export * from "./functions.js";
+`
+  );
+  fs7.writeFileSync(
     path8.join(bLibDir, "manifest.json"),
-    JSON.stringify({ name: conceptName, dependencies: {} }, null, 2)
+    JSON.stringify({ name: conceptName, service: targetService, dependencies: {} }, null, 2)
   );
   fs7.writeFileSync(
     path8.join(bLibDir, "tests", `${conceptName}.test.ts`),
     `import { describe, it, expect } from "vitest";
+import { ${name.toLowerCase()}Transform } from "../functions.js";
 
 describe("${conceptName}", () => {
   it("runs correctly", () => {
-    expect(true).toBe(true);
+    expect(${name.toLowerCase()}Transform(42)).toBe(42);
   });
 });
 `
@@ -1043,41 +1077,143 @@ describe("${name} UI Concept", () => {
 `
   );
   KrnlPackageReconciler.reconcile(projectRoot, true);
-  console.log(`\u2705 Created Backend Concept Library: krnl/backend/libraries/${conceptName}/`);
-  console.log(`\u2705 Created Frontend Concept Library: krnl/frontend/libraries/${conceptName}/`);
+  console.log(`\u2705 Created Service-Owned Library: ${path8.relative(projectRoot, bLibDir)}/ (Owner: ${targetService})`);
+  console.log(`\u2705 Created Frontend Concept Library: ${path8.relative(projectRoot, fLibDir)}/`);
+}
+
+// src/commands/generators/serviceGenerator.ts
+var fs8 = __toESM(require("fs"), 1);
+var path9 = __toESM(require("path"), 1);
+function generateService(name, projectRoot) {
+  const { backend } = getPlaneRoots(projectRoot);
+  const serviceDir = path9.join(backend, "services", name);
+  const funcsDir = path9.join(serviceDir, "functionalities");
+  const orchsDir = path9.join(serviceDir, "orchestrations");
+  const libsDir = path9.join(serviceDir, "libraries");
+  const testsDir = path9.join(serviceDir, "tests");
+  fs8.mkdirSync(funcsDir, { recursive: true });
+  fs8.mkdirSync(orchsDir, { recursive: true });
+  fs8.mkdirSync(libsDir, { recursive: true });
+  fs8.mkdirSync(testsDir, { recursive: true });
+  const conceptName = `${name}Concepts`;
+  const defaultLibDir = path9.join(libsDir, conceptName);
+  fs8.mkdirSync(path9.join(defaultLibDir, "tests"), { recursive: true });
+  fs8.writeFileSync(
+    path9.join(defaultLibDir, "definitions.ts"),
+    `/**
+ * @file definitions.ts
+ * @role component
+ */
+export interface ${name}Options {
+  enabled?: boolean;
+}
+`
+  );
+  fs8.writeFileSync(
+    path9.join(defaultLibDir, "functions.ts"),
+    `/**
+ * @file functions.ts
+ * @role component
+ */
+import type { ${name}Options } from "./definitions.js";
+
+export function format${name}Name(input: string, _opts?: ${name}Options): string {
+  return "${name}: " + input;
+}
+`
+  );
+  fs8.writeFileSync(
+    path9.join(defaultLibDir, "index.ts"),
+    `export * from "./definitions.js";
+export * from "./functions.js";
+`
+  );
+  fs8.writeFileSync(
+    path9.join(defaultLibDir, "manifest.json"),
+    JSON.stringify({ name: conceptName, description: `${name} service-owned library`, dependencies: {} }, null, 2)
+  );
+  fs8.writeFileSync(
+    path9.join(defaultLibDir, "tests", `${conceptName}.test.ts`),
+    `import { describe, it, expect } from "vitest";
+import { format${name}Name } from "../functions.js";
+
+describe("${conceptName}", () => {
+  it("formats name correctly", () => {
+    expect(format${name}Name("test")).toContain("${name}");
+  });
+});
+`
+  );
+  fs8.writeFileSync(
+    path9.join(serviceDir, `${name}ServiceFacade.ts`),
+    `import { ServiceFacade } from "@ultrst-armada/krnl-core";
+import * as ${name.toLowerCase()}Concepts from "./libraries/${conceptName}/index.js";
+
+export const ${name}ServiceFacade = new ServiceFacade({
+  id: "${name.toLowerCase()}.service",
+  name: "${name}Service",
+  version: "1.0.0",
+  description: "${name} service facade",
+  libraries: {
+    ${conceptName}: ${name.toLowerCase()}Concepts,
+  },
+});
+
+export default ${name}ServiceFacade;
+`
+  );
+  fs8.writeFileSync(
+    path9.join(testsDir, `${name}ServiceFacade.test.ts`),
+    `import { describe, it, expect } from "vitest";
+import { ${name}ServiceFacade } from "../${name}ServiceFacade.js";
+
+describe("${name}ServiceFacade", () => {
+  it("initializes and exposes service-owned library", () => {
+    expect(${name}ServiceFacade.id).toBe("${name.toLowerCase()}.service");
+    expect(${name}ServiceFacade.libraries.${conceptName}).toBeDefined();
+    expect(typeof ${name}ServiceFacade.libraries.${conceptName}.format${name}Name).toBe("function");
+  });
+});
+`
+  );
+  KrnlPackageReconciler.reconcile(projectRoot, true);
+  console.log(`\u2705 Created Service: ${path9.relative(projectRoot, serviceDir)}/`);
 }
 
 // src/commands/generate.ts
-async function runGenerate(type, name, _parentService, projectRoot = process.cwd()) {
+async function runGenerate(type, name, parentService, projectRoot = process.cwd()) {
   if (!name) {
     console.error(
-      "\u274C Error: Resource name is required. Usage: krnl generate <functionality-orchestration|functionality|library> <Name>"
+      "\u274C Error: Resource name is required. Usage: krnl generate <service|orchestration|functionality|library> <Name> [parentService]"
     );
     process.exit(1);
   }
   const normalizedType = type.toLowerCase().replace(/[-_]/g, "");
   switch (normalizedType) {
+    case "service":
+      generateService(name, projectRoot);
+      break;
     case "functionalityorchestration":
     case "orchestration":
       generateFunctionalityOrchestration(name, projectRoot);
       break;
     case "functionality":
-      generateFunctionality(name, projectRoot);
+      generateFunctionality(name, projectRoot, parentService);
       break;
     case "library":
-      generateLibrary(name, projectRoot);
+      generateLibrary(name, projectRoot, parentService);
       break;
     default:
       console.error(
-        `\u274C Unknown resource type "${type}". Valid types: functionality-orchestration, functionality, library`
+        `\u274C Unknown resource type "${type}". Valid types: service, orchestration, functionality, library`
       );
       process.exit(1);
   }
 }
 
 // src/commands/watch.ts
-var fs8 = __toESM(require("fs"), 1);
-var path9 = __toESM(require("path"), 1);
+var fs9 = __toESM(require("fs"), 1);
+var path10 = __toESM(require("path"), 1);
 function generateMagneticDeclarations(projectRoot = process.cwd()) {
   const { results: functionalities, libDirs } = scanDirectory(projectRoot);
   let dtsContent = `// Automatically generated by Krnl Magnetic Watcher. Do not edit manually.
@@ -1088,14 +1224,14 @@ function generateMagneticDeclarations(projectRoot = process.cwd()) {
 `;
   const globalDeclarations = [];
   for (const func of functionalities) {
-    const helpersDir = path9.join(func.funcPath, "helper_functions");
-    if (fs8.existsSync(helpersDir)) {
-      const files = fs8.readdirSync(helpersDir);
+    const helpersDir = path10.join(func.funcPath, "helper_functions");
+    if (fs9.existsSync(helpersDir)) {
+      const files = fs9.readdirSync(helpersDir);
       for (const file of files) {
         if (file.endsWith(".js") || file.endsWith(".ts")) {
-          const filePath = path9.join(helpersDir, file);
-          const baseName = path9.basename(file, path9.extname(file));
-          const importPath = `./${path9.relative(projectRoot, filePath).replace(/\\/g, "/")}`;
+          const filePath = path10.join(helpersDir, file);
+          const baseName = path10.basename(file, path10.extname(file));
+          const importPath = `./${path10.relative(projectRoot, filePath).replace(/\\/g, "/")}`;
           const { named, hasDefault } = parseExports(filePath, baseName);
           if (hasDefault) {
             globalDeclarations.push(`  const ${baseName}: typeof import('${importPath}')['default'];`);
@@ -1106,14 +1242,14 @@ function generateMagneticDeclarations(projectRoot = process.cwd()) {
         }
       }
     }
-    const eventsDir = path9.join(func.funcPath, "events");
-    if (fs8.existsSync(eventsDir)) {
-      const files = fs8.readdirSync(eventsDir);
+    const eventsDir = path10.join(func.funcPath, "events");
+    if (fs9.existsSync(eventsDir)) {
+      const files = fs9.readdirSync(eventsDir);
       for (const file of files) {
         if (file.endsWith(".js") || file.endsWith(".ts")) {
-          const filePath = path9.join(eventsDir, file);
-          const baseName = path9.basename(file, path9.extname(file));
-          const importPath = `./${path9.relative(projectRoot, filePath).replace(/\\/g, "/")}`;
+          const filePath = path10.join(eventsDir, file);
+          const baseName = path10.basename(file, path10.extname(file));
+          const importPath = `./${path10.relative(projectRoot, filePath).replace(/\\/g, "/")}`;
           const { named, hasDefault } = parseExports(filePath, baseName);
           if (hasDefault) {
             globalDeclarations.push(`  const ${baseName}: typeof import('${importPath}')['default'];`);
@@ -1134,20 +1270,20 @@ ${Array.from(new Set(globalDeclarations)).join("\n")}
 }
 `;
   }
-  const outPath = path9.join(projectRoot, "krnl-magnetic.d.ts");
-  fs8.writeFileSync(outPath, dtsContent);
+  const outPath = path10.join(projectRoot, "krnl-magnetic.d.ts");
+  fs9.writeFileSync(outPath, dtsContent);
   console.log(`[Krnl Watch] Updated ambient declarations: ${outPath}`);
 }
 function scanLibFiles(dir, projectRoot, decls) {
-  if (!fs8.existsSync(dir)) return;
-  for (const entry of fs8.readdirSync(dir, { withFileTypes: true })) {
+  if (!fs9.existsSync(dir)) return;
+  for (const entry of fs9.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
-    const full = path9.join(dir, entry.name);
+    const full = path10.join(dir, entry.name);
     if (entry.isDirectory()) {
       scanLibFiles(full, projectRoot, decls);
     } else if ((entry.name.endsWith(".ts") || entry.name.endsWith(".js")) && !entry.name.endsWith(".d.ts")) {
-      const baseName = path9.basename(entry.name, path9.extname(entry.name));
-      const importPath = `./${path9.relative(projectRoot, full).replace(/\\/g, "/")}`;
+      const baseName = path10.basename(entry.name, path10.extname(entry.name));
+      const importPath = `./${path10.relative(projectRoot, full).replace(/\\/g, "/")}`;
       const { named, hasDefault } = parseExports(full, baseName);
       if (hasDefault) decls.push(`  const ${baseName}: typeof import('${importPath}')['default'];`);
       for (const n of named) decls.push(`  const ${n}: typeof import('${importPath}')['${n}'];`);
@@ -1155,16 +1291,16 @@ function scanLibFiles(dir, projectRoot, decls) {
   }
 }
 function scanDirectory(dir, results = [], libDirs = []) {
-  if (!fs8.existsSync(dir)) return { results, libDirs };
-  const list = fs8.readdirSync(dir, { withFileTypes: true });
+  if (!fs9.existsSync(dir)) return { results, libDirs };
+  const list = fs9.readdirSync(dir, { withFileTypes: true });
   for (const entry of list) {
     if (entry.isDirectory()) {
       if (entry.name === "node_modules" || entry.name === "dist" || entry.name === ".git") continue;
-      const fullPath = path9.join(dir, entry.name);
+      const fullPath = path10.join(dir, entry.name);
       if (entry.name === "functionalities") {
-        const funcs = fs8.readdirSync(fullPath, { withFileTypes: true });
+        const funcs = fs9.readdirSync(fullPath, { withFileTypes: true });
         for (const f of funcs) {
-          if (f.isDirectory()) results.push({ funcPath: path9.join(fullPath, f.name), funcName: f.name });
+          if (f.isDirectory()) results.push({ funcPath: path10.join(fullPath, f.name), funcName: f.name });
         }
       } else if (entry.name === "libraries" || entry.name === "library") {
         libDirs.push(fullPath);
@@ -1176,7 +1312,7 @@ function scanDirectory(dir, results = [], libDirs = []) {
   return { results, libDirs };
 }
 function parseExports(filePath, defaultName) {
-  const content = fs8.readFileSync(filePath, "utf8");
+  const content = fs9.readFileSync(filePath, "utf8");
   const named = [];
   let hasDefault = false;
   const namedRegex = /export\s+(?:const|let|var|function|class|async\s+function)\s+([a-zA-Z0-9_$]+)/g;
@@ -1191,8 +1327,8 @@ function parseExports(filePath, defaultName) {
 }
 
 // src/commands/build.ts
-var path10 = __toESM(require("path"), 1);
-var fs9 = __toESM(require("fs"), 1);
+var path11 = __toESM(require("path"), 1);
+var fs10 = __toESM(require("fs"), 1);
 var import_child_process = require("child_process");
 async function runBuild(projectRoot = process.cwd(), options = {}) {
   KrnlPackageReconciler.reconcile(projectRoot, true);
@@ -1209,11 +1345,11 @@ async function runBuild(projectRoot = process.cwd(), options = {}) {
     return { success: false, error: "Validation failed" };
   }
   generateMagneticDeclarations(projectRoot);
-  const tsConfigPath = path10.join(projectRoot, "tsconfig.json");
-  if (fs9.existsSync(tsConfigPath)) {
+  const tsConfigPath = path11.join(projectRoot, "tsconfig.json");
+  if (fs10.existsSync(tsConfigPath)) {
     console.log("\u{1F3D7}\uFE0F  [Krnl Build] Compiling TypeScript source files to dist/...");
-    const localTsc = path10.join(projectRoot, "node_modules", ".bin", "tsc");
-    const tscCmd = fs9.existsSync(localTsc) ? localTsc : "tsc";
+    const localTsc = path11.join(projectRoot, "node_modules", ".bin", "tsc");
+    const tscCmd = fs10.existsSync(localTsc) ? localTsc : "tsc";
     try {
       (0, import_child_process.execSync)(`${tscCmd} -p tsconfig.json`, { cwd: projectRoot, stdio: "inherit" });
     } catch (err) {
@@ -1229,8 +1365,8 @@ async function runBuild(projectRoot = process.cwd(), options = {}) {
 
 // src/commands/dev.ts
 var http = __toESM(require("http"), 1);
-var path11 = __toESM(require("path"), 1);
-var fs10 = __toESM(require("fs"), 1);
+var path12 = __toESM(require("path"), 1);
+var fs11 = __toESM(require("fs"), 1);
 async function runDev(projectRoot = process.cwd(), options = {}) {
   const port = options.port ?? 8080;
   KrnlPackageReconciler.reconcile(projectRoot, true);
@@ -1252,8 +1388,8 @@ async function runDev(projectRoot = process.cwd(), options = {}) {
       return;
     }
     if (url.pathname === "/manifest") {
-      const pkgPath = path11.join(projectRoot, "package.json");
-      const pkg = fs10.existsSync(pkgPath) ? JSON.parse(fs10.readFileSync(pkgPath, "utf8")) : {};
+      const pkgPath = path12.join(projectRoot, "package.json");
+      const pkg = fs11.existsSync(pkgPath) ? JSON.parse(fs11.readFileSync(pkgPath, "utf8")) : {};
       res.writeHead(200);
       res.end(JSON.stringify({ name: pkg.name || "krnl-app", version: pkg.version || "1.0.0" }));
       return;
@@ -1266,7 +1402,7 @@ async function runDev(projectRoot = process.cwd(), options = {}) {
     server.on("error", reject);
   });
   console.log(`\u26A1 [Krnl Dev] Development server listening on http://localhost:${port}`);
-  const watcher = fs10.watch(projectRoot, { recursive: true }, (_evt, filename) => {
+  const watcher = fs11.watch(projectRoot, { recursive: true }, (_evt, filename) => {
     if (filename && (filename.endsWith(".ts") || filename.endsWith(".js")) && !filename.includes("krnl-magnetic.d.ts")) {
       try {
         generateMagneticDeclarations(projectRoot);

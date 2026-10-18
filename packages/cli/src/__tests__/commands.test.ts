@@ -8,7 +8,15 @@ import { runGenerate } from '../commands/generate.js';
 
 describe('Krnl CLI commands', () => {
   it('returns true for a valid project', async () => {
-    expect(await runValidate(process.cwd())).toBe(true);
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'krnl-val-cmd-'));
+    try {
+      const srcDir = path.join(tmpDir, 'src');
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.writeFileSync(path.join(srcDir, 'index.ts'), `export const status = 'ready';\n`);
+      expect(await runValidate(tmpDir)).toBe(true);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it('generates magnetic declarations referencing @ultrst-armada/krnl-core', () => {

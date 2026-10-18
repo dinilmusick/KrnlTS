@@ -3,12 +3,27 @@ import * as path from 'path';
 import { KrnlPackageReconciler } from '@ultrst-armada/krnl-core';
 import { getPlaneRoots } from './common.js';
 
-export function generateLibrary(name: string, projectRoot: string): void {
+export function generateLibrary(name: string, projectRoot: string, parentService?: string): void {
   const { backend, frontend } = getPlaneRoots(projectRoot);
   const conceptName = name.endsWith('Concepts') ? name : `${name}Concepts`;
 
-  // Backend Library
-  const bLibDir = path.join(backend, 'libraries', conceptName);
+  // Determine service owner: parentService, or inspect existing services, or fallback to 'App'
+  let targetService = parentService;
+  if (!targetService) {
+    const servicesDir = path.join(backend, 'services');
+    if (fs.existsSync(servicesDir)) {
+      const existing = fs.readdirSync(servicesDir, { withFileTypes: true }).filter((d) => d.isDirectory());
+      if (existing.length === 1) {
+        targetService = existing[0].name;
+      }
+    }
+  }
+  if (!targetService) {
+    targetService = 'App';
+  }
+
+  // Backend Library (Strictly Service-Owned)
+  const bLibDir = path.join(backend, 'services', targetService, 'libraries', conceptName);
   fs.mkdirSync(path.join(bLibDir, 'tests'), { recursive: true });
 
   fs.writeFileSync(
@@ -38,17 +53,25 @@ export function ${name.toLowerCase()}Transform<T>(data: T, _opts?: ${conceptName
   );
 
   fs.writeFileSync(
+    path.join(bLibDir, 'index.ts'),
+    `export * from "./definitions.js";
+export * from "./functions.js";
+`
+  );
+
+  fs.writeFileSync(
     path.join(bLibDir, 'manifest.json'),
-    JSON.stringify({ name: conceptName, dependencies: {} }, null, 2)
+    JSON.stringify({ name: conceptName, service: targetService, dependencies: {} }, null, 2)
   );
 
   fs.writeFileSync(
     path.join(bLibDir, 'tests', `${conceptName}.test.ts`),
     `import { describe, it, expect } from "vitest";
+import { ${name.toLowerCase()}Transform } from "../functions.js";
 
 describe("${conceptName}", () => {
   it("runs correctly", () => {
-    expect(true).toBe(true);
+    expect(${name.toLowerCase()}Transform(42)).toBe(42);
   });
 });
 `
@@ -104,7 +127,6 @@ describe("${name} UI Concept", () => {
   );
 
   KrnlPackageReconciler.reconcile(projectRoot, true);
-  console.log(`✅ Created Backend Concept Library: krnl/backend/libraries/${conceptName}/`);
-  console.log(`✅ Created Frontend Concept Library: krnl/frontend/libraries/${conceptName}/`);
+  console.log(`✅ Created Service-Owned Library: ${path.relative(projectRoot, bLibDir)}/ (Owner: ${targetService})`);
+  console.log(`✅ Created Frontend Concept Library: ${path.relative(projectRoot, fLibDir)}/`);
 }
-
