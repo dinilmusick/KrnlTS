@@ -378,6 +378,523 @@ function createServiceProxy(definition, adapter, endpoint) {
   return new ServiceProxy(definition, adapter, endpoint);
 }
 
+// src/orchestration/canonical/model.ts
+function validateOrchestrationDAG(steps) {
+  const errors = [];
+  const stepMap = /* @__PURE__ */ new Map();
+  for (const step of steps) {
+    if (stepMap.has(step.id)) {
+      errors.push(`Duplicate step ID detected: "${step.id}"`);
+    }
+    stepMap.set(step.id, step);
+  }
+  for (const step of steps) {
+    if (step.dependsOn) {
+      for (const dep of step.dependsOn) {
+        if (!stepMap.has(dep)) {
+          errors.push(`Step "${step.id}" depends on unknown step "${dep}".`);
+        }
+      }
+    }
+  }
+  if (errors.length > 0) {
+    return { valid: false, order: [], errors };
+  }
+  const inDegree = /* @__PURE__ */ new Map();
+  const graph = /* @__PURE__ */ new Map();
+  for (const step of steps) {
+    inDegree.set(step.id, 0);
+    graph.set(step.id, []);
+  }
+  for (const step of steps) {
+    if (step.dependsOn) {
+      for (const dep of step.dependsOn) {
+        inDegree.set(step.id, (inDegree.get(step.id) || 0) + 1);
+        graph.get(dep)?.push(step.id);
+      }
+    }
+  }
+  const queue = [];
+  for (const [id, deg] of inDegree.entries()) {
+    if (deg === 0) queue.push(id);
+  }
+  const order = [];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    order.push(current);
+    const neighbors = graph.get(current) || [];
+    for (const neighbor of neighbors) {
+      const newDeg = (inDegree.get(neighbor) || 0) - 1;
+      inDegree.set(neighbor, newDeg);
+      if (newDeg === 0) {
+        queue.push(neighbor);
+      }
+    }
+  }
+  if (order.length !== steps.length) {
+    errors.push("Circular dependency cycle detected in orchestration DAG.");
+    return { valid: false, order: [], errors };
+  }
+  return { valid: true, order, errors: [] };
+}
+
+// src/orchestration/canonical/WorkerExecutionBoundary.ts
+var WorkerExecutionBoundary = class _WorkerExecutionBoundary {
+  constructor(workerId, handler) {
+    this.workerId = workerId;
+    this.handler = handler;
+  }
+  workerId;
+  handler;
+  async processJob(command, metadata) {
+    if (!this.handler) {
+      return {
+        correlationId: command.correlationId,
+        status: "COMPLETED",
+        data: command.payload,
+        executionTimestamp: Date.now()
+      };
+    }
+    const context = {
+      isWorkerContext: true,
+      workerId: this.workerId,
+      timestamp: Date.now(),
+      correlationId: command.correlationId,
+      metadata
+    };
+    _WorkerExecutionBoundary.assertWorkerContext(context);
+    return await this.handler(command, context);
+  }
+  static assertWorkerContext(context) {
+    if (!context || !context.isWorkerContext) {
+      throw new Error(
+        "[WorkerExecutionBoundary] Violation: DIRECT_CALL -> SERVICE_BOUNDARY is strictly forbidden. All operations must execute inside BullMQ Worker context."
+      );
+    }
+  }
+};
+
+// src/orchestration/canonical/BullMQExecutionEngine.ts
+var BullMQExecutionEngine = class {
+  queueName;
+  concurrency;
+  idempotencyStore = /* @__PURE__ */ new Map();
+  activeExecutions = /* @__PURE__ */ new Map();
+  inMemoryJobs = /* @__PURE__ */ new Map();
+  isRunning = false;
+  activeWorkerCount = 0;
+  workerBoundary;
+  constructor(options = {}) {
+    this.queueName = options.queueName ?? "krnl_orchestration_default";
+    this.concurrency = options.concurrency ?? 10;
+    this.workerBoundary = new WorkerExecutionBoundary(`${this.queueName}_worker`, async (cmd, ctx) => {
+      return this.dispatchInternalCommand(cmd, ctx);
+    });
+  }
+  async start() {
+    this.isRunning = true;
+  }
+  async stop() {
+    this.isRunning = false;
+  }
+  async dispose() {
+    await this.stop();
+    for (const [id, active] of this.activeExecutions.entries()) {
+      active.abortController.abort();
+      active.context.isCancelled = true;
+    }
+    this.activeExecutions.clear();
+    this.inMemoryJobs.clear();
+    this.idempotencyStore.clear();
+  }
+  async close() {
+    await this.dispose();
+  }
+  getWorkerBoundary() {
+    return this.workerBoundary;
+  }
+  /**
+   * Dispatches a single command through the BullMQ queue and worker execution boundary.
+   */
+  async executeCommand(command, handler) {
+    if (command.idempotencyKey && this.idempotencyStore.has(command.idempotencyKey)) {
+      return this.idempotencyStore.get(command.idempotencyKey);
+    }
+    const job = {
+      id: command.id,
+      name: command.type,
+      payload: command.payload,
+      correlationId: command.correlationId,
+      idempotencyKey: command.idempotencyKey,
+      attemptsMade: 0,
+      maxAttempts: 1,
+      status: "waiting",
+      enqueuedAt: Date.now(),
+      handler
+    };
+    this.inMemoryJobs.set(job.id, job);
+    try {
+      job.status = "active";
+      const result = await this.workerBoundary.processJob(command);
+      job.status = result.status === "COMPLETED" ? "completed" : "failed";
+      job.result = result.data;
+      job.error = result.error;
+      if (command.idempotencyKey) {
+        this.idempotencyStore.set(command.idempotencyKey, result);
+      }
+      return result;
+    } catch (err) {
+      job.status = "failed";
+      job.error = err?.message || String(err);
+      const failedResult = {
+        correlationId: command.correlationId,
+        status: "FAILED",
+        error: job.error,
+        executionTimestamp: Date.now()
+      };
+      return failedResult;
+    }
+  }
+  async dispatchInternalCommand(command, context) {
+    WorkerExecutionBoundary.assertWorkerContext(context);
+    const job = this.inMemoryJobs.get(command.id);
+    if (!job) {
+      throw new Error(`[BullMQExecutionEngine] Job ${command.id} not found in queue.`);
+    }
+    try {
+      const data = await job.handler(command.payload, context);
+      return {
+        correlationId: command.correlationId,
+        status: "COMPLETED",
+        data,
+        executionTimestamp: Date.now()
+      };
+    } catch (err) {
+      return {
+        correlationId: command.correlationId,
+        status: "FAILED",
+        error: err?.message || String(err),
+        executionTimestamp: Date.now()
+      };
+    }
+  }
+  /**
+   * Executes a full Canonical Orchestration DAG through the BullMQ worker boundary.
+   */
+  async executeOrchestration(descriptor, steps, input, options = {}) {
+    const startedAt = Date.now();
+    const correlationId = options.correlationId || `corr_${Math.random().toString(36).substring(2, 11)}`;
+    const executionId = `exec_${Math.random().toString(36).substring(2, 11)}`;
+    if (options.idempotencyKey && this.idempotencyStore.has(options.idempotencyKey)) {
+      const cached = this.idempotencyStore.get(options.idempotencyKey);
+      return cached.data;
+    }
+    const validation = validateOrchestrationDAG(steps);
+    if (!validation.valid) {
+      return {
+        orchestrationId: descriptor.id,
+        correlationId,
+        status: "FAILED",
+        stepResults: {},
+        error: `Invalid DAG: ${validation.errors.join("; ")}`,
+        startedAt,
+        completedAt: Date.now(),
+        executionMetadata: { validationErrors: validation.errors }
+      };
+    }
+    const abortController = new AbortController();
+    if (options.abortSignal) {
+      if (options.abortSignal.aborted) {
+        abortController.abort();
+      } else {
+        options.abortSignal.addEventListener("abort", () => abortController.abort(), { once: true });
+      }
+    }
+    const context = {
+      correlationId,
+      parentCorrelationId: options.parentCorrelationId,
+      orchestrationId: descriptor.id,
+      executionId,
+      idempotencyKey: options.idempotencyKey,
+      scope: descriptor.scope || "functionality",
+      results: { input },
+      metadata: { ...options.metadata },
+      timestamp: startedAt,
+      isCancelled: abortController.signal.aborted,
+      abortSignal: abortController.signal
+    };
+    abortController.signal.addEventListener("abort", () => {
+      context.isCancelled = true;
+    });
+    this.activeExecutions.set(executionId, { abortController, context });
+    const timeoutMs = options.timeoutMs || descriptor.timeoutMs;
+    let timeoutTimer;
+    if (timeoutMs && timeoutMs > 0) {
+      timeoutTimer = setTimeout(() => {
+        context.isCancelled = true;
+        abortController.abort();
+      }, timeoutMs);
+    }
+    const stepResults = {};
+    const executedSteps = /* @__PURE__ */ new Set();
+    const executedComps = [];
+    const stepMap = /* @__PURE__ */ new Map();
+    for (const step of steps) stepMap.set(step.id, step);
+    let finalOutput = void 0;
+    let orchestrationStatus = "COMPLETED";
+    let errorMessage;
+    try {
+      while (executedSteps.size < steps.length) {
+        if (context.isCancelled) {
+          orchestrationStatus = "CANCELLED";
+          errorMessage = "Orchestration execution cancelled.";
+          break;
+        }
+        const readySteps = steps.filter((step) => {
+          if (executedSteps.has(step.id)) return false;
+          if (!step.dependsOn || step.dependsOn.length === 0) return true;
+          return step.dependsOn.every((dep) => executedSteps.has(dep));
+        });
+        if (readySteps.length === 0) {
+          break;
+        }
+        const batch = readySteps.slice(0, this.concurrency);
+        const batchPromises = batch.map(async (step) => {
+          const stepRes = await this.executeSingleStep(step, context, options.nestedRunner);
+          stepResults[step.id] = stepRes;
+          executedSteps.add(step.id);
+          if (stepRes.status === "COMPLETED") {
+            context.results[step.id] = stepRes.output;
+            finalOutput = stepRes.output;
+            if (step.compensation?.handler) {
+              executedComps.push(() => step.compensation.handler(context));
+            }
+          } else if (stepRes.status === "SKIPPED") {
+          } else if (stepRes.status === "CANCELLED") {
+            const cancelErr = new Error("The operation was aborted");
+            cancelErr.name = "AbortError";
+            throw cancelErr;
+          } else {
+            throw new Error(stepRes.error || `Step "${step.id}" failed with status ${stepRes.status}`);
+          }
+        });
+        await Promise.all(batchPromises);
+      }
+    } catch (err) {
+      const wasCancelled = context.isCancelled || abortController.signal.aborted || err?.name === "AbortError";
+      orchestrationStatus = wasCancelled ? "CANCELLED" : "FAILED";
+      errorMessage = wasCancelled ? "The operation was aborted" : err?.message || String(err);
+      if (executedComps.length > 0) {
+        for (let i = executedComps.length - 1; i >= 0; i--) {
+          try {
+            await executedComps[i]();
+          } catch (compErr) {
+            console.error(`[BullMQExecutionEngine] Compensation failed:`, compErr);
+          }
+        }
+      }
+    } finally {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      this.activeExecutions.delete(executionId);
+    }
+    const result = {
+      orchestrationId: descriptor.id,
+      correlationId,
+      status: orchestrationStatus,
+      output: finalOutput,
+      stepResults,
+      error: errorMessage,
+      startedAt,
+      completedAt: Date.now(),
+      executionMetadata: {
+        executionId,
+        scope: descriptor.scope,
+        stepsCount: steps.length,
+        executedCount: executedSteps.size
+      }
+    };
+    if (options.idempotencyKey) {
+      this.idempotencyStore.set(options.idempotencyKey, {
+        correlationId,
+        status: orchestrationStatus === "COMPLETED" ? "COMPLETED" : "FAILED",
+        data: result,
+        executionTimestamp: Date.now()
+      });
+    }
+    return result;
+  }
+  async executeSingleStep(step, context, nestedRunner) {
+    const stepStart = Date.now();
+    let attempts = 0;
+    const maxAttempts = step.retryPolicy?.maxAttempts ?? 1;
+    if (step.condition) {
+      try {
+        const conditionPass = await step.condition(context);
+        if (!conditionPass) {
+          return {
+            stepId: step.id,
+            status: "SKIPPED",
+            attempts: 0,
+            startedAt: stepStart,
+            completedAt: Date.now()
+          };
+        }
+      } catch (condErr) {
+        return {
+          stepId: step.id,
+          status: "FAILED",
+          attempts: 1,
+          error: `Condition evaluation failed: ${condErr?.message || String(condErr)}`,
+          startedAt: stepStart,
+          completedAt: Date.now()
+        };
+      }
+    }
+    let lastError;
+    while (attempts < maxAttempts) {
+      if (context.isCancelled) {
+        return {
+          stepId: step.id,
+          status: "CANCELLED",
+          attempts,
+          startedAt: stepStart,
+          completedAt: Date.now()
+        };
+      }
+      attempts++;
+      try {
+        let stepOutput;
+        const stepTimeoutMs = step.timeoutPolicy?.timeoutMs;
+        let stepTimer;
+        let stepCancelled = false;
+        const runPromise = (async () => {
+          if (step.type === "nested" && step.nestedOrchestrationId && nestedRunner) {
+            const childContext = {
+              ...context,
+              parentCorrelationId: context.correlationId,
+              correlationId: `${context.correlationId}.${step.id}`
+            };
+            return await nestedRunner(step.nestedOrchestrationId, context.results, childContext);
+          }
+          if (step.type === "fanOut" && step.getItems) {
+            const items = await step.getItems(context);
+            if (!Array.isArray(items)) throw new Error(`[fanOut] getItems must return an array.`);
+            const concurrency = step.concurrency || 5;
+            const results = [];
+            for (let i = 0; i < items.length; i += concurrency) {
+              const slice = items.slice(i, i + concurrency);
+              const sliceRes = await Promise.all(
+                slice.map((item) => step.handler ? step.handler(item, context) : Promise.resolve(item))
+              );
+              results.push(...sliceRes);
+            }
+            return results;
+          }
+          if (step.handler) {
+            return await step.handler(context.results, context);
+          }
+          return context.results;
+        })();
+        const abortPromise = new Promise((_, reject) => {
+          if (context.isCancelled || context.abortSignal?.aborted) {
+            const err = new Error("The operation was aborted");
+            err.name = "AbortError";
+            reject(err);
+          }
+          context.abortSignal?.addEventListener("abort", () => {
+            const err = new Error("The operation was aborted");
+            err.name = "AbortError";
+            reject(err);
+          });
+        });
+        const promisesToRace = [runPromise, abortPromise];
+        if (stepTimeoutMs && stepTimeoutMs > 0) {
+          const timeoutPromise = new Promise((_, reject) => {
+            stepTimer = setTimeout(() => {
+              stepCancelled = true;
+              reject(new Error(`Step "${step.id}" timed out after ${stepTimeoutMs}ms.`));
+            }, stepTimeoutMs);
+          });
+          promisesToRace.push(timeoutPromise);
+        }
+        stepOutput = await Promise.race(promisesToRace);
+        if (stepTimer) clearTimeout(stepTimer);
+        return {
+          stepId: step.id,
+          status: "COMPLETED",
+          attempts,
+          output: stepOutput,
+          startedAt: stepStart,
+          completedAt: Date.now()
+        };
+      } catch (err) {
+        if (context.isCancelled || context.abortSignal?.aborted || err?.name === "AbortError" || err?.message === "Operation cancelled" || err?.message === "The operation was aborted") {
+          return {
+            stepId: step.id,
+            status: "CANCELLED",
+            attempts,
+            startedAt: stepStart,
+            completedAt: Date.now()
+          };
+        }
+        lastError = err;
+        if (step.catchHandler && attempts >= maxAttempts) {
+          try {
+            const recovered = await step.catchHandler(err, context);
+            return {
+              stepId: step.id,
+              status: "COMPLETED",
+              attempts,
+              output: recovered,
+              startedAt: stepStart,
+              completedAt: Date.now()
+            };
+          } catch (catchErr) {
+            lastError = catchErr;
+          }
+        }
+        if (attempts < maxAttempts && step.retryPolicy) {
+          const backoffDelay = this.computeBackoff(step.retryPolicy, attempts);
+          await new Promise((r) => setTimeout(r, backoffDelay));
+        }
+      }
+    }
+    return {
+      stepId: step.id,
+      status: "FAILED",
+      attempts,
+      error: lastError?.message || String(lastError),
+      startedAt: stepStart,
+      completedAt: Date.now()
+    };
+  }
+  computeBackoff(policy, attempt) {
+    const base = policy.backoffMs || 100;
+    let delay;
+    if (policy.backoff === "exponential") {
+      delay = base * Math.pow(2, attempt - 1);
+    } else {
+      delay = base * attempt;
+    }
+    if (policy.maxBackoffMs && delay > policy.maxBackoffMs) {
+      delay = policy.maxBackoffMs;
+    }
+    if (policy.jitter) {
+      delay += Math.floor(Math.random() * (base * 0.5));
+    }
+    return delay;
+  }
+  cancelExecution(executionId) {
+    const active = this.activeExecutions.get(executionId);
+    if (active) {
+      active.context.isCancelled = true;
+      active.abortController.abort();
+      return true;
+    }
+    return false;
+  }
+};
+
 // src/services/ServiceFacade.ts
 var ServiceFacade = class {
   id;
@@ -385,10 +902,11 @@ var ServiceFacade = class {
   version;
   description;
   functionalities;
-  orchestrations;
+  functionalityOrchestrations;
   dependencies;
   capabilities;
   instance;
+  executionEngine;
   constructor(config) {
     if (!config || !config.id || typeof config.id !== "string") {
       throw new Error("[ServiceFacade] ServiceFacade requires a valid id.");
@@ -398,7 +916,7 @@ var ServiceFacade = class {
     this.version = config.version || "1.0.0";
     this.description = config.description || "";
     this.functionalities = config.functionalities ? { ...config.functionalities } : {};
-    this.orchestrations = config.orchestrations ? { ...config.orchestrations } : {};
+    this.functionalityOrchestrations = config.functionalityOrchestrations ? { ...config.functionalityOrchestrations } : config.orchestrations ? { ...config.orchestrations } : {};
     this.dependencies = Object.freeze(config.dependencies ? [...config.dependencies] : []);
     this.capabilities = Object.freeze(config.capabilities ? [...config.capabilities] : []);
     if (config.instance) {
@@ -413,24 +931,146 @@ var ServiceFacade = class {
         operations: {}
       });
     }
+    this.executionEngine = new BullMQExecutionEngine({
+      queueName: `krnl_queue_${this.id}`,
+      connection: config.queueConnection,
+      concurrency: config.concurrency ?? 10
+    });
+  }
+  get orchestrations() {
+    return this.functionalityOrchestrations;
   }
   getInstance() {
     return this.instance;
+  }
+  getExecutionEngine() {
+    return this.executionEngine;
+  }
+  getWorkerBoundary() {
+    return this.executionEngine.getWorkerBoundary();
   }
   getStatus() {
     return this.instance.getStatus();
   }
   async start() {
     await this.instance.start();
+    await this.executionEngine.start();
   }
   async stop() {
+    await this.executionEngine.stop();
     await this.instance.stop();
   }
   async dispose() {
+    await this.executionEngine.dispose();
     await this.instance.dispose();
   }
+  /**
+   * External caller callable boundary for single functionality / operation execution.
+   * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> Functionality -> Result.
+   * Strictly avoids synchronous unmediated execution outside the queue.
+   */
   async call(op, input, ctx) {
-    return this.instance.call(op, input, ctx);
+    const correlationId = ctx?.correlationId || `corr_${Math.random().toString(36).substring(2, 11)}`;
+    const commandId = `cmd_${this.id}_${op}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const command = {
+      id: commandId,
+      type: `${this.id}.${op}`,
+      payload: input ?? {},
+      correlationId,
+      idempotencyKey: ctx?.idempotencyKey,
+      createdAt: Date.now()
+    };
+    const result = await this.executionEngine.executeCommand(command, async (payload, workerCtx) => {
+      WorkerExecutionBoundary.assertWorkerContext(workerCtx);
+      if (this.functionalities[op] && typeof this.functionalities[op].execute === "function") {
+        return await this.functionalities[op].execute(payload, {
+          correlationId: workerCtx.correlationId,
+          state: this.instance.getState()
+        });
+      }
+      return await this.instance.call(op, payload, {
+        correlationId: workerCtx.correlationId,
+        idempotencyKey: command.idempotencyKey
+      });
+    });
+    if (result.status === "FAILED") {
+      throw new Error(result.error || `[ServiceFacade:${this.id}] Operation '${op}' execution failed.`);
+    }
+    return result.data;
+  }
+  /**
+   * External caller callable boundary for functionality orchestration execution.
+   * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> FunctionalityOrchestration -> Result.
+   */
+  async orchestrate(orchestrationName, input, options = {}) {
+    const orch = this.functionalityOrchestrations[orchestrationName];
+    if (!orch) {
+      throw new Error(
+        `[ServiceFacade:${this.id}] FunctionalityOrchestration "${orchestrationName}" not found.`
+      );
+    }
+    const correlationId = options.correlationId || `corr_${Math.random().toString(36).substring(2, 11)}`;
+    const commandId = `cmd_orch_${this.id}_${orchestrationName}_${Date.now()}`;
+    const command = {
+      id: commandId,
+      type: `${this.id}.orchestrations.${orchestrationName}`,
+      payload: input ?? {},
+      correlationId,
+      idempotencyKey: options.idempotencyKey,
+      createdAt: Date.now()
+    };
+    const cmdResult = await this.executionEngine.executeCommand(
+      command,
+      async (payload, workerCtx) => {
+        WorkerExecutionBoundary.assertWorkerContext(workerCtx);
+        const rawSteps = orch.getSteps();
+        const boundSteps = rawSteps.map((s) => {
+          if (s.type === "task" && s.target) {
+            return {
+              ...s,
+              handler: async (stepInput, stepCtx) => {
+                return await this.call(s.target, stepInput, {
+                  correlationId: stepCtx.correlationId
+                });
+              }
+            };
+          }
+          return s;
+        });
+        const nestedRunner = async (childOrchId, childInput, childCtx) => {
+          const childOrch = this.functionalityOrchestrations[childOrchId];
+          if (!childOrch) {
+            throw new Error(
+              `[ServiceFacade:${this.id}] Nested FunctionalityOrchestration "${childOrchId}" not found in service.`
+            );
+          }
+          const nestedResult = await this.orchestrate(childOrchId, childInput, {
+            correlationId: childCtx.correlationId,
+            timeoutMs: childOrch.timeoutMs
+          });
+          if (nestedResult.status !== "COMPLETED") {
+            throw new Error(nestedResult.error || `Nested orchestration "${childOrchId}" failed.`);
+          }
+          return nestedResult.output;
+        };
+        return await this.executionEngine.executeOrchestration(
+          { id: orch.id, name: orch.name, version: orch.version, timeoutMs: orch.timeoutMs, scope: "functionality" },
+          boundSteps,
+          payload,
+          {
+            correlationId: workerCtx.correlationId,
+            idempotencyKey: command.idempotencyKey,
+            timeoutMs: options.timeoutMs || orch.timeoutMs,
+            metadata: options.metadata,
+            nestedRunner
+          }
+        );
+      }
+    );
+    if (cmdResult.status === "FAILED") {
+      throw new Error(cmdResult.error || `[ServiceFacade:${this.id}] Orchestration failed.`);
+    }
+    return cmdResult.data;
   }
   getState() {
     return this.instance.getState();
@@ -451,15 +1091,19 @@ var ServiceFacade = class {
     this.functionalities[name] = functionality;
     return this;
   }
-  registerOrchestration(name, orchestration) {
+  registerFunctionalityOrchestration(name, orchestration) {
     if (!name || typeof name !== "string") {
-      throw new Error("[ServiceFacade] Orchestration name must be a non-empty string.");
+      throw new Error("[ServiceFacade] FunctionalityOrchestration name must be a non-empty string.");
     }
     if (!orchestration) {
-      throw new Error("[ServiceFacade] Orchestration instance is required.");
+      throw new Error("[ServiceFacade] FunctionalityOrchestration instance is required.");
     }
-    this.orchestrations[name] = orchestration;
+    this.functionalityOrchestrations[name] = orchestration;
     return this;
+  }
+  /** @deprecated Use registerFunctionalityOrchestration */
+  registerOrchestration(name, orchestration) {
+    return this.registerFunctionalityOrchestration(name, orchestration);
   }
 };
 function createServiceFacade(config) {
@@ -1137,51 +1781,222 @@ var ProtocolResolver = class {
   }
 };
 
-// src/orchestration/Orchestration.ts
-var Orchestration = class {
+// src/orchestration/FunctionalityOrchestration.ts
+var FunctionalityOrchestration = class {
   id;
   name;
   version;
   description;
+  timeoutMs;
+  scope = "functionality";
+  steps = [];
   flows = /* @__PURE__ */ new Map();
   constructor(descriptor) {
     if (!descriptor || typeof descriptor !== "object" || !descriptor.id) {
-      throw new Error("[Orchestration] Valid orchestration descriptor with non-empty id is required.");
+      throw new Error("[FunctionalityOrchestration] Valid descriptor with non-empty id is required.");
     }
     this.id = descriptor.id;
     this.name = descriptor.name || descriptor.id;
     this.version = descriptor.version || "1.0.0";
     this.description = descriptor.description || "";
+    this.timeoutMs = descriptor.timeoutMs;
   }
+  /**
+   * Adds a sequential functionality step to the DAG.
+   */
+  thenFunctionality(funcName, options = {}) {
+    if (!funcName || typeof funcName !== "string") {
+      throw new Error("[FunctionalityOrchestration] Functionality name must be a non-empty string.");
+    }
+    this.assertServiceBoundary(funcName);
+    const stepId = options.id || `step_${funcName}_${this.steps.length + 1}`;
+    const previousStep = this.steps.length > 0 ? this.steps[this.steps.length - 1].id : void 0;
+    const dependsOn = options.dependsOn || (previousStep ? [previousStep] : []);
+    const step = {
+      id: stepId,
+      name: funcName,
+      type: "task",
+      target: funcName,
+      dependsOn,
+      retryPolicy: options.retry,
+      timeoutPolicy: options.timeoutMs ? { timeoutMs: options.timeoutMs } : void 0,
+      compensation: options.compensation ? { name: options.compensation, target: options.compensation } : void 0,
+      catchHandler: options.catchHandler
+    };
+    this.steps.push(step);
+    return this;
+  }
+  /**
+   * Adds parallel functionality steps to the DAG.
+   */
+  parallel(name, functionalityNames, options = {}) {
+    if (!name || typeof name !== "string") {
+      throw new Error("[FunctionalityOrchestration] Parallel group name must be a non-empty string.");
+    }
+    if (!functionalityNames || functionalityNames.length === 0) {
+      throw new Error("[FunctionalityOrchestration] Parallel step requires at least one functionality.");
+    }
+    const previousStep = this.steps.length > 0 ? this.steps[this.steps.length - 1].id : void 0;
+    const baseDependsOn = options.dependsOn || (previousStep ? [previousStep] : []);
+    const parallelStepIds = [];
+    for (const funcName of functionalityNames) {
+      this.assertServiceBoundary(funcName);
+      const stepId = `${name}_${funcName}`;
+      parallelStepIds.push(stepId);
+      this.steps.push({
+        id: stepId,
+        name: funcName,
+        type: "task",
+        target: funcName,
+        dependsOn: baseDependsOn
+      });
+    }
+    const joinId = `${name}_join`;
+    this.steps.push({
+      id: joinId,
+      name: `${name} Join`,
+      type: "fanIn",
+      dependsOn: parallelStepIds
+    });
+    return this;
+  }
+  /**
+   * Adds conditional branching to the DAG.
+   */
+  branch(name, condition, thenFunc, elseFunc, options = {}) {
+    this.assertServiceBoundary(thenFunc);
+    if (elseFunc) this.assertServiceBoundary(elseFunc);
+    const previousStep = this.steps.length > 0 ? this.steps[this.steps.length - 1].id : void 0;
+    const baseDependsOn = options.dependsOn || (previousStep ? [previousStep] : []);
+    const thenStepId = `${name}_then_${thenFunc}`;
+    this.steps.push({
+      id: thenStepId,
+      name: thenFunc,
+      type: "task",
+      target: thenFunc,
+      condition,
+      dependsOn: baseDependsOn
+    });
+    let joinDeps = [thenStepId];
+    if (elseFunc) {
+      const elseStepId = `${name}_else_${elseFunc}`;
+      this.steps.push({
+        id: elseStepId,
+        name: elseFunc,
+        type: "task",
+        target: elseFunc,
+        condition: async (ctx) => !await condition(ctx),
+        dependsOn: baseDependsOn
+      });
+      joinDeps.push(elseStepId);
+    }
+    const joinId = `${name}_join`;
+    this.steps.push({
+      id: joinId,
+      name: `${name} Join`,
+      type: "fanIn",
+      dependsOn: joinDeps
+    });
+    return this;
+  }
+  /**
+   * Adds fan-out step processing items through a functionality.
+   */
+  fanOut(name, funcName, getItems, options = {}) {
+    this.assertServiceBoundary(funcName);
+    const previousStep = this.steps.length > 0 ? this.steps[this.steps.length - 1].id : void 0;
+    const dependsOn = options.dependsOn || (previousStep ? [previousStep] : []);
+    this.steps.push({
+      id: name,
+      name,
+      type: "fanOut",
+      target: funcName,
+      getItems,
+      concurrency: options.concurrency ?? 5,
+      dependsOn
+    });
+    return this;
+  }
+  /**
+   * Nested orchestration: Invokes a child FunctionalityOrchestration within the same service boundary.
+   */
+  thenFunctionalityOrchestration(childOrchId, options = {}) {
+    if (!childOrchId || typeof childOrchId !== "string") {
+      throw new Error("[FunctionalityOrchestration] Child orchestration id must be a non-empty string.");
+    }
+    const stepId = options.id || `nested_${childOrchId}_${this.steps.length + 1}`;
+    const previousStep = this.steps.length > 0 ? this.steps[this.steps.length - 1].id : void 0;
+    const dependsOn = options.dependsOn || (previousStep ? [previousStep] : []);
+    this.steps.push({
+      id: stepId,
+      name: childOrchId,
+      type: "nested",
+      nestedOrchestrationId: childOrchId,
+      dependsOn,
+      retryPolicy: options.retry,
+      timeoutPolicy: options.timeoutMs ? { timeoutMs: options.timeoutMs } : void 0
+    });
+    return this;
+  }
+  getSteps() {
+    return Object.freeze([...this.steps]);
+  }
+  /**
+   * Named flow builder interface.
+   */
   flow(name) {
     if (!name || typeof name !== "string" || name.trim() === "") {
-      throw new Error("[Orchestration] Flow name must be a non-empty string.");
+      throw new Error("[FunctionalityOrchestration] Flow name must be a non-empty string.");
     }
-    const chain = {
+    const steps = [];
+    const self = this;
+    const flowInstance = {
       name,
-      steps: [],
+      steps,
       visibility: "internal",
-      thenFunctionality(funcName) {
+      thenFunctionality(funcName, options) {
         if (!funcName || typeof funcName !== "string") {
-          throw new Error("[OrchestrationFlow] Functionality name must be a non-empty string.");
+          throw new Error("[FunctionalityFlow] Functionality name must be a non-empty string.");
         }
-        chain.steps.push({ type: "functionality", target: funcName });
-        return chain;
+        self.assertServiceBoundary(funcName);
+        const stepId = `${name}_${funcName}_${steps.length + 1}`;
+        steps.push({
+          id: stepId,
+          type: "functionality",
+          target: funcName,
+          dependsOn: options?.dependsOn,
+          retryPolicy: options?.retry,
+          timeoutPolicy: options?.timeoutMs ? { timeoutMs: options?.timeoutMs } : void 0
+        });
+        self.thenFunctionality(funcName, {
+          id: stepId,
+          retry: options?.retry,
+          timeoutMs: options?.timeoutMs,
+          dependsOn: options?.dependsOn
+        });
+        return flowInstance;
       },
-      thenOrchestration(orchestrationName, flowName) {
-        if (!orchestrationName || typeof orchestrationName !== "string") {
-          throw new Error("[OrchestrationFlow] Orchestration name must be a non-empty string.");
+      thenFunctionalityOrchestration(childName, flowName) {
+        if (!childName || typeof childName !== "string") {
+          throw new Error("[FunctionalityFlow] Orchestration name must be a non-empty string.");
         }
-        chain.steps.push({ type: "orchestration", target: orchestrationName, flow: flowName });
-        return chain;
+        const stepId = `${name}_orch_${childName}_${steps.length + 1}`;
+        steps.push({
+          id: stepId,
+          type: "functionalityOrchestration",
+          target: childName,
+          flow: flowName
+        });
+        self.thenFunctionalityOrchestration(childName, { id: stepId });
+        return flowInstance;
       },
       register(options) {
-        if (options?.visibility) chain.visibility = options.visibility;
-        return chain;
+        if (options?.visibility) flowInstance.visibility = options.visibility;
+        return flowInstance;
       }
     };
-    this.flows.set(name, chain);
-    return chain;
+    this.flows.set(name, flowInstance);
+    return flowInstance;
   }
   getFlow(name) {
     return this.flows.get(name);
@@ -1191,14 +2006,25 @@ var Orchestration = class {
   }
   clearFlows() {
     this.flows.clear();
+    this.steps.length = 0;
+  }
+  assertServiceBoundary(target) {
+    if (target.includes("Service") && !target.includes("Functionality") && !target.includes("Atom")) {
+      if (target.endsWith("ServiceFacade") || target.startsWith("service.") || target.includes("Service.")) {
+        throw new Error(
+          `[FunctionalityOrchestration] Plane Isolation Invariant Violation: Target "${target}" appears to be an external Service. FunctionalityOrchestration strictly composes functionalities inside ONE service.`
+        );
+      }
+    }
   }
 };
 export {
+  BullMQExecutionEngine,
+  FunctionalityOrchestration,
   HttpProtocolAdapter,
   KrnlPackageReconciler,
   LifecycleManager,
   MemoryTransport,
-  Orchestration,
   P2PProtocolAdapter,
   ProtocolResolver,
   ServiceDiscovery,
@@ -1211,9 +2037,11 @@ export {
   ServiceStateStore,
   UdpProtocolAdapter,
   WebSocketProtocolAdapter,
+  WorkerExecutionBoundary,
   createService,
   createServiceDefinition,
   createServiceFacade,
   createServiceProxy,
+  validateOrchestrationDAG,
   validateServiceDefinition
 };

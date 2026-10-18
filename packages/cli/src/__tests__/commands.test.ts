@@ -25,14 +25,14 @@ describe('Krnl CLI commands', () => {
     }
   });
 
-  it('scaffolds orchestrations with @ultrst-armada/krnl-core imports', async () => {
+  it('scaffolds functionality orchestrations with @ultrst-armada/krnl-core imports', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'krnl-cli-gen-'));
     try {
-      await runGenerate('orchestration', 'TestUser', undefined, tmpDir);
-      const orchFile = path.join(tmpDir, 'src', 'orchestrations', 'TestUser', 'TestUserOrchestration.ts');
+      await runGenerate('functionality-orchestration', 'TestUser', undefined, tmpDir);
+      const orchFile = path.join(tmpDir, 'src', 'orchestrations', 'TestUser', 'TestUserFunctionalityOrchestration.ts');
       expect(fs.existsSync(orchFile)).toBe(true);
       const content = fs.readFileSync(orchFile, 'utf8');
-      expect(content).toContain("import { Orchestration } from '@ultrst-armada/krnl-core';");
+      expect(content).toContain("import { FunctionalityOrchestration } from '@ultrst-armada/krnl-core';");
       expect(content).not.toContain('@dinilmusick');
       expect(content).not.toContain('extends Entity');
     } finally {

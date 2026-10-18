@@ -36,7 +36,7 @@ describe('create-krnl End-to-End Scaffolding & Verification', () => {
       expect(pkgContent).not.toContain('.skipo');
 
       // Verify directory structure
-      expect(fs.existsSync(path.join(appDir, 'krnl', 'backend', 'orchestrations', 'App', 'AppOrchestration.ts'))).toBe(true);
+      expect(fs.existsSync(path.join(appDir, 'krnl', 'backend', 'orchestrations', 'App', 'AppFunctionalityOrchestration.ts'))).toBe(true);
       expect(fs.existsSync(path.join(appDir, 'krnl', 'backend', 'services', 'App', 'AppServiceFacade.ts'))).toBe(true);
       expect(fs.existsSync(path.join(appDir, 'krnl', 'frontend', 'orchestrations', 'App', 'App0.tsx'))).toBe(true);
       expect(fs.existsSync(path.join(appDir, `${appName}.ts`))).toBe(true);

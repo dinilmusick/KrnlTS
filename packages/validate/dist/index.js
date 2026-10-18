@@ -168,7 +168,7 @@ function checkOrchestrationRules(sf) {
   }
   const isOrchestrationClass = sf.getClasses().some((c) => {
     const ext = c.getExtends();
-    return ext && (ext.getText().includes("Orchestration") || ext.getText().includes("krnlOrchestrationBase"));
+    return ext && (ext.getText().includes("FunctionalityOrchestration") || ext.getText().includes("Orchestration") || ext.getText().includes("krnlOrchestrationBase"));
   });
   if (isOrchestrationClass) {
     for (const decl of sf.getImportDeclarations()) {
@@ -178,14 +178,14 @@ function checkOrchestrationRules(sf) {
           ruleId: "krnl/orchestration-no-libraries",
           filePath,
           line: decl.getStartLineNumber(),
-          message: `Orchestration class violates Library Calling Invariant. Orchestrations must not call or import libraries directly ('${spec}'). Only functionalities are permitted to call shared libraries.`,
+          message: `FunctionalityOrchestration class violates Library Calling Invariant. FunctionalityOrchestrations must not call or import libraries directly ('${spec}'). Only functionalities are permitted to call shared libraries.`,
           severity: "error"
         });
       }
     }
     for (const cls of sf.getClasses()) {
       const ext = cls.getExtends();
-      if (ext && (ext.getText().includes("Orchestration") || ext.getText().includes("krnlOrchestrationBase"))) {
+      if (ext && (ext.getText().includes("FunctionalityOrchestration") || ext.getText().includes("Orchestration") || ext.getText().includes("krnlOrchestrationBase"))) {
         const loops = [
           ...cls.getDescendantsOfKind(SyntaxKind2.ForStatement),
           ...cls.getDescendantsOfKind(SyntaxKind2.ForOfStatement),
@@ -198,18 +198,31 @@ function checkOrchestrationRules(sf) {
             ruleId: "krnl/orchestration-purity",
             filePath,
             line: loop.getStartLineNumber(),
-            message: `Orchestration '${cls.getName() || "Anonymous"}' violates Orchestration Purity Law. Loops and procedural algorithms are prohibited inside orchestrations. Move logic to a functionality or a global library function.`,
+            message: `FunctionalityOrchestration '${cls.getName() || "Anonymous"}' violates Orchestration Purity Law. Loops and procedural algorithms are prohibited inside orchestrations. Move logic to a functionality or a global library function.`,
             severity: "error"
           });
         }
+        const allowedMethods = /* @__PURE__ */ new Set([
+          "flow",
+          "getFlow",
+          "listFlows",
+          "clearFlows",
+          "thenFunctionality",
+          "parallel",
+          "branch",
+          "fanOut",
+          "thenFunctionalityOrchestration",
+          "getSteps",
+          "assertServiceBoundary"
+        ]);
         for (const method of cls.getMethods()) {
           const methodName = method.getName();
-          if (!["flow", "getFlow", "listFlows", "clearFlows"].includes(methodName)) {
+          if (!allowedMethods.has(methodName)) {
             errors.push({
               ruleId: "krnl/orchestration-purity",
               filePath,
               line: method.getStartLineNumber(),
-              message: `Orchestration '${cls.getName() || "Anonymous"}' defines custom method '${methodName}'. Orchestrations are purely declarative compositors. Define capabilities as functionalities or global library functions.`,
+              message: `FunctionalityOrchestration '${cls.getName() || "Anonymous"}' defines custom method '${methodName}'. FunctionalityOrchestrations are purely declarative compositors. Define capabilities as functionalities or global library functions.`,
               severity: "error"
             });
           }
@@ -242,7 +255,15 @@ function checkOrchestrationRules(sf) {
               ruleId: "krnl/orchestration-no-direct-library-calls",
               filePath,
               line: step.node.getStartLineNumber(),
-              message: `Orchestration flow '${chainId}' violates Orchestration Purity Law. Orchestrations cannot chain direct library functions via thenFunction(). Orchestrations must only sequence functionalities (thenFunctionality) and peer orchestrations (thenOrchestration).`,
+              message: `FunctionalityOrchestration flow '${chainId}' violates Orchestration Purity Law. Orchestrations cannot chain direct library functions via thenFunction(). Orchestrations must only sequence functionalities (thenFunctionality) and peer functionality orchestrations (thenFunctionalityOrchestration).`,
+              severity: "error"
+            });
+          } else if (step.name === "thenService") {
+            errors.push({
+              ruleId: "krnl/orchestration-no-external-services",
+              filePath,
+              line: step.node.getStartLineNumber(),
+              message: `FunctionalityOrchestration flow '${chainId}' violates Plane Isolation Law L1. A service-level FunctionalityOrchestration cannot compose external services. Use Skipo ServiceOrchestration at the application layer instead.`,
               severity: "error"
             });
           }

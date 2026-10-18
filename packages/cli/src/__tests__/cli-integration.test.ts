@@ -126,17 +126,17 @@ describe('Krnl CLI Real Integration Suite', () => {
     }
   });
 
-  it('scaffolds orchestration correctly via generate command without entity or application leakage', async () => {
+  it('scaffolds functionality orchestration correctly via generate command without entity or application leakage', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'krnl-gen-orch-'));
     try {
-      await runGenerate('orchestration', 'UserAccount', undefined, tmpDir);
-      const orchFile = path.join(tmpDir, 'src', 'orchestrations', 'UserAccount', 'UserAccountOrchestration.ts');
-      const testFile = path.join(tmpDir, 'src', 'orchestrations', 'UserAccount', 'tests', 'UserAccountOrchestration.test.ts');
+      await runGenerate('functionality-orchestration', 'UserAccount', undefined, tmpDir);
+      const orchFile = path.join(tmpDir, 'src', 'orchestrations', 'UserAccount', 'UserAccountFunctionalityOrchestration.ts');
+      const testFile = path.join(tmpDir, 'src', 'orchestrations', 'UserAccount', 'tests', 'UserAccountFunctionalityOrchestration.test.ts');
 
       expect(fs.existsSync(orchFile)).toBe(true);
       expect(fs.existsSync(testFile)).toBe(true);
       const content = fs.readFileSync(orchFile, 'utf8');
-      expect(content).toContain('class UserAccountOrchestration extends Orchestration');
+      expect(content).toContain('class UserAccountFunctionalityOrchestration extends FunctionalityOrchestration');
       expect(content).not.toContain('extends Entity');
       expect(content).not.toContain('defineApp');
       expect(content).not.toContain('Protocols');

@@ -141,20 +141,20 @@ describe("AppConcepts", () => { it("transforms data", () => { expect(pureTransfo
 `
   );
   fs.writeFileSync(
-    path.join(bOrchDir, "AppOrchestration.ts"),
-    `import { Orchestration } from "@ultrst-armada/krnl-core";
+    path.join(bOrchDir, "AppFunctionalityOrchestration.ts"),
+    `import { FunctionalityOrchestration } from "@ultrst-armada/krnl-core";
 
 /**
- * @role orchestration
- * Declarative Orchestration flow for App.
+ * @role functionality-orchestration
+ * Declarative FunctionalityOrchestration flow for App.
  */
-export class AppOrchestration extends Orchestration {
+export class AppFunctionalityOrchestration extends FunctionalityOrchestration {
   constructor() {
     super({
-      id: "AppOrchestration",
+      id: "AppFunctionalityOrchestration",
       name: "App",
       version: "1.0.0",
-      description: "Root application orchestration flow",
+      description: "Root service functionality orchestration flow",
     });
 
     this.flow("default")
@@ -163,28 +163,28 @@ export class AppOrchestration extends Orchestration {
   }
 }
 
-export default AppOrchestration;
+export default AppFunctionalityOrchestration;
 `
   );
   fs.writeFileSync(
-    path.join(bOrchDir, "tests", "AppOrchestration.test.ts"),
+    path.join(bOrchDir, "tests", "AppFunctionalityOrchestration.test.ts"),
     `import { describe, it, expect } from "vitest";
-import { AppOrchestration } from "../AppOrchestration.js";
-describe("AppOrchestration", () => { it("initializes flow correctly", () => { expect(new AppOrchestration().id).toBe("AppOrchestration"); }); });
+import { AppFunctionalityOrchestration } from "../AppFunctionalityOrchestration.js";
+describe("AppFunctionalityOrchestration", () => { it("initializes flow correctly", () => { expect(new AppFunctionalityOrchestration().id).toBe("AppFunctionalityOrchestration"); }); });
 `
   );
   fs.writeFileSync(
     path.join(bServiceDir, "AppServiceFacade.ts"),
     `import { ServiceFacade } from "@ultrst-armada/krnl-core";
-import { AppOrchestration } from "../../orchestrations/App/AppOrchestration.js";
+import { AppFunctionalityOrchestration } from "../../orchestrations/App/AppFunctionalityOrchestration.js";
 
 export const AppServiceFacade = new ServiceFacade({
   id: "app.service",
   name: "AppService",
   version: "1.0.0",
   description: "Primary application service facade",
-  orchestrations: {
-    App: new AppOrchestration(),
+  functionalityOrchestrations: {
+    App: new AppFunctionalityOrchestration(),
   },
 });
 
@@ -195,7 +195,7 @@ export default AppServiceFacade;
     path.join(bServiceDir, "tests", "AppServiceFacade.test.ts"),
     `import { describe, it, expect } from "vitest";
 import { AppServiceFacade } from "../AppServiceFacade.js";
-describe("AppServiceFacade", () => { it("exposes orchestrations correctly", () => { expect(AppServiceFacade.id).toBe("app.service"); expect(AppServiceFacade.orchestrations.App).toBeDefined(); }); });
+describe("AppServiceFacade", () => { it("exposes orchestrations correctly", () => { expect(AppServiceFacade.id).toBe("app.service"); expect(AppServiceFacade.functionalityOrchestrations.App).toBeDefined(); }); });
 `
   );
   fs.writeFileSync(

@@ -15,6 +15,8 @@ export interface OperationContext {
   accessKey?: string;
   metadata?: Record<string, unknown>;
   protocol?: ProtocolType;
+  correlationId?: string;
+  idempotencyKey?: string;
 }
 
 export interface OperationContract<TInput = unknown, TOutput = unknown> {

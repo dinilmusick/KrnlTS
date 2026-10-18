@@ -6,7 +6,7 @@ import {
   runDev,
   runGenerate,
   runValidate
-} from "../chunk-EB5HSSFD.js";
+} from "../chunk-RGC4XEKY.js";
 
 // src/bin/krnl.ts
 import * as path from "path";
@@ -105,9 +105,9 @@ Commands:
   validate          Run deep AST & 4-layer function purity validation
   sync              Reconcile package.json from all co-located manifest.json files
   watch             Generate ambient TypeScript declarations (krnl-magnetic.d.ts)
-  generate          Scaffold orchestrations, functionalities, libraries
+  generate          Scaffold functionality-orchestrations, functionalities, libraries
                     Examples:
-                      krnl generate orchestration Payment
+                      krnl generate functionality-orchestration Payment
                       krnl generate functionality ProcessPayment
                       krnl generate library Math
 

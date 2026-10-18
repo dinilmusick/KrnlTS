@@ -1,4 +1,6 @@
-import { generateOrchestration } from './generators/orchestrationGenerator.js';
+import {
+  generateFunctionalityOrchestration,
+} from './generators/functionalityOrchestrationGenerator.js';
 import { generateFunctionality } from './generators/functionalityGenerator.js';
 import { generateLibrary } from './generators/libraryGenerator.js';
 
@@ -9,13 +11,18 @@ export async function runGenerate(
   projectRoot: string = process.cwd()
 ): Promise<void> {
   if (!name) {
-    console.error('❌ Error: Resource name is required. Usage: krnl generate <orchestration|functionality|library> <Name>');
+    console.error(
+      '❌ Error: Resource name is required. Usage: krnl generate <functionality-orchestration|functionality|library> <Name>'
+    );
     process.exit(1);
   }
 
-  switch (type.toLowerCase()) {
+  const normalizedType = type.toLowerCase().replace(/[-_]/g, '');
+
+  switch (normalizedType) {
+    case 'functionalityorchestration':
     case 'orchestration':
-      generateOrchestration(name, projectRoot);
+      generateFunctionalityOrchestration(name, projectRoot);
       break;
     case 'functionality':
       generateFunctionality(name, projectRoot);
@@ -24,8 +31,9 @@ export async function runGenerate(
       generateLibrary(name, projectRoot);
       break;
     default:
-      console.error(`❌ Unknown resource type "${type}". Valid types: orchestration, functionality, library`);
+      console.error(
+        `❌ Unknown resource type "${type}". Valid types: functionality-orchestration, functionality, library`
+      );
       process.exit(1);
   }
 }
-

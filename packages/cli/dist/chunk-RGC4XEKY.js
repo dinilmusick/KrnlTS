@@ -165,7 +165,7 @@ function checkOrchestrationRules(sf) {
   }
   const isOrchestrationClass = sf.getClasses().some((c) => {
     const ext = c.getExtends();
-    return ext && (ext.getText().includes("Orchestration") || ext.getText().includes("krnlOrchestrationBase"));
+    return ext && (ext.getText().includes("FunctionalityOrchestration") || ext.getText().includes("Orchestration") || ext.getText().includes("krnlOrchestrationBase"));
   });
   if (isOrchestrationClass) {
     for (const decl of sf.getImportDeclarations()) {
@@ -175,14 +175,14 @@ function checkOrchestrationRules(sf) {
           ruleId: "krnl/orchestration-no-libraries",
           filePath,
           line: decl.getStartLineNumber(),
-          message: `Orchestration class violates Library Calling Invariant. Orchestrations must not call or import libraries directly ('${spec}'). Only functionalities are permitted to call shared libraries.`,
+          message: `FunctionalityOrchestration class violates Library Calling Invariant. FunctionalityOrchestrations must not call or import libraries directly ('${spec}'). Only functionalities are permitted to call shared libraries.`,
           severity: "error"
         });
       }
     }
     for (const cls of sf.getClasses()) {
       const ext = cls.getExtends();
-      if (ext && (ext.getText().includes("Orchestration") || ext.getText().includes("krnlOrchestrationBase"))) {
+      if (ext && (ext.getText().includes("FunctionalityOrchestration") || ext.getText().includes("Orchestration") || ext.getText().includes("krnlOrchestrationBase"))) {
         const loops = [
           ...cls.getDescendantsOfKind(SyntaxKind2.ForStatement),
           ...cls.getDescendantsOfKind(SyntaxKind2.ForOfStatement),
@@ -195,18 +195,31 @@ function checkOrchestrationRules(sf) {
             ruleId: "krnl/orchestration-purity",
             filePath,
             line: loop.getStartLineNumber(),
-            message: `Orchestration '${cls.getName() || "Anonymous"}' violates Orchestration Purity Law. Loops and procedural algorithms are prohibited inside orchestrations. Move logic to a functionality or a global library function.`,
+            message: `FunctionalityOrchestration '${cls.getName() || "Anonymous"}' violates Orchestration Purity Law. Loops and procedural algorithms are prohibited inside orchestrations. Move logic to a functionality or a global library function.`,
             severity: "error"
           });
         }
+        const allowedMethods = /* @__PURE__ */ new Set([
+          "flow",
+          "getFlow",
+          "listFlows",
+          "clearFlows",
+          "thenFunctionality",
+          "parallel",
+          "branch",
+          "fanOut",
+          "thenFunctionalityOrchestration",
+          "getSteps",
+          "assertServiceBoundary"
+        ]);
         for (const method of cls.getMethods()) {
           const methodName = method.getName();
-          if (!["flow", "getFlow", "listFlows", "clearFlows"].includes(methodName)) {
+          if (!allowedMethods.has(methodName)) {
             errors.push({
               ruleId: "krnl/orchestration-purity",
               filePath,
               line: method.getStartLineNumber(),
-              message: `Orchestration '${cls.getName() || "Anonymous"}' defines custom method '${methodName}'. Orchestrations are purely declarative compositors. Define capabilities as functionalities or global library functions.`,
+              message: `FunctionalityOrchestration '${cls.getName() || "Anonymous"}' defines custom method '${methodName}'. FunctionalityOrchestrations are purely declarative compositors. Define capabilities as functionalities or global library functions.`,
               severity: "error"
             });
           }
@@ -239,7 +252,15 @@ function checkOrchestrationRules(sf) {
               ruleId: "krnl/orchestration-no-direct-library-calls",
               filePath,
               line: step.node.getStartLineNumber(),
-              message: `Orchestration flow '${chainId}' violates Orchestration Purity Law. Orchestrations cannot chain direct library functions via thenFunction(). Orchestrations must only sequence functionalities (thenFunctionality) and peer orchestrations (thenOrchestration).`,
+              message: `FunctionalityOrchestration flow '${chainId}' violates Orchestration Purity Law. Orchestrations cannot chain direct library functions via thenFunction(). Orchestrations must only sequence functionalities (thenFunctionality) and peer functionality orchestrations (thenFunctionalityOrchestration).`,
+              severity: "error"
+            });
+          } else if (step.name === "thenService") {
+            errors.push({
+              ruleId: "krnl/orchestration-no-external-services",
+              filePath,
+              line: step.node.getStartLineNumber(),
+              message: `FunctionalityOrchestration flow '${chainId}' violates Plane Isolation Law L1. A service-level FunctionalityOrchestration cannot compose external services. Use Skipo ServiceOrchestration at the application layer instead.`,
               severity: "error"
             });
           }
@@ -604,9 +625,9 @@ var KrnlPackageReconciler = class {
   }
 };
 
-// src/commands/generators/orchestrationGenerator.ts
-import * as fs5 from "fs";
+// src/commands/generators/functionalityOrchestrationGenerator.ts
 import * as path6 from "path";
+import * as fs5 from "fs";
 
 // src/commands/generators/common.ts
 import * as fs4 from "fs";
@@ -627,26 +648,26 @@ function getPlaneRoots(projectRoot) {
   };
 }
 
-// src/commands/generators/orchestrationGenerator.ts
-function generateOrchestration(name, projectRoot) {
+// src/commands/generators/functionalityOrchestrationGenerator.ts
+function generateFunctionalityOrchestration(name, projectRoot) {
   const { backend } = getPlaneRoots(projectRoot);
   const orchDir = path6.join(backend, "orchestrations", name);
   fs5.mkdirSync(path6.join(orchDir, "tests"), { recursive: true });
   fs5.writeFileSync(
-    path6.join(orchDir, `${name}Orchestration.ts`),
-    `import { Orchestration } from '@ultrst-armada/krnl-core';
+    path6.join(orchDir, `${name}FunctionalityOrchestration.ts`),
+    `import { FunctionalityOrchestration } from '@ultrst-armada/krnl-core';
 
 /**
- * @role orchestration
- * Declaratively composes functionalities into named flows.
+ * @role functionality-orchestration
+ * Declaratively composes functionalities within this service into named flows.
  */
-export class ${name}Orchestration extends Orchestration {
+export class ${name}FunctionalityOrchestration extends FunctionalityOrchestration {
   constructor() {
     super({
-      id: '${name}Orchestration',
+      id: '${name}FunctionalityOrchestration',
       name: '${name}',
       version: '1.0.0',
-      description: '${name} declarative orchestration flow',
+      description: '${name} declarative functionality orchestration flow',
     });
 
     this.flow('default')
@@ -655,25 +676,25 @@ export class ${name}Orchestration extends Orchestration {
   }
 }
 
-export default ${name}Orchestration;
+export default ${name}FunctionalityOrchestration;
 `
   );
   fs5.writeFileSync(
-    path6.join(orchDir, "tests", `${name}Orchestration.test.ts`),
+    path6.join(orchDir, "tests", `${name}FunctionalityOrchestration.test.ts`),
     `import { describe, it, expect } from 'vitest';
-import { ${name}Orchestration } from '../${name}Orchestration.js';
+import { ${name}FunctionalityOrchestration } from '../${name}FunctionalityOrchestration.js';
 
-describe('${name}Orchestration', () => {
-  it('instantiates and configures declarative flow correctly', () => {
-    const orchestration = new ${name}Orchestration();
-    expect(orchestration.id).toBe('${name}Orchestration');
+describe('${name}FunctionalityOrchestration', () => {
+  it('instantiates and configures declarative functionality flow correctly', () => {
+    const orchestration = new ${name}FunctionalityOrchestration();
+    expect(orchestration.id).toBe('${name}FunctionalityOrchestration');
     expect(orchestration.getFlow('default')).toBeDefined();
     expect(orchestration.getFlow('default')?.steps).toHaveLength(1);
   });
 });
 `
   );
-  console.log(`\u2705 Created Orchestration: krnl/backend/orchestrations/${name}/`);
+  console.log(`\u2705 Created FunctionalityOrchestration: krnl/backend/orchestrations/${name}/`);
 }
 
 // src/commands/generators/functionalityGenerator.ts
@@ -905,12 +926,16 @@ describe("${name} UI Concept", () => {
 // src/commands/generate.ts
 async function runGenerate(type, name, _parentService, projectRoot = process.cwd()) {
   if (!name) {
-    console.error("\u274C Error: Resource name is required. Usage: krnl generate <orchestration|functionality|library> <Name>");
+    console.error(
+      "\u274C Error: Resource name is required. Usage: krnl generate <functionality-orchestration|functionality|library> <Name>"
+    );
     process.exit(1);
   }
-  switch (type.toLowerCase()) {
+  const normalizedType = type.toLowerCase().replace(/[-_]/g, "");
+  switch (normalizedType) {
+    case "functionalityorchestration":
     case "orchestration":
-      generateOrchestration(name, projectRoot);
+      generateFunctionalityOrchestration(name, projectRoot);
       break;
     case "functionality":
       generateFunctionality(name, projectRoot);
@@ -919,7 +944,9 @@ async function runGenerate(type, name, _parentService, projectRoot = process.cwd
       generateLibrary(name, projectRoot);
       break;
     default:
-      console.error(`\u274C Unknown resource type "${type}". Valid types: orchestration, functionality, library`);
+      console.error(
+        `\u274C Unknown resource type "${type}". Valid types: functionality-orchestration, functionality, library`
+      );
       process.exit(1);
   }
 }

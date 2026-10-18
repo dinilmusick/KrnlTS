@@ -25,6 +25,8 @@ interface OperationContext {
     accessKey?: string;
     metadata?: Record<string, unknown>;
     protocol?: ProtocolType;
+    correlationId?: string;
+    idempotencyKey?: string;
 }
 interface OperationContract<TInput = unknown, TOutput = unknown> {
     id: string;
@@ -214,55 +216,299 @@ declare function createService<TState extends Record<string, unknown> = Record<s
 declare function createServiceProxy<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>>(definition: ServiceDefinition<TState, TEvents>, adapter: ProtocolAdapter, endpoint: EndpointDescriptor): IService<TState, TEvents>;
 
 /**
- * @file Orchestration.ts
- * @description Canonical declarative Orchestration compositor for KrnlTS services.
- * Aligned with Skipo Orchestration architecture.
+ * @file model.ts
+ * @description Canonical Isomorphic Orchestration Model.
+ * Provides unified schema and invariants for FunctionalityOrchestration (KrnlTS)
+ * and ServiceOrchestration (Skipo).
  */
+type StepType = 'task' | 'sequential' | 'parallel' | 'branch' | 'conditional' | 'fanOut' | 'fanIn' | 'diamond' | 'delay' | 'nested';
+type StepStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'SKIPPED' | 'TIMED_OUT';
+type StepExecutionStatus = StepStatus;
+type OrchestrationStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'TIMED_OUT';
+interface StepRetryPolicy {
+    readonly maxAttempts: number;
+    readonly backoff?: 'linear' | 'exponential';
+    readonly backoffMs?: number;
+    readonly maxBackoffMs?: number;
+    readonly jitter?: boolean;
+    readonly retryOnErrors?: string[];
+    readonly backoffMultiplier?: number;
+    readonly initialDelayMs?: number;
+}
+interface StepTimeoutPolicy {
+    readonly timeoutMs: number;
+}
+interface StepCompensation<TContext = OrchestrationContext> {
+    readonly name?: string;
+    readonly handler?: (context: TContext) => Promise<void>;
+    readonly target?: string;
+    readonly operation?: string;
+}
+type SagaCompensationHandler<TOutput = unknown> = (output: TOutput, context: OrchestrationContext) => Promise<void>;
+type StepCondition<TContext = OrchestrationContext> = (context: TContext) => boolean | Promise<boolean>;
+interface OrchestrationStep<TInput = unknown, TOutput = unknown> {
+    readonly id: string;
+    readonly name: string;
+    readonly type: StepType;
+    readonly target?: string;
+    readonly operation?: string;
+    readonly dependsOn?: readonly string[];
+    readonly handler?: (input: TInput, context: OrchestrationContext) => Promise<TOutput>;
+    readonly condition?: StepCondition;
+    readonly thenStepId?: string;
+    readonly elseStepId?: string;
+    readonly parallelStepIds?: readonly string[];
+    readonly getItems?: (context: OrchestrationContext) => unknown[] | Promise<unknown[]>;
+    readonly concurrency?: number;
+    readonly retryPolicy?: StepRetryPolicy;
+    readonly timeoutPolicy?: StepTimeoutPolicy;
+    readonly compensation?: StepCompensation;
+    readonly catchHandler?: (error: Error, context: OrchestrationContext) => Promise<TOutput>;
+    readonly nestedOrchestrationId?: string;
+}
 interface OrchestrationDescriptor {
-    id: string;
-    name?: string;
-    version?: string;
-    description?: string;
+    readonly id: string;
+    readonly name?: string;
+    readonly version?: string;
+    readonly description?: string;
+    readonly timeoutMs?: number;
+    readonly concurrency?: number;
+    readonly scope?: 'functionality' | 'service';
 }
-interface OrchestrationFlowStep {
-    type: 'functionality' | 'orchestration';
-    target: string;
-    flow?: string;
+interface OrchestrationContext {
+    readonly correlationId: string;
+    readonly parentCorrelationId?: string;
+    readonly orchestrationId: string;
+    readonly executionId: string;
+    readonly idempotencyKey?: string;
+    readonly scope: 'functionality' | 'service';
+    readonly serviceId?: string;
+    readonly results: Record<string, unknown>;
+    readonly metadata: Record<string, unknown>;
+    readonly timestamp: number;
+    isCancelled: boolean;
+    abortSignal?: AbortSignal;
 }
-interface OrchestrationFlow {
-    name: string;
-    steps: OrchestrationFlowStep[];
-    visibility: 'public' | 'private' | 'internal';
-    thenFunctionality(funcName: string): OrchestrationFlow;
-    thenOrchestration(orchestrationName: string, flowName?: string): OrchestrationFlow;
-    register(options?: {
-        visibility?: 'public' | 'private' | 'internal';
-    }): OrchestrationFlow;
+interface StepExecutionResult<T = unknown> {
+    readonly stepId: string;
+    readonly status: StepStatus;
+    readonly attempts: number;
+    readonly output?: T;
+    readonly error?: string;
+    readonly startedAt: number;
+    readonly completedAt: number;
+}
+interface OrchestrationResult<T = unknown> {
+    readonly orchestrationId: string;
+    readonly correlationId: string;
+    readonly status: OrchestrationStatus;
+    readonly output?: T;
+    readonly stepResults: Record<string, StepExecutionResult>;
+    readonly error?: string;
+    readonly startedAt: number;
+    readonly completedAt: number;
+    readonly executionMetadata: Record<string, unknown>;
+}
+interface DAGValidationResult {
+    readonly valid: boolean;
+    readonly order: readonly string[];
+    readonly errors: readonly string[];
 }
 /**
- * Declarative Orchestration compositor.
- * Focused strictly on composing functionalities and other orchestrations into named flows.
- * Does not contain procedural algorithms, loops, or application-level configuration.
+ * Validates DAG structure: checks for existence, circular dependencies, and returns topological order.
  */
-declare class Orchestration {
+declare function validateOrchestrationDAG(steps: readonly OrchestrationStep[]): DAGValidationResult;
+
+/**
+ * @file FunctionalityOrchestration.ts
+ * @description Canonical FunctionalityOrchestration for KrnlTS services.
+ * Strictly scopes orchestration to functionalities belonging to ONE service.
+ * Conforms to L1 (Plane Isolation) & Invariant: A service never orchestrates independent services.
+ */
+
+interface FunctionalityFlowStep {
+    readonly id: string;
+    readonly type: 'functionality' | 'functionalityOrchestration';
+    readonly target: string;
+    readonly flow?: string;
+    readonly dependsOn?: readonly string[];
+    readonly retryPolicy?: StepRetryPolicy;
+    readonly timeoutPolicy?: StepTimeoutPolicy;
+}
+interface FunctionalityFlow {
+    readonly name: string;
+    readonly steps: FunctionalityFlowStep[];
+    visibility: 'public' | 'private' | 'internal';
+    thenFunctionality(funcName: string, options?: {
+        retry?: StepRetryPolicy;
+        timeoutMs?: number;
+        dependsOn?: string[];
+    }): FunctionalityFlow;
+    thenFunctionalityOrchestration(childOrchestrationName: string, flowName?: string): FunctionalityFlow;
+    register(options?: {
+        visibility?: 'public' | 'private' | 'internal';
+    }): FunctionalityFlow;
+}
+interface FunctionalityStepOptions {
+    id?: string;
+    dependsOn?: string[];
+    retry?: StepRetryPolicy;
+    timeoutMs?: number;
+    compensation?: string;
+    catchHandler?: (err: Error, ctx: OrchestrationContext) => Promise<any>;
+}
+/**
+ * FunctionalityOrchestration
+ * Composes functionalities belonging strictly to ONE service into a deterministic DAG workflow.
+ */
+declare class FunctionalityOrchestration {
     readonly id: string;
     readonly name: string;
     readonly version: string;
     readonly description: string;
+    readonly timeoutMs?: number;
+    readonly scope: 'functionality';
+    private readonly steps;
     private readonly flows;
     constructor(descriptor: OrchestrationDescriptor);
-    flow(name: string): OrchestrationFlow;
-    getFlow(name: string): OrchestrationFlow | undefined;
-    listFlows(): OrchestrationFlow[];
+    /**
+     * Adds a sequential functionality step to the DAG.
+     */
+    thenFunctionality(funcName: string, options?: FunctionalityStepOptions): this;
+    /**
+     * Adds parallel functionality steps to the DAG.
+     */
+    parallel(name: string, functionalityNames: readonly string[], options?: {
+        dependsOn?: string[];
+    }): this;
+    /**
+     * Adds conditional branching to the DAG.
+     */
+    branch(name: string, condition: StepCondition, thenFunc: string, elseFunc?: string, options?: {
+        dependsOn?: string[];
+    }): this;
+    /**
+     * Adds fan-out step processing items through a functionality.
+     */
+    fanOut(name: string, funcName: string, getItems: (ctx: OrchestrationContext) => unknown[] | Promise<unknown[]>, options?: {
+        dependsOn?: string[];
+        concurrency?: number;
+    }): this;
+    /**
+     * Nested orchestration: Invokes a child FunctionalityOrchestration within the same service boundary.
+     */
+    thenFunctionalityOrchestration(childOrchId: string, options?: FunctionalityStepOptions): this;
+    getSteps(): readonly OrchestrationStep[];
+    /**
+     * Named flow builder interface.
+     */
+    flow(name: string): FunctionalityFlow;
+    getFlow(name: string): FunctionalityFlow | undefined;
+    listFlows(): FunctionalityFlow[];
     clearFlows(): void;
+    private assertServiceBoundary;
+}
+
+/**
+ * @file WorkerExecutionBoundary.ts
+ * @description Worker Execution Boundary mediating all job execution from BullMQ workers
+ * to service functionalities and orchestrations.
+ * Enforces worker context invariants (no synchronous/unmediated direct execution).
+ */
+interface ExecutionContext {
+    readonly isWorkerContext: boolean;
+    readonly workerId: string;
+    readonly timestamp: number;
+    readonly correlationId?: string;
+    readonly metadata?: Record<string, unknown>;
+}
+interface BackendCommand<TPayload = unknown> {
+    readonly id: string;
+    readonly type: string;
+    readonly payload: TPayload;
+    readonly correlationId: string;
+    readonly idempotencyKey?: string;
+    readonly createdAt: number;
+}
+interface NormalizedResult<T = unknown> {
+    readonly correlationId: string;
+    readonly status: 'COMPLETED' | 'FAILED' | 'CANCELLED';
+    readonly data?: T;
+    readonly error?: string;
+    readonly executionTimestamp: number;
+}
+declare class WorkerExecutionBoundary {
+    readonly workerId: string;
+    private readonly handler?;
+    constructor(workerId: string, handler?: ((command: BackendCommand<any>, context: ExecutionContext) => Promise<NormalizedResult<any>>) | undefined);
+    processJob<T = unknown>(command: BackendCommand<any>, metadata?: Record<string, unknown>): Promise<NormalizedResult<T>>;
+    static assertWorkerContext(context?: ExecutionContext): void;
+}
+
+/**
+ * @file BullMQExecutionEngine.ts
+ * @description Canonical BullMQ Execution Engine for both KrnlTS and Skipo.
+ * Implements isomorphic DAG execution, sequential/parallel steps, retries with backoff,
+ * timeouts, compensation/saga rollback, branching, fan-out/fan-in, and idempotency.
+ */
+
+interface BullMQConnectionOptions {
+    host?: string;
+    port?: number;
+    url?: string;
+    password?: string;
+    tls?: unknown;
+}
+interface ExecutionEngineOptions {
+    queueName?: string;
+    connection?: BullMQConnectionOptions;
+    concurrency?: number;
+    useInMemory?: boolean;
+}
+type BullMQExecutionEngineOptions = ExecutionEngineOptions;
+declare class BullMQExecutionEngine {
+    readonly queueName: string;
+    private readonly concurrency;
+    private readonly idempotencyStore;
+    private readonly activeExecutions;
+    private readonly inMemoryJobs;
+    private isRunning;
+    private activeWorkerCount;
+    private readonly workerBoundary;
+    constructor(options?: Partial<ExecutionEngineOptions>);
+    start(): Promise<void>;
+    stop(): Promise<void>;
+    dispose(): Promise<void>;
+    close(): Promise<void>;
+    getWorkerBoundary(): WorkerExecutionBoundary;
+    /**
+     * Dispatches a single command through the BullMQ queue and worker execution boundary.
+     */
+    executeCommand<TIn = unknown, TOut = unknown>(command: BackendCommand<TIn>, handler: (payload: TIn, context: ExecutionContext) => Promise<TOut>): Promise<NormalizedResult<TOut>>;
+    private dispatchInternalCommand;
+    /**
+     * Executes a full Canonical Orchestration DAG through the BullMQ worker boundary.
+     */
+    executeOrchestration<TInput = unknown, TOutput = unknown>(descriptor: OrchestrationDescriptor, steps: readonly OrchestrationStep[], input: TInput, options?: {
+        correlationId?: string;
+        parentCorrelationId?: string;
+        idempotencyKey?: string;
+        timeoutMs?: number;
+        metadata?: Record<string, unknown>;
+        nestedRunner?: (orchId: string, input: unknown, ctx: OrchestrationContext) => Promise<unknown>;
+        abortSignal?: AbortSignal;
+    }): Promise<OrchestrationResult<TOutput>>;
+    private executeSingleStep;
+    private computeBackoff;
+    cancelExecution(executionId: string): boolean;
 }
 
 /**
  * @file ServiceFacade.ts
  * @description Canonical ServiceFacade for KrnlTS services.
- * Structurally analogous to Skipo's BackendFacade, representing a single service's
- * public semantic boundary, composing functionalities, orchestrations, operations,
+ * Callable boundary of a service, composing functionalities, functionality orchestrations,
  * state, events, dependencies, capabilities, and lifecycle.
+ * All external invocations strictly route through the BullMQ execution engine and worker boundary.
  */
 
 interface ServiceFacadeConfig<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>> {
@@ -271,35 +517,61 @@ interface ServiceFacadeConfig<TState extends Record<string, unknown> = Record<st
     version?: string;
     description?: string;
     functionalities?: Record<string, unknown>;
-    orchestrations?: Record<string, Orchestration>;
+    functionalityOrchestrations?: Record<string, FunctionalityOrchestration>;
+    /** @deprecated Use functionalityOrchestrations */
+    orchestrations?: Record<string, FunctionalityOrchestration>;
     definition?: ServiceDefinition<TState, TEvents>;
     instance?: IService<TState, TEvents>;
     dependencies?: DependencyContract[];
     capabilities?: ServiceCapability[];
+    queueConnection?: BullMQConnectionOptions;
+    concurrency?: number;
 }
+type IServiceFacade = ServiceFacade;
 declare class ServiceFacade<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>> {
     readonly id: string;
     readonly name: string;
     readonly version: string;
     readonly description: string;
     readonly functionalities: Record<string, unknown>;
-    readonly orchestrations: Record<string, Orchestration>;
+    readonly functionalityOrchestrations: Record<string, FunctionalityOrchestration>;
     readonly dependencies: readonly DependencyContract[];
     readonly capabilities: readonly ServiceCapability[];
     private readonly instance;
+    private readonly executionEngine;
     constructor(config: ServiceFacadeConfig<TState, TEvents>);
+    get orchestrations(): Record<string, FunctionalityOrchestration>;
     getInstance(): IService<TState, TEvents>;
+    getExecutionEngine(): BullMQExecutionEngine;
+    getWorkerBoundary(): WorkerExecutionBoundary;
     getStatus(): ServiceStatus;
     start(): Promise<void>;
     stop(): Promise<void>;
     dispose(): Promise<void>;
+    /**
+     * External caller callable boundary for single functionality / operation execution.
+     * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> Functionality -> Result.
+     * Strictly avoids synchronous unmediated execution outside the queue.
+     */
     call<TIn = unknown, TOut = unknown>(op: string, input?: TIn, ctx?: OperationContext): Promise<TOut>;
+    /**
+     * External caller callable boundary for functionality orchestration execution.
+     * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> FunctionalityOrchestration -> Result.
+     */
+    orchestrate<TIn = unknown, TOut = unknown>(orchestrationName: string, input?: TIn, options?: {
+        correlationId?: string;
+        idempotencyKey?: string;
+        timeoutMs?: number;
+        metadata?: Record<string, unknown>;
+    }): Promise<OrchestrationResult<TOut>>;
     getState(): Readonly<TState>;
     setState(mutation: Partial<TState>): void;
     on<K extends keyof TEvents & string>(event: K, handler: (payload: TEvents[K]) => void): () => void;
     emit<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): void;
     registerFunctionality(name: string, functionality: unknown): this;
-    registerOrchestration(name: string, orchestration: Orchestration): this;
+    registerFunctionalityOrchestration(name: string, orchestration: FunctionalityOrchestration): this;
+    /** @deprecated Use registerFunctionalityOrchestration */
+    registerOrchestration(name: string, orchestration: FunctionalityOrchestration): this;
 }
 declare function createServiceFacade<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>>(config: ServiceFacadeConfig<TState, TEvents>): ServiceFacade<TState, TEvents>;
 
@@ -507,4 +779,4 @@ declare class ProtocolResolver {
     static getSupportedProtocols(definition: ServiceDefinition): ProtocolType[];
 }
 
-export { type Connection, type DependencyContract, type EndpointDescriptor, type EventContract, HttpProtocolAdapter, type IService, KrnlPackageReconciler, type LifecycleContract, LifecycleManager, MemoryTransport, type OperationContext, type OperationContract, Orchestration, type OrchestrationDescriptor, type OrchestrationFlow, type OrchestrationFlowStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, UdpProtocolAdapter, WebSocketProtocolAdapter, createService, createServiceDefinition, createServiceFacade, createServiceProxy, validateServiceDefinition };
+export { type BackendCommand, type BullMQConnectionOptions, BullMQExecutionEngine, type BullMQExecutionEngineOptions, type Connection, type DAGValidationResult, type DependencyContract, type EndpointDescriptor, type EventContract, type ExecutionContext, type ExecutionEngineOptions, type FunctionalityFlow, type FunctionalityFlowStep, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, KrnlPackageReconciler, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDescriptor, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createService, createServiceDefinition, createServiceFacade, createServiceProxy, validateOrchestrationDAG, validateServiceDefinition };

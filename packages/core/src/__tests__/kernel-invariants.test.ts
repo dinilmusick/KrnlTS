@@ -258,11 +258,11 @@ describe('KrnlTS kernel invariants', () => {
     });
   });
 
-  describe('Canonical Orchestration and ServiceFacade Architecture', () => {
-    it('instantiates and configures declarative Orchestration flows without application leakage', async () => {
-      const { Orchestration } = await import('../orchestration/Orchestration.js');
+  describe('Canonical FunctionalityOrchestration and ServiceFacade Architecture', () => {
+    it('instantiates and configures declarative FunctionalityOrchestration flows without application leakage', async () => {
+      const { FunctionalityOrchestration } = await import('../orchestration/FunctionalityOrchestration.js');
 
-      class TestOrchestration extends Orchestration {
+      class TestOrchestration extends FunctionalityOrchestration {
         constructor() {
           super({ id: 'PaymentOrchestration', name: 'Payment', version: '1.2.0', description: 'Payment orchestration flow' });
         }
@@ -277,14 +277,14 @@ describe('KrnlTS kernel invariants', () => {
         .flow('checkoutFlow')
         .thenFunctionality('ValidateCart')
         .thenFunctionality('ChargeCard')
-        .thenOrchestration('NotificationOrchestration', 'sendReceipt')
+        .thenFunctionalityOrchestration('NotificationOrchestration', 'sendReceipt')
         .register({ visibility: 'public' });
 
       expect(flow.name).toBe('checkoutFlow');
       expect(flow.steps).toHaveLength(3);
-      expect(flow.steps[0]).toEqual({ type: 'functionality', target: 'ValidateCart' });
-      expect(flow.steps[1]).toEqual({ type: 'functionality', target: 'ChargeCard' });
-      expect(flow.steps[2]).toEqual({ type: 'orchestration', target: 'NotificationOrchestration', flow: 'sendReceipt' });
+      expect(flow.steps[0]).toEqual({ id: 'checkoutFlow_ValidateCart_1', type: 'functionality', target: 'ValidateCart' });
+      expect(flow.steps[1]).toEqual({ id: 'checkoutFlow_ChargeCard_2', type: 'functionality', target: 'ChargeCard' });
+      expect(flow.steps[2]).toEqual({ id: 'checkoutFlow_orch_NotificationOrchestration_3', type: 'functionalityOrchestration', target: 'NotificationOrchestration', flow: 'sendReceipt' });
       expect(flow.visibility).toBe('public');
       expect(orch.getFlow('checkoutFlow')).toBe(flow);
       expect(orch.listFlows()).toHaveLength(1);
@@ -294,15 +294,15 @@ describe('KrnlTS kernel invariants', () => {
 
       expect(() => orch.flow('')).toThrow(/Flow name must be a non-empty string/);
       expect(() => orch.flow('bad').thenFunctionality('')).toThrow(/Functionality name must be a non-empty string/);
-      expect(() => orch.flow('bad').thenOrchestration('')).toThrow(/Orchestration name must be a non-empty string/);
-      expect(() => new Orchestration(null as any)).toThrow(/Valid orchestration descriptor/);
+      expect(() => orch.flow('bad').thenFunctionalityOrchestration('')).toThrow(/Orchestration name must be a non-empty string/);
+      expect(() => new FunctionalityOrchestration(null as any)).toThrow(/Valid descriptor/);
     });
 
-    it('instantiates ServiceFacade as the public semantic boundary and integrates with runtime', async () => {
+    it('instantiates ServiceFacade as the public semantic boundary and integrates with runtime and BullMQ queue', async () => {
       const { ServiceFacade, createServiceFacade } = await import('../services/ServiceFacade.js');
-      const { Orchestration } = await import('../orchestration/Orchestration.js');
+      const { FunctionalityOrchestration } = await import('../orchestration/FunctionalityOrchestration.js');
 
-      const orch = new Orchestration({ id: 'AuthOrch', name: 'AuthFlow' });
+      const orch = new FunctionalityOrchestration({ id: 'AuthOrch', name: 'AuthFlow' });
       orch.flow('loginFlow').thenFunctionality('VerifyPassword').register();
 
       const facade = createServiceFacade({
@@ -313,7 +313,7 @@ describe('KrnlTS kernel invariants', () => {
         functionalities: {
           VerifyPassword: { execute: vi.fn() },
         },
-        orchestrations: {
+        functionalityOrchestrations: {
           AuthOrch: orch,
         },
         definition: {
@@ -338,7 +338,7 @@ describe('KrnlTS kernel invariants', () => {
       expect(facade.id).toBe('auth.service');
       expect(facade.name).toBe('AuthService');
       expect(facade.functionalities.VerifyPassword).toBeDefined();
-      expect(facade.orchestrations.AuthOrch).toBe(orch);
+      expect(facade.functionalityOrchestrations.AuthOrch).toBe(orch);
       expect(facade.getStatus()).toBe('uninitialized');
 
       // Test runtime lifecycle through facade
@@ -357,7 +357,7 @@ describe('KrnlTS kernel invariants', () => {
       expect(eventSpy).toHaveBeenCalledWith({ userId: 'u1' });
       unsub();
 
-      // Operation invocation through facade
+      // Operation invocation through facade (strictly routes through BullMQ / worker context)
       const res = await facade.call('login', {});
       expect(res).toEqual({ success: true, user: 'admin' });
 
@@ -365,9 +365,9 @@ describe('KrnlTS kernel invariants', () => {
       facade.registerFunctionality('RefreshToken', { execute: vi.fn() });
       expect(facade.functionalities.RefreshToken).toBeDefined();
 
-      const secondOrch = new Orchestration({ id: 'SessionOrch' });
-      facade.registerOrchestration('SessionOrch', secondOrch);
-      expect(facade.orchestrations.SessionOrch).toBe(secondOrch);
+      const secondOrch = new FunctionalityOrchestration({ id: 'SessionOrch' });
+      facade.registerFunctionalityOrchestration('SessionOrch', secondOrch);
+      expect(facade.functionalityOrchestrations.SessionOrch).toBe(secondOrch);
 
       await facade.stop();
       expect(facade.getStatus()).toBe('stopped');
@@ -380,7 +380,9 @@ describe('KrnlTS kernel invariants', () => {
       expect((coreExports as any).defineApp).toBeUndefined();
       expect((coreExports as any).Protocols).toBeUndefined();
       expect((coreExports as any).KrnlMagneticLoader).toBeUndefined();
-      expect(coreExports.Orchestration).toBeDefined();
+      expect(coreExports.FunctionalityOrchestration).toBeDefined();
+      expect(coreExports.BullMQExecutionEngine).toBeDefined();
+      expect(coreExports.WorkerExecutionBoundary).toBeDefined();
       expect(coreExports.ServiceFacade).toBeDefined();
       expect(coreExports.createServiceFacade).toBeDefined();
     });
