@@ -18,13 +18,13 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema,esbuild,bullmq --clean",
+    "build": "tsup --config tsup.config.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "bullmq": "^6.3.8",
     "esbuild": "^0.25.0",
+    "p-queue": "^10.0.0",
     "protobufjs": "^8.7.1",
     "ws": "^8.18.0",
     "zod": "3.24.1",

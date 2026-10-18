@@ -270,6 +270,33 @@ export class FunctionalityOrchestration {
   }
 
   /**
+   * Converts this FunctionalityOrchestration to a pure serializable OrchestrationDefinition.
+   */
+  toDefinition(): import('./canonical/model.js').OrchestrationDefinition {
+    return {
+      id: this.id,
+      name: this.name,
+      version: this.version,
+      description: this.description,
+      timeoutMs: this.timeoutMs,
+      scope: 'functionality',
+      dependencies: [],
+      steps: this.steps.map((s) => ({
+        id: s.id,
+        name: s.name,
+        type: s.type,
+        target: s.target,
+        dependsOn: s.dependsOn ? [...s.dependsOn] : undefined,
+        retryPolicy: s.retryPolicy ? { ...s.retryPolicy } : undefined,
+        timeoutPolicy: s.timeoutPolicy ? { ...s.timeoutPolicy } : undefined,
+        compensation: s.compensation ? { name: s.compensation.name, target: s.compensation.target } : undefined,
+        nestedOrchestrationId: s.nestedOrchestrationId,
+        concurrency: s.concurrency,
+      })),
+    };
+  }
+
+  /**
    * Named flow builder interface.
    */
   flow(name: string): FunctionalityFlow {

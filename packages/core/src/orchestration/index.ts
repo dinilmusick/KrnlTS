@@ -3,7 +3,7 @@
  * @description Canonical Orchestration exports for KrnlTS services:
  * - FunctionalityOrchestration (Single-service scope)
  * - Canonical Isomorphic Orchestration Model & Types
- * - BullMQExecutionEngine
+ * - KrnlQ Execution Engine & Worker Pool
  * - WorkerExecutionBoundary
  */
 

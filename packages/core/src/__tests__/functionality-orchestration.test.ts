@@ -1,23 +1,23 @@
 /**
  * @file functionality-orchestration.test.ts
  * @description Comprehensive test suite for KrnlTS FunctionalityOrchestration,
- * canonical BullMQ execution engine, worker execution boundary, and service facade mediation.
+ * canonical KrnlQ execution engine, worker execution boundary, and service facade mediation.
  */
 
 import { describe, it, expect, vi } from 'vitest';
 import {
   FunctionalityOrchestration,
-  BullMQExecutionEngine,
+  KrnlQueue,
   WorkerExecutionBoundary,
   createServiceFacade,
   createServiceDefinition,
   validateOrchestrationDAG,
 } from '../index.js';
 
-describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', () => {
-  // 1. Single functionality execution through BullMQ & Worker boundary
-  it('executes a single functionality through BullMQ worker execution boundary', async () => {
-    const engine = new BullMQExecutionEngine({ queueName: 'test_func_queue' });
+describe('KrnlTS FunctionalityOrchestration & Canonical KrnlQ Architecture', () => {
+  // 1. Single functionality execution through KrnlQ & Worker boundary
+  it('executes a single functionality through KrnlQ worker execution boundary', async () => {
+    const engine = new KrnlQueue({ queueName: 'test_func_queue' });
     await engine.start();
 
     const command = {
@@ -53,7 +53,7 @@ describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', ()
     expect(steps[1].dependsOn).toEqual([steps[0].id]);
     expect(steps[2].dependsOn).toEqual([steps[1].id]);
 
-    const engine = new BullMQExecutionEngine({ queueName: 'test_seq_queue' });
+    const engine = new KrnlQueue({ queueName: 'test_seq_queue' });
     await engine.start();
 
     const boundSteps = [
@@ -97,7 +97,7 @@ describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', ()
     const steps = orch.getSteps();
     expect(steps).toHaveLength(3); // 2 task nodes + 1 fanIn join node
 
-    const engine = new BullMQExecutionEngine({ queueName: 'test_parallel_queue' });
+    const engine = new KrnlQueue({ queueName: 'test_parallel_queue' });
     await engine.start();
 
     const executionLog: string[] = [];
@@ -155,7 +155,7 @@ describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', ()
     );
 
     const steps = orch.getSteps();
-    const engine = new BullMQExecutionEngine({ queueName: 'test_branch_queue' });
+    const engine = new KrnlQueue({ queueName: 'test_branch_queue' });
     await engine.start();
 
     const boundSteps = steps.map((s) => ({
@@ -196,7 +196,7 @@ describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', ()
     });
 
     const steps = orch.getSteps();
-    const engine = new BullMQExecutionEngine({ queueName: 'test_fanout_queue' });
+    const engine = new KrnlQueue({ queueName: 'test_fanout_queue' });
     await engine.start();
 
     const boundSteps = [
@@ -225,7 +225,7 @@ describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', ()
 
   // 6. Retries with backoff
   it('retries failing steps with backoff policy and succeeds upon subsequent attempt', async () => {
-    const engine = new BullMQExecutionEngine({ queueName: 'test_retry_queue' });
+    const engine = new KrnlQueue({ queueName: 'test_retry_queue' });
     await engine.start();
 
     let attempts = 0;
@@ -257,7 +257,7 @@ describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', ()
 
   // 7. Timeout handling
   it('handles step timeouts and aborts gracefully', async () => {
-    const engine = new BullMQExecutionEngine({ queueName: 'test_timeout_queue' });
+    const engine = new KrnlQueue({ queueName: 'test_timeout_queue' });
     await engine.start();
 
     const steps = [
@@ -282,7 +282,7 @@ describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', ()
 
   // 8. Failure propagation & saga compensation
   it('propagates errors and rolls back executed steps via saga compensation hooks', async () => {
-    const engine = new BullMQExecutionEngine({ queueName: 'test_comp_queue' });
+    const engine = new KrnlQueue({ queueName: 'test_comp_queue' });
     await engine.start();
 
     const compensated: string[] = [];
@@ -320,7 +320,7 @@ describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', ()
 
   // 9. Cancellation
   it('supports explicit cancellation of running orchestrations', async () => {
-    const engine = new BullMQExecutionEngine({ queueName: 'test_cancel_queue' });
+    const engine = new KrnlQueue({ queueName: 'test_cancel_queue' });
     await engine.start();
 
     let started = false;
@@ -341,7 +341,7 @@ describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', ()
     await new Promise((r) => setTimeout(r, 20));
 
     // Cancel by context
-    const cancelled = engine.cancelExecution((engine as any).activeExecutions.keys().next().value);
+    const cancelled = engine.cancelExecution((engine as any).activeOrchestrations.keys().next().value);
     expect(cancelled).toBe(true);
 
     const result = await execPromise;
@@ -352,7 +352,7 @@ describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', ()
 
   // 10. Idempotency & Correlation IDs
   it('enforces idempotency and propagates correlation IDs across execution', async () => {
-    const engine = new BullMQExecutionEngine({ queueName: 'test_idempotency_queue' });
+    const engine = new KrnlQueue({ queueName: 'test_idempotency_queue' });
     await engine.start();
 
     let invocationCount = 0;
@@ -390,8 +390,8 @@ describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', ()
     await engine.dispose();
   });
 
-  // 11. ServiceFacade -> BullMQ -> Worker -> Functionality
-  it('routes ServiceFacade.call() through BullMQ worker boundary and executes functionality', async () => {
+  // 11. ServiceFacade -> KrnlQ -> Worker -> Functionality
+  it('routes ServiceFacade.call() through KrnlQ worker boundary and executes functionality', async () => {
     const facade = createServiceFacade({
       id: 'calculator.service',
       name: 'CalculatorService',
@@ -423,8 +423,8 @@ describe('KrnlTS FunctionalityOrchestration & Canonical BullMQ Architecture', ()
     await facade.dispose();
   });
 
-  // 12. ServiceFacade -> BullMQ -> Worker -> FunctionalityOrchestration
-  it('routes ServiceFacade.orchestrate() through BullMQ worker boundary', async () => {
+  // 12. ServiceFacade -> KrnlQ -> Worker -> FunctionalityOrchestration
+  it('routes ServiceFacade.orchestrate() through KrnlQ worker boundary', async () => {
     const orch = new FunctionalityOrchestration({ id: 'ComputeAndLog' });
     orch
       .thenFunctionality('multiply')

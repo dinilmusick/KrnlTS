@@ -310,7 +310,7 @@ describe('KrnlTS kernel invariants', () => {
       expect(() => new FunctionalityOrchestration(null as any)).toThrow(/Valid descriptor/);
     });
 
-    it('instantiates ServiceFacade as the public semantic boundary and integrates with runtime and BullMQ queue', async () => {
+    it('instantiates ServiceFacade as the public semantic boundary and integrates with runtime and KrnlQ queue', async () => {
       const { ServiceFacade, createServiceFacade } = await import('../services/ServiceFacade.js');
       const { FunctionalityOrchestration } = await import('../orchestration/FunctionalityOrchestration.js');
 
@@ -369,7 +369,7 @@ describe('KrnlTS kernel invariants', () => {
       expect(eventSpy).toHaveBeenCalledWith({ userId: 'u1' });
       unsub();
 
-      // Operation invocation through facade (strictly routes through BullMQ / worker context)
+      // Operation invocation through facade (strictly routes through KrnlQ / worker context)
       const res = await facade.call('login', {});
       expect(res).toEqual({ success: true, user: 'admin' });
 
@@ -391,9 +391,9 @@ describe('KrnlTS kernel invariants', () => {
       expect((coreExports as any).Entity).toBeUndefined();
       expect((coreExports as any).defineApp).toBeUndefined();
       expect((coreExports as any).Protocols).toBeUndefined();
-      expect((coreExports as any).KrnlMagneticLoader).toBeUndefined();
       expect(coreExports.FunctionalityOrchestration).toBeDefined();
-      expect(coreExports.BullMQExecutionEngine).toBeDefined();
+      expect(coreExports.KrnlQueue).toBeDefined();
+      expect(coreExports.KrnlWorkerPool).toBeDefined();
       expect(coreExports.WorkerExecutionBoundary).toBeDefined();
       expect(coreExports.ServiceFacade).toBeDefined();
       expect(coreExports.createServiceFacade).toBeDefined();

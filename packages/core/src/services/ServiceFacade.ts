@@ -3,7 +3,7 @@
  * @description Canonical ServiceFacade for KrnlTS services.
  * Callable boundary of a service, composing functionalities, functionality orchestrations,
  * state, events, dependencies, capabilities, and lifecycle.
- * All external invocations strictly route through the BullMQ execution engine and worker boundary.
+ * All external invocations strictly route through KrnlQ and worker execution boundary.
  */
 
 import type {
@@ -16,10 +16,7 @@ import type {
 } from './ServiceContract.js';
 import { ServiceInstance } from './ServiceInstance.js';
 import { FunctionalityOrchestration } from '../orchestration/FunctionalityOrchestration.js';
-import {
-  BullMQExecutionEngine,
-  BullMQConnectionOptions,
-} from '../orchestration/canonical/BullMQExecutionEngine.js';
+import { KrnlQueue, KrnlQueueOptions } from '../orchestration/canonical/KrnlQ.js';
 import {
   BackendCommand,
   WorkerExecutionBoundary,
@@ -46,7 +43,7 @@ export interface ServiceFacadeConfig<
   instance?: IService<TState, TEvents>;
   dependencies?: DependencyContract[];
   capabilities?: ServiceCapability[];
-  queueConnection?: BullMQConnectionOptions;
+  queueOptions?: KrnlQueueOptions;
   concurrency?: number;
 }
 
@@ -67,7 +64,7 @@ export class ServiceFacade<
   public readonly capabilities: readonly ServiceCapability[];
 
   private readonly instance: IService<TState, TEvents>;
-  private readonly executionEngine: BullMQExecutionEngine;
+  private readonly queue: KrnlQueue;
 
   constructor(config: ServiceFacadeConfig<TState, TEvents>) {
     if (!config || !config.id || typeof config.id !== 'string') {
@@ -100,10 +97,10 @@ export class ServiceFacade<
       });
     }
 
-    this.executionEngine = new BullMQExecutionEngine({
+    this.queue = new KrnlQueue({
       queueName: `krnl_queue_${this.id}`,
-      connection: config.queueConnection,
-      concurrency: config.concurrency ?? 10,
+      concurrency: config.concurrency ?? config.queueOptions?.concurrency ?? 10,
+      autoStart: config.queueOptions?.autoStart ?? true,
     });
   }
 
@@ -115,12 +112,16 @@ export class ServiceFacade<
     return this.instance;
   }
 
-  getExecutionEngine(): BullMQExecutionEngine {
-    return this.executionEngine;
+  getQueue(): KrnlQueue {
+    return this.queue;
+  }
+
+  getExecutionEngine(): KrnlQueue {
+    return this.queue;
   }
 
   getWorkerBoundary(): WorkerExecutionBoundary {
-    return this.executionEngine.getWorkerBoundary();
+    return this.queue.getWorkerBoundary();
   }
 
   getStatus(): ServiceStatus {
@@ -129,22 +130,22 @@ export class ServiceFacade<
 
   async start(): Promise<void> {
     await this.instance.start();
-    await this.executionEngine.start();
+    await this.queue.start();
   }
 
   async stop(): Promise<void> {
-    await this.executionEngine.stop();
+    await this.queue.stop();
     await this.instance.stop();
   }
 
   async dispose(): Promise<void> {
-    await this.executionEngine.dispose();
+    await this.queue.dispose();
     await this.instance.dispose();
   }
 
   /**
    * External caller callable boundary for single functionality / operation execution.
-   * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> Functionality -> Result.
+   * Path: External Caller -> Service Facade -> KrnlQ Job -> Worker -> Functionality -> Result.
    * Strictly avoids synchronous unmediated execution outside the queue.
    */
   async call<TIn = unknown, TOut = unknown>(
@@ -164,8 +165,8 @@ export class ServiceFacade<
       createdAt: Date.now(),
     };
 
-    const result = await this.executionEngine.executeCommand<TIn, TOut>(command, async (payload, workerCtx) => {
-      // Execute in worker context
+    const result = await this.queue.executeCommand<TIn, TOut>(command, async (payload, workerCtx) => {
+      // Execute inside KrnlWorker context
       WorkerExecutionBoundary.assertWorkerContext(workerCtx);
 
       // 1. Check direct functionality implementation
@@ -192,7 +193,7 @@ export class ServiceFacade<
 
   /**
    * External caller callable boundary for functionality orchestration execution.
-   * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> FunctionalityOrchestration -> Result.
+   * Path: External Caller -> Service Facade -> KrnlQ Command -> Worker -> FunctionalityOrchestration -> Result.
    */
   async orchestrate<TIn = unknown, TOut = unknown>(
     orchestrationName: string,
@@ -224,7 +225,7 @@ export class ServiceFacade<
       createdAt: Date.now(),
     };
 
-    const cmdResult = await this.executionEngine.executeCommand<TIn, OrchestrationResult<TOut>>(
+    const cmdResult = await this.queue.executeCommand<TIn, OrchestrationResult<TOut>>(
       command,
       async (payload, workerCtx) => {
         WorkerExecutionBoundary.assertWorkerContext(workerCtx);
@@ -321,7 +322,7 @@ export class ServiceFacade<
           return nestedResult.output;
         };
 
-        return await this.executionEngine.executeOrchestration<TIn, TOut>(
+        return await this.queue.executeOrchestration<TIn, TOut>(
           { id: orch.id, name: orch.name, version: orch.version, timeoutMs: orch.timeoutMs, scope: 'functionality' },
           boundSteps,
           payload,
@@ -345,8 +346,8 @@ export class ServiceFacade<
   }
 
   /**
-   * Executes a callable operation or orchestration through BullMQ queue and worker boundary.
-   * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> Functionality / Orchestration -> Result.
+   * Executes a callable operation or orchestration through KrnlQ and worker boundary.
+   * Path: External Caller -> Service Facade -> KrnlQ Command -> Worker -> Functionality / Orchestration -> Result.
    * Strictly queue-mediated; zero unmediated bypasses.
    */
   async execute<TIn = unknown, TOut = unknown>(

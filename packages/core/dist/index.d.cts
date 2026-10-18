@@ -218,8 +218,8 @@ declare function createServiceProxy<TState extends Record<string, unknown> = Rec
 /**
  * @file model.ts
  * @description Canonical Isomorphic Orchestration Model.
- * Provides unified schema and invariants for FunctionalityOrchestration (KrnlTS)
- * and ServiceOrchestration (Skipo).
+ * Provides unified schema, serializable definition contracts, and invariants for
+ * FunctionalityOrchestration (KrnlTS) and ServiceOrchestration (Skipo).
  */
 type StepType = 'task' | 'sequential' | 'parallel' | 'branch' | 'conditional' | 'fanOut' | 'fanIn' | 'diamond' | 'delay' | 'nested';
 type StepStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'SKIPPED' | 'TIMED_OUT';
@@ -231,7 +231,7 @@ interface StepRetryPolicy {
     readonly backoffMs?: number;
     readonly maxBackoffMs?: number;
     readonly jitter?: boolean;
-    readonly retryOnErrors?: string[];
+    readonly retryOnErrors?: readonly string[];
     readonly backoffMultiplier?: number;
     readonly initialDelayMs?: number;
 }
@@ -246,6 +246,45 @@ interface StepCompensation<TContext = OrchestrationContext> {
 }
 type SagaCompensationHandler<TOutput = unknown> = (output: TOutput, context: OrchestrationContext) => Promise<void>;
 type StepCondition<TContext = OrchestrationContext> = (context: TContext) => boolean | Promise<boolean>;
+/**
+ * Pure serializable definition of a step (Distributable through Kloks).
+ * Free from arbitrary runtime closures.
+ */
+interface StepDefinition {
+    readonly id: string;
+    readonly name: string;
+    readonly type: StepType;
+    readonly target?: string;
+    readonly operation?: string;
+    readonly dependsOn?: readonly string[];
+    readonly conditionExpression?: string;
+    readonly retryPolicy?: StepRetryPolicy;
+    readonly timeoutPolicy?: StepTimeoutPolicy;
+    readonly compensationTarget?: string;
+    readonly compensationOperation?: string;
+    readonly concurrency?: number;
+    readonly nestedOrchestrationId?: string;
+    readonly metadata?: Record<string, unknown>;
+}
+/**
+ * Pure serializable definition of an orchestration workflow (Distributable through Kloks).
+ * Zero execution machinery, zero runtime closures.
+ */
+interface OrchestrationDefinition<TInput = unknown, TOutput = unknown> {
+    readonly id: string;
+    readonly name: string;
+    readonly version: string;
+    readonly description?: string;
+    readonly scope: 'functionality' | 'service';
+    readonly dependencies: readonly string[];
+    readonly timeoutMs?: number;
+    readonly concurrency?: number;
+    readonly steps: readonly StepDefinition[];
+    readonly metadata?: Record<string, unknown>;
+}
+/**
+ * Runtime execution step representation with bound handlers.
+ */
 interface OrchestrationStep<TInput = unknown, TOutput = unknown> {
     readonly id: string;
     readonly name: string;
@@ -315,16 +354,16 @@ interface DAGValidationResult {
     readonly errors: readonly string[];
 }
 /**
- * Validates DAG structure: checks for existence, circular dependencies, and returns topological order.
+ * Validates DAG structure & semantic policies:
+ * - Duplicate step IDs
+ * - Missing dependencies
+ * - Cycles / circular dependencies (topological sort via Kahn's algorithm)
+ * - Negative or invalid timeouts
+ * - Invalid retry policies (attempts < 1, negative backoff)
+ * - Empty step targets
+ * - Concurrency bounds
  */
 declare function validateOrchestrationDAG(steps: readonly OrchestrationStep[]): DAGValidationResult;
-
-/**
- * @file FunctionalityOrchestration.ts
- * @description Canonical FunctionalityOrchestration for KrnlTS services.
- * Strictly scopes orchestration to functionalities belonging to ONE service.
- * Conforms to L1 (Plane Isolation) & Invariant: A service never orchestrates independent services.
- */
 
 interface FunctionalityFlowStep {
     readonly id: string;
@@ -400,6 +439,10 @@ declare class FunctionalityOrchestration {
     thenFunctionalityOrchestration(childOrchId: string, options?: FunctionalityStepOptions): this;
     getSteps(): readonly OrchestrationStep[];
     /**
+     * Converts this FunctionalityOrchestration to a pure serializable OrchestrationDefinition.
+     */
+    toDefinition(): OrchestrationDefinition;
+    /**
      * Named flow builder interface.
      */
     flow(name: string): FunctionalityFlow;
@@ -411,7 +454,7 @@ declare class FunctionalityOrchestration {
 
 /**
  * @file WorkerExecutionBoundary.ts
- * @description Worker Execution Boundary mediating all job execution from BullMQ workers
+ * @description Worker Execution Boundary mediating all job execution from Krnl workers
  * to service functionalities and orchestrations.
  * Enforces worker context invariants (no synchronous/unmediated direct execution).
  */
@@ -446,48 +489,129 @@ declare class WorkerExecutionBoundary {
 }
 
 /**
- * @file BullMQExecutionEngine.ts
- * @description Canonical BullMQ Execution Engine for both KrnlTS and Skipo.
- * Implements isomorphic DAG execution, sequential/parallel steps, retries with backoff,
- * timeouts, compensation/saga rollback, branching, fan-out/fan-in, and idempotency.
+ * @file KrnlWorkerPool.ts
+ * @description Worker lifecycle management and context factory for KrnlTS services.
+ * Tracks worker state transitions: created -> started -> running -> draining -> stopped.
+ * Ensures all job executions happen with valid ExecutionContext.
  */
 
-interface BullMQConnectionOptions {
-    host?: string;
-    port?: number;
-    url?: string;
-    password?: string;
-    tls?: unknown;
-}
-interface ExecutionEngineOptions {
-    queueName?: string;
-    connection?: BullMQConnectionOptions;
-    concurrency?: number;
-    useInMemory?: boolean;
-}
-type BullMQExecutionEngineOptions = ExecutionEngineOptions;
-declare class BullMQExecutionEngine {
+type KrnlWorkerState = 'created' | 'started' | 'running' | 'draining' | 'stopped';
+interface KrnlWorkerInfo {
+    readonly id: string;
     readonly queueName: string;
-    private readonly concurrency;
-    private readonly idempotencyStore;
-    private readonly activeExecutions;
-    private readonly inMemoryJobs;
-    private isRunning;
-    private activeWorkerCount;
+    readonly state: KrnlWorkerState;
+    readonly startedAt: number;
+    readonly activeJobs: number;
+}
+declare class KrnlWorkerPool {
+    readonly queueName: string;
+    readonly workerId: string;
+    private state;
+    private activeJobsCount;
+    private readonly startedAt;
     private readonly workerBoundary;
-    constructor(options?: Partial<ExecutionEngineOptions>);
+    constructor(queueName: string, workerId?: string);
+    getState(): KrnlWorkerState;
+    getActiveJobs(): number;
+    getWorkerBoundary(): WorkerExecutionBoundary;
+    getInfo(): KrnlWorkerInfo;
+    start(): void;
+    createContext(correlationId?: string, metadata?: Record<string, unknown>): ExecutionContext;
+    runWithContext<T>(correlationId: string | undefined, metadata: Record<string, unknown> | undefined, fn: (ctx: ExecutionContext) => Promise<T>): Promise<T>;
+    drain(): Promise<void>;
+    stop(): Promise<void>;
+}
+
+/**
+ * @file KrnlQ.ts
+ * @description In-process execution queue for a single KrnlTS service.
+ * Uses p-queue internally as the low-level scheduling and concurrency primitive.
+ * Zero Redis, zero Docker, zero BullMQ, 100% portable TypeScript.
+ */
+
+type JobStatus = 'waiting' | 'active' | 'completed' | 'failed' | 'cancelled';
+interface KrnlJobOptions {
+    priority?: number;
+    timeoutMs?: number;
+    retries?: number;
+    backoffMs?: number;
+    backoffPolicy?: 'fixed' | 'exponential';
+    idempotencyKey?: string;
+    correlationId?: string;
+    metadata?: Record<string, unknown>;
+    abortSignal?: AbortSignal;
+}
+interface KrnlJobDefinition<TInput = unknown, TOutput = unknown> {
+    id?: string;
+    name: string;
+    payload: TInput;
+    handler: (payload: TInput, context: ExecutionContext) => Promise<TOutput>;
+    options?: KrnlJobOptions;
+}
+interface KrnlJobHandle<TOutput = unknown> {
+    readonly id: string;
+    readonly name: string;
+    getStatus(): JobStatus;
+    result(): Promise<TOutput>;
+    cancel(): boolean;
+}
+interface KrnlQueueOptions {
+    queueName?: string;
+    concurrency?: number;
+    autoStart?: boolean;
+}
+interface InternalJobRecord<TOutput = unknown> {
+    id: string;
+    name: string;
+    status: JobStatus;
+    createdAt: number;
+    startedAt?: number;
+    completedAt?: number;
+    result?: TOutput;
+    error?: string;
+    abortController: AbortController;
+    resolvePromise: (val: TOutput) => void;
+    rejectPromise: (err: any) => void;
+    promise: Promise<TOutput>;
+}
+declare class KrnlQueue {
+    readonly queueName: string;
+    private readonly queue;
+    private readonly workerPool;
+    private readonly jobs;
+    private readonly idempotencyStore;
+    private readonly activeOrchestrations;
+    constructor(options?: KrnlQueueOptions);
+    get concurrency(): number;
+    set concurrency(value: number);
+    get size(): number;
+    get pending(): number;
+    get isPaused(): boolean;
+    getWorkerBoundary(): WorkerExecutionBoundary;
+    getWorkerPool(): KrnlWorkerPool;
+    pause(): void;
+    resume(): void;
+    clear(): void;
+    drain(): Promise<void>;
+    shutdown(options?: {
+        drain?: boolean;
+    }): Promise<void>;
+    close(): Promise<void>;
+    dispose(): Promise<void>;
     start(): Promise<void>;
     stop(): Promise<void>;
-    dispose(): Promise<void>;
-    close(): Promise<void>;
-    getWorkerBoundary(): WorkerExecutionBoundary;
     /**
-     * Dispatches a single command through the BullMQ queue and worker execution boundary.
+     * Enqueues a job returning a strong handle.
+     */
+    enqueue<TInput = unknown, TOutput = unknown>(jobDef: KrnlJobDefinition<TInput, TOutput>): KrnlJobHandle<TOutput>;
+    cancel(jobId: string): boolean;
+    getJob(jobId: string): InternalJobRecord | undefined;
+    /**
+     * Dispatches a single command through the KrnlQ worker boundary.
      */
     executeCommand<TIn = unknown, TOut = unknown>(command: BackendCommand<TIn>, handler: (payload: TIn, context: ExecutionContext) => Promise<TOut>): Promise<NormalizedResult<TOut>>;
-    private dispatchInternalCommand;
     /**
-     * Executes a full Canonical Orchestration DAG through the BullMQ worker boundary.
+     * Executes a full Canonical Orchestration DAG through KrnlQ and worker boundary.
      */
     executeOrchestration<TInput = unknown, TOutput = unknown>(descriptor: OrchestrationDescriptor, steps: readonly OrchestrationStep[], input: TInput, options?: {
         correlationId?: string;
@@ -508,7 +632,7 @@ declare class BullMQExecutionEngine {
  * @description Canonical ServiceFacade for KrnlTS services.
  * Callable boundary of a service, composing functionalities, functionality orchestrations,
  * state, events, dependencies, capabilities, and lifecycle.
- * All external invocations strictly route through the BullMQ execution engine and worker boundary.
+ * All external invocations strictly route through KrnlQ and worker execution boundary.
  */
 
 interface ServiceFacadeConfig<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>> {
@@ -524,7 +648,7 @@ interface ServiceFacadeConfig<TState extends Record<string, unknown> = Record<st
     instance?: IService<TState, TEvents>;
     dependencies?: DependencyContract[];
     capabilities?: ServiceCapability[];
-    queueConnection?: BullMQConnectionOptions;
+    queueOptions?: KrnlQueueOptions;
     concurrency?: number;
 }
 type IServiceFacade = ServiceFacade;
@@ -538,11 +662,12 @@ declare class ServiceFacade<TState extends Record<string, unknown> = Record<stri
     readonly dependencies: readonly DependencyContract[];
     readonly capabilities: readonly ServiceCapability[];
     private readonly instance;
-    private readonly executionEngine;
+    private readonly queue;
     constructor(config: ServiceFacadeConfig<TState, TEvents>);
     get orchestrations(): Record<string, FunctionalityOrchestration>;
     getInstance(): IService<TState, TEvents>;
-    getExecutionEngine(): BullMQExecutionEngine;
+    getQueue(): KrnlQueue;
+    getExecutionEngine(): KrnlQueue;
     getWorkerBoundary(): WorkerExecutionBoundary;
     getStatus(): ServiceStatus;
     start(): Promise<void>;
@@ -550,13 +675,13 @@ declare class ServiceFacade<TState extends Record<string, unknown> = Record<stri
     dispose(): Promise<void>;
     /**
      * External caller callable boundary for single functionality / operation execution.
-     * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> Functionality -> Result.
+     * Path: External Caller -> Service Facade -> KrnlQ Job -> Worker -> Functionality -> Result.
      * Strictly avoids synchronous unmediated execution outside the queue.
      */
     call<TIn = unknown, TOut = unknown>(op: string, input?: TIn, ctx?: OperationContext): Promise<TOut>;
     /**
      * External caller callable boundary for functionality orchestration execution.
-     * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> FunctionalityOrchestration -> Result.
+     * Path: External Caller -> Service Facade -> KrnlQ Command -> Worker -> FunctionalityOrchestration -> Result.
      */
     orchestrate<TIn = unknown, TOut = unknown>(orchestrationName: string, input?: TIn, options?: {
         correlationId?: string;
@@ -566,8 +691,8 @@ declare class ServiceFacade<TState extends Record<string, unknown> = Record<stri
         abortSignal?: AbortSignal;
     }): Promise<OrchestrationResult<TOut>>;
     /**
-     * Executes a callable operation or orchestration through BullMQ queue and worker boundary.
-     * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> Functionality / Orchestration -> Result.
+     * Executes a callable operation or orchestration through KrnlQ and worker boundary.
+     * Path: External Caller -> Service Facade -> KrnlQ Command -> Worker -> Functionality / Orchestration -> Result.
      * Strictly queue-mediated; zero unmediated bypasses.
      */
     execute<TIn = unknown, TOut = unknown>(target: string, input?: TIn, options?: {
@@ -800,4 +925,4 @@ declare class ProtocolResolver {
     static getSupportedProtocols(definition: ServiceDefinition): ProtocolType[];
 }
 
-export { type BackendCommand, type BullMQConnectionOptions, BullMQExecutionEngine, type BullMQExecutionEngineOptions, type Connection, type DAGValidationResult, type DependencyContract, type EndpointDescriptor, type EventContract, type ExecutionContext, type ExecutionEngineOptions, type FunctionalityFlow, type FunctionalityFlowStep, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, KrnlPackageReconciler, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDescriptor, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createService, createServiceDefinition, createServiceFacade, createServiceProxy, validateOrchestrationDAG, validateServiceDefinition };
+export { type BackendCommand, type Connection, type DAGValidationResult, type DependencyContract, type EndpointDescriptor, type EventContract, type ExecutionContext, type FunctionalityFlow, type FunctionalityFlowStep, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlPackageReconciler, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createService, createServiceDefinition, createServiceFacade, createServiceProxy, validateOrchestrationDAG, validateServiceDefinition };

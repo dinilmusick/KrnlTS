@@ -1,8 +1,8 @@
 /**
  * @file model.ts
  * @description Canonical Isomorphic Orchestration Model.
- * Provides unified schema and invariants for FunctionalityOrchestration (KrnlTS)
- * and ServiceOrchestration (Skipo).
+ * Provides unified schema, serializable definition contracts, and invariants for
+ * FunctionalityOrchestration (KrnlTS) and ServiceOrchestration (Skipo).
  */
 
 export type StepType =
@@ -42,7 +42,7 @@ export interface StepRetryPolicy {
   readonly backoffMs?: number;
   readonly maxBackoffMs?: number;
   readonly jitter?: boolean;
-  readonly retryOnErrors?: string[];
+  readonly retryOnErrors?: readonly string[];
   readonly backoffMultiplier?: number;
   readonly initialDelayMs?: number;
 }
@@ -67,6 +67,47 @@ export type StepCondition<TContext = OrchestrationContext> = (
   context: TContext
 ) => boolean | Promise<boolean>;
 
+/**
+ * Pure serializable definition of a step (Distributable through Kloks).
+ * Free from arbitrary runtime closures.
+ */
+export interface StepDefinition {
+  readonly id: string;
+  readonly name: string;
+  readonly type: StepType;
+  readonly target?: string;
+  readonly operation?: string;
+  readonly dependsOn?: readonly string[];
+  readonly conditionExpression?: string;
+  readonly retryPolicy?: StepRetryPolicy;
+  readonly timeoutPolicy?: StepTimeoutPolicy;
+  readonly compensationTarget?: string;
+  readonly compensationOperation?: string;
+  readonly concurrency?: number;
+  readonly nestedOrchestrationId?: string;
+  readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Pure serializable definition of an orchestration workflow (Distributable through Kloks).
+ * Zero execution machinery, zero runtime closures.
+ */
+export interface OrchestrationDefinition<TInput = unknown, TOutput = unknown> {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly description?: string;
+  readonly scope: 'functionality' | 'service';
+  readonly dependencies: readonly string[];
+  readonly timeoutMs?: number;
+  readonly concurrency?: number;
+  readonly steps: readonly StepDefinition[];
+  readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Runtime execution step representation with bound handlers.
+ */
 export interface OrchestrationStep<TInput = unknown, TOutput = unknown> {
   readonly id: string;
   readonly name: string;
@@ -142,17 +183,60 @@ export interface DAGValidationResult {
 }
 
 /**
- * Validates DAG structure: checks for existence, circular dependencies, and returns topological order.
+ * Validates DAG structure & semantic policies:
+ * - Duplicate step IDs
+ * - Missing dependencies
+ * - Cycles / circular dependencies (topological sort via Kahn's algorithm)
+ * - Negative or invalid timeouts
+ * - Invalid retry policies (attempts < 1, negative backoff)
+ * - Empty step targets
+ * - Concurrency bounds
  */
 export function validateOrchestrationDAG(steps: readonly OrchestrationStep[]): DAGValidationResult {
   const errors: string[] = [];
   const stepMap = new Map<string, OrchestrationStep>();
 
   for (const step of steps) {
+    if (!step.id || typeof step.id !== 'string' || step.id.trim() === '') {
+      errors.push('Step must have a non-empty string ID.');
+      continue;
+    }
     if (stepMap.has(step.id)) {
       errors.push(`Duplicate step ID detected: "${step.id}"`);
     }
     stepMap.set(step.id, step);
+
+    // Validate timeouts
+    if (step.timeoutPolicy) {
+      if (typeof step.timeoutPolicy.timeoutMs !== 'number' || step.timeoutPolicy.timeoutMs <= 0) {
+        errors.push(`Step "${step.id}" has invalid timeoutMs: must be a positive number.`);
+      }
+    }
+
+    // Validate retry policy
+    if (step.retryPolicy) {
+      if (typeof step.retryPolicy.maxAttempts !== 'number' || step.retryPolicy.maxAttempts < 1) {
+        errors.push(`Step "${step.id}" has invalid maxAttempts: must be >= 1.`);
+      }
+      if (step.retryPolicy.backoffMs !== undefined && step.retryPolicy.backoffMs < 0) {
+        errors.push(`Step "${step.id}" has negative backoffMs.`);
+      }
+      if (step.retryPolicy.initialDelayMs !== undefined && step.retryPolicy.initialDelayMs < 0) {
+        errors.push(`Step "${step.id}" has negative initialDelayMs.`);
+      }
+    }
+
+    // Validate concurrency
+    if (step.concurrency !== undefined && (typeof step.concurrency !== 'number' || step.concurrency < 1)) {
+      errors.push(`Step "${step.id}" has invalid concurrency: must be >= 1.`);
+    }
+
+    // Validate step target
+    if (step.type === 'task' || step.type === 'sequential') {
+      if (!step.target && !step.handler) {
+        errors.push(`Step "${step.id}" requires a non-empty target or handler.`);
+      }
+    }
   }
 
   // Check dependencies exist

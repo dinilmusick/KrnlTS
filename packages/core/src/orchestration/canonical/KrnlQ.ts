@@ -1,10 +1,11 @@
 /**
- * @file BullMQExecutionEngine.ts
- * @description Canonical BullMQ Execution Engine for both KrnlTS and Skipo.
- * Implements isomorphic DAG execution, sequential/parallel steps, retries with backoff,
- * timeouts, compensation/saga rollback, branching, fan-out/fan-in, and idempotency.
+ * @file KrnlQ.ts
+ * @description In-process execution queue for a single KrnlTS service.
+ * Uses p-queue internally as the low-level scheduling and concurrency primitive.
+ * Zero Redis, zero Docker, zero BullMQ, 100% portable TypeScript.
  */
 
+import PQueue from 'p-queue';
 import {
   OrchestrationStep,
   OrchestrationDescriptor,
@@ -20,87 +21,343 @@ import {
   NormalizedResult,
   WorkerExecutionBoundary,
 } from './WorkerExecutionBoundary.js';
+import { KrnlWorkerPool } from './KrnlWorkerPool.js';
 
-export interface BullMQConnectionOptions {
-  host?: string;
-  port?: number;
-  url?: string;
-  password?: string;
-  tls?: unknown;
+export type JobStatus = 'waiting' | 'active' | 'completed' | 'failed' | 'cancelled';
+
+export interface KrnlJobOptions {
+  priority?: number;
+  timeoutMs?: number;
+  retries?: number;
+  backoffMs?: number;
+  backoffPolicy?: 'fixed' | 'exponential';
+  idempotencyKey?: string;
+  correlationId?: string;
+  metadata?: Record<string, unknown>;
+  abortSignal?: AbortSignal;
 }
 
-export interface ExecutionEngineOptions {
+export interface KrnlJobDefinition<TInput = unknown, TOutput = unknown> {
+  id?: string;
+  name: string;
+  payload: TInput;
+  handler: (payload: TInput, context: ExecutionContext) => Promise<TOutput>;
+  options?: KrnlJobOptions;
+}
+
+export interface KrnlJobHandle<TOutput = unknown> {
+  readonly id: string;
+  readonly name: string;
+  getStatus(): JobStatus;
+  result(): Promise<TOutput>;
+  cancel(): boolean;
+}
+
+export interface KrnlQueueOptions {
   queueName?: string;
-  connection?: BullMQConnectionOptions;
   concurrency?: number;
-  useInMemory?: boolean;
+  autoStart?: boolean;
 }
 
-export type BullMQExecutionEngineOptions = ExecutionEngineOptions;
-
-interface QueuedJob<TPayload = unknown, TResult = unknown> {
+interface InternalJobRecord<TOutput = unknown> {
   id: string;
   name: string;
-  payload: TPayload;
-  correlationId: string;
-  idempotencyKey?: string;
-  attemptsMade: number;
-  maxAttempts: number;
-  retryPolicy?: StepRetryPolicy;
-  status: 'waiting' | 'active' | 'completed' | 'failed' | 'cancelled';
-  result?: TResult;
+  status: JobStatus;
+  createdAt: number;
+  startedAt?: number;
+  completedAt?: number;
+  result?: TOutput;
   error?: string;
-  enqueuedAt: number;
-  handler: (payload: TPayload, context: ExecutionContext) => Promise<TResult>;
+  abortController: AbortController;
+  resolvePromise: (val: TOutput) => void;
+  rejectPromise: (err: any) => void;
+  promise: Promise<TOutput>;
 }
 
-export class BullMQExecutionEngine {
+export class KrnlQueue {
   public readonly queueName: string;
-  private readonly concurrency: number;
+  private readonly queue: PQueue;
+  private readonly workerPool: KrnlWorkerPool;
+  private readonly jobs = new Map<string, InternalJobRecord<any>>();
   private readonly idempotencyStore = new Map<string, NormalizedResult<any>>();
-  private readonly activeExecutions = new Map<string, { abortController: AbortController; context: OrchestrationContext }>();
-  private readonly inMemoryJobs = new Map<string, QueuedJob<any, any>>();
-  private isRunning = false;
-  private activeWorkerCount = 0;
-  private readonly workerBoundary: WorkerExecutionBoundary;
+  private readonly activeOrchestrations = new Map<string, { abortController: AbortController; context: OrchestrationContext }>();
 
-  constructor(options: Partial<ExecutionEngineOptions> = {}) {
-    this.queueName = options.queueName ?? 'krnl_orchestration_default';
-    this.concurrency = options.concurrency ?? 10;
-    this.workerBoundary = new WorkerExecutionBoundary(`${this.queueName}_worker`, async (cmd, ctx) => {
-      return this.dispatchInternalCommand(cmd, ctx);
+  constructor(options: KrnlQueueOptions = {}) {
+    this.queueName = options.queueName ?? 'krnl_default_queue';
+    const concurrency = options.concurrency ?? 10;
+    this.queue = new PQueue({
+      concurrency,
+      autoStart: options.autoStart ?? true,
     });
+    this.workerPool = new KrnlWorkerPool(this.queueName);
+    this.workerPool.start();
   }
 
-  async start(): Promise<void> {
-    this.isRunning = true;
+  get concurrency(): number {
+    return this.queue.concurrency;
   }
 
-  async stop(): Promise<void> {
-    this.isRunning = false;
+  set concurrency(value: number) {
+    this.queue.concurrency = value;
   }
 
-  async dispose(): Promise<void> {
-    await this.stop();
-    for (const [id, active] of this.activeExecutions.entries()) {
-      active.abortController.abort();
-      active.context.isCancelled = true;
-    }
-    this.activeExecutions.clear();
-    this.inMemoryJobs.clear();
-    this.idempotencyStore.clear();
+  get size(): number {
+    return this.queue.size;
   }
 
-  async close(): Promise<void> {
-    await this.dispose();
+  get pending(): number {
+    return this.queue.pending;
+  }
+
+  get isPaused(): boolean {
+    return this.queue.isPaused;
   }
 
   getWorkerBoundary(): WorkerExecutionBoundary {
-    return this.workerBoundary;
+    return this.workerPool.getWorkerBoundary();
+  }
+
+  getWorkerPool(): KrnlWorkerPool {
+    return this.workerPool;
+  }
+
+  pause(): void {
+    this.queue.pause();
+  }
+
+  resume(): void {
+    this.queue.start();
+  }
+
+  clear(): void {
+    this.queue.clear();
+  }
+
+  async drain(): Promise<void> {
+    await this.queue.onIdle();
+  }
+
+  async shutdown(options: { drain?: boolean } = { drain: true }): Promise<void> {
+    if (options.drain) {
+      await this.drain();
+    } else {
+      this.clear();
+    }
+    // Cancel active orchestrations
+    for (const active of this.activeOrchestrations.values()) {
+      active.abortController.abort();
+      active.context.isCancelled = true;
+    }
+    this.activeOrchestrations.clear();
+    await this.workerPool.stop();
+  }
+
+  async close(): Promise<void> {
+    await this.shutdown({ drain: false });
+  }
+
+  async dispose(): Promise<void> {
+    await this.shutdown({ drain: false });
+  }
+
+  async start(): Promise<void> {
+    this.resume();
+  }
+
+  async stop(): Promise<void> {
+    this.pause();
   }
 
   /**
-   * Dispatches a single command through the BullMQ queue and worker execution boundary.
+   * Enqueues a job returning a strong handle.
+   */
+  enqueue<TInput = unknown, TOutput = unknown>(
+    jobDef: KrnlJobDefinition<TInput, TOutput>
+  ): KrnlJobHandle<TOutput> {
+    const jobId = jobDef.id || `job_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+    const abortController = new AbortController();
+
+    if (jobDef.options?.abortSignal) {
+      if (jobDef.options.abortSignal.aborted) {
+        abortController.abort();
+      } else {
+        jobDef.options.abortSignal.addEventListener('abort', () => abortController.abort(), { once: true });
+      }
+    }
+
+    let resolvePromise!: (val: TOutput) => void;
+    let rejectPromise!: (err: any) => void;
+    const promise = new Promise<TOutput>((res, rej) => {
+      resolvePromise = res;
+      rejectPromise = rej;
+    });
+
+    const record: InternalJobRecord<TOutput> = {
+      id: jobId,
+      name: jobDef.name,
+      status: 'waiting',
+      createdAt: Date.now(),
+      abortController,
+      resolvePromise,
+      rejectPromise,
+      promise,
+    };
+    this.jobs.set(jobId, record);
+
+    const priority = jobDef.options?.priority ?? 0;
+
+    // Schedule inside p-queue
+    this.queue.add(
+      async () => {
+        if (record.status === 'cancelled' || abortController.signal.aborted) {
+          record.status = 'cancelled';
+          const cancelErr = new Error('The operation was aborted');
+          cancelErr.name = 'AbortError';
+          rejectPromise(cancelErr);
+          return;
+        }
+
+        record.status = 'active';
+        record.startedAt = Date.now();
+
+        // Check idempotency cache
+        const idemKey = jobDef.options?.idempotencyKey;
+        if (idemKey && this.idempotencyStore.has(idemKey)) {
+          const cached = this.idempotencyStore.get(idemKey)!;
+          record.status = cached.status === 'COMPLETED' ? 'completed' : 'failed';
+          record.completedAt = Date.now();
+          if (cached.status === 'COMPLETED') {
+            record.result = cached.data as TOutput;
+            resolvePromise(cached.data as TOutput);
+          } else {
+            record.error = cached.error;
+            rejectPromise(new Error(cached.error));
+          }
+          return;
+        }
+
+        const retries = jobDef.options?.retries ?? 0;
+        const maxAttempts = retries + 1;
+        const timeoutMs = jobDef.options?.timeoutMs;
+        const backoffMs = jobDef.options?.backoffMs ?? 100;
+        const backoffPolicy = jobDef.options?.backoffPolicy ?? 'exponential';
+
+        let attempt = 0;
+        let lastError: any;
+
+        while (attempt < maxAttempts) {
+          if (abortController.signal.aborted) {
+            record.status = 'cancelled';
+            const cancelErr = new Error('The operation was aborted');
+            cancelErr.name = 'AbortError';
+            rejectPromise(cancelErr);
+            return;
+          }
+
+          attempt++;
+          try {
+            const result = await this.workerPool.runWithContext(
+              jobDef.options?.correlationId,
+              jobDef.options?.metadata,
+              async (workerCtx) => {
+                let timer: NodeJS.Timeout | undefined;
+                try {
+                  const workPromise = jobDef.handler(jobDef.payload, workerCtx);
+                  if (timeoutMs && timeoutMs > 0) {
+                    const timeoutPromise = new Promise<never>((_, rej) => {
+                      timer = setTimeout(() => {
+                        const err = new Error(`Job "${jobDef.name}" timed out after ${timeoutMs}ms.`);
+                        err.name = 'TimeoutError';
+                        rej(err);
+                      }, timeoutMs);
+                    });
+                    return await Promise.race([workPromise, timeoutPromise]);
+                  }
+                  return await workPromise;
+                } finally {
+                  if (timer) clearTimeout(timer);
+                }
+              }
+            );
+
+            record.status = 'completed';
+            record.completedAt = Date.now();
+            record.result = result;
+
+            if (idemKey) {
+              this.idempotencyStore.set(idemKey, {
+                correlationId: jobDef.options?.correlationId || jobId,
+                status: 'COMPLETED',
+                data: result,
+                executionTimestamp: Date.now(),
+              });
+            }
+
+            resolvePromise(result);
+            return;
+          } catch (err: any) {
+            lastError = err;
+            if (abortController.signal.aborted || err?.name === 'AbortError') {
+              record.status = 'cancelled';
+              record.completedAt = Date.now();
+              rejectPromise(err);
+              return;
+            }
+
+            if (attempt < maxAttempts) {
+              const delay =
+                backoffPolicy === 'exponential'
+                  ? backoffMs * Math.pow(2, attempt - 1)
+                  : backoffMs * attempt;
+              await new Promise((r) => setTimeout(r, delay));
+            }
+          }
+        }
+
+        record.status = 'failed';
+        record.completedAt = Date.now();
+        record.error = lastError?.message || String(lastError);
+
+        if (idemKey) {
+          this.idempotencyStore.set(idemKey, {
+            correlationId: jobDef.options?.correlationId || jobId,
+            status: 'FAILED',
+            error: record.error,
+            executionTimestamp: Date.now(),
+          });
+        }
+
+        rejectPromise(lastError);
+      },
+      { priority }
+    );
+
+    return {
+      id: jobId,
+      name: jobDef.name,
+      getStatus: () => record.status,
+      result: () => record.promise,
+      cancel: () => this.cancel(jobId),
+    };
+  }
+
+  cancel(jobId: string): boolean {
+    const job = this.jobs.get(jobId);
+    if (!job) return false;
+    if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+      return false;
+    }
+    job.status = 'cancelled';
+    job.abortController.abort();
+    return true;
+  }
+
+  getJob(jobId: string): InternalJobRecord | undefined {
+    return this.jobs.get(jobId);
+  }
+
+  /**
+   * Dispatches a single command through the KrnlQ worker boundary.
    */
   async executeCommand<TIn = unknown, TOut = unknown>(
     command: BackendCommand<TIn>,
@@ -111,75 +368,40 @@ export class BullMQExecutionEngine {
       return this.idempotencyStore.get(command.idempotencyKey)! as NormalizedResult<TOut>;
     }
 
-    const job: QueuedJob<TIn, TOut> = {
-      id: command.id,
-      name: command.type,
-      payload: command.payload,
-      correlationId: command.correlationId,
-      idempotencyKey: command.idempotencyKey,
-      attemptsMade: 0,
-      maxAttempts: 1,
-      status: 'waiting',
-      enqueuedAt: Date.now(),
-      handler,
-    };
-    this.inMemoryJobs.set(job.id, job);
-
-    // 2. Execute via Worker Execution Boundary
     try {
-      job.status = 'active';
-      const result = await this.workerBoundary.processJob<TOut>(command);
-      job.status = result.status === 'COMPLETED' ? 'completed' : 'failed';
-      job.result = result.data;
-      job.error = result.error;
+      const handle = this.enqueue<TIn, TOut>({
+        id: command.id,
+        name: command.type,
+        payload: command.payload,
+        handler,
+        options: {
+          idempotencyKey: command.idempotencyKey,
+          correlationId: command.correlationId,
+        },
+      });
 
-      if (command.idempotencyKey) {
-        this.idempotencyStore.set(command.idempotencyKey, result);
-      }
-      return result;
-    } catch (err: any) {
-      job.status = 'failed';
-      job.error = err?.message || String(err);
-      const failedResult: NormalizedResult<TOut> = {
-        correlationId: command.correlationId,
-        status: 'FAILED',
-        error: job.error,
-        executionTimestamp: Date.now(),
-      };
-      return failedResult;
-    }
-  }
-
-  private async dispatchInternalCommand(
-    command: BackendCommand<any>,
-    context: ExecutionContext
-  ): Promise<NormalizedResult<any>> {
-    WorkerExecutionBoundary.assertWorkerContext(context);
-    const job = this.inMemoryJobs.get(command.id);
-    if (!job) {
-      throw new Error(`[BullMQExecutionEngine] Job ${command.id} not found in queue.`);
-    }
-
-    try {
-      const data = await job.handler(command.payload, context);
-      return {
+      const data = await handle.result();
+      const res: NormalizedResult<TOut> = {
         correlationId: command.correlationId,
         status: 'COMPLETED',
         data,
         executionTimestamp: Date.now(),
       };
+      return res;
     } catch (err: any) {
-      return {
+      const isAbort = err?.name === 'AbortError' || err?.message === 'The operation was aborted';
+      const res: NormalizedResult<TOut> = {
         correlationId: command.correlationId,
-        status: 'FAILED',
+        status: isAbort ? 'CANCELLED' : 'FAILED',
         error: err?.message || String(err),
         executionTimestamp: Date.now(),
       };
+      return res;
     }
   }
 
   /**
-   * Executes a full Canonical Orchestration DAG through the BullMQ worker boundary.
+   * Executes a full Canonical Orchestration DAG through KrnlQ and worker boundary.
    */
   async executeOrchestration<TInput = unknown, TOutput = unknown>(
     descriptor: OrchestrationDescriptor,
@@ -247,7 +469,7 @@ export class BullMQExecutionEngine {
       context.isCancelled = true;
     });
 
-    this.activeExecutions.set(executionId, { abortController, context });
+    this.activeOrchestrations.set(executionId, { abortController, context });
 
     // Workflow-level timeout
     const timeoutMs = options.timeoutMs || descriptor.timeoutMs;
@@ -265,15 +487,11 @@ export class BullMQExecutionEngine {
     const executedSteps = new Set<string>();
     const executedComps: Array<() => Promise<void>> = [];
 
-    const stepMap = new Map<string, OrchestrationStep>();
-    for (const step of steps) stepMap.set(step.id, step);
-
     let finalOutput: any = undefined;
     let orchestrationStatus: OrchestrationResult['status'] = 'COMPLETED';
     let errorMessage: string | undefined;
 
     try {
-      // Execute steps respecting dependencies and concurrency
       while (executedSteps.size < steps.length) {
         if (context.isCancelled) {
           orchestrationStatus = 'CANCELLED';
@@ -281,7 +499,6 @@ export class BullMQExecutionEngine {
           break;
         }
 
-        // Find steps ready to execute: dependencies met and not yet executed
         const readySteps = steps.filter((step) => {
           if (executedSteps.has(step.id)) return false;
           if (!step.dependsOn || step.dependsOn.length === 0) return true;
@@ -289,7 +506,6 @@ export class BullMQExecutionEngine {
         });
 
         if (readySteps.length === 0) {
-          // If no steps are ready and we haven't finished, there is an unmet branch or cycle
           break;
         }
 
@@ -315,7 +531,6 @@ export class BullMQExecutionEngine {
             cancelErr.name = 'AbortError';
             throw cancelErr;
           } else {
-            // Failed or timed out
             throw new Error(stepRes.error || `Step "${step.id}" failed with status ${stepRes.status}`);
           }
         });
@@ -341,13 +556,13 @@ export class BullMQExecutionEngine {
           try {
             await executedComps[i]();
           } catch (compErr) {
-            console.error(`[BullMQExecutionEngine] Compensation failed:`, compErr);
+            console.error(`[KrnlQ] Compensation failed:`, compErr);
           }
         }
       }
     } finally {
       if (timeoutTimer) clearTimeout(timeoutTimer);
-      this.activeExecutions.delete(executionId);
+      this.activeOrchestrations.delete(executionId);
     }
 
     const result: OrchestrationResult<TOutput> = {
@@ -416,6 +631,7 @@ export class BullMQExecutionEngine {
     let lastError: any;
     let stepCancelled = false;
     const stepTimeoutMs = step.timeoutPolicy?.timeoutMs;
+
     while (attempts < maxAttempts) {
       if (context.isCancelled) {
         return {
@@ -430,14 +646,11 @@ export class BullMQExecutionEngine {
       attempts++;
       try {
         let stepOutput: any;
-
-        // Step timeout setup
         let stepTimer: NodeJS.Timeout | undefined;
         stepCancelled = false;
 
         const runPromise = (async () => {
           if (step.type === 'nested' && step.nestedOrchestrationId && nestedRunner) {
-            // Nested orchestration scope
             const childContext: OrchestrationContext = {
               ...context,
               parentCorrelationId: context.correlationId,
@@ -536,7 +749,6 @@ export class BullMQExecutionEngine {
 
         lastError = err;
 
-        // Check if error is catchable by step's catchHandler
         if (step.catchHandler && attempts >= maxAttempts) {
           try {
             const recovered = await step.catchHandler(err, context);
@@ -588,7 +800,7 @@ export class BullMQExecutionEngine {
   }
 
   cancelExecution(executionId: string): boolean {
-    const active = this.activeExecutions.get(executionId);
+    const active = this.activeOrchestrations.get(executionId);
     if (active) {
       active.context.isCancelled = true;
       active.abortController.abort();

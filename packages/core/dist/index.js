@@ -378,15 +378,1066 @@ function createServiceProxy(definition, adapter, endpoint) {
   return new ServiceProxy(definition, adapter, endpoint);
 }
 
+// ../../node_modules/.pnpm/p-queue@10.0.0/node_modules/p-queue/dist/lower-bound.js
+function lowerBound(array, value, comparator) {
+  let first = 0;
+  let count = array.length;
+  while (count > 0) {
+    const step = Math.trunc(count / 2);
+    let it = first + step;
+    if (comparator(array[it], value) <= 0) {
+      first = ++it;
+      count -= step + 1;
+    } else {
+      count = step;
+    }
+  }
+  return first;
+}
+
+// ../../node_modules/.pnpm/p-queue@10.0.0/node_modules/p-queue/dist/priority-queue.js
+var compactionThreshold = 100;
+var PriorityQueue = class {
+  // The slots before `#head` are `undefined`.
+  #queue = [];
+  // The queue is stored as a sorted array, but dequeued slots are left before `#head` until compaction. Only items from `#head` onward are live, which keeps repeated dequeues amortized O(1).
+  #head = 0;
+  #compact() {
+    if (this.#head === 0) {
+      return;
+    }
+    this.#queue.splice(0, this.#head);
+    this.#head = 0;
+  }
+  // Only the live items, because a dequeued item with the same id or function is no longer part of the queue.
+  #findIndex(isMatch) {
+    for (let index = this.#head; index < this.#queue.length; index++) {
+      if (isMatch(this.#queue[index])) {
+        return index;
+      }
+    }
+    return -1;
+  }
+  // Not `dequeue()`, which a subclass can override, because `remove()` also uses it.
+  #removeFirst() {
+    const item = this.#queue[this.#head];
+    this.#queue[this.#head] = void 0;
+    this.#head++;
+    if (this.#head === this.#queue.length) {
+      this.#queue.length = 0;
+      this.#head = 0;
+    } else if (this.#head > compactionThreshold && this.#head > this.#queue.length / 2) {
+      this.#compact();
+    }
+    return item.run;
+  }
+  enqueue(run, options) {
+    const { priority = 0, id } = options ?? {};
+    const { size } = this;
+    const element = {
+      priority,
+      id,
+      run
+    };
+    if (size === 0) {
+      this.#queue.length = 0;
+      this.#head = 0;
+      this.#queue.push(element);
+      return;
+    }
+    if (this.#queue.at(-1).priority >= priority) {
+      this.#queue.push(element);
+      return;
+    }
+    this.#compact();
+    const index = lowerBound(this.#queue, element, (a, b) => a.priority === b.priority ? 0 : b.priority - a.priority);
+    this.#queue.splice(index, 0, element);
+  }
+  setPriority(id, priority) {
+    const index = this.#findIndex((element) => element.id === id);
+    if (index === -1) {
+      throw new ReferenceError(`No promise function with the id "${id}" exists in the queue.`);
+    }
+    if (this.#queue[index].priority === priority) {
+      return;
+    }
+    const [item] = this.#queue.splice(index, 1);
+    this.enqueue(item.run, { priority, id });
+  }
+  remove(idOrRun) {
+    const index = this.#findIndex((element) => (typeof idOrRun === "string" ? element.id : element.run) === idOrRun);
+    if (index === this.#head) {
+      this.#removeFirst();
+    } else if (index !== -1) {
+      this.#queue.splice(index, 1);
+    }
+  }
+  dequeue() {
+    return this.#head === this.#queue.length ? void 0 : this.#removeFirst();
+  }
+  filter(options) {
+    const result = [];
+    for (let index = this.#head; index < this.#queue.length; index++) {
+      const element = this.#queue[index];
+      if (element.priority === options.priority) {
+        result.push(element.run);
+      }
+    }
+    return result;
+  }
+  get size() {
+    return this.#queue.length - this.#head;
+  }
+};
+
+// ../../node_modules/.pnpm/p-queue@10.0.0/node_modules/p-queue/dist/index.js
+var maximumTimerDelay = 2147483647;
+var asyncHooks = globalThis.process?.getBuiltinModule?.("node:async_hooks");
+var bindAsyncContext = (function_) => {
+  if (asyncHooks === void 0) {
+    return function_;
+  }
+  const asyncResource = new asyncHooks.AsyncResource("PQueueTask");
+  return () => asyncResource.runInAsyncScope(function_);
+};
+var validateTimeout = (timeout) => {
+  if (timeout !== void 0 && !(Number.isFinite(timeout) && timeout > 0 && timeout <= maximumTimerDelay)) {
+    throw new TypeError(`Expected \`timeout\` to be a positive finite number up to ${maximumTimerDelay}, got \`${timeout}\` (${typeof timeout})`);
+  }
+};
+var validateLimit = (name, value) => {
+  if (!(typeof value === "number" && value >= 1 && (value === Infinity || Number.isInteger(value)))) {
+    throw new TypeError(`Expected \`${name}\` to be an integer from 1 and up or \`Infinity\`, got \`${String(value)}\` (${typeof value})`);
+  }
+};
+var validateRateLimit = (interval, intervalCap, isStrict) => {
+  validateLimit("intervalCap", intervalCap);
+  if (!(Number.isFinite(interval) && interval >= 0)) {
+    throw new TypeError(`Expected \`interval\` to be a finite number >= 0, got \`${String(interval)}\` (${typeof interval})`);
+  }
+  if (intervalCap !== Infinity && interval > maximumTimerDelay) {
+    throw new TypeError(`Expected \`interval\` to be at most ${maximumTimerDelay} with an \`intervalCap\`, got \`${interval}\``);
+  }
+  if (isStrict && interval === 0) {
+    throw new TypeError("The `strict` option requires a non-zero `interval`");
+  }
+  if (isStrict && intervalCap === Infinity) {
+    throw new TypeError("The `strict` option requires a finite `intervalCap`");
+  }
+};
+var PQueue = class extends EventTarget {
+  #carryoverIntervalCount;
+  #isIntervalIgnored;
+  #intervalCount = 0;
+  #intervalCap;
+  #rateLimitedInInterval = false;
+  #rateLimitFlushScheduled = false;
+  #interval;
+  /*
+  Timestamp when the current interval window ends. Kept accurate at every window transition: `#initializeIntervalIfNeeded` sets it when a window starts and `#onInterval` advances it as the recurring timer rolls into each new window. This is the source of truth for whether a task added after the queue goes idle belongs to a fresh window, so it must not go stale.
+  */
+  #intervalEnd = 0;
+  // Recurring timer that drives windows while the queue is actively processing. Absent (`undefined`) once the queue goes idle.
+  #intervalId;
+  // One-shot timer used while idle to resume at the next window boundary, since `#intervalId` is cleared when idle.
+  #timeoutId;
+  #strict;
+  // Circular buffer implementation for better performance
+  #strictTicks = [];
+  #strictTicksStartIndex = 0;
+  #queue;
+  #queueClass;
+  #pending = 0;
+  // The `!` is needed because of https://github.com/microsoft/TypeScript/issues/32194
+  #concurrency;
+  #isPaused;
+  // Use to assign a unique identifier to a promise function, if not explicitly specified
+  #idAssigner = 1n;
+  // Track currently running tasks for debugging
+  #runningTasks = /* @__PURE__ */ new Set();
+  // The `abort` listener of each signal, with the callbacks of the tasks that use the signal.
+  #abortListeners = /* @__PURE__ */ new Map();
+  // The waiting tasks, so that `.clear()` can reject their promises.
+  #waitingTasks = /* @__PURE__ */ new Set();
+  #timeout;
+  constructor(options) {
+    super();
+    globalThis.process?.getBuiltinModule?.("node:events")?.setMaxListeners(Infinity, this);
+    const { carryoverIntervalCount = false, intervalCap = Infinity, interval = 0, concurrency = Infinity, autoStart = true, queueClass = PriorityQueue, strict = false, timeout } = options ?? {};
+    validateRateLimit(interval, intervalCap, strict);
+    this.#carryoverIntervalCount = carryoverIntervalCount;
+    this.#isIntervalIgnored = intervalCap === Infinity || interval === 0;
+    this.#intervalCap = intervalCap;
+    this.#interval = interval;
+    this.#strict = strict;
+    this.#queueClass = queueClass;
+    this.#queue = new this.#queueClass();
+    this.concurrency = concurrency;
+    this.timeout = timeout;
+    this.#isPaused = !autoStart;
+    this.#setupRateLimitTracking();
+  }
+  // Calls `callback` when `signal` aborts, and returns a function that stops it. The tasks that share a signal share one listener on it, because Node.js searches all the listeners of a signal to add or remove one, so a listener for each task takes O(n²) time with many tasks.
+  #onAbort(signal, callback) {
+    let listener = this.#abortListeners.get(signal);
+    if (!listener) {
+      const callbacks = /* @__PURE__ */ new Set();
+      const dispatch = () => {
+        this.#abortListeners.delete(signal);
+        for (const abortCallback of callbacks) {
+          abortCallback();
+        }
+      };
+      listener = { callbacks, dispatch };
+      this.#abortListeners.set(signal, listener);
+      signal.addEventListener("abort", dispatch, { once: true });
+    }
+    const currentListener = listener;
+    currentListener.callbacks.add(callback);
+    return () => {
+      currentListener.callbacks.delete(callback);
+      if (currentListener.callbacks.size > 0 || this.#abortListeners.get(signal) !== currentListener) {
+        return;
+      }
+      this.#abortListeners.delete(signal);
+      signal.removeEventListener("abort", currentListener.dispatch);
+    };
+  }
+  #emit(event, detail) {
+    this.dispatchEvent(new CustomEvent(event, { detail }));
+  }
+  async #onEvent(events, shouldHandle) {
+    const eventList = Array.isArray(events) ? events : [events];
+    return new Promise((resolve) => {
+      const controller = new AbortController();
+      const listener = () => {
+        if (shouldHandle && !shouldHandle()) {
+          return;
+        }
+        controller.abort();
+        resolve();
+      };
+      for (const event of eventList) {
+        this.addEventListener(event, listener, { signal: controller.signal });
+      }
+    });
+  }
+  // From the current state. `#rateLimitedInInterval` is what the events last reported, and it updates in a microtask.
+  get #isRateLimitedNow() {
+    if (this.#isIntervalIgnored || this.#queue.size === 0) {
+      return false;
+    }
+    const now = Date.now();
+    if (this.#strict) {
+      this.#cleanupStrictTicks(now);
+      return this.#getActiveTicksCount() >= this.#intervalCap;
+    }
+    const isWindowOver = this.#intervalId === void 0 && this.#intervalEnd <= now;
+    const count = isWindowOver ? this.#intervalCountAtWindowStart : this.#intervalCount;
+    return count >= this.#intervalCap;
+  }
+  // The tasks that still run count against the new window with `carryoverIntervalCount`.
+  get #intervalCountAtWindowStart() {
+    return this.#carryoverIntervalCount ? this.#pending : 0;
+  }
+  #updateRateLimitState() {
+    const shouldBeRateLimited = this.#isRateLimitedNow;
+    if (shouldBeRateLimited === this.#rateLimitedInInterval) {
+      return;
+    }
+    this.#rateLimitedInInterval = shouldBeRateLimited;
+    this.#emit(shouldBeRateLimited ? "rateLimit" : "rateLimitCleared");
+  }
+  #rollbackIntervalConsumption() {
+    if (this.#isIntervalIgnored) {
+      return;
+    }
+    this.#rollbackIntervalSlot();
+    this.#scheduleRateLimitUpdate();
+  }
+  #scheduleRateLimitUpdate() {
+    if (this.#isIntervalIgnored || this.#rateLimitFlushScheduled) {
+      return;
+    }
+    this.#rateLimitFlushScheduled = true;
+    queueMicrotask(() => {
+      this.#rateLimitFlushScheduled = false;
+      this.#updateRateLimitState();
+    });
+  }
+  #setupRateLimitTracking() {
+    if (this.#isIntervalIgnored) {
+      return;
+    }
+    this.addEventListener("add", () => {
+      if (this.#queue.size > 0) {
+        this.#scheduleRateLimitUpdate();
+      }
+    });
+    this.addEventListener("next", () => {
+      this.#scheduleRateLimitUpdate();
+    });
+  }
+  #cleanupStrictTicks(now) {
+    while (this.#strictTicksStartIndex < this.#strictTicks.length) {
+      const oldestTick = this.#strictTicks[this.#strictTicksStartIndex];
+      if (oldestTick !== void 0 && now - oldestTick >= this.#interval) {
+        this.#strictTicksStartIndex++;
+      } else {
+        break;
+      }
+    }
+    const shouldCompact = this.#strictTicksStartIndex > 100 && this.#strictTicksStartIndex > this.#strictTicks.length / 2 || this.#strictTicksStartIndex === this.#strictTicks.length;
+    if (!shouldCompact) {
+      return;
+    }
+    this.#strictTicks = this.#strictTicks.slice(this.#strictTicksStartIndex);
+    this.#strictTicksStartIndex = 0;
+  }
+  // Helper methods for interval consumption
+  #consumeIntervalSlot(now) {
+    if (this.#strict) {
+      this.#strictTicks.push(now);
+    } else {
+      this.#intervalCount++;
+    }
+  }
+  #rollbackIntervalSlot() {
+    if (this.#strict) {
+      if (this.#strictTicks.length > this.#strictTicksStartIndex) {
+        this.#strictTicks.pop();
+      }
+      return;
+    }
+    if (this.#intervalCount > 0) {
+      this.#intervalCount--;
+    }
+  }
+  #getActiveTicksCount() {
+    return this.#strictTicks.length - this.#strictTicksStartIndex;
+  }
+  get #doesIntervalAllowAnother() {
+    if (this.#isIntervalIgnored) {
+      return true;
+    }
+    const count = this.#strict ? this.#getActiveTicksCount() : this.#intervalCount;
+    return count < this.#intervalCap;
+  }
+  get #doesConcurrentAllowAnother() {
+    return this.#pending < this.#concurrency;
+  }
+  #next() {
+    this.#pending--;
+    if (this.#pending === 0) {
+      this.#emit("pendingZero");
+    }
+    this.#processQueue();
+    this.#emit("next");
+  }
+  #onResumeInterval() {
+    this.#timeoutId = void 0;
+    this.#onInterval();
+    if (!this.#isPaused) {
+      this.#initializeIntervalIfNeeded();
+    }
+  }
+  #isIntervalPausedAt(now) {
+    if (this.#strict) {
+      this.#cleanupStrictTicks(now);
+      const activeTicksCount = this.#getActiveTicksCount();
+      if (activeTicksCount >= this.#intervalCap) {
+        const oldestTick = this.#strictTicks[this.#strictTicksStartIndex];
+        const delay = this.#interval - (now - oldestTick);
+        this.#createIntervalTimeout(delay);
+        return true;
+      }
+      return false;
+    }
+    if (this.#intervalId === void 0) {
+      const delay = this.#intervalEnd - now;
+      if (delay <= 0) {
+        this.#intervalCount = this.#intervalCountAtWindowStart;
+      } else {
+        this.#createIntervalTimeout(delay);
+        return true;
+      }
+    }
+    return false;
+  }
+  #createIntervalTimeout(delay) {
+    if (this.#timeoutId !== void 0) {
+      return;
+    }
+    this.#timeoutId = setTimeout(() => {
+      this.#onResumeInterval();
+    }, delay);
+  }
+  #clearIntervalTimer() {
+    if (this.#intervalId === void 0) {
+      return;
+    }
+    clearInterval(this.#intervalId);
+    this.#intervalId = void 0;
+  }
+  #clearTimeoutTimer() {
+    if (this.#timeoutId === void 0) {
+      return;
+    }
+    clearTimeout(this.#timeoutId);
+    this.#timeoutId = void 0;
+  }
+  // Emits `empty`, and `idle` when no tasks run. For when the queue has no waiting tasks.
+  #emitEmptyAndIdle() {
+    this.#clearIntervalTimer();
+    this.#emit("empty");
+    if (this.#pending > 0 || this.#queue.size > 0) {
+      return;
+    }
+    this.#clearTimeoutTimer();
+    if (this.#strict) {
+      this.#cleanupStrictTicks(Date.now());
+    }
+    this.#emit("idle");
+  }
+  #tryToStartAnother() {
+    let isStarted;
+    do {
+      isStarted = this.#startNextTask();
+    } while (isStarted === void 0);
+    return isStarted;
+  }
+  // Returns `undefined` when it skipped a task whose signal aborted while it waited.
+  #startNextTask() {
+    if (this.#queue.size === 0) {
+      this.#emitEmptyAndIdle();
+      return false;
+    }
+    if (this.#isPaused) {
+      if (!this.#doesIntervalAllowAnother) {
+        this.#isIntervalPausedAt(Date.now());
+      }
+      return false;
+    }
+    const now = Date.now();
+    const canInitializeInterval = !this.#isIntervalPausedAt(now);
+    if (this.#doesIntervalAllowAnother && this.#doesConcurrentAllowAnother) {
+      const job = this.#queue.dequeue();
+      if (!this.#isIntervalIgnored) {
+        this.#consumeIntervalSlot(now);
+        this.#scheduleRateLimitUpdate();
+      }
+      if (canInitializeInterval) {
+        this.#initializeIntervalIfNeeded();
+      }
+      const pendingBefore = this.#pending;
+      job();
+      if (this.#pending === pendingBefore) {
+        this.#emit("next");
+        return;
+      }
+      this.#emit("active");
+      return true;
+    }
+    return false;
+  }
+  #initializeIntervalIfNeeded() {
+    if (this.#isIntervalIgnored || this.#intervalId !== void 0 || this.#strict) {
+      return;
+    }
+    this.#clearTimeoutTimer();
+    this.#intervalId = setInterval(() => {
+      this.#onInterval();
+    }, this.#interval);
+    this.#intervalEnd = Date.now() + this.#interval;
+  }
+  #onInterval() {
+    if (!this.#strict) {
+      if (this.#intervalId !== void 0) {
+        if (this.#intervalCount === 0 && this.#pending === 0) {
+          this.#clearIntervalTimer();
+        } else {
+          this.#intervalEnd = Date.now() + this.#interval;
+        }
+      }
+      this.#intervalCount = this.#intervalCountAtWindowStart;
+    }
+    this.#processQueue();
+    this.#scheduleRateLimitUpdate();
+  }
+  /**
+  Executes all queued functions until it reaches the limit.
+  */
+  #processQueue() {
+    while (this.#tryToStartAnother()) {
+    }
+  }
+  // On an empty queue, `#processQueue()` emits `empty` and `idle`. An `idle` listener that sets `concurrency` or calls `.start()` would then recurse without end.
+  #processWaitingTasks() {
+    if (this.#queue.size > 0) {
+      this.#processQueue();
+    }
+  }
+  async #add(function_, options, waitingTask) {
+    const id = options.id ?? (this.#idAssigner++).toString();
+    options = {
+      timeout: this.#timeout,
+      ...options,
+      id
+    };
+    validateTimeout(options.timeout);
+    if (options.priority !== void 0 && (typeof options.priority !== "number" || Number.isNaN(options.priority))) {
+      throw new TypeError(`Expected \`priority\` to be a number, got \`${String(options.priority)}\` (${typeof options.priority})`);
+    }
+    waitingTask.id = id;
+    waitingTask.priority = options.priority ?? 0;
+    return new Promise((resolve, reject) => {
+      if (options.signal?.aborted) {
+        reject(options.signal.reason);
+        return;
+      }
+      const run = bindAsyncContext(async () => {
+        waitingTask.stopListeningForAbort?.();
+        this.#waitingTasks.delete(waitingTask);
+        if (options.signal?.aborted) {
+          this.#rollbackIntervalConsumption();
+          reject(options.signal.reason);
+          return;
+        }
+        this.#pending++;
+        const runningTask = {
+          id,
+          priority: waitingTask.priority,
+          startTime: Date.now(),
+          timeout: options.timeout
+        };
+        this.#runningTasks.add(runningTask);
+        let { signal } = options;
+        let stopListeningForAbort;
+        let stopForwardingAbort;
+        let timeoutId;
+        try {
+          if (options.timeout !== void 0) {
+            const { signal: userSignal, timeout } = options;
+            const taskController = new AbortController();
+            timeoutId = setTimeout(() => {
+              taskController.abort(new TimeoutError(`Task timed out after ${timeout}ms (queue has ${this.#pending} running, ${this.#queue.size} waiting)`));
+            }, timeout);
+            if (userSignal) {
+              stopForwardingAbort = this.#onAbort(userSignal, () => {
+                taskController.abort(userSignal.reason);
+              });
+            }
+            signal = taskController.signal;
+          }
+          let operation;
+          if (signal) {
+            const abortSignal = signal;
+            const abortPromise = new Promise((_resolve, rejectWithReason) => {
+              stopListeningForAbort = this.#onAbort(abortSignal, () => {
+                rejectWithReason(abortSignal.reason);
+              });
+            });
+            operation = Promise.race([abortPromise, (async () => function_({ signal }))()]);
+          } else {
+            try {
+              operation = function_({ signal });
+            } catch (error) {
+              operation = Promise.reject(error);
+            }
+          }
+          const result = await operation;
+          resolve(result);
+          this.#emit("completed", result);
+        } catch (error) {
+          reject(error);
+          this.#emit("error", error);
+        } finally {
+          clearTimeout(timeoutId);
+          stopListeningForAbort?.();
+          stopForwardingAbort?.();
+          this.#runningTasks.delete(runningTask);
+          queueMicrotask(() => {
+            this.#next();
+          });
+        }
+      });
+      const hasWaitingTasks = this.#queue.size > 0;
+      this.#queue.enqueue(run, options);
+      waitingTask.reject = reject;
+      this.#waitingTasks.add(waitingTask);
+      if (options.signal) {
+        const { signal } = options;
+        waitingTask.stopListeningForAbort = this.#onAbort(signal, () => {
+          this.#waitingTasks.delete(waitingTask);
+          if (this.#queue instanceof PriorityQueue) {
+            this.#queue.remove(run);
+          } else {
+            this.#queue.remove(id);
+          }
+          reject(signal.reason);
+          this.#processQueue();
+          this.#emit("next");
+        });
+      }
+      this.#emit("add");
+      if (hasWaitingTasks) {
+        this.#processQueue();
+      } else {
+        this.#tryToStartAnother();
+      }
+    });
+  }
+  /**
+      Get or set the default timeout. A change applies to tasks added after it.
+  
+      @example
+      ```
+      const queue = new PQueue({timeout: 5000});
+  
+      queue.timeout = 10000;
+      ```
+      */
+  get timeout() {
+    return this.#timeout;
+  }
+  // Validated here, not only in `.add()`, so that an invalid value throws where it is set, instead of making every later `.add()` reject.
+  set timeout(timeout) {
+    validateTimeout(timeout);
+    this.#timeout = timeout;
+  }
+  get concurrency() {
+    return this.#concurrency;
+  }
+  set concurrency(newConcurrency) {
+    validateLimit("concurrency", newConcurrency);
+    this.#concurrency = newConcurrency;
+    this.#processWaitingTasks();
+  }
+  /**
+      Changes the priority of a waiting task, found by its `id`. Throws a `ReferenceError` if no waiting task has that `id`, for example because it already started. Throws a `TypeError` if `priority` is not a finite number. Tasks only wait when the queue has a `concurrency` limit, is paused, or is rate-limited.
+  
+      @example
+      ```
+      // Raise the priority to run a task earlier
+      import PQueue from 'p-queue';
+  
+      const queue = new PQueue({concurrency: 1});
+  
+      queue.add(async () => '🦄', {priority: 1});
+      queue.add(async () => '🦀', {priority: 0, id: '🦀'});
+      queue.add(async () => '🦄', {priority: 1});
+      queue.add(async () => '🦄', {priority: 1});
+  
+      queue.setPriority('🦀', 2);
+      // '🦀' runs second
+      ```
+  
+      @example
+      ```
+      // Lower the priority to run a task later
+      import PQueue from 'p-queue';
+  
+      const queue = new PQueue({concurrency: 1});
+  
+      queue.add(async () => '🦄', {priority: 1});
+      queue.add(async () => '🦀', {priority: 1, id: '🦀'});
+      queue.add(async () => '🦄');
+      queue.add(async () => '🦄', {priority: 0});
+  
+      queue.setPriority('🦀', -1);
+      // '🦀' runs last
+      ```
+      */
+  setPriority(id, priority) {
+    if (typeof priority !== "number" || !Number.isFinite(priority)) {
+      throw new TypeError(`Expected \`priority\` to be a finite number, got \`${priority}\` (${typeof priority})`);
+    }
+    for (const waitingTask of this.#waitingTasks) {
+      if (waitingTask.id === id) {
+        this.#queue.setPriority(id, priority);
+        waitingTask.priority = priority;
+        return;
+      }
+    }
+    throw new ReferenceError(`No promise function with the id "${id}" exists in the queue.`);
+  }
+  /**
+      Adds a sync or async task to the queue.
+  
+      Returns a promise that settles with the result of `fn` when the task completes, not when it is added. The function gets `{signal}` as its first argument. The signal is set when the task has a `signal` or a `timeout`, and aborts when either one does. Pass it on, for example to `fetch()`, to stop the work. The function runs in the async context of the `.add()` call (in Node.js 22.3 and later, Deno, and Bun), so it sees the [`AsyncLocalStorage`](https://nodejs.org/api/async_context.html#class-asynclocalstorage) values of the caller, also when it starts later.
+  
+      If you `await` each `.add()` call before the next, the tasks run one after the other, whatever the `concurrency`.
+  
+      Handle rejections of the returned promise. Otherwise, they are unhandled rejections, which can make the process exit.
+      */
+  add(function_, options = {}) {
+    const waitingTask = {};
+    const promise = this.#add(function_, options, waitingTask);
+    waitingTask.promise = promise;
+    if (waitingTask.isCleared) {
+      promise.catch(() => void 0);
+    }
+    return promise;
+  }
+  async addAll(functions, options) {
+    return Promise.all(functions.map(async (function_) => this.add(function_, options)));
+  }
+  /**
+      Starts (or resumes) running queued tasks. Only needed if the queue is paused, with `autoStart: false` or `.pause()`.
+  
+      @returns `this` (the instance).
+      */
+  start() {
+    if (!this.#isPaused) {
+      return this;
+    }
+    this.#isPaused = false;
+    this.#processWaitingTasks();
+    return this;
+  }
+  /**
+  Stops starting new tasks. Running tasks continue.
+  */
+  pause() {
+    this.#isPaused = true;
+  }
+  /**
+      Removes all waiting tasks. Running tasks continue.
+  
+      The promises returned by `.add()` for the removed tasks reject with an `AbortError`, which is a `DOMException`. The removed tasks do not run, and they do not emit the `error` event.
+  
+      If you ignore such a promise, its rejection is not reported as unhandled. This does not apply to a promise made from it, like the one from `queue.add(fn).then(…)` or from `.addAll()`, so handle the rejection of that promise.
+  
+      @example
+      ```
+      import PQueue from 'p-queue';
+  
+      const queue = new PQueue({concurrency: 1});
+  
+      queue.add(() => doWork());
+      const promise = queue.add(() => doWork());
+  
+      queue.clear();
+  
+      try {
+          await promise;
+      } catch (error) {
+          console.log(error.name);
+          //=> 'AbortError'
+      }
+      ```
+      */
+  clear() {
+    if (this.#queue.size === 0) {
+      return;
+    }
+    this.#queue = new this.#queueClass();
+    const error = new DOMException("The queue was cleared", "AbortError");
+    for (const waitingTask of this.#waitingTasks) {
+      waitingTask.stopListeningForAbort?.();
+      waitingTask.isCleared = true;
+      waitingTask.promise?.catch(() => void 0);
+      waitingTask.reject(error);
+    }
+    this.#waitingTasks.clear();
+    this.#emitEmptyAndIdle();
+    this.#updateRateLimitState();
+    this.#emit("next");
+  }
+  /**
+      Returns a promise that resolves when the queue is empty. Tasks can still be running.
+  
+      The promise resolves once. Call `.onEmpty()` again to wait for the next time, or use the `empty` event to get every time.
+      */
+  async onEmpty() {
+    if (this.#queue.size === 0) {
+      return;
+    }
+    await this.#onEvent(["empty", "active"], () => this.#queue.size === 0);
+  }
+  /**
+      Returns a promise that resolves when `queue.size < limit`.
+  
+      Await it before you add a task, to keep the queue from growing beyond a size. It counts only waiting tasks, not running tasks.
+      */
+  async onSizeLessThan(limit) {
+    if (this.#queue.size < limit) {
+      return;
+    }
+    await this.#onEvent(["next", "active"], () => this.#queue.size < limit);
+  }
+  /**
+      Returns a promise that resolves when the queue is empty and all tasks have completed: `queue.size === 0 && queue.pending === 0`.
+  
+      Unlike `.onEmpty()`, it waits for running tasks to finish.
+  
+      The promise resolves once. Call `.onIdle()` again to wait for the next time, or use the `idle` event to get every time.
+      */
+  async onIdle() {
+    if (this.#pending === 0 && this.#queue.size === 0) {
+      return;
+    }
+    await this.#onEvent("idle");
+  }
+  /**
+      Returns a promise that resolves when no tasks are running: `queue.pending === 0`.
+  
+      Unlike `.onIdle()`, it ignores queued tasks. Use it to let running tasks finish before you change shared state. A task that timed out, or whose `signal` aborted while it ran, no longer counts, although its function can still run.
+  
+      @example
+      ```
+      queue.pause();
+      await queue.onPendingZero();
+      // No tasks are running, but the queue can still have tasks
+      ```
+      */
+  async onPendingZero() {
+    if (this.#pending === 0) {
+      return;
+    }
+    await this.#onEvent("pendingZero");
+  }
+  /**
+      Returns a promise that resolves when the queue becomes rate-limited by `intervalCap`. If the queue is already rate-limited, it resolves immediately.
+  
+      Useful for backpressure, when tasks are added faster than they run.
+  
+      @example
+      ```
+      const queue = new PQueue({intervalCap: 5, interval: 1000});
+  
+      for (let index = 0; index < 10; index++) {
+          queue.add(() => someTask());
+      }
+  
+      await queue.onRateLimit();
+      console.log('The queue is rate-limited');
+      ```
+      */
+  async onRateLimit() {
+    this.#updateRateLimitState();
+    if (this.isRateLimited) {
+      return;
+    }
+    await this.#onEvent("rateLimit");
+  }
+  /**
+      Returns a promise that resolves when the queue is no longer rate-limited. If the queue is not rate-limited, it resolves immediately.
+  
+      @example
+      ```
+      const queue = new PQueue({intervalCap: 5, interval: 1000});
+  
+      for (let index = 0; index < 10; index++) {
+          queue.add(() => someTask());
+      }
+  
+      await queue.onRateLimitCleared();
+      console.log('The rate limit is cleared');
+      ```
+      */
+  async onRateLimitCleared() {
+    this.#updateRateLimitState();
+    if (!this.isRateLimited) {
+      return;
+    }
+    await this.#onEvent("rateLimitCleared");
+  }
+  /**
+      Returns a promise that rejects when a task fails: it throws, times out, or its `signal` aborts while it runs. It rejects with the error of the task, or with `null` if the error is `undefined`, like the `error` event.
+  
+      Use `Promise.race([queue.onError(), queue.onIdle()])` to stop at the first error, and to resolve normally when the queue becomes idle. Each call adds an `error` listener that stays until a task fails, so to get every error, for example in a loop, use the `error` event instead.
+  
+      Important: The promises returned by `.add()` still reject. Handle each of them (for example with `.catch(() => {})`) to prevent unhandled rejections.
+  
+      @example
+      ```
+      import PQueue from 'p-queue';
+  
+      const queue = new PQueue({concurrency: 2});
+  
+      // Do not start the remaining tasks. Pause in an `error` listener, because it runs before the next task starts, and the code after `await` runs later.
+      queue.addEventListener('error', () => {
+          queue.pause();
+      }, {once: true});
+  
+      queue.add(() => fetchData(1)).catch(() => {});
+      queue.add(() => fetchData(2)).catch(() => {});
+      queue.add(() => fetchData(3)).catch(() => {});
+  
+      try {
+          await Promise.race([
+              queue.onError(),
+              queue.onIdle()
+          ]);
+      } catch (error) {
+          console.error('Queue failed:', error);
+      }
+      ```
+      */
+  // eslint-disable-next-line @typescript-eslint/promise-function-async
+  onError() {
+    return new Promise((_resolve, reject) => {
+      this.addEventListener("error", (event) => {
+        reject(event.detail);
+      }, { once: true });
+    });
+  }
+  /**
+  The number of tasks waiting to run.
+  */
+  get size() {
+    return this.#queue.size;
+  }
+  /**
+      The number of waiting tasks with the given `priority`.
+  
+      @example
+      ```
+      import PQueue from 'p-queue';
+  
+      const queue = new PQueue();
+  
+      // Paused, so the tasks stay queued. Without it they all start synchronously and the queue is empty by the time `sizeBy` reads it.
+      queue.pause();
+  
+      queue.add(async () => '🦄', {priority: 1});
+      queue.add(async () => '🦄', {priority: 0});
+      queue.add(async () => '🦄', {priority: 1});
+  
+      console.log(queue.sizeBy({priority: 1}));
+      //=> 2
+  
+      console.log(queue.sizeBy({priority: 0}));
+      //=> 1
+      ```
+      */
+  sizeBy(options) {
+    return this.#queue.filter(options).length;
+  }
+  /**
+  The number of running tasks.
+  */
+  get pending() {
+    return this.#pending;
+  }
+  /**
+  Whether the queue is paused.
+  */
+  get isPaused() {
+    return this.#isPaused;
+  }
+  /**
+  Whether the queue is rate-limited: the number of tasks started in the current interval, plus the tasks still running from earlier intervals with `carryoverIntervalCount`, has reached `intervalCap`, and tasks are waiting.
+  */
+  get isRateLimited() {
+    return this.#isRateLimitedNow;
+  }
+  /**
+      Whether tasks are waiting because all concurrency slots are in use, or because the queue is rate-limited.
+  
+      Useful to detect backpressure and tasks that hang.
+  
+      @example
+      ```
+      import PQueue from 'p-queue';
+  
+      const queue = new PQueue({concurrency: 2});
+  
+      // Backpressure
+      if (queue.isSaturated) {
+          await queue.onSizeLessThan(queue.concurrency);
+      }
+  
+      // Monitoring
+      setInterval(() => {
+          if (queue.isSaturated) {
+              console.warn(`Queue saturated: ${queue.pending} running, ${queue.size} waiting`);
+          }
+      }, 60000);
+      ```
+      */
+  get isSaturated() {
+    return this.#queue.size > 0 && (this.#pending >= this.#concurrency || this.isRateLimited);
+  }
+  /**
+      An array with the running tasks. Each task has its `id`, `priority`, `startTime`, `timeout`, and `timeoutRemaining` (the milliseconds until it times out). Without a timeout, `timeout` and `timeoutRemaining` are `undefined`.
+  
+      @example
+      ```
+      import PQueue from 'p-queue';
+  
+      const queue = new PQueue({concurrency: 2, timeout: 10000});
+  
+      queue.add(() => fetchUser(123), {id: 'user-123'});
+      queue.add(() => fetchPosts(456), {id: 'posts-456', priority: 1});
+  
+      console.log(queue.runningTasks);
+      // => [{
+      //   id: 'user-123',
+      //   priority: 0,
+      //   startTime: 1759253001716,
+      //   timeout: 10000,
+      //   timeoutRemaining: 10000
+      // }, {
+      //   id: 'posts-456',
+      //   priority: 1,
+      //   startTime: 1759253001716,
+      //   timeout: 10000,
+      //   timeoutRemaining: 10000
+      // }]
+      ```
+      */
+  get runningTasks() {
+    return Array.from(this.#runningTasks, (task) => ({
+      ...task,
+      timeoutRemaining: task.timeout === void 0 ? void 0 : Math.max(0, task.startTime + task.timeout - Date.now())
+    }));
+  }
+};
+var TimeoutError = class extends DOMException {
+  constructor(message) {
+    super(message, "TimeoutError");
+  }
+};
+
 // src/orchestration/canonical/model.ts
 function validateOrchestrationDAG(steps) {
   const errors = [];
   const stepMap = /* @__PURE__ */ new Map();
   for (const step of steps) {
+    if (!step.id || typeof step.id !== "string" || step.id.trim() === "") {
+      errors.push("Step must have a non-empty string ID.");
+      continue;
+    }
     if (stepMap.has(step.id)) {
       errors.push(`Duplicate step ID detected: "${step.id}"`);
     }
     stepMap.set(step.id, step);
+    if (step.timeoutPolicy) {
+      if (typeof step.timeoutPolicy.timeoutMs !== "number" || step.timeoutPolicy.timeoutMs <= 0) {
+        errors.push(`Step "${step.id}" has invalid timeoutMs: must be a positive number.`);
+      }
+    }
+    if (step.retryPolicy) {
+      if (typeof step.retryPolicy.maxAttempts !== "number" || step.retryPolicy.maxAttempts < 1) {
+        errors.push(`Step "${step.id}" has invalid maxAttempts: must be >= 1.`);
+      }
+      if (step.retryPolicy.backoffMs !== void 0 && step.retryPolicy.backoffMs < 0) {
+        errors.push(`Step "${step.id}" has negative backoffMs.`);
+      }
+      if (step.retryPolicy.initialDelayMs !== void 0 && step.retryPolicy.initialDelayMs < 0) {
+        errors.push(`Step "${step.id}" has negative initialDelayMs.`);
+      }
+    }
+    if (step.concurrency !== void 0 && (typeof step.concurrency !== "number" || step.concurrency < 1)) {
+      errors.push(`Step "${step.id}" has invalid concurrency: must be >= 1.`);
+    }
+    if (step.type === "task" || step.type === "sequential") {
+      if (!step.target && !step.handler) {
+        errors.push(`Step "${step.id}" requires a non-empty target or handler.`);
+      }
+    }
   }
   for (const step of steps) {
     if (step.dependsOn) {
@@ -468,118 +1519,361 @@ var WorkerExecutionBoundary = class _WorkerExecutionBoundary {
   static assertWorkerContext(context) {
     if (!context || !context.isWorkerContext) {
       throw new Error(
-        "[WorkerExecutionBoundary] Violation: DIRECT_CALL -> SERVICE_BOUNDARY is strictly forbidden. All operations must execute inside BullMQ Worker context."
+        "[WorkerExecutionBoundary] Violation: DIRECT_CALL -> SERVICE_BOUNDARY is strictly forbidden. All operations must execute inside KrnlWorker context."
       );
     }
   }
 };
 
-// src/orchestration/canonical/BullMQExecutionEngine.ts
-var BullMQExecutionEngine = class {
+// src/orchestration/canonical/KrnlWorkerPool.ts
+var KrnlWorkerPool = class {
+  constructor(queueName, workerId = `worker_${queueName}_${Math.random().toString(36).substring(2, 7)}`) {
+    this.queueName = queueName;
+    this.workerId = workerId;
+    this.workerBoundary = new WorkerExecutionBoundary(this.workerId);
+  }
   queueName;
-  concurrency;
-  idempotencyStore = /* @__PURE__ */ new Map();
-  activeExecutions = /* @__PURE__ */ new Map();
-  inMemoryJobs = /* @__PURE__ */ new Map();
-  isRunning = false;
-  activeWorkerCount = 0;
+  workerId;
+  state = "created";
+  activeJobsCount = 0;
+  startedAt = Date.now();
   workerBoundary;
-  constructor(options = {}) {
-    this.queueName = options.queueName ?? "krnl_orchestration_default";
-    this.concurrency = options.concurrency ?? 10;
-    this.workerBoundary = new WorkerExecutionBoundary(`${this.queueName}_worker`, async (cmd, ctx) => {
-      return this.dispatchInternalCommand(cmd, ctx);
-    });
+  getState() {
+    return this.state;
   }
-  async start() {
-    this.isRunning = true;
-  }
-  async stop() {
-    this.isRunning = false;
-  }
-  async dispose() {
-    await this.stop();
-    for (const [id, active] of this.activeExecutions.entries()) {
-      active.abortController.abort();
-      active.context.isCancelled = true;
-    }
-    this.activeExecutions.clear();
-    this.inMemoryJobs.clear();
-    this.idempotencyStore.clear();
-  }
-  async close() {
-    await this.dispose();
+  getActiveJobs() {
+    return this.activeJobsCount;
   }
   getWorkerBoundary() {
     return this.workerBoundary;
   }
+  getInfo() {
+    return {
+      id: this.workerId,
+      queueName: this.queueName,
+      state: this.state,
+      startedAt: this.startedAt,
+      activeJobs: this.activeJobsCount
+    };
+  }
+  start() {
+    if (this.state === "stopped") {
+      throw new Error(`[KrnlWorkerPool:${this.workerId}] Cannot start stopped worker.`);
+    }
+    this.state = "started";
+  }
+  createContext(correlationId, metadata) {
+    return {
+      isWorkerContext: true,
+      workerId: this.workerId,
+      timestamp: Date.now(),
+      correlationId: correlationId || `corr_${Math.random().toString(36).substring(2, 11)}`,
+      metadata
+    };
+  }
+  async runWithContext(correlationId, metadata, fn) {
+    if (this.state === "stopped" || this.state === "draining") {
+      throw new Error(`[KrnlWorkerPool:${this.workerId}] Worker is not accepting new jobs (state: ${this.state}).`);
+    }
+    this.state = "running";
+    this.activeJobsCount++;
+    const ctx = this.createContext(correlationId, metadata);
+    WorkerExecutionBoundary.assertWorkerContext(ctx);
+    try {
+      return await fn(ctx);
+    } finally {
+      this.activeJobsCount--;
+      if (this.activeJobsCount === 0 && this.state === "running") {
+        this.state = "started";
+      }
+    }
+  }
+  async drain() {
+    this.state = "draining";
+    while (this.activeJobsCount > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+  async stop() {
+    await this.drain();
+    this.state = "stopped";
+  }
+};
+
+// src/orchestration/canonical/KrnlQ.ts
+var KrnlQueue = class {
+  queueName;
+  queue;
+  workerPool;
+  jobs = /* @__PURE__ */ new Map();
+  idempotencyStore = /* @__PURE__ */ new Map();
+  activeOrchestrations = /* @__PURE__ */ new Map();
+  constructor(options = {}) {
+    this.queueName = options.queueName ?? "krnl_default_queue";
+    const concurrency = options.concurrency ?? 10;
+    this.queue = new PQueue({
+      concurrency,
+      autoStart: options.autoStart ?? true
+    });
+    this.workerPool = new KrnlWorkerPool(this.queueName);
+    this.workerPool.start();
+  }
+  get concurrency() {
+    return this.queue.concurrency;
+  }
+  set concurrency(value) {
+    this.queue.concurrency = value;
+  }
+  get size() {
+    return this.queue.size;
+  }
+  get pending() {
+    return this.queue.pending;
+  }
+  get isPaused() {
+    return this.queue.isPaused;
+  }
+  getWorkerBoundary() {
+    return this.workerPool.getWorkerBoundary();
+  }
+  getWorkerPool() {
+    return this.workerPool;
+  }
+  pause() {
+    this.queue.pause();
+  }
+  resume() {
+    this.queue.start();
+  }
+  clear() {
+    this.queue.clear();
+  }
+  async drain() {
+    await this.queue.onIdle();
+  }
+  async shutdown(options = { drain: true }) {
+    if (options.drain) {
+      await this.drain();
+    } else {
+      this.clear();
+    }
+    for (const active of this.activeOrchestrations.values()) {
+      active.abortController.abort();
+      active.context.isCancelled = true;
+    }
+    this.activeOrchestrations.clear();
+    await this.workerPool.stop();
+  }
+  async close() {
+    await this.shutdown({ drain: false });
+  }
+  async dispose() {
+    await this.shutdown({ drain: false });
+  }
+  async start() {
+    this.resume();
+  }
+  async stop() {
+    this.pause();
+  }
   /**
-   * Dispatches a single command through the BullMQ queue and worker execution boundary.
+   * Enqueues a job returning a strong handle.
+   */
+  enqueue(jobDef) {
+    const jobId = jobDef.id || `job_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+    const abortController = new AbortController();
+    if (jobDef.options?.abortSignal) {
+      if (jobDef.options.abortSignal.aborted) {
+        abortController.abort();
+      } else {
+        jobDef.options.abortSignal.addEventListener("abort", () => abortController.abort(), { once: true });
+      }
+    }
+    let resolvePromise;
+    let rejectPromise;
+    const promise = new Promise((res, rej) => {
+      resolvePromise = res;
+      rejectPromise = rej;
+    });
+    const record = {
+      id: jobId,
+      name: jobDef.name,
+      status: "waiting",
+      createdAt: Date.now(),
+      abortController,
+      resolvePromise,
+      rejectPromise,
+      promise
+    };
+    this.jobs.set(jobId, record);
+    const priority = jobDef.options?.priority ?? 0;
+    this.queue.add(
+      async () => {
+        if (record.status === "cancelled" || abortController.signal.aborted) {
+          record.status = "cancelled";
+          const cancelErr = new Error("The operation was aborted");
+          cancelErr.name = "AbortError";
+          rejectPromise(cancelErr);
+          return;
+        }
+        record.status = "active";
+        record.startedAt = Date.now();
+        const idemKey = jobDef.options?.idempotencyKey;
+        if (idemKey && this.idempotencyStore.has(idemKey)) {
+          const cached = this.idempotencyStore.get(idemKey);
+          record.status = cached.status === "COMPLETED" ? "completed" : "failed";
+          record.completedAt = Date.now();
+          if (cached.status === "COMPLETED") {
+            record.result = cached.data;
+            resolvePromise(cached.data);
+          } else {
+            record.error = cached.error;
+            rejectPromise(new Error(cached.error));
+          }
+          return;
+        }
+        const retries = jobDef.options?.retries ?? 0;
+        const maxAttempts = retries + 1;
+        const timeoutMs = jobDef.options?.timeoutMs;
+        const backoffMs = jobDef.options?.backoffMs ?? 100;
+        const backoffPolicy = jobDef.options?.backoffPolicy ?? "exponential";
+        let attempt = 0;
+        let lastError;
+        while (attempt < maxAttempts) {
+          if (abortController.signal.aborted) {
+            record.status = "cancelled";
+            const cancelErr = new Error("The operation was aborted");
+            cancelErr.name = "AbortError";
+            rejectPromise(cancelErr);
+            return;
+          }
+          attempt++;
+          try {
+            const result = await this.workerPool.runWithContext(
+              jobDef.options?.correlationId,
+              jobDef.options?.metadata,
+              async (workerCtx) => {
+                let timer;
+                try {
+                  const workPromise = jobDef.handler(jobDef.payload, workerCtx);
+                  if (timeoutMs && timeoutMs > 0) {
+                    const timeoutPromise = new Promise((_, rej) => {
+                      timer = setTimeout(() => {
+                        const err = new Error(`Job "${jobDef.name}" timed out after ${timeoutMs}ms.`);
+                        err.name = "TimeoutError";
+                        rej(err);
+                      }, timeoutMs);
+                    });
+                    return await Promise.race([workPromise, timeoutPromise]);
+                  }
+                  return await workPromise;
+                } finally {
+                  if (timer) clearTimeout(timer);
+                }
+              }
+            );
+            record.status = "completed";
+            record.completedAt = Date.now();
+            record.result = result;
+            if (idemKey) {
+              this.idempotencyStore.set(idemKey, {
+                correlationId: jobDef.options?.correlationId || jobId,
+                status: "COMPLETED",
+                data: result,
+                executionTimestamp: Date.now()
+              });
+            }
+            resolvePromise(result);
+            return;
+          } catch (err) {
+            lastError = err;
+            if (abortController.signal.aborted || err?.name === "AbortError") {
+              record.status = "cancelled";
+              record.completedAt = Date.now();
+              rejectPromise(err);
+              return;
+            }
+            if (attempt < maxAttempts) {
+              const delay = backoffPolicy === "exponential" ? backoffMs * Math.pow(2, attempt - 1) : backoffMs * attempt;
+              await new Promise((r) => setTimeout(r, delay));
+            }
+          }
+        }
+        record.status = "failed";
+        record.completedAt = Date.now();
+        record.error = lastError?.message || String(lastError);
+        if (idemKey) {
+          this.idempotencyStore.set(idemKey, {
+            correlationId: jobDef.options?.correlationId || jobId,
+            status: "FAILED",
+            error: record.error,
+            executionTimestamp: Date.now()
+          });
+        }
+        rejectPromise(lastError);
+      },
+      { priority }
+    );
+    return {
+      id: jobId,
+      name: jobDef.name,
+      getStatus: () => record.status,
+      result: () => record.promise,
+      cancel: () => this.cancel(jobId)
+    };
+  }
+  cancel(jobId) {
+    const job = this.jobs.get(jobId);
+    if (!job) return false;
+    if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
+      return false;
+    }
+    job.status = "cancelled";
+    job.abortController.abort();
+    return true;
+  }
+  getJob(jobId) {
+    return this.jobs.get(jobId);
+  }
+  /**
+   * Dispatches a single command through the KrnlQ worker boundary.
    */
   async executeCommand(command, handler) {
     if (command.idempotencyKey && this.idempotencyStore.has(command.idempotencyKey)) {
       return this.idempotencyStore.get(command.idempotencyKey);
     }
-    const job = {
-      id: command.id,
-      name: command.type,
-      payload: command.payload,
-      correlationId: command.correlationId,
-      idempotencyKey: command.idempotencyKey,
-      attemptsMade: 0,
-      maxAttempts: 1,
-      status: "waiting",
-      enqueuedAt: Date.now(),
-      handler
-    };
-    this.inMemoryJobs.set(job.id, job);
     try {
-      job.status = "active";
-      const result = await this.workerBoundary.processJob(command);
-      job.status = result.status === "COMPLETED" ? "completed" : "failed";
-      job.result = result.data;
-      job.error = result.error;
-      if (command.idempotencyKey) {
-        this.idempotencyStore.set(command.idempotencyKey, result);
-      }
-      return result;
-    } catch (err) {
-      job.status = "failed";
-      job.error = err?.message || String(err);
-      const failedResult = {
-        correlationId: command.correlationId,
-        status: "FAILED",
-        error: job.error,
-        executionTimestamp: Date.now()
-      };
-      return failedResult;
-    }
-  }
-  async dispatchInternalCommand(command, context) {
-    WorkerExecutionBoundary.assertWorkerContext(context);
-    const job = this.inMemoryJobs.get(command.id);
-    if (!job) {
-      throw new Error(`[BullMQExecutionEngine] Job ${command.id} not found in queue.`);
-    }
-    try {
-      const data = await job.handler(command.payload, context);
-      return {
+      const handle = this.enqueue({
+        id: command.id,
+        name: command.type,
+        payload: command.payload,
+        handler,
+        options: {
+          idempotencyKey: command.idempotencyKey,
+          correlationId: command.correlationId
+        }
+      });
+      const data = await handle.result();
+      const res = {
         correlationId: command.correlationId,
         status: "COMPLETED",
         data,
         executionTimestamp: Date.now()
       };
+      return res;
     } catch (err) {
-      return {
+      const isAbort = err?.name === "AbortError" || err?.message === "The operation was aborted";
+      const res = {
         correlationId: command.correlationId,
-        status: "FAILED",
+        status: isAbort ? "CANCELLED" : "FAILED",
         error: err?.message || String(err),
         executionTimestamp: Date.now()
       };
+      return res;
     }
   }
   /**
-   * Executes a full Canonical Orchestration DAG through the BullMQ worker boundary.
+   * Executes a full Canonical Orchestration DAG through KrnlQ and worker boundary.
    */
   async executeOrchestration(descriptor, steps, input, options = {}) {
     const startedAt = Date.now();
@@ -626,7 +1920,7 @@ var BullMQExecutionEngine = class {
     abortController.signal.addEventListener("abort", () => {
       context.isCancelled = true;
     });
-    this.activeExecutions.set(executionId, { abortController, context });
+    this.activeOrchestrations.set(executionId, { abortController, context });
     const timeoutMs = options.timeoutMs || descriptor.timeoutMs;
     let timeoutTimer;
     let isWorkflowTimeout = false;
@@ -640,8 +1934,6 @@ var BullMQExecutionEngine = class {
     const stepResults = {};
     const executedSteps = /* @__PURE__ */ new Set();
     const executedComps = [];
-    const stepMap = /* @__PURE__ */ new Map();
-    for (const step of steps) stepMap.set(step.id, step);
     let finalOutput = void 0;
     let orchestrationStatus = "COMPLETED";
     let errorMessage;
@@ -699,13 +1991,13 @@ var BullMQExecutionEngine = class {
           try {
             await executedComps[i]();
           } catch (compErr) {
-            console.error(`[BullMQExecutionEngine] Compensation failed:`, compErr);
+            console.error(`[KrnlQ] Compensation failed:`, compErr);
           }
         }
       }
     } finally {
       if (timeoutTimer) clearTimeout(timeoutTimer);
-      this.activeExecutions.delete(executionId);
+      this.activeOrchestrations.delete(executionId);
     }
     const result = {
       orchestrationId: descriptor.id,
@@ -908,7 +2200,7 @@ var BullMQExecutionEngine = class {
     return delay;
   }
   cancelExecution(executionId) {
-    const active = this.activeExecutions.get(executionId);
+    const active = this.activeOrchestrations.get(executionId);
     if (active) {
       active.context.isCancelled = true;
       active.abortController.abort();
@@ -929,7 +2221,7 @@ var ServiceFacade = class {
   dependencies;
   capabilities;
   instance;
-  executionEngine;
+  queue;
   constructor(config) {
     if (!config || !config.id || typeof config.id !== "string") {
       throw new Error("[ServiceFacade] ServiceFacade requires a valid id.");
@@ -954,10 +2246,10 @@ var ServiceFacade = class {
         operations: {}
       });
     }
-    this.executionEngine = new BullMQExecutionEngine({
+    this.queue = new KrnlQueue({
       queueName: `krnl_queue_${this.id}`,
-      connection: config.queueConnection,
-      concurrency: config.concurrency ?? 10
+      concurrency: config.concurrency ?? config.queueOptions?.concurrency ?? 10,
+      autoStart: config.queueOptions?.autoStart ?? true
     });
   }
   get orchestrations() {
@@ -966,30 +2258,33 @@ var ServiceFacade = class {
   getInstance() {
     return this.instance;
   }
+  getQueue() {
+    return this.queue;
+  }
   getExecutionEngine() {
-    return this.executionEngine;
+    return this.queue;
   }
   getWorkerBoundary() {
-    return this.executionEngine.getWorkerBoundary();
+    return this.queue.getWorkerBoundary();
   }
   getStatus() {
     return this.instance.getStatus();
   }
   async start() {
     await this.instance.start();
-    await this.executionEngine.start();
+    await this.queue.start();
   }
   async stop() {
-    await this.executionEngine.stop();
+    await this.queue.stop();
     await this.instance.stop();
   }
   async dispose() {
-    await this.executionEngine.dispose();
+    await this.queue.dispose();
     await this.instance.dispose();
   }
   /**
    * External caller callable boundary for single functionality / operation execution.
-   * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> Functionality -> Result.
+   * Path: External Caller -> Service Facade -> KrnlQ Job -> Worker -> Functionality -> Result.
    * Strictly avoids synchronous unmediated execution outside the queue.
    */
   async call(op, input, ctx) {
@@ -1003,7 +2298,7 @@ var ServiceFacade = class {
       idempotencyKey: ctx?.idempotencyKey,
       createdAt: Date.now()
     };
-    const result = await this.executionEngine.executeCommand(command, async (payload, workerCtx) => {
+    const result = await this.queue.executeCommand(command, async (payload, workerCtx) => {
       WorkerExecutionBoundary.assertWorkerContext(workerCtx);
       if (this.functionalities[op] && typeof this.functionalities[op].execute === "function") {
         return await this.functionalities[op].execute(payload, {
@@ -1023,7 +2318,7 @@ var ServiceFacade = class {
   }
   /**
    * External caller callable boundary for functionality orchestration execution.
-   * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> FunctionalityOrchestration -> Result.
+   * Path: External Caller -> Service Facade -> KrnlQ Command -> Worker -> FunctionalityOrchestration -> Result.
    */
   async orchestrate(orchestrationName, input, options = {}) {
     const orch = this.functionalityOrchestrations[orchestrationName];
@@ -1042,7 +2337,7 @@ var ServiceFacade = class {
       idempotencyKey: options.idempotencyKey,
       createdAt: Date.now()
     };
-    const cmdResult = await this.executionEngine.executeCommand(
+    const cmdResult = await this.queue.executeCommand(
       command,
       async (payload, workerCtx) => {
         WorkerExecutionBoundary.assertWorkerContext(workerCtx);
@@ -1116,7 +2411,7 @@ var ServiceFacade = class {
           }
           return nestedResult.output;
         };
-        return await this.executionEngine.executeOrchestration(
+        return await this.queue.executeOrchestration(
           { id: orch.id, name: orch.name, version: orch.version, timeoutMs: orch.timeoutMs, scope: "functionality" },
           boundSteps,
           payload,
@@ -1137,8 +2432,8 @@ var ServiceFacade = class {
     return cmdResult.data;
   }
   /**
-   * Executes a callable operation or orchestration through BullMQ queue and worker boundary.
-   * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> Functionality / Orchestration -> Result.
+   * Executes a callable operation or orchestration through KrnlQ and worker boundary.
+   * Path: External Caller -> Service Facade -> KrnlQ Command -> Worker -> Functionality / Orchestration -> Result.
    * Strictly queue-mediated; zero unmediated bypasses.
    */
   async execute(target, input, options) {
@@ -2049,6 +3344,32 @@ var FunctionalityOrchestration = class {
     return Object.freeze([...this.steps]);
   }
   /**
+   * Converts this FunctionalityOrchestration to a pure serializable OrchestrationDefinition.
+   */
+  toDefinition() {
+    return {
+      id: this.id,
+      name: this.name,
+      version: this.version,
+      description: this.description,
+      timeoutMs: this.timeoutMs,
+      scope: "functionality",
+      dependencies: [],
+      steps: this.steps.map((s) => ({
+        id: s.id,
+        name: s.name,
+        type: s.type,
+        target: s.target,
+        dependsOn: s.dependsOn ? [...s.dependsOn] : void 0,
+        retryPolicy: s.retryPolicy ? { ...s.retryPolicy } : void 0,
+        timeoutPolicy: s.timeoutPolicy ? { ...s.timeoutPolicy } : void 0,
+        compensation: s.compensation ? { name: s.compensation.name, target: s.compensation.target } : void 0,
+        nestedOrchestrationId: s.nestedOrchestrationId,
+        concurrency: s.concurrency
+      }))
+    };
+  }
+  /**
    * Named flow builder interface.
    */
   flow(name) {
@@ -2132,10 +3453,11 @@ var FunctionalityOrchestration = class {
   }
 };
 export {
-  BullMQExecutionEngine,
   FunctionalityOrchestration,
   HttpProtocolAdapter,
   KrnlPackageReconciler,
+  KrnlQueue,
+  KrnlWorkerPool,
   LifecycleManager,
   MemoryTransport,
   P2PProtocolAdapter,

@@ -1,6 +1,6 @@
 /**
  * @file WorkerExecutionBoundary.ts
- * @description Worker Execution Boundary mediating all job execution from BullMQ workers
+ * @description Worker Execution Boundary mediating all job execution from Krnl workers
  * to service functionalities and orchestrations.
  * Enforces worker context invariants (no synchronous/unmediated direct execution).
  */
@@ -67,7 +67,7 @@ export class WorkerExecutionBoundary {
   static assertWorkerContext(context?: ExecutionContext): void {
     if (!context || !context.isWorkerContext) {
       throw new Error(
-        '[WorkerExecutionBoundary] Violation: DIRECT_CALL -> SERVICE_BOUNDARY is strictly forbidden. All operations must execute inside BullMQ Worker context.'
+        '[WorkerExecutionBoundary] Violation: DIRECT_CALL -> SERVICE_BOUNDARY is strictly forbidden. All operations must execute inside KrnlWorker context.'
       );
     }
   }

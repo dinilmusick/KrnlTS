@@ -5,7 +5,7 @@ import {
 } from '../index.js';
 
 describe('Standalone Single-Service Execution Contract (KrnlTS)', () => {
-  it('executes single functionalities and functionality orchestrations through BullMQ without Skipo', async () => {
+  it('executes single functionalities and functionality orchestrations through KrnlQ without Skipo', async () => {
     // 1. Define internal functionalities
     const calculateTax = {
       execute: vi.fn(async (payload: { amount: number }) => {
@@ -59,7 +59,7 @@ describe('Standalone Single-Service Execution Contract (KrnlTS)', () => {
 
     await facade.start();
 
-    // 4. Test callable operation execution via BullMQ queue
+    // 4. Test callable operation execution via KrnlQ queue
     const taxResult = await facade.call<{ amount: number }, { amount: number; tax: number }>(
       'calculateTax',
       { amount: 100 }
@@ -68,7 +68,7 @@ describe('Standalone Single-Service Execution Contract (KrnlTS)', () => {
     expect(taxResult.tax).toBe(10);
     expect(calculateTax.execute).toHaveBeenCalledTimes(1);
 
-    // 5. Test FunctionalityOrchestration execution via BullMQ queue
+    // 5. Test FunctionalityOrchestration execution via KrnlQ queue
     const orchResult = await facade.execute('checkout_flow', { amount: 200 });
     expect(orchResult.status).toBe('COMPLETED');
     expect(orchResult.output).toEqual({ receiptId: 'REC-123', totalDue: 220 });
