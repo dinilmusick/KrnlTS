@@ -12,7 +12,7 @@ export function generateEntity(name: string, projectRoot: string): void {
 
   fs.writeFileSync(
     path.join(bEntityDir, `${name}.ts`),
-    `import { Entity, KrnlMagneticLoader } from "@dinilmusick/krnl-core";
+    `import { Entity, KrnlMagneticLoader } from "@ultrst-armada/krnl-core";
 
 /**
  * @role skeleton

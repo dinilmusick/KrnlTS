@@ -36,7 +36,7 @@ export function scaffoldBackend(targetDir: string): void {
   // App Entity
   fs.writeFileSync(
     path.join(bEntityDir, 'App.ts'),
-    `import { Entity, KrnlMagneticLoader } from "@dinilmusick/krnl-core";\nexport class App extends Entity {\n  constructor() { super({ id: "App", version: "1.0.0", description: "Root application entity" }); }\n  async boot(): Promise<void> { await KrnlMagneticLoader.loadAll(this, import.meta.url); }\n}\nexport default App;\n`
+    `import { Entity, KrnlMagneticLoader } from "@ultrst-armada/krnl-core";\nexport class App extends Entity {\n  constructor() { super({ id: "App", version: "1.0.0", description: "Root application entity" }); }\n  async boot(): Promise<void> { await KrnlMagneticLoader.loadAll(this, import.meta.url); }\n}\nexport default App;\n`
   );
   fs.writeFileSync(
     path.join(bEntityDir, 'orchestrations', 'BootFlow.ts'),

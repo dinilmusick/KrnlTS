@@ -18,7 +18,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema,esbuild",
+    "build": "tsup src/index.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema,esbuild --clean",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

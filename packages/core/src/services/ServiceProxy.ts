@@ -21,12 +21,22 @@ export class ServiceProxy<
   private stateCache: TState;
   private readonly eventHandlers: Map<string, Set<(payload: any) => void>> = new Map();
   private readonly lifecycle = new LifecycleManager();
+  private disposed = false;
 
   constructor(
     private readonly definition: ServiceDefinition<TState, TEvents>,
     private readonly adapter: ProtocolAdapter,
     private readonly endpoint: EndpointDescriptor
   ) {
+    if (!definition) {
+      throw new Error('[ServiceProxy] Missing service definition.');
+    }
+    if (!adapter || typeof adapter.send !== 'function') {
+      throw new Error("[ServiceProxy:" + (definition.name || 'unknown') + "] Missing or invalid protocol adapter.");
+    }
+    if (!endpoint || typeof endpoint.address !== 'string' || endpoint.address.length === 0) {
+      throw new Error("[ServiceProxy:" + (definition.name || 'unknown') + "] Missing or invalid endpoint descriptor.");
+    }
     this.id = definition.id;
     this.name = definition.name;
     this.version = definition.version;
@@ -42,6 +52,9 @@ export class ServiceProxy<
   }
 
   async start(): Promise<void> {
+    if (this.disposed) {
+      throw new Error('[ServiceProxy:' + this.name + '] Cannot start a disposed service proxy.');
+    }
     const status = this.lifecycle.getStatus();
     if (status === 'running') return;
     if (status === 'stopping' || status === 'starting' || status === 'initializing') {
@@ -66,7 +79,9 @@ export class ServiceProxy<
   }
 
   async dispose(): Promise<void> {
+    if (this.disposed) return;
     if (this.lifecycle.getStatus() === 'running') await this.stop();
+    this.disposed = true;
   }
 
   async call<TIn = unknown, TOut = unknown>(

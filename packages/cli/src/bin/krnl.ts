@@ -97,7 +97,7 @@ async function main() {
         process.exit(1);
       }
       generateMagneticDeclarations(projectRoot);
-      console.log(`✅ [Krnl Build] Compilation completed successfully.`);
+      console.log(`✅ [Krnl Build] Validation and ambient declaration generation completed successfully.`);
       break;
     }
     case "dev": {

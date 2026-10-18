@@ -1,6 +1,6 @@
 /**
  * @file index.ts
- * @description Main entrypoint for @dinilmusick/krnl Service & Protocol Kernel.
+ * @description Main entrypoint for @ultrst-armada/krnl Service & Protocol Kernel.
  */
 
 export * from './services/index.js';

@@ -1,8 +1,23 @@
 /**
+ * @file LifecycleManager.ts
+ * @description Explicit, deterministic lifecycle state machine for services.
+ */
+type ServiceStatus = 'uninitialized' | 'initializing' | 'ready' | 'starting' | 'running' | 'stopping' | 'stopped';
+declare class LifecycleManager {
+    private status;
+    getStatus(): ServiceStatus;
+    canTransitionTo(next: ServiceStatus): boolean;
+    transitionTo(next: ServiceStatus): void;
+    setStatus(next: ServiceStatus): void;
+    assertRunning(serviceName: string): void;
+}
+
+/**
  * @file ServiceContract.ts
  * @description Canonical service contracts for the KrnlTS Service Kernel.
- * Invariant: KrnlTS.Service = Skipo.Service = RemoteService.Contract
+ * Invariant: local and remote services share the same IService contract.
  */
+
 type ProtocolType = 'http' | 'https' | 'ws' | 'wss' | 'udp' | 'p2p' | 'signaling' | 'memory';
 interface OperationContext {
     caller?: string;
@@ -81,8 +96,10 @@ interface IService<TState extends Record<string, unknown> = Record<string, unkno
     setState(mutation: Partial<TState>): void;
     on<K extends keyof TEvents & string>(event: K, handler: (payload: TEvents[K]) => void): () => void;
     emit<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): void;
+    getStatus(): ServiceStatus;
     start(): Promise<void>;
     stop(): Promise<void>;
+    dispose(): Promise<void>;
     getDefinition(): ServiceDefinition<TState, TEvents>;
 }
 
@@ -92,17 +109,21 @@ interface IService<TState extends Record<string, unknown> = Record<string, unkno
  */
 
 declare class ServiceInstance<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>> implements IService<TState, TEvents> {
-    private definition;
+    private readonly definition;
     readonly id: string;
     readonly name: string;
     readonly version: string;
     private stateStore?;
-    private eventBus;
-    private lifecycle;
+    private readonly eventBus;
+    private readonly lifecycle;
+    private initialized;
+    private disposed;
     constructor(definition: ServiceDefinition<TState, TEvents>);
     getDefinition(): ServiceDefinition<TState, TEvents>;
+    getStatus(): ReturnType<LifecycleManager['getStatus']>;
     start(): Promise<void>;
     stop(): Promise<void>;
+    dispose(): Promise<void>;
     call<TIn = unknown, TOut = unknown>(op: string, input?: TIn, ctx?: OperationContext): Promise<TOut>;
     getState(): Readonly<TState>;
     setState(mutation: Partial<TState>): void;
@@ -152,23 +173,29 @@ interface ProtocolAdapter {
 
 /**
  * @file ServiceProxy.ts
- * @description Transparent client proxy invoking a remote or mediated service.
- * Invariant: LOCAL SERVICE = REMOTE SERVICE CONTRACT.
+ * @description Transparent client proxy for the remote service contract.
+ *
+ * Lifecycle is local client lifecycle. Remote execution remains transport-mediated.
+ * State and event methods are local cache/subscription semantics.
  */
 
 declare class ServiceProxy<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>> implements IService<TState, TEvents> {
-    private definition;
-    private adapter;
-    private endpoint;
+    private readonly definition;
+    private readonly adapter;
+    private readonly endpoint;
     readonly id: string;
     readonly name: string;
     readonly version: string;
     private stateCache;
-    private eventHandlers;
+    private readonly eventHandlers;
+    private readonly lifecycle;
+    private disposed;
     constructor(definition: ServiceDefinition<TState, TEvents>, adapter: ProtocolAdapter, endpoint: EndpointDescriptor);
     getDefinition(): ServiceDefinition<TState, TEvents>;
+    getStatus(): ReturnType<LifecycleManager['getStatus']>;
     start(): Promise<void>;
     stop(): Promise<void>;
+    dispose(): Promise<void>;
     call<TIn = unknown, TOut = unknown>(op: string, input?: TIn, ctx?: OperationContext): Promise<TOut>;
     getState(): Readonly<TState>;
     setState(mutation: Partial<TState>): void;
@@ -178,9 +205,10 @@ declare class ServiceProxy<TState extends Record<string, unknown> = Record<strin
 
 /**
  * @file ServiceGenerators.ts
- * @description Factory generators for services and definitions.
+ * @description Validated factory generators for services and definitions.
  */
 
+declare function validateServiceDefinition<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>>(definition: ServiceDefinition<TState, TEvents>): ServiceDefinition<TState, TEvents>;
 declare function createServiceDefinition<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>>(definition: ServiceDefinition<TState, TEvents>): ServiceDefinition<TState, TEvents>;
 declare function createService<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>>(definition: ServiceDefinition<TState, TEvents>): ServiceInstance<TState, TEvents>;
 declare function createServiceProxy<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>>(definition: ServiceDefinition<TState, TEvents>, adapter: ProtocolAdapter, endpoint: EndpointDescriptor): IService<TState, TEvents>;
@@ -268,9 +296,9 @@ interface RegisteredServiceRecord {
     registeredAt: number;
 }
 declare class ServiceRegistry {
-    private services;
+    private readonly services;
     register(definition: ServiceDefinition, endpoints?: EndpointDescriptor[]): void;
-    unregister(serviceId: string): void;
+    unregister(serviceId: string): boolean;
     get(serviceId: string): RegisteredServiceRecord | undefined;
     list(): RegisteredServiceRecord[];
     findByCapability(capabilityName: string): RegisteredServiceRecord[];
@@ -282,13 +310,16 @@ declare class ServiceRegistry {
  */
 
 declare class ServiceRuntime {
-    private instances;
+    private readonly instances;
     readonly registry: ServiceRegistry;
     constructor(registry?: ServiceRegistry);
     register(service: IService): this;
+    unregister(serviceId: string): boolean;
     get(serviceId: string): IService | undefined;
+    list(): IService[];
     execute<TIn = unknown, TOut = unknown>(target: string, operation: string, input?: TIn, ctx?: OperationContext): Promise<TOut>;
     startAll(): Promise<void>;
+    disposeAll(): Promise<void>;
     stopAll(): Promise<void>;
 }
 
@@ -358,18 +389,6 @@ declare class ServiceEventBus<TEvents extends Record<string, unknown> = Record<s
 }
 
 /**
- * @file LifecycleManager.ts
- * @description Standard lifecycle transitions for services.
- */
-type ServiceStatus = 'uninitialized' | 'initializing' | 'ready' | 'starting' | 'running' | 'stopping' | 'stopped';
-declare class LifecycleManager {
-    private status;
-    getStatus(): ServiceStatus;
-    setStatus(next: ServiceStatus): void;
-    assertRunning(serviceName: string): void;
-}
-
-/**
  * @file ProtocolResolver.ts
  * @description Protocol selection resolving matching adapters from capabilities.
  */
@@ -379,4 +398,4 @@ declare class ProtocolResolver {
     static getSupportedProtocols(definition: ServiceDefinition): ProtocolType[];
 }
 
-export { type Connection, type DependencyContract, type EndpointDescriptor, type EventContract, HttpProtocolAdapter, type IService, KrnlPackageReconciler, type LifecycleContract, LifecycleManager, MemoryTransport, type OperationContext, type OperationContract, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, UdpProtocolAdapter, WebSocketProtocolAdapter, createService, createServiceDefinition, createServiceProxy };
+export { type Connection, type DependencyContract, type EndpointDescriptor, type EventContract, HttpProtocolAdapter, type IService, KrnlPackageReconciler, type LifecycleContract, LifecycleManager, MemoryTransport, type OperationContext, type OperationContract, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, UdpProtocolAdapter, WebSocketProtocolAdapter, createService, createServiceDefinition, createServiceProxy, validateServiceDefinition };

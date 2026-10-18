@@ -26,7 +26,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // src/index.ts
 var fs3 = __toESM(require("fs"), 1);
 var path3 = __toESM(require("path"), 1);
-var import_krnl_core = require("@dinilmusick/krnl-core");
+var import_krnl_core = require("@ultrst-armada/krnl-core");
 
 // src/templates/configTemplates.ts
 function getBasePackageJson(projectName2) {
@@ -45,14 +45,12 @@ function getBasePackageJson(projectName2) {
         sync: "krnl sync"
       },
       dependencies: {
-        "@dinilmusick/krnl": "^1.0.0",
-        "@dinilmusick/krnl-core": "^1.0.0",
-        "@dinilmusick/krnl-ui": "^1.0.0"
+        "@ultrst-armada/krnl": "^1.0.0",
+        "@ultrst-armada/krnl-core": "^1.0.0"
       },
       devDependencies: {
-        "@dinilmusick/krnl-cli": "^1.0.0",
-        "@dinilmusick/krnl-validate": "^1.0.0",
-        "@dinilmusick/eslint-plugin-krnl": "^1.0.0",
+        "@ultrst-armada/krnl-cli": "^1.0.0",
+        "@ultrst-armada/krnl-validate": "^1.0.0",
         typescript: "^5.7.3",
         vitest: "^1.6.0"
       }
@@ -86,7 +84,7 @@ function getTsConfig(projectName2) {
   );
 }
 function getAppEntrypoint(projectName2) {
-  return `import { defineApp, Protocols } from "@dinilmusick/krnl-core";
+  return `import { defineApp, Protocols } from "@ultrst-armada/krnl-core";
 import { App } from "./krnl/backend/entities/App/App.js";
 
 export default defineApp({
@@ -148,7 +146,7 @@ describe("AppConcepts", () => { it("transforms data", () => { expect(pureTransfo
   );
   fs.writeFileSync(
     path.join(bEntityDir, "App.ts"),
-    `import { Entity, KrnlMagneticLoader } from "@dinilmusick/krnl-core";
+    `import { Entity, KrnlMagneticLoader } from "@ultrst-armada/krnl-core";
 export class App extends Entity {
   constructor() { super({ id: "App", version: "1.0.0", description: "Root application entity" }); }
   async boot(): Promise<void> { await KrnlMagneticLoader.loadAll(this, import.meta.url); }

@@ -294,7 +294,7 @@ function checkTopLevelPurity(sf) {
   const filePath = sf.getFilePath();
   const baseName = path3.basename(filePath);
   const isUiTopLevel = /^(App|main|index|_app|root)\.(tsx|jsx)$/i.test(baseName);
-  const isBackendTopLevel = /^(server|app)\.(ts|js)$/i.test(baseName) && !filePath.includes("/components/") && !filePath.includes("/entities/") && !filePath.includes("/libraries/");
+  const isBackendTopLevel = /^(server|app|index)\.(ts|js)$/i.test(baseName) && !filePath.includes("/components/") && !filePath.includes("/entities/") && !filePath.includes("/libraries/");
   if (isUiTopLevel) {
     const jsxElements = sf.getDescendantsOfKind(SyntaxKind3.JsxOpeningElement);
     const jsxSelfClosing = sf.getDescendantsOfKind(SyntaxKind3.JsxSelfClosingElement);

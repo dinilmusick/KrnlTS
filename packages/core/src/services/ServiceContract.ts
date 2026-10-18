@@ -4,7 +4,8 @@
  * Invariant: local and remote services share the same IService contract.
  */
 
-export type ServiceStatus = 'uninitialized' | 'initializing' | 'ready' | 'starting' | 'running' | 'stopping' | 'stopped';
+import type { ServiceStatus } from '../lifecycle/LifecycleManager.js';
+export type { ServiceStatus };
 
 export type ProtocolType = 'http' | 'https' | 'ws' | 'wss' | 'udp' | 'p2p' | 'signaling' | 'memory';
 

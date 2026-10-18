@@ -4,7 +4,7 @@ import {
   generateMagneticDeclarations,
   runGenerate,
   runValidate
-} from "../chunk-ESTKOQ7T.js";
+} from "../chunk-BV3GOEUH.js";
 
 // src/bin/krnl.ts
 import * as path from "path";
@@ -18,7 +18,7 @@ function detectAppEntrypoint(projectRoot) {
       const full = path.join(projectRoot, f);
       try {
         const text = fs.readFileSync(full, "utf8");
-        if (text.includes("defineApp") || text.includes("@dinilmusick/krnl-core")) {
+        if (text.includes("defineApp") || text.includes("@ultrst-armada/krnl-core")) {
           return f;
         }
       } catch (e) {
@@ -96,7 +96,7 @@ async function main() {
         process.exit(1);
       }
       generateMagneticDeclarations(projectRoot);
-      console.log(`\u2705 [Krnl Build] Compilation completed successfully.`);
+      console.log(`\u2705 [Krnl Build] Validation and ambient declaration generation completed successfully.`);
       break;
     }
     case "dev": {

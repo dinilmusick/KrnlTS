@@ -2,7 +2,7 @@ import {
   generateMagneticDeclarations,
   runGenerate,
   runValidate
-} from "./chunk-ESTKOQ7T.js";
+} from "./chunk-BV3GOEUH.js";
 export {
   generateMagneticDeclarations,
   runGenerate,

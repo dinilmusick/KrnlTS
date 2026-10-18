@@ -31,7 +31,7 @@ PROJECT_ROOT/
     │   │
     │   ├── entities/                 → Named folder per entity
     │   │   └── <EntityName>/         → e.g. UserSystem/
-    │   │       ├── <EntityName>.ts   → Main entity class (extends Entity from @dinilmusick/krnl-core)
+    │   │       ├── <EntityName>.ts   → Main entity class (extends Entity from @ultrst-armada/krnl-core)
     │   │       ├── orchestrations/   → Modular flows & pipeline definitions
     │   │       └── tests/            → Entity unit & integration tests
     │   │

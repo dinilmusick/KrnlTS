@@ -47,7 +47,8 @@ __export(index_exports, {
   WebSocketProtocolAdapter: () => WebSocketProtocolAdapter,
   createService: () => createService,
   createServiceDefinition: () => createServiceDefinition,
-  createServiceProxy: () => createServiceProxy
+  createServiceProxy: () => createServiceProxy,
+  validateServiceDefinition: () => validateServiceDefinition
 });
 module.exports = __toCommonJS(index_exports);
 
@@ -109,17 +110,37 @@ var ServiceEventBus = class {
 };
 
 // src/lifecycle/LifecycleManager.ts
+var TRANSITIONS = {
+  uninitialized: ["initializing"],
+  initializing: ["ready", "uninitialized"],
+  ready: ["starting"],
+  starting: ["running", "ready"],
+  running: ["stopping"],
+  stopping: ["stopped", "running"],
+  stopped: ["starting"]
+};
 var LifecycleManager = class {
   status = "uninitialized";
   getStatus() {
     return this.status;
   }
-  setStatus(next) {
+  canTransitionTo(next) {
+    return TRANSITIONS[this.status].includes(next);
+  }
+  transitionTo(next) {
+    if (!this.canTransitionTo(next)) {
+      throw new Error("[Lifecycle] Invalid transition '" + this.status + "' -> '" + next + "'.");
+    }
     this.status = next;
+  }
+  setStatus(next) {
+    this.transitionTo(next);
   }
   assertRunning(serviceName) {
     if (this.status !== "running") {
-      throw new Error(`[Service:${serviceName}] Cannot invoke operation while status is '${this.status}' (expected 'running').`);
+      throw new Error(
+        "[Service:" + serviceName + "] Cannot invoke operation while status is '" + this.status + "' (expected 'running')."
+      );
     }
   }
 };
@@ -133,7 +154,7 @@ var ServiceInstance = class {
     this.version = definition.version;
     this.lifecycle = new LifecycleManager();
     this.eventBus = new ServiceEventBus();
-    if (definition.state?.initial) {
+    if (definition.state) {
       this.stateStore = new ServiceStateStore(definition.state.initial);
     }
   }
@@ -144,46 +165,76 @@ var ServiceInstance = class {
   stateStore;
   eventBus;
   lifecycle;
+  initialized = false;
+  disposed = false;
   getDefinition() {
     return this.definition;
   }
+  getStatus() {
+    return this.lifecycle.getStatus();
+  }
   async start() {
-    this.lifecycle.setStatus("starting");
-    if (this.definition.lifecycle?.onInit) {
-      await this.definition.lifecycle.onInit();
+    if (this.disposed) throw new Error("[Service:" + this.name + "] Cannot start a disposed service.");
+    const current = this.lifecycle.getStatus();
+    if (current === "running") return;
+    if (current === "initializing" || current === "starting" || current === "stopping") {
+      throw new Error("[Service:" + this.name + "] Cannot start while status is '" + current + "'.");
     }
-    if (this.definition.lifecycle?.onStart) {
-      await this.definition.lifecycle.onStart();
+    if (!this.initialized) {
+      this.lifecycle.transitionTo("initializing");
+      try {
+        await this.definition.lifecycle?.onInit?.();
+        this.initialized = true;
+        this.lifecycle.transitionTo("ready");
+      } catch (error) {
+        this.lifecycle.transitionTo("uninitialized");
+        throw error;
+      }
     }
-    this.lifecycle.setStatus("running");
+    this.lifecycle.transitionTo("starting");
+    try {
+      await this.definition.lifecycle?.onStart?.();
+      this.lifecycle.transitionTo("running");
+    } catch (error) {
+      this.lifecycle.transitionTo("ready");
+      throw error;
+    }
   }
   async stop() {
-    this.lifecycle.setStatus("stopping");
-    if (this.definition.lifecycle?.onStop) {
-      await this.definition.lifecycle.onStop();
+    const current = this.lifecycle.getStatus();
+    if (current === "stopped") return;
+    if (current !== "running") {
+      throw new Error("[Service:" + this.name + "] Cannot stop while status is '" + current + "'.");
     }
-    if (this.definition.lifecycle?.onDispose) {
-      await this.definition.lifecycle.onDispose();
+    this.lifecycle.transitionTo("stopping");
+    try {
+      await this.definition.lifecycle?.onStop?.();
+      this.lifecycle.transitionTo("stopped");
+    } catch (error) {
+      this.lifecycle.transitionTo("running");
+      throw error;
     }
-    this.lifecycle.setStatus("stopped");
+  }
+  async dispose() {
+    if (this.disposed) return;
+    if (this.lifecycle.getStatus() === "running") await this.stop();
+    await this.definition.lifecycle?.onDispose?.();
+    this.disposed = true;
   }
   async call(op, input, ctx = {}) {
     this.lifecycle.assertRunning(this.name);
     const operation = this.definition.operations[op];
     if (!operation) {
-      throw new Error(`[Service:${this.name}] Operation '${op}' not found.`);
+      throw new Error("[Service:" + this.name + "] Operation '" + op + "' not found.");
     }
     return await operation.handler(input, ctx);
   }
   getState() {
-    if (!this.stateStore) {
-      return Object.freeze({});
-    }
-    return this.stateStore.getState();
+    return this.stateStore?.getState() ?? Object.freeze({});
   }
   setState(mutation) {
     if (!this.stateStore) {
-      this.stateStore = new ServiceStateStore(mutation);
+      this.stateStore = new ServiceStateStore({ ...mutation });
       return;
     }
     this.stateStore.setState(mutation);
@@ -202,10 +253,19 @@ var ServiceProxy = class {
     this.definition = definition;
     this.adapter = adapter;
     this.endpoint = endpoint;
+    if (!definition) {
+      throw new Error("[ServiceProxy] Missing service definition.");
+    }
+    if (!adapter || typeof adapter.send !== "function") {
+      throw new Error("[ServiceProxy:" + (definition.name || "unknown") + "] Missing or invalid protocol adapter.");
+    }
+    if (!endpoint || typeof endpoint.address !== "string" || endpoint.address.length === 0) {
+      throw new Error("[ServiceProxy:" + (definition.name || "unknown") + "] Missing or invalid endpoint descriptor.");
+    }
     this.id = definition.id;
     this.name = definition.name;
     this.version = definition.version;
-    this.stateCache = definition.state?.initial || {};
+    this.stateCache = { ...definition.state?.initial ?? {} };
   }
   definition;
   adapter;
@@ -215,19 +275,56 @@ var ServiceProxy = class {
   version;
   stateCache;
   eventHandlers = /* @__PURE__ */ new Map();
+  lifecycle = new LifecycleManager();
+  disposed = false;
   getDefinition() {
     return this.definition;
   }
+  getStatus() {
+    return this.lifecycle.getStatus();
+  }
   async start() {
+    if (this.disposed) {
+      throw new Error("[ServiceProxy:" + this.name + "] Cannot start a disposed service proxy.");
+    }
+    const status = this.lifecycle.getStatus();
+    if (status === "running") return;
+    if (status === "stopping" || status === "starting" || status === "initializing") {
+      throw new Error("[ServiceProxy:" + this.name + "] Cannot start while status is '" + status + "'.");
+    }
+    if (status === "uninitialized") {
+      this.lifecycle.transitionTo("initializing");
+      this.lifecycle.transitionTo("ready");
+    }
+    this.lifecycle.transitionTo("starting");
+    this.lifecycle.transitionTo("running");
   }
   async stop() {
+    const status = this.lifecycle.getStatus();
+    if (status === "stopped") return;
+    if (status !== "running") {
+      throw new Error("[ServiceProxy:" + this.name + "] Cannot stop while status is '" + status + "'.");
+    }
+    this.lifecycle.transitionTo("stopping");
+    this.lifecycle.transitionTo("stopped");
+  }
+  async dispose() {
+    if (this.disposed) return;
+    if (this.lifecycle.getStatus() === "running") await this.stop();
+    this.disposed = true;
   }
   async call(op, input, ctx = {}) {
+    if (!this.definition.operations[op]) {
+      throw new Error("[ServiceProxy:" + this.name + "] Operation '" + op + "' not found.");
+    }
+    if (this.lifecycle.getStatus() !== "running") {
+      await this.start();
+    }
     if (!this.adapter.send) {
-      throw new Error(`[ServiceProxy:${this.name}] Adapter does not support send().`);
+      throw new Error("[ServiceProxy:" + this.name + "] Adapter does not support send().");
     }
     const envelope = {
-      id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: "req-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7),
       type: "request",
       operation: op,
       payload: input,
@@ -235,7 +332,7 @@ var ServiceProxy = class {
     };
     const response = await this.adapter.send(this.endpoint, envelope);
     if (response.error) {
-      throw new Error(`[ServiceProxy:${this.name}] Remote error: ${response.error}`);
+      throw new Error("[ServiceProxy:" + this.name + "] Remote error: " + response.error);
     }
     return response.payload;
   }
@@ -246,33 +343,92 @@ var ServiceProxy = class {
     this.stateCache = { ...this.stateCache, ...mutation };
   }
   on(event, handler) {
-    if (!this.eventHandlers.has(event)) {
-      this.eventHandlers.set(event, /* @__PURE__ */ new Set());
-    }
+    if (!this.eventHandlers.has(event)) this.eventHandlers.set(event, /* @__PURE__ */ new Set());
     const handlers = this.eventHandlers.get(event);
     handlers.add(handler);
-    return () => {
-      handlers.delete(handler);
-    };
+    return () => handlers.delete(handler);
   }
   emit(event, payload) {
     const handlers = this.eventHandlers.get(event);
-    if (handlers) {
-      for (const handler of Array.from(handlers)) {
+    if (!handlers) return;
+    for (const handler of Array.from(handlers)) {
+      try {
         handler(payload);
+      } catch (error) {
+        console.error("[ServiceProxy:" + this.name + "] Event handler error for '" + event + "':", error);
       }
     }
   }
 };
 
 // src/services/ServiceGenerators.ts
-function createServiceDefinition(definition) {
+function assertRecord(value, field) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("[KrnlTS] Invalid service definition: '" + field + "' must be an object.");
+  }
+}
+function assertNonEmptyString(value, field) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error("[KrnlTS] Invalid service definition: '" + field + "' must be a non-empty string.");
+  }
+}
+function validateServiceDefinition(definition) {
+  if (!definition || typeof definition !== "object") {
+    throw new Error("[KrnlTS] Invalid service definition: expected an object.");
+  }
+  assertNonEmptyString(definition.id, "id");
+  assertNonEmptyString(definition.name, "name");
+  assertNonEmptyString(definition.version, "version");
+  if (!definition.operations || typeof definition.operations !== "object") {
+    throw new Error("[Service:" + definition.name + "] Invalid operations: expected an object.");
+  }
+  for (const [key, operation] of Object.entries(definition.operations)) {
+    if (!operation || typeof operation !== "object") {
+      throw new Error("[Service:" + definition.name + "] Invalid operation '" + key + "'.");
+    }
+    assertNonEmptyString(operation.id, "operations." + key + ".id");
+    assertNonEmptyString(operation.name, "operations." + key + ".name");
+    if (operation.inputSchema !== void 0) assertRecord(operation.inputSchema, "operations." + key + ".inputSchema");
+    if (operation.outputSchema !== void 0) assertRecord(operation.outputSchema, "operations." + key + ".outputSchema");
+    if (typeof operation.handler !== "function") {
+      throw new Error("[Service:" + definition.name + "] Operation '" + key + "' must define a handler.");
+    }
+  }
+  for (const [key, event] of Object.entries(definition.events ?? {})) {
+    if (!event || typeof event !== "object") {
+      throw new Error("[Service:" + definition.name + "] Invalid event '" + key + "'.");
+    }
+    assertNonEmptyString(event.name, "events." + key + ".name");
+  }
+  for (const [key, schema] of Object.entries(definition.inputs ?? {})) assertRecord(schema, "inputs." + key);
+  for (const [key, schema] of Object.entries(definition.outputs ?? {})) assertRecord(schema, "outputs." + key);
+  if (definition.state?.schema !== void 0) assertRecord(definition.state.schema, "state.schema");
+  for (const capability of definition.capabilities ?? []) {
+    assertNonEmptyString(capability.id, "capability.id");
+    assertNonEmptyString(capability.name, "capability.name");
+    if (!Array.isArray(capability.protocols)) {
+      throw new Error("[Service:" + definition.name + "] Capability '" + capability.name + "' protocols must be an array.");
+    }
+  }
+  for (const dependency of definition.dependencies ?? []) {
+    assertNonEmptyString(dependency.serviceId, "dependency.serviceId");
+  }
   return definition;
 }
+function createServiceDefinition(definition) {
+  return validateServiceDefinition(definition);
+}
 function createService(definition) {
-  return new ServiceInstance(definition);
+  return new ServiceInstance(validateServiceDefinition(definition));
 }
 function createServiceProxy(definition, adapter, endpoint) {
+  validateServiceDefinition(definition);
+  if (!adapter || typeof adapter.send !== "function") {
+    throw new Error("[ServiceProxy:" + definition.name + "] Adapter must implement send().");
+  }
+  if (!endpoint || typeof endpoint.address !== "string" || endpoint.address.length === 0) {
+    throw new Error("[ServiceProxy:" + definition.name + "] Endpoint must have an address.");
+  }
   return new ServiceProxy(definition, adapter, endpoint);
 }
 
@@ -660,23 +816,49 @@ var MemoryTransport = class {
 };
 
 // src/registry/ServiceRegistry.ts
+var PROTOCOLS = ["http", "https", "ws", "wss", "udp", "p2p", "signaling", "memory"];
+function validateEndpoint(endpoint) {
+  if (!endpoint || typeof endpoint !== "object") throw new Error("[ServiceRegistry] Invalid endpoint.");
+  if (!PROTOCOLS.includes(endpoint.protocol)) throw new Error("[ServiceRegistry] Unsupported endpoint protocol.");
+  if (typeof endpoint.address !== "string" || endpoint.address.trim() === "") throw new Error("[ServiceRegistry] Endpoint address must be non-empty.");
+  if (endpoint.port !== void 0 && (!Number.isInteger(endpoint.port) || endpoint.port < 0 || endpoint.port > 65535)) throw new Error("[ServiceRegistry] Endpoint port is invalid.");
+  if (!Array.isArray(endpoint.capabilities)) throw new Error("[ServiceRegistry] Endpoint capabilities must be an array.");
+}
 var ServiceRegistry = class {
   services = /* @__PURE__ */ new Map();
   register(definition, endpoints = []) {
+    validateServiceDefinition(definition);
+    for (const endpoint of endpoints) validateEndpoint(endpoint);
+    const existing = this.services.get(definition.id);
+    if (existing && existing.definition.version !== definition.version) {
+      throw new Error(
+        "[ServiceRegistry] Service '" + definition.id + "' is already registered at version '" + existing.definition.version + "'; refusing replacement with '" + definition.version + "'."
+      );
+    }
     this.services.set(definition.id, {
       definition,
-      endpoints,
-      registeredAt: Date.now()
+      endpoints: endpoints.map((endpoint) => ({ ...endpoint, capabilities: [...endpoint.capabilities] })),
+      registeredAt: existing?.registeredAt ?? Date.now()
     });
   }
   unregister(serviceId) {
-    this.services.delete(serviceId);
+    return this.services.delete(serviceId);
   }
   get(serviceId) {
-    return this.services.get(serviceId);
+    const record = this.services.get(serviceId);
+    if (!record) return void 0;
+    return {
+      definition: record.definition,
+      endpoints: record.endpoints.map((endpoint) => ({ ...endpoint, capabilities: [...endpoint.capabilities] })),
+      registeredAt: record.registeredAt
+    };
   }
   list() {
-    return Array.from(this.services.values());
+    return Array.from(this.services.values()).map((record) => ({
+      definition: record.definition,
+      endpoints: record.endpoints.map((endpoint) => ({ ...endpoint, capabilities: [...endpoint.capabilities] })),
+      registeredAt: record.registeredAt
+    }));
   }
   findByCapability(capabilityName) {
     return this.list().filter(
@@ -690,32 +872,75 @@ var ServiceRuntime = class {
   instances = /* @__PURE__ */ new Map();
   registry;
   constructor(registry) {
-    this.registry = registry || new ServiceRegistry();
+    this.registry = registry ?? new ServiceRegistry();
   }
   register(service) {
-    this.instances.set(service.id, service);
+    const existing = this.instances.get(service.id);
+    if (existing && existing !== service) {
+      throw new Error("[ServiceRuntime] Service '" + service.id + "' is already registered.");
+    }
     this.registry.register(service.getDefinition());
+    this.instances.set(service.id, service);
     return this;
+  }
+  unregister(serviceId) {
+    const removed = this.instances.delete(serviceId);
+    this.registry.unregister(serviceId);
+    return removed;
   }
   get(serviceId) {
     return this.instances.get(serviceId);
   }
+  list() {
+    return Array.from(this.instances.values());
+  }
   async execute(target, operation, input, ctx) {
     const service = this.instances.get(target);
     if (!service) {
-      throw new Error(`[ServiceRuntime] Target service '${target}' not found.`);
+      throw new Error("[ServiceRuntime] Target service '" + target + "' not found.");
     }
-    return await service.call(operation, input, ctx);
+    return service.call(operation, input, ctx);
   }
   async startAll() {
-    for (const service of this.instances.values()) {
-      await service.start();
+    const started = [];
+    try {
+      for (const service of this.instances.values()) {
+        await service.start();
+        started.push(service);
+      }
+    } catch (error) {
+      for (const service of started.reverse()) {
+        try {
+          await service.stop();
+        } catch {
+        }
+      }
+      throw error;
     }
   }
-  async stopAll() {
-    for (const service of this.instances.values()) {
-      await service.stop();
+  async disposeAll() {
+    let firstError;
+    const services = Array.from(this.instances.values()).reverse();
+    for (const service of services) {
+      try {
+        await service.dispose();
+      } catch (error) {
+        firstError ??= error;
+      }
     }
+    if (firstError) throw firstError;
+  }
+  async stopAll() {
+    let firstError;
+    const services = Array.from(this.instances.values()).reverse();
+    for (const service of services) {
+      try {
+        await service.stop();
+      } catch (error) {
+        firstError ??= error;
+      }
+    }
+    if (firstError) throw firstError;
   }
 };
 
@@ -888,5 +1113,6 @@ var ProtocolResolver = class {
   WebSocketProtocolAdapter,
   createService,
   createServiceDefinition,
-  createServiceProxy
+  createServiceProxy,
+  validateServiceDefinition
 });

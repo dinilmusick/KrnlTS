@@ -14,14 +14,12 @@ export function getBasePackageJson(projectName: string): string {
         sync: 'krnl sync',
       },
       dependencies: {
-        '@dinilmusick/krnl': '^1.0.0',
-        '@dinilmusick/krnl-core': '^1.0.0',
-        '@dinilmusick/krnl-ui': '^1.0.0',
+        '@ultrst-armada/krnl': '^1.0.0',
+        '@ultrst-armada/krnl-core': '^1.0.0',
       },
       devDependencies: {
-        '@dinilmusick/krnl-cli': '^1.0.0',
-        '@dinilmusick/krnl-validate': '^1.0.0',
-        '@dinilmusick/eslint-plugin-krnl': '^1.0.0',
+        '@ultrst-armada/krnl-cli': '^1.0.0',
+        '@ultrst-armada/krnl-validate': '^1.0.0',
         typescript: '^5.7.3',
         vitest: '^1.6.0',
       },
@@ -57,7 +55,7 @@ export function getTsConfig(projectName: string): string {
 }
 
 export function getAppEntrypoint(projectName: string): string {
-  return `import { defineApp, Protocols } from "@dinilmusick/krnl-core";
+  return `import { defineApp, Protocols } from "@ultrst-armada/krnl-core";
 import { App } from "./krnl/backend/entities/App/App.js";
 
 export default defineApp({

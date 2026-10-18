@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { KrnlPackageReconciler } from '@dinilmusick/krnl-core';
+import { KrnlPackageReconciler } from '@ultrst-armada/krnl-core';
 import { getPlaneRoots } from './common.js';
 
 export function generateLibrary(name: string, projectRoot: string): void {

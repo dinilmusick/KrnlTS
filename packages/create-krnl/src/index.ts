@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
-import { KrnlPackageReconciler } from '@dinilmusick/krnl-core';
+import { KrnlPackageReconciler } from '@ultrst-armada/krnl-core';
 import { getBasePackageJson, getTsConfig, getAppEntrypoint } from './templates/configTemplates.js';
 import { scaffoldBackend } from './templates/backendTemplates.js';
 import { scaffoldFrontend } from './templates/frontendTemplates.js';

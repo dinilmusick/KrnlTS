@@ -13,7 +13,7 @@ export function checkTopLevelPurity(
 
   const isUiTopLevel = /^(App|main|index|_app|root)\.(tsx|jsx)$/i.test(baseName);
   const isBackendTopLevel =
-    /^(server|app)\.(ts|js)$/i.test(baseName) &&
+    /^(server|app|index)\.(ts|js)$/i.test(baseName) &&
     !filePath.includes('/components/') &&
     !filePath.includes('/entities/') &&
     !filePath.includes('/libraries/');

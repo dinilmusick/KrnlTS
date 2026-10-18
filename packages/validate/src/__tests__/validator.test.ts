@@ -46,4 +46,36 @@ describe('KrnlValidatorEngine', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it('ignores dist, node_modules, and .git directories during source collection', () => {
+    const root = mkdtempSync(join(tmpdir(), 'krnl-validator-'));
+    try {
+      mkdirSync(join(root, 'dist'), { recursive: true });
+      mkdirSync(join(root, 'node_modules'), { recursive: true });
+      mkdirSync(join(root, '.git'), { recursive: true });
+      mkdirSync(join(root, 'src'), { recursive: true });
+      writeFileSync(join(root, 'dist', 'bundle.ts'), 'export const invalid = true;\n');
+      writeFileSync(join(root, 'node_modules', 'dep.ts'), 'export const dep = 1;\n');
+      writeFileSync(join(root, '.git', 'HEAD.ts'), 'export const git = 1;\n');
+      writeFileSync(join(root, 'src', 'valid.ts'), 'export const valid = 1;\n');
+
+      const report = new KrnlValidatorEngine(root).validateAll();
+      expect(report.totalFiles).toBe(1);
+      expect(report.valid).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('flags files exceeding the 200-line purity limit', () => {
+    const longContent = Array.from({ length: 205 }, (_, i) => `export const v${i} = ${i};`).join('\n') + '\n';
+    const root = fixture(longContent);
+    try {
+      const report = new KrnlValidatorEngine(root).validateAll();
+      expect(report.valid).toBe(false);
+      expect(report.errors.some((e) => e.ruleId === 'krnl/file-line-limit')).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
