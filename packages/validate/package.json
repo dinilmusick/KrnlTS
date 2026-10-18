@@ -1,27 +1,34 @@
 {
-  "name": "@dinilmusick/krnl-validate",
-  "version": "1.0.1",
+  "name": "@ultrst-armada/krnl-validate",
+  "version": "1.0.2",
   "description": "Deep AST validation and 4-layer function purity engine for Krnl backend services",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
     }
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.ts --dts --format esm,cjs --external ts-morph"
+    "build": "tsup src/index.ts --dts --format esm,cjs --external ts-morph",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "ts-morph": "^25.0.1"
   },
   "devDependencies": {
     "tsup": "^8.4.0",
-    "typescript": "^5.7.3"
-  }
+    "typescript": "^5.7.3",
+    "vitest": "^3.1.0"
+  },
+  "module": "dist/index.js"
 }
