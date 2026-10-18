@@ -79,12 +79,15 @@ export class ServiceInstance<
     this.lifecycle.transitionTo('stopping');
     try {
       await this.definition.lifecycle?.onStop?.();
-      await this.definition.lifecycle?.onDispose?.();
       this.lifecycle.transitionTo('stopped');
     } catch (error) {
       this.lifecycle.transitionTo('running');
       throw error;
     }
+  }
+
+  async dispose(): Promise<void> {
+    await this.definition.lifecycle?.onDispose?.();
   }
 
   async call<TIn = unknown, TOut = unknown>(
