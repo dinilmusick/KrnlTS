@@ -20,6 +20,7 @@ export class ServiceInstance<
   private readonly eventBus: ServiceEventBus<TEvents>;
   private readonly lifecycle: LifecycleManager;
   private initialized = false;
+  private disposed = false;
 
   constructor(private readonly definition: ServiceDefinition<TState, TEvents>) {
     this.id = definition.id;
@@ -41,6 +42,7 @@ export class ServiceInstance<
   }
 
   async start(): Promise<void> {
+    if (this.disposed) throw new Error('[Service:' + this.name + '] Cannot start a disposed service.');
     const current = this.lifecycle.getStatus();
     if (current === 'running') return;
     if (current === 'initializing' || current === 'starting' || current === 'stopping') {
@@ -87,7 +89,10 @@ export class ServiceInstance<
   }
 
   async dispose(): Promise<void> {
+    if (this.disposed) return;
+    if (this.lifecycle.getStatus() === 'running') await this.stop();
     await this.definition.lifecycle?.onDispose?.();
+    this.disposed = true;
   }
 
   async call<TIn = unknown, TOut = unknown>(
