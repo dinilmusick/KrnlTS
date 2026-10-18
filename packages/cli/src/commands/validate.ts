@@ -1,4 +1,4 @@
-import { KrnlValidatorEngine } from '@dinilmusick/krnl-validate';
+import { KrnlValidatorEngine } from '@ultrst-armada/krnl-validate';
 
 export async function runValidate(projectRoot: string = process.cwd()): Promise<boolean> {
   console.log(`\n🔍 [Krnl Validate] Scanning project at: ${projectRoot}\n`);
