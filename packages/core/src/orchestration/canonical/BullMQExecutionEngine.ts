@@ -252,8 +252,10 @@ export class BullMQExecutionEngine {
     // Workflow-level timeout
     const timeoutMs = options.timeoutMs || descriptor.timeoutMs;
     let timeoutTimer: NodeJS.Timeout | undefined;
+    let isWorkflowTimeout = false;
     if (timeoutMs && timeoutMs > 0) {
       timeoutTimer = setTimeout(() => {
+        isWorkflowTimeout = true;
         context.isCancelled = true;
         abortController.abort();
       }, timeoutMs);
@@ -322,8 +324,16 @@ export class BullMQExecutionEngine {
       }
     } catch (err: any) {
       const wasCancelled = context.isCancelled || abortController.signal.aborted || err?.name === 'AbortError';
-      orchestrationStatus = wasCancelled ? 'CANCELLED' : 'FAILED';
-      errorMessage = wasCancelled ? 'The operation was aborted' : (err?.message || String(err));
+      if (isWorkflowTimeout) {
+        orchestrationStatus = 'TIMED_OUT';
+        errorMessage = `Orchestration timed out after ${timeoutMs}ms.`;
+      } else if (wasCancelled) {
+        orchestrationStatus = 'CANCELLED';
+        errorMessage = 'The operation was aborted';
+      } else {
+        orchestrationStatus = 'FAILED';
+        errorMessage = err?.message || String(err);
+      }
 
       // SAGA COMPENSATION: Execute compensations in reverse order
       if (executedComps.length > 0) {
@@ -404,6 +414,8 @@ export class BullMQExecutionEngine {
     }
 
     let lastError: any;
+    let stepCancelled = false;
+    const stepTimeoutMs = step.timeoutPolicy?.timeoutMs;
     while (attempts < maxAttempts) {
       if (context.isCancelled) {
         return {
@@ -420,9 +432,8 @@ export class BullMQExecutionEngine {
         let stepOutput: any;
 
         // Step timeout setup
-        const stepTimeoutMs = step.timeoutPolicy?.timeoutMs;
         let stepTimer: NodeJS.Timeout | undefined;
-        let stepCancelled = false;
+        stepCancelled = false;
 
         const runPromise = (async () => {
           if (step.type === 'nested' && step.nestedOrchestrationId && nestedRunner) {
@@ -476,7 +487,9 @@ export class BullMQExecutionEngine {
           const timeoutPromise = new Promise((_, reject) => {
             stepTimer = setTimeout(() => {
               stepCancelled = true;
-              reject(new Error(`Step "${step.id}" timed out after ${stepTimeoutMs}ms.`));
+              const tErr = new Error(`Step "${step.id}" timed out after ${stepTimeoutMs}ms.`);
+              tErr.name = 'TimeoutError';
+              reject(tErr);
             }, stepTimeoutMs);
           });
           promisesToRace.push(timeoutPromise);
@@ -494,6 +507,17 @@ export class BullMQExecutionEngine {
           completedAt: Date.now(),
         };
       } catch (err: any) {
+        if (stepCancelled || err?.name === 'TimeoutError') {
+          return {
+            stepId: step.id,
+            status: 'TIMED_OUT',
+            attempts,
+            error: err?.message || `Step "${step.id}" timed out after ${stepTimeoutMs}ms.`,
+            startedAt: stepStart,
+            completedAt: Date.now(),
+          };
+        }
+
         if (
           context.isCancelled ||
           context.abortSignal?.aborted ||

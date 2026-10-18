@@ -10,9 +10,10 @@ SCOPE := backend service construction + execution + validation
 KRNLTS := framework for authoring and running backend services.
 
 SERVICE := KRNLTS-defined executable backend unit.
-SERVICE_GRAPH := composition of services/facades/workflows.
+FUNCTIONALITY := discrete callable execution unit belonging strictly to ONE service.
+FUNCTIONALITY_ORCHESTRATION := DAG composition of functionalities belonging strictly to ONE service.
 KLOKS := distribution/library layer for reusable backend services built on KRNLTS.
-SKIPO := application layer consuming KRNLTS + KLOKS.
+SKIPO := application layer consuming KRNLTS + KLOKS; owns cross-service SERVICE_ORCHESTRATION.
 CRUCIBLE := SKIPO application + ecosystem control plane; CRUCIBLE does not redefine KRNLTS semantics.
 
 ## 2. OWNERSHIP
@@ -21,12 +22,15 @@ KRNLTS OWNS:
 - service runtime semantics
 - service lifecycle/execution semantics
 - service input/output contracts
-- service composition primitives
+- functionality definitions and within-service functionality orchestrations (FunctionalityOrchestration)
+- single-service queue-mediated execution runtime (BullMQ execution engine + worker boundary)
 - backend validation rules
 - framework-level backend abstractions
 - framework tooling/CLI that directly validates or runs KRNLTS services
 
 KRNLTS DOES NOT OWN:
+- cross-service orchestration (owned by SKIPO via ServiceOrchestration)
+- application-level domain graphs
 - KLOKS package catalog/distribution policy
 - FLOKS React components
 - SKIPO application composition

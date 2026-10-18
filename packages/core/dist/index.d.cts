@@ -374,7 +374,7 @@ declare class FunctionalityOrchestration {
     /**
      * Adds a sequential functionality step to the DAG.
      */
-    thenFunctionality(funcName: string, options?: FunctionalityStepOptions): this;
+    thenFunctionality(funcName: any, options?: FunctionalityStepOptions): this;
     /**
      * Adds parallel functionality steps to the DAG.
      */
@@ -563,7 +563,20 @@ declare class ServiceFacade<TState extends Record<string, unknown> = Record<stri
         idempotencyKey?: string;
         timeoutMs?: number;
         metadata?: Record<string, unknown>;
+        abortSignal?: AbortSignal;
     }): Promise<OrchestrationResult<TOut>>;
+    /**
+     * Executes a callable operation or orchestration through BullMQ queue and worker boundary.
+     * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> Functionality / Orchestration -> Result.
+     * Strictly queue-mediated; zero unmediated bypasses.
+     */
+    execute<TIn = unknown, TOut = unknown>(target: string, input?: TIn, options?: {
+        correlationId?: string;
+        idempotencyKey?: string;
+        timeoutMs?: number;
+        metadata?: Record<string, unknown>;
+        abortSignal?: AbortSignal;
+    }): Promise<any>;
     getState(): Readonly<TState>;
     setState(mutation: Partial<TState>): void;
     on<K extends keyof TEvents & string>(event: K, handler: (payload: TEvents[K]) => void): () => void;
@@ -660,13 +673,13 @@ interface RegisteredServiceRecord {
 /**
  * Central service catalog and capabilities registry.
  *
- * Duplicate Registration Semantics:
- * 1. Same ID + Same Version:
- *    Idempotent re-registration. Refreshes service definition and active endpoints,
- *    while preserving the original registration timestamp (`registeredAt`).
- * 2. Same ID + Different Version:
- *    Refused with an Error. The catalog enforces a strict 1:1 mapping per service ID.
- *    To change versions, consumer must explicitly call `unregister(serviceId)` first.
+ * Registration Semantics:
+ * 1. register():
+ *    Strict uniqueness enforced. If a service with the same ID is already registered
+ *    (whether same version or different version), an Error is thrown.
+ * 2. replace():
+ *    Explicit replacement method. Overwrites existing service registration while
+ *    preserving the original registration timestamp (`registeredAt`).
  */
 declare class ServiceRegistry {
     private readonly services;
@@ -676,9 +689,17 @@ declare class ServiceRegistry {
      * @param definition Validated service definition.
      * @param endpoints Optional list of active endpoint descriptors.
      * @throws Error if definition or endpoints fail validation.
-     * @throws Error if service is already registered under the same ID with a different version.
+     * @throws Error if service is already registered under the same ID.
      */
     register(definition: ServiceDefinition, endpoints?: EndpointDescriptor[]): void;
+    /**
+     * Explicitly replaces or updates a service definition and its endpoints in the registry.
+     * Preserves original registeredAt timestamp if the service was previously registered.
+     *
+     * @param definition Validated service definition.
+     * @param endpoints Optional list of active endpoint descriptors.
+     */
+    replace(definition: ServiceDefinition, endpoints?: EndpointDescriptor[]): void;
     unregister(serviceId: string): boolean;
     get(serviceId: string): RegisteredServiceRecord | undefined;
     list(): RegisteredServiceRecord[];

@@ -26,13 +26,13 @@ export interface RegisteredServiceRecord {
 /**
  * Central service catalog and capabilities registry.
  *
- * Duplicate Registration Semantics:
- * 1. Same ID + Same Version:
- *    Idempotent re-registration. Refreshes service definition and active endpoints,
- *    while preserving the original registration timestamp (`registeredAt`).
- * 2. Same ID + Different Version:
- *    Refused with an Error. The catalog enforces a strict 1:1 mapping per service ID.
- *    To change versions, consumer must explicitly call `unregister(serviceId)` first.
+ * Registration Semantics:
+ * 1. register():
+ *    Strict uniqueness enforced. If a service with the same ID is already registered
+ *    (whether same version or different version), an Error is thrown.
+ * 2. replace():
+ *    Explicit replacement method. Overwrites existing service registration while
+ *    preserving the original registration timestamp (`registeredAt`).
  */
 export class ServiceRegistry {
   private readonly services: Map<string, RegisteredServiceRecord> = new Map();
@@ -43,18 +43,37 @@ export class ServiceRegistry {
    * @param definition Validated service definition.
    * @param endpoints Optional list of active endpoint descriptors.
    * @throws Error if definition or endpoints fail validation.
-   * @throws Error if service is already registered under the same ID with a different version.
+   * @throws Error if service is already registered under the same ID.
    */
   register(definition: ServiceDefinition, endpoints: EndpointDescriptor[] = []): void {
     validateServiceDefinition(definition);
     for (const endpoint of endpoints) validateEndpoint(endpoint);
     const existing = this.services.get(definition.id);
-    if (existing && existing.definition.version !== definition.version) {
+    if (existing) {
       throw new Error(
         "[ServiceRegistry] Service '" + definition.id + "' is already registered at version '" +
-        existing.definition.version + "'; refusing replacement with '" + definition.version + "'."
+        existing.definition.version + "'. Use replace() to explicitly replace an existing service."
       );
     }
+
+    this.services.set(definition.id, {
+      definition,
+      endpoints: endpoints.map((endpoint) => ({ ...endpoint, capabilities: [...endpoint.capabilities] })),
+      registeredAt: Date.now(),
+    });
+  }
+
+  /**
+   * Explicitly replaces or updates a service definition and its endpoints in the registry.
+   * Preserves original registeredAt timestamp if the service was previously registered.
+   *
+   * @param definition Validated service definition.
+   * @param endpoints Optional list of active endpoint descriptors.
+   */
+  replace(definition: ServiceDefinition, endpoints: EndpointDescriptor[] = []): void {
+    validateServiceDefinition(definition);
+    for (const endpoint of endpoints) validateEndpoint(endpoint);
+    const existing = this.services.get(definition.id);
 
     this.services.set(definition.id, {
       definition,

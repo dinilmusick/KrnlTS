@@ -16,6 +16,20 @@ KrnlTS
 
 KrnlTS owns backend service semantics and framework tooling. It does not own downstream service catalogs, frontend libraries, application composition, or ecosystem orchestration.
 
+## Canonical Orchestration Boundary
+
+KrnlTS owns within-service functionality composition:
+
+```text
+KrnlTS
+  Service
+    ├── Functionality
+    └── FunctionalityOrchestration
+```
+
+A `FunctionalityOrchestration` strictly composes internal functionalities belonging to a single service. It MUST NOT compose independent services.
+Cross-service orchestration (`ServiceOrchestration`) is owned exclusively by Skipo at the application/domain layer.
+
 ## Core service model
 
 A service defines:

@@ -27,6 +27,7 @@ import {
 import {
   OrchestrationResult,
   OrchestrationStep,
+  OrchestrationContext,
 } from '../orchestration/canonical/model.js';
 
 export interface ServiceFacadeConfig<
@@ -201,6 +202,7 @@ export class ServiceFacade<
       idempotencyKey?: string;
       timeoutMs?: number;
       metadata?: Record<string, unknown>;
+      abortSignal?: AbortSignal;
     } = {}
   ): Promise<OrchestrationResult<TOut>> {
     const orch = this.functionalityOrchestrations[orchestrationName];
@@ -227,20 +229,73 @@ export class ServiceFacade<
       async (payload, workerCtx) => {
         WorkerExecutionBoundary.assertWorkerContext(workerCtx);
 
+        // Helper to resolve inputs for dependent steps
+        const resolveStepInput = (step: OrchestrationStep, results: Record<string, unknown>) => {
+          const deps = step.dependsOn;
+          if (!deps || deps.length === 0) {
+            return results['input'];
+          }
+          if (deps.length === 1) {
+            const depRes = results[deps[0]];
+            const initialInput = results['input'];
+            if (
+              typeof depRes === 'object' &&
+              depRes !== null &&
+              typeof initialInput === 'object' &&
+              initialInput !== null &&
+              !Array.isArray(depRes) &&
+              !Array.isArray(initialInput)
+            ) {
+              return { ...initialInput, ...depRes };
+            }
+            return depRes !== undefined ? depRes : results['input'];
+          }
+          const joined: Record<string, unknown> = {};
+          for (const dep of deps) {
+            joined[dep] = results[dep];
+          }
+          return joined;
+        };
+
         // Bind orchestration steps to functionalities of THIS service
         const rawSteps = orch.getSteps();
         const boundSteps: OrchestrationStep[] = rawSteps.map((s) => {
+          let compensation = s.compensation;
+          if (s.compensation?.target && !s.compensation.handler) {
+            compensation = {
+              ...s.compensation,
+              handler: async (compCtx: OrchestrationContext) => {
+                await this.call(s.compensation!.target!, compCtx.results[s.id], {
+                  correlationId: compCtx.correlationId,
+                });
+              },
+            };
+          }
+
           if (s.type === 'task' && s.target) {
             return {
               ...s,
-              handler: async (stepInput: any, stepCtx) => {
-                return await this.call(s.target!, stepInput, {
+              compensation,
+              handler: async (_stepInput: any, stepCtx) => {
+                const resolvedInput = resolveStepInput(s, stepCtx.results);
+                const stepPayload: Record<string, any> =
+                  typeof resolvedInput === 'object' && resolvedInput !== null && !Array.isArray(resolvedInput)
+                    ? { ...stepCtx.results, ...resolvedInput }
+                    : { ...stepCtx.results };
+
+                if (stepCtx.results.input) {
+                  stepPayload.input = stepCtx.results.input;
+                }
+                return await this.call(s.target!, stepPayload, {
                   correlationId: stepCtx.correlationId,
                 });
               },
             };
           }
-          return s;
+          return {
+            ...s,
+            compensation,
+          };
         });
 
         // Nested orchestration runner (FunctionalityOrchestration -> FunctionalityOrchestration)
@@ -258,6 +313,7 @@ export class ServiceFacade<
           const nestedResult = await this.orchestrate(childOrchId, childInput, {
             correlationId: childCtx.correlationId,
             timeoutMs: childOrch.timeoutMs,
+            abortSignal: options.abortSignal,
           });
           if (nestedResult.status !== 'COMPLETED') {
             throw new Error(nestedResult.error || `Nested orchestration "${childOrchId}" failed.`);
@@ -275,6 +331,7 @@ export class ServiceFacade<
             timeoutMs: options.timeoutMs || orch.timeoutMs,
             metadata: options.metadata,
             nestedRunner,
+            abortSignal: options.abortSignal,
           }
         );
       }
@@ -285,6 +342,35 @@ export class ServiceFacade<
     }
 
     return cmdResult.data as OrchestrationResult<TOut>;
+  }
+
+  /**
+   * Executes a callable operation or orchestration through BullMQ queue and worker boundary.
+   * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> Functionality / Orchestration -> Result.
+   * Strictly queue-mediated; zero unmediated bypasses.
+   */
+  async execute<TIn = unknown, TOut = unknown>(
+    target: string,
+    input?: TIn,
+    options?: {
+      correlationId?: string;
+      idempotencyKey?: string;
+      timeoutMs?: number;
+      metadata?: Record<string, unknown>;
+      abortSignal?: AbortSignal;
+    }
+  ): Promise<any> {
+    if (this.functionalityOrchestrations[target]) {
+      const res = await this.orchestrate<TIn, TOut>(target, input, options);
+      if (res.status === 'FAILED') {
+        throw new Error(res.error || `[ServiceFacade:${this.id}] Orchestration "${target}" failed.`);
+      }
+      return res;
+    }
+    return this.call<TIn, TOut>(target, input, {
+      correlationId: options?.correlationId,
+      idempotencyKey: options?.idempotencyKey,
+    });
   }
 
   getState(): Readonly<TState> {

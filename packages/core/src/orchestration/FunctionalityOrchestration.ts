@@ -82,8 +82,19 @@ export class FunctionalityOrchestration {
   /**
    * Adds a sequential functionality step to the DAG.
    */
-  thenFunctionality(funcName: string, options: FunctionalityStepOptions = {}): this {
-    if (!funcName || typeof funcName !== 'string') {
+  thenFunctionality(funcName: any, options: FunctionalityStepOptions = {}): this {
+    if (!funcName) {
+      throw new Error('[FunctionalityOrchestration] Functionality name must be a non-empty string.');
+    }
+    if (typeof funcName !== 'string') {
+      if (
+        typeof funcName === 'object' &&
+        ('call' in funcName || 'getStatus' in funcName || 'definition' in funcName || 'instance' in funcName || 'id' in funcName)
+      ) {
+        throw new Error(
+          '[FunctionalityOrchestration] Invariant Violation: FunctionalityOrchestration only composes functionalities within the service, not independent services.'
+        );
+      }
       throw new Error('[FunctionalityOrchestration] Functionality name must be a non-empty string.');
     }
     this.assertServiceBoundary(funcName);
@@ -273,8 +284,19 @@ export class FunctionalityOrchestration {
       name,
       steps,
       visibility: 'internal',
-      thenFunctionality(funcName: string, options?: { retry?: StepRetryPolicy; timeoutMs?: number; dependsOn?: string[] }): FunctionalityFlow {
-        if (!funcName || typeof funcName !== 'string') {
+      thenFunctionality(funcName: any, options?: { retry?: StepRetryPolicy; timeoutMs?: number; dependsOn?: string[] }): FunctionalityFlow {
+        if (!funcName) {
+          throw new Error('[FunctionalityFlow] Functionality name must be a non-empty string.');
+        }
+        if (typeof funcName !== 'string') {
+          if (
+            typeof funcName === 'object' &&
+            ('call' in funcName || 'getStatus' in funcName || 'definition' in funcName || 'instance' in funcName || 'id' in funcName)
+          ) {
+            throw new Error(
+              '[FunctionalityOrchestration] Invariant Violation: FunctionalityOrchestration only composes functionalities within the service, not independent services.'
+            );
+          }
           throw new Error('[FunctionalityFlow] Functionality name must be a non-empty string.');
         }
         self.assertServiceBoundary(funcName);
@@ -334,12 +356,16 @@ export class FunctionalityOrchestration {
 
   private assertServiceBoundary(target: string): void {
     // Law L1: FunctionalityOrchestration MUST NOT orchestrate independent services.
-    if (target.includes('Service') && !target.includes('Functionality') && !target.includes('Atom')) {
-      if (target.endsWith('ServiceFacade') || target.startsWith('service.') || target.includes('Service.')) {
-        throw new Error(
-          `[FunctionalityOrchestration] Plane Isolation Invariant Violation: Target "${target}" appears to be an external Service. FunctionalityOrchestration strictly composes functionalities inside ONE service.`
-        );
-      }
+    if (
+      target.endsWith('ServiceFacade') ||
+      target.startsWith('service.') ||
+      target.includes('Service.') ||
+      (target.endsWith('Service') && !target.includes('Functionality') && !target.includes('Atom')) ||
+      (target.startsWith('Service') && !target.includes('Functionality') && !target.includes('Atom'))
+    ) {
+      throw new Error(
+        `[FunctionalityOrchestration] Plane Isolation Invariant Violation: Invariant Violation: FunctionalityOrchestration only composes functionalities within the service, not independent services. External Service composition is forbidden. Target "${target}" is not an internal functionality.`
+      );
     }
   }
 }

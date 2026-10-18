@@ -629,8 +629,10 @@ var BullMQExecutionEngine = class {
     this.activeExecutions.set(executionId, { abortController, context });
     const timeoutMs = options.timeoutMs || descriptor.timeoutMs;
     let timeoutTimer;
+    let isWorkflowTimeout = false;
     if (timeoutMs && timeoutMs > 0) {
       timeoutTimer = setTimeout(() => {
+        isWorkflowTimeout = true;
         context.isCancelled = true;
         abortController.abort();
       }, timeoutMs);
@@ -682,8 +684,16 @@ var BullMQExecutionEngine = class {
       }
     } catch (err) {
       const wasCancelled = context.isCancelled || abortController.signal.aborted || err?.name === "AbortError";
-      orchestrationStatus = wasCancelled ? "CANCELLED" : "FAILED";
-      errorMessage = wasCancelled ? "The operation was aborted" : err?.message || String(err);
+      if (isWorkflowTimeout) {
+        orchestrationStatus = "TIMED_OUT";
+        errorMessage = `Orchestration timed out after ${timeoutMs}ms.`;
+      } else if (wasCancelled) {
+        orchestrationStatus = "CANCELLED";
+        errorMessage = "The operation was aborted";
+      } else {
+        orchestrationStatus = "FAILED";
+        errorMessage = err?.message || String(err);
+      }
       if (executedComps.length > 0) {
         for (let i = executedComps.length - 1; i >= 0; i--) {
           try {
@@ -751,6 +761,8 @@ var BullMQExecutionEngine = class {
       }
     }
     let lastError;
+    let stepCancelled = false;
+    const stepTimeoutMs = step.timeoutPolicy?.timeoutMs;
     while (attempts < maxAttempts) {
       if (context.isCancelled) {
         return {
@@ -764,9 +776,8 @@ var BullMQExecutionEngine = class {
       attempts++;
       try {
         let stepOutput;
-        const stepTimeoutMs = step.timeoutPolicy?.timeoutMs;
         let stepTimer;
-        let stepCancelled = false;
+        stepCancelled = false;
         const runPromise = (async () => {
           if (step.type === "nested" && step.nestedOrchestrationId && nestedRunner) {
             const childContext = {
@@ -812,7 +823,9 @@ var BullMQExecutionEngine = class {
           const timeoutPromise = new Promise((_, reject) => {
             stepTimer = setTimeout(() => {
               stepCancelled = true;
-              reject(new Error(`Step "${step.id}" timed out after ${stepTimeoutMs}ms.`));
+              const tErr = new Error(`Step "${step.id}" timed out after ${stepTimeoutMs}ms.`);
+              tErr.name = "TimeoutError";
+              reject(tErr);
             }, stepTimeoutMs);
           });
           promisesToRace.push(timeoutPromise);
@@ -828,6 +841,16 @@ var BullMQExecutionEngine = class {
           completedAt: Date.now()
         };
       } catch (err) {
+        if (stepCancelled || err?.name === "TimeoutError") {
+          return {
+            stepId: step.id,
+            status: "TIMED_OUT",
+            attempts,
+            error: err?.message || `Step "${step.id}" timed out after ${stepTimeoutMs}ms.`,
+            startedAt: stepStart,
+            completedAt: Date.now()
+          };
+        }
         if (context.isCancelled || context.abortSignal?.aborted || err?.name === "AbortError" || err?.message === "Operation cancelled" || err?.message === "The operation was aborted") {
           return {
             stepId: step.id,
@@ -1023,19 +1046,58 @@ var ServiceFacade = class {
       command,
       async (payload, workerCtx) => {
         WorkerExecutionBoundary.assertWorkerContext(workerCtx);
+        const resolveStepInput = (step, results) => {
+          const deps = step.dependsOn;
+          if (!deps || deps.length === 0) {
+            return results["input"];
+          }
+          if (deps.length === 1) {
+            const depRes = results[deps[0]];
+            const initialInput = results["input"];
+            if (typeof depRes === "object" && depRes !== null && typeof initialInput === "object" && initialInput !== null && !Array.isArray(depRes) && !Array.isArray(initialInput)) {
+              return { ...initialInput, ...depRes };
+            }
+            return depRes !== void 0 ? depRes : results["input"];
+          }
+          const joined = {};
+          for (const dep of deps) {
+            joined[dep] = results[dep];
+          }
+          return joined;
+        };
         const rawSteps = orch.getSteps();
         const boundSteps = rawSteps.map((s) => {
+          let compensation = s.compensation;
+          if (s.compensation?.target && !s.compensation.handler) {
+            compensation = {
+              ...s.compensation,
+              handler: async (compCtx) => {
+                await this.call(s.compensation.target, compCtx.results[s.id], {
+                  correlationId: compCtx.correlationId
+                });
+              }
+            };
+          }
           if (s.type === "task" && s.target) {
             return {
               ...s,
-              handler: async (stepInput, stepCtx) => {
-                return await this.call(s.target, stepInput, {
+              compensation,
+              handler: async (_stepInput, stepCtx) => {
+                const resolvedInput = resolveStepInput(s, stepCtx.results);
+                const stepPayload = typeof resolvedInput === "object" && resolvedInput !== null && !Array.isArray(resolvedInput) ? { ...stepCtx.results, ...resolvedInput } : { ...stepCtx.results };
+                if (stepCtx.results.input) {
+                  stepPayload.input = stepCtx.results.input;
+                }
+                return await this.call(s.target, stepPayload, {
                   correlationId: stepCtx.correlationId
                 });
               }
             };
           }
-          return s;
+          return {
+            ...s,
+            compensation
+          };
         });
         const nestedRunner = async (childOrchId, childInput, childCtx) => {
           const childOrch = this.functionalityOrchestrations[childOrchId];
@@ -1046,7 +1108,8 @@ var ServiceFacade = class {
           }
           const nestedResult = await this.orchestrate(childOrchId, childInput, {
             correlationId: childCtx.correlationId,
-            timeoutMs: childOrch.timeoutMs
+            timeoutMs: childOrch.timeoutMs,
+            abortSignal: options.abortSignal
           });
           if (nestedResult.status !== "COMPLETED") {
             throw new Error(nestedResult.error || `Nested orchestration "${childOrchId}" failed.`);
@@ -1062,7 +1125,8 @@ var ServiceFacade = class {
             idempotencyKey: command.idempotencyKey,
             timeoutMs: options.timeoutMs || orch.timeoutMs,
             metadata: options.metadata,
-            nestedRunner
+            nestedRunner,
+            abortSignal: options.abortSignal
           }
         );
       }
@@ -1071,6 +1135,24 @@ var ServiceFacade = class {
       throw new Error(cmdResult.error || `[ServiceFacade:${this.id}] Orchestration failed.`);
     }
     return cmdResult.data;
+  }
+  /**
+   * Executes a callable operation or orchestration through BullMQ queue and worker boundary.
+   * Path: External Caller -> Service Facade -> BullMQ Command -> Worker -> Functionality / Orchestration -> Result.
+   * Strictly queue-mediated; zero unmediated bypasses.
+   */
+  async execute(target, input, options) {
+    if (this.functionalityOrchestrations[target]) {
+      const res = await this.orchestrate(target, input, options);
+      if (res.status === "FAILED") {
+        throw new Error(res.error || `[ServiceFacade:${this.id}] Orchestration "${target}" failed.`);
+      }
+      return res;
+    }
+    return this.call(target, input, {
+      correlationId: options?.correlationId,
+      idempotencyKey: options?.idempotencyKey
+    });
   }
   getState() {
     return this.instance.getState();
@@ -1510,17 +1592,34 @@ var ServiceRegistry = class {
    * @param definition Validated service definition.
    * @param endpoints Optional list of active endpoint descriptors.
    * @throws Error if definition or endpoints fail validation.
-   * @throws Error if service is already registered under the same ID with a different version.
+   * @throws Error if service is already registered under the same ID.
    */
   register(definition, endpoints = []) {
     validateServiceDefinition(definition);
     for (const endpoint of endpoints) validateEndpoint(endpoint);
     const existing = this.services.get(definition.id);
-    if (existing && existing.definition.version !== definition.version) {
+    if (existing) {
       throw new Error(
-        "[ServiceRegistry] Service '" + definition.id + "' is already registered at version '" + existing.definition.version + "'; refusing replacement with '" + definition.version + "'."
+        "[ServiceRegistry] Service '" + definition.id + "' is already registered at version '" + existing.definition.version + "'. Use replace() to explicitly replace an existing service."
       );
     }
+    this.services.set(definition.id, {
+      definition,
+      endpoints: endpoints.map((endpoint) => ({ ...endpoint, capabilities: [...endpoint.capabilities] })),
+      registeredAt: Date.now()
+    });
+  }
+  /**
+   * Explicitly replaces or updates a service definition and its endpoints in the registry.
+   * Preserves original registeredAt timestamp if the service was previously registered.
+   *
+   * @param definition Validated service definition.
+   * @param endpoints Optional list of active endpoint descriptors.
+   */
+  replace(definition, endpoints = []) {
+    validateServiceDefinition(definition);
+    for (const endpoint of endpoints) validateEndpoint(endpoint);
+    const existing = this.services.get(definition.id);
     this.services.set(definition.id, {
       definition,
       endpoints: endpoints.map((endpoint) => ({ ...endpoint, capabilities: [...endpoint.capabilities] })),
@@ -1805,7 +1904,15 @@ var FunctionalityOrchestration = class {
    * Adds a sequential functionality step to the DAG.
    */
   thenFunctionality(funcName, options = {}) {
-    if (!funcName || typeof funcName !== "string") {
+    if (!funcName) {
+      throw new Error("[FunctionalityOrchestration] Functionality name must be a non-empty string.");
+    }
+    if (typeof funcName !== "string") {
+      if (typeof funcName === "object" && ("call" in funcName || "getStatus" in funcName || "definition" in funcName || "instance" in funcName || "id" in funcName)) {
+        throw new Error(
+          "[FunctionalityOrchestration] Invariant Violation: FunctionalityOrchestration only composes functionalities within the service, not independent services."
+        );
+      }
       throw new Error("[FunctionalityOrchestration] Functionality name must be a non-empty string.");
     }
     this.assertServiceBoundary(funcName);
@@ -1955,7 +2062,15 @@ var FunctionalityOrchestration = class {
       steps,
       visibility: "internal",
       thenFunctionality(funcName, options) {
-        if (!funcName || typeof funcName !== "string") {
+        if (!funcName) {
+          throw new Error("[FunctionalityFlow] Functionality name must be a non-empty string.");
+        }
+        if (typeof funcName !== "string") {
+          if (typeof funcName === "object" && ("call" in funcName || "getStatus" in funcName || "definition" in funcName || "instance" in funcName || "id" in funcName)) {
+            throw new Error(
+              "[FunctionalityOrchestration] Invariant Violation: FunctionalityOrchestration only composes functionalities within the service, not independent services."
+            );
+          }
           throw new Error("[FunctionalityFlow] Functionality name must be a non-empty string.");
         }
         self.assertServiceBoundary(funcName);
@@ -2009,12 +2124,10 @@ var FunctionalityOrchestration = class {
     this.steps.length = 0;
   }
   assertServiceBoundary(target) {
-    if (target.includes("Service") && !target.includes("Functionality") && !target.includes("Atom")) {
-      if (target.endsWith("ServiceFacade") || target.startsWith("service.") || target.includes("Service.")) {
-        throw new Error(
-          `[FunctionalityOrchestration] Plane Isolation Invariant Violation: Target "${target}" appears to be an external Service. FunctionalityOrchestration strictly composes functionalities inside ONE service.`
-        );
-      }
+    if (target.endsWith("ServiceFacade") || target.startsWith("service.") || target.includes("Service.") || target.endsWith("Service") && !target.includes("Functionality") && !target.includes("Atom") || target.startsWith("Service") && !target.includes("Functionality") && !target.includes("Atom")) {
+      throw new Error(
+        `[FunctionalityOrchestration] Plane Isolation Invariant Violation: Invariant Violation: FunctionalityOrchestration only composes functionalities within the service, not independent services. External Service composition is forbidden. Target "${target}" is not an internal functionality.`
+      );
     }
   }
 };
