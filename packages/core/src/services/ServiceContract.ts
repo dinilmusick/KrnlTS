@@ -1,7 +1,7 @@
 /**
  * @file ServiceContract.ts
  * @description Canonical service contracts for the KrnlTS Service Kernel.
- * Invariant: KrnlTS.Service = Skipo.Service = RemoteService.Contract
+ * Invariant: local and remote services share the same IService contract.
  */
 
 export type ServiceStatus = 'uninitialized' | 'initializing' | 'ready' | 'starting' | 'running' | 'stopping' | 'stopped';
