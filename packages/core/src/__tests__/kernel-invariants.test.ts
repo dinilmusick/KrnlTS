@@ -49,6 +49,7 @@ describe('KrnlTS kernel invariants', () => {
     await service.stop();
     await service.stop();
     await service.start();
+    await service.dispose();
 
     expect(onInit).toHaveBeenCalledTimes(1);
     expect(onStart).toHaveBeenCalledTimes(2);
