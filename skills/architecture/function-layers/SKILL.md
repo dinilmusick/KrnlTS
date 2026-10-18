@@ -17,7 +17,7 @@ Layer 1: [ Simple Impure Step Functions ] (main_function/logic.ts)
 Layer 2: [ Complex Impure Orchestrator / Flows ] (main_function/logic.ts & FlowBuilder)
                 │
                 ▼
-Layer 3: [ Top-Level API / Ingress Surface ] (entities/*.ts & protocol_adapters/)
+Layer 3: [ Top-Level API / Ingress Surface ] (services/*.ts, orchestrations/ & adapters/)
 ```
 - **Strict Flow Law**: Invocations must flow unidirectionally from Layer 0 $\to$ Layer 1 $\to$ Layer 2 $\to$ Layer 3.
 - **Intermixing Prohibition**: Crossing boundaries or bypassing intermediate layers is strictly FORBIDDEN.
@@ -55,7 +55,7 @@ Layer 3: [ Top-Level API / Ingress Surface ] (entities/*.ts & protocol_adapters/
   - Max 20 lines of sequential logic without delegating.
   - **FORBID**: Never call Layer 0A Pure Functions or Layer 0B State Accessors directly.
 
-### Layer 3: Top-Level API Functions (`entities/*.ts` & `protocol_adapters/*.ts`)
+### Layer 3: Top-Level API Functions (`services/*.ts`, `orchestrations/*.ts` & `adapters/*.ts`)
 - **Definition**: Root entry point handlers orchestrating Layer 2 / Layer 1 logic and exposing application capabilities over HTTP `/call/{fid}`, WebSocket RPC, or MCP.
 - **Rules**:
   - MUST ONLY call Layer 2 Complex Impure Functions or Layer 1 Impure Functions.
@@ -102,10 +102,10 @@ function applyTaxToBalance(state: AppState, rate: number): void {
   setAccountBalance(state, current - tax);         // Layer 0B
 }
 
-// Layer 2: Main functionality orchestrator (receives { state, entity })
-export const main = async (input: { rate: number }, { state, entity }: { state: AppState; entity: any }) => {
+// Layer 2: Main functionality orchestrator (receives { state, facade })
+export const main = async (input: { rate: number }, { state, facade }: { state: AppState; facade: any }) => {
   applyTaxToBalance(state, input.rate);           // Layer 1 Only
-  entity.emitEvent("billing:tax_applied", { rate: input.rate, balance: state.balance });
+  facade.emitEvent("billing:tax_applied", { rate: input.rate, balance: state.balance });
   return { success: true, balance: state.balance };
 };
 ```

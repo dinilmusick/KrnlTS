@@ -2,7 +2,7 @@ import * as http from 'http';
 
 declare function runValidate(projectRoot?: string): Promise<boolean>;
 
-declare function runGenerate(type: string, name: string, _parentEntity?: string, projectRoot?: string): Promise<void>;
+declare function runGenerate(type: string, name: string, _parentService?: string, projectRoot?: string): Promise<void>;
 
 declare function generateMagneticDeclarations(projectRoot?: string): void;
 
@@ -11,7 +11,8 @@ declare function generateMagneticDeclarations(projectRoot?: string): void;
  * @description Production build runner reconciling manifests, validating purity, and compiling TypeScript.
  */
 interface BuildOptions {
-    entity?: string;
+    service?: string;
+    orchestration?: string;
     all?: boolean;
 }
 declare function runBuild(projectRoot?: string, options?: BuildOptions): Promise<{
@@ -26,7 +27,8 @@ declare function runBuild(projectRoot?: string, options?: BuildOptions): Promise
 
 interface DevOptions {
     port?: number;
-    entity?: string;
+    service?: string;
+    orchestration?: string;
     all?: boolean;
     dryRun?: boolean;
 }

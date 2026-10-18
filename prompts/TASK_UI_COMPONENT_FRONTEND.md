@@ -79,8 +79,8 @@ import React, { useState } from "react";
 // 2. DATA SCHEMAS & COMPONENT PROP INTERFACES
 // ══════════════════════════════════════════════════════════════════════════════════════════
 export interface DiagnosticsControlButtonProps {
-  targetEntityIdentifier: string;
-  onTriggerDiagnosticsAction?: (entityIdentifier: string) => void;
+  targetServiceIdentifier: string;
+  onTriggerDiagnosticsAction?: (serviceIdentifier: string) => void;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
@@ -102,13 +102,13 @@ export interface DiagnosticsControlButtonProps {
  *
  * Example:
  *   <DiagnosticsControlButton 
- *     targetEntityIdentifier="PaymentCoordinator" 
+ *     targetServiceIdentifier="PaymentCoordinator" 
  *     onTriggerDiagnosticsAction={(id) => console.log("Run diagnostics for", id)} 
  *   />
  * ──────────────────────────────────────────────────────────────────────────────────────────
  */
 export const DiagnosticsControlButton: React.FC<DiagnosticsControlButtonProps> = ({
-  targetEntityIdentifier,
+  targetServiceIdentifier,
   onTriggerDiagnosticsAction
 }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -135,7 +135,7 @@ export const DiagnosticsControlButton: React.FC<DiagnosticsControlButtonProps> =
         }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onClick={() => onTriggerDiagnosticsAction?.(targetEntityIdentifier)}
+        onClick={() => onTriggerDiagnosticsAction?.(targetServiceIdentifier)}
       >
         {/* Monochromatic Vector Icon */}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -164,7 +164,7 @@ export const DiagnosticsControlButton: React.FC<DiagnosticsControlButtonProps> =
             pointerEvents: "none"
           }}
         >
-          Run System Diagnostics ({targetEntityIdentifier})
+          Run System Diagnostics ({targetServiceIdentifier})
         </div>
       )}
     </div>

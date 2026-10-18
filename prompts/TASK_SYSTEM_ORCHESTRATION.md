@@ -1,21 +1,23 @@
 # TASK: SYSTEM_ORCHESTRATION_AND_P2P_PROTOCOL
-$ORCH := \text{MagneticLoader} \otimes \text{IngressNetwork} \otimes \text{FlowPipelines}
+$ORCH := \text{DeclarativeFlows} \otimes \text{ServiceFacades} \otimes \text{ProtocolAdapters}
 
 ## 1. IN-CODE UTILITY DOCUMENTATION, SECTION DEMARCATION & NAMING RULES
-- **Naming**: Use long, descriptive names for all pipeline builders, orchestrator entities, and network nodes (e.g., `DistributedClusterNetworkOrchestratorEntity.ts`).
+- **Naming**: Use long, descriptive names for all pipeline builders, service facades, and network nodes (e.g., `DistributedClusterNetworkOrchestratorService.ts`).
 - **Docblocks**: Document the utility of all pipelines and network meshes with an ASCII topology diagram.
 - **Section Demarcation**: Partition imports, network initialization, pipeline declarations, and startup routines with `// ══════════════════════════════════════════════════════════════════════════════════════════`.
 
-## 2. MAGNETIC LOADER (FILESYSTEM AS COMPOSITION)
+## 2. REPOSITORY TOPOLOGY (SERVICES & ORCHESTRATIONS)
 Directory structure automatically maps to runtime topology:
 ```
-my_system/
-├── entities/                 # Auto-mounted Child Entities
-│   └── UserEntity/
-│       └── functionalities/  # Auto-mounted Functionalities
-├── functionalities/          # System-level Functionalities
-├── protocol_adapters/        # Ingress Adapters (REST, WS, MCP)
-└── flows/                    # KrnlFlowBuilder Pipelines
+krnl/backend/
+├── services/                 # ServiceFacades establishing service boundaries
+│   └── UserService/
+│       └── UserServiceFacade.ts
+├── orchestrations/           # Declarative Orchestration flows
+│   └── UserOnboarding/
+│       └── UserOnboardingOrchestration.ts
+├── functionalities/          # System-level Functionalities (Quad-Units)
+└── adapters/                 # Ingress Adapters (HTTP, WS, UDP, P2P)
 ```
 
 ## 3. CANONICAL ORCHESTRATION & PIPELINE TEMPLATE
@@ -24,54 +26,48 @@ my_system/
 // 1. IMPORTS & EXTERNAL DEPENDENCIES
 // ══════════════════════════════════════════════════════════════════════════════════════════
 import {
-  Entity,
-  KrnlSystemMagneticLoader,
-  KrnlFlowBuilder,
-  KrnlSiblingNetwork
-} from "@ultrst-armada/krnl";
+  ServiceFacade,
+  Orchestration,
+  HttpProtocolAdapter,
+} from "@ultrst-armada/krnl-core";
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 2. MAGNETIC LOADER BOOTSTRAPPING
+// 2. DECLARATIVE ORCHESTRATION FLOW
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 /**
  * ──────────────────────────────────────────────────────────────────────────────────────────
- * ORCHESTRATOR: RootClusterOrchestratorInitialization
+ * ORCHESTRATION: CustomerOrderFulfillmentFlow
  * ──────────────────────────────────────────────────────────────────────────────────────────
- * Purpose: Autoloads all child entities, functionalities, and protocol adapters from the
- *          filesystem into a unified runtime tree.
+ * Purpose: Sequences order validation, payment processing, and email dispatch across
+ *          atomic functionalities and peer orchestrations.
  *
  * Topology Flow Chart:
- *   [Filesystem Directory] ───► [Magnetic Loader] ───► [Mount Entities & Functionalities]
- *                                                               │
- *                                                               ▼
- *                                                  [Start Unified Self-Hosting]
+ *   [Incoming Order] ───► [thenFunctionality: validateIncomingOrderPayload]
+ *                                         │
+ *                                         ▼
+ *                         [thenFunctionality: chargeCustomerPaymentMethod]
+ *                                         │
+ *                                         ▼
+ *                         [thenOrchestration: dispatchOrderConfirmationNotification]
  * ──────────────────────────────────────────────────────────────────────────────────────────
  */
-const rootSystemOrchestratorEntity = new Entity("RootClusterOrchestratorEntity");
-const magneticSystemLoader = new KrnlSystemMagneticLoader(rootSystemOrchestratorEntity, "./system_modules");
-await magneticSystemLoader.loadAll();
+export const CustomerOrderFulfillmentFlow = new Orchestration("CustomerOrderFulfillmentFlow")
+  .thenFunctionality("validateIncomingOrderPayload")
+  .thenFunctionality("chargeCustomerPaymentMethod")
+  .thenOrchestration("dispatchOrderConfirmationNotification");
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 3. DISTRIBUTED P2P SIBLING NETWORK DISCOVERY
+// 3. SERVICE FACADE BOUNDARY & PROTOCOL ADAPTER
 // ══════════════════════════════════════════════════════════════════════════════════════════
-const distributedSiblingNetwork = new KrnlSiblingNetwork({
-  appName: "PrimaryComputingNode_Alpha",
-  registryPort: 10099
+export const OrderServiceFacade = new ServiceFacade({
+  id: "OrderService",
+  version: "1.0.0",
+  functionalities: ["validateIncomingOrderPayload", "chargeCustomerPaymentMethod"],
+  orchestrations: ["CustomerOrderFulfillmentFlow"]
 });
-await distributedSiblingNetwork.initialize();
 
-// ══════════════════════════════════════════════════════════════════════════════════════════
-// 4. MULTI-STEP FLOW PIPELINE BUILDER
-// ══════════════════════════════════════════════════════════════════════════════════════════
-export const CustomerOrderFulfillmentFlowPipeline = new KrnlFlowBuilder("CustomerOrderFulfillmentFlowPipeline")
-  .addStep("validateIncomingOrderPayload", { targetFunctionality: "validate_order_details" })
-  .addStep("chargeCustomerPaymentMethod", { targetFunctionality: "process_credit_card_payment" })
-  .addStep("dispatchOrderConfirmationNotification", { targetFunctionality: "send_email_confirmation" })
-  .build();
-
-const pipelineExecutionResult = await CustomerOrderFulfillmentFlowPipeline.execute(
-  rootSystemOrchestratorEntity,
-  { orderIdentifier: "order_99812", totalChargeAmount: 49.99 }
-);
+// Attach HTTP protocol adapter
+const httpAdapter = new HttpProtocolAdapter();
+await httpAdapter.listen(10080);
 ```

@@ -101,7 +101,7 @@ Use bold unicode comment borders (`═` or `─`) to clearly segment code into s
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// SECTION 5: ATOMIC FUNCTIONALITY / ENTITY ORCHESTRATION (L3)
+// SECTION 5: ATOMIC FUNCTIONALITY / SERVICE ORCHESTRATION (L3)
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
@@ -110,7 +110,7 @@ Use bold unicode comment borders (`═` or `─`) to clearly segment code into s
 ```
 
 ## 3. DESCRIPTIVE & LONG NAMING CONVENTIONS
-- **Filenames**: Must be completely descriptive, matching the primary class/entity/feature name (e.g., `UserAccountAuthenticationManager.ts`, `FilesystemWorkspaceStorageProvider.ts`).
+- **Filenames**: Must be completely descriptive, matching the primary class/service/feature name (e.g., `UserAccountAuthenticationManager.ts`, `FilesystemWorkspaceStorageProvider.ts`).
 - **Function & Variable Names**: Must explicitly declare intent without cryptic abbreviations (e.g., `validateAndNormalizeIncomingUserRegistrationPayload`, `calculateTotalActiveWorkspaceConnections`).
 - **Code Block / Functionality IDs**: Use snake_case or camelCase matching the file name (e.g., `id: "user_account_authentication_manager"`).
 

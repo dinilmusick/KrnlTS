@@ -4,7 +4,7 @@ import { Project, SourceFile } from 'ts-morph';
 import { ValidationError, ValidationSummary } from './types.js';
 import { checkFileLimits, FileLimitOptions } from './rules/fileLimits.js';
 import { checkComponentRules } from './rules/componentRules.js';
-import { checkEntityRules } from './rules/entityRules.js';
+import { checkOrchestrationRules } from './rules/orchestrationRules.js';
 import { checkTopLevelPurity, checkWorkspaceLayout } from './rules/workspaceRules.js';
 
 export interface KrnlValidatorOptions {
@@ -70,11 +70,11 @@ export class KrnlValidatorEngine {
     const limits = checkFileLimits(sf, this.limitOptions);
     const purity = checkTopLevelPurity(sf);
     const components = checkComponentRules(sf);
-    const entity = checkEntityRules(sf);
+    const orchestration = checkOrchestrationRules(sf);
 
     return {
-      errors: [...limits.errors, ...purity.errors, ...components.errors, ...entity.errors],
-      warnings: [...limits.warnings, ...purity.warnings, ...components.warnings, ...entity.warnings],
+      errors: [...limits.errors, ...purity.errors, ...components.errors, ...orchestration.errors],
+      warnings: [...limits.warnings, ...purity.warnings, ...components.warnings, ...orchestration.warnings],
     };
   }
 

@@ -18,7 +18,7 @@ A single HTTP/TCP port serves all communication transports without port prolifer
 // ══════════════════════════════════════════════════════════════════════════════════════════
 // 1. IMPORTS & EXTERNAL DEPENDENCIES
 // ══════════════════════════════════════════════════════════════════════════════════════════
-import { Entity, krnlSystemUnifiedHttpAdapter, KrnlProtocolMCP, krnlLocalFunctionality } from "@ultrst-armada/krnl";
+import { ServiceFacade, HttpProtocolAdapter } from "@ultrst-armada/krnl-core";
 import { z } from "zod";
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
@@ -30,17 +30,17 @@ export const RemoteExecutionInputSchema = z.object({
 });
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 3. ATOMIC FUNCTIONALITY WITH ACCESS POLICY GATE
+// 3. SERVICE FACADE BOUNDARY WITH ADAPTER MOUNTING
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 /**
  * ──────────────────────────────────────────────────────────────────────────────────────────
- * FUNCTIONALITY: ExecuteRemoteBatchProcessingJobFunctionality
+ * SERVICE FACADE: UnifiedRootServiceFacade
  * ──────────────────────────────────────────────────────────────────────────────────────────
- * Purpose: Secure ingress endpoint that processes incoming batch tasks over REST/WS/MCP.
+ * Purpose: Secure ingress endpoint that processes incoming batch tasks over REST/WS.
  *
  * Ingress Flow Chart:
- *   [External Client Request (REST / WS / MCP)]
+ *   [External Client Request (REST / WS)]
  *                         │
  *                         ▼
  *         [Access Control Gate (Policy Check)]
@@ -52,38 +52,18 @@ export const RemoteExecutionInputSchema = z.object({
  *         [Execute Batch Processing Logic] ───► [Return Structured Result]
  * ──────────────────────────────────────────────────────────────────────────────────────────
  */
-export const ExecuteRemoteBatchProcessingJobFunctionality = new krnlLocalFunctionality({
-  id: "execute_remote_batch_processing_job",
-  description: "Triggers and monitors remote batch execution jobs across the network.",
-  accessPolicy: "require_key", // "unrestricted" | "require_key" | "forbid_unlisted"
-  accessKey: "secret-production-token",
-  schema: { input: RemoteExecutionInputSchema },
-  api: async (input) => {
-    return { executionStatus: "STARTED", action: input.targetExecutionAction };
+export const unifiedRootServiceFacade = new ServiceFacade({
+  id: "UnifiedRootService",
+  version: "1.0.0",
+  functionalities: ["execute_remote_batch_processing_job"],
+  operations: {
+    execute_remote_batch_processing_job: async (input: z.infer<typeof RemoteExecutionInputSchema>) => {
+      return { executionStatus: "STARTED", action: input.targetExecutionAction };
+    }
   }
 });
 
-// ══════════════════════════════════════════════════════════════════════════════════════════
-// 4. PROTOCOL ADAPTER MOUNTING & SELF-HOSTING (ROOT POSITION)
-// ══════════════════════════════════════════════════════════════════════════════════════════
-const unifiedRootSystemEntity = new Entity("UnifiedRootSystemEntity");
-unifiedRootSystemEntity.addLocal(ExecuteRemoteBatchProcessingJobFunctionality);
-
-// Unified REST / WebSocket Ingress Adapter
-const unifiedHttpProtocolAdapter = new krnlSystemUnifiedHttpAdapter({
-  port: 10080,
-  enableWS: true,
-  enableREST: true
-});
-unifiedRootSystemEntity.attachProtocolAdapter("http", unifiedHttpProtocolAdapter);
-
-// Model Context Protocol (MCP) Adapter for AI Agent Coordination
-const modelContextProtocolAdapter = new KrnlProtocolMCP({
-  serverName: "KrnlAutonomousAgentServer",
-  version: "1.0.0"
-});
-unifiedRootSystemEntity.attachProtocolAdapter("mcp", modelContextProtocolAdapter);
-
-// Start self-hosting unified server
-await unifiedRootSystemEntity.startSelfHosting();
+// Unified HTTP Protocol Adapter
+const httpAdapter = new HttpProtocolAdapter();
+await httpAdapter.listen(10080);
 ```

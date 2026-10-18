@@ -214,6 +214,96 @@ declare function createService<TState extends Record<string, unknown> = Record<s
 declare function createServiceProxy<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>>(definition: ServiceDefinition<TState, TEvents>, adapter: ProtocolAdapter, endpoint: EndpointDescriptor): IService<TState, TEvents>;
 
 /**
+ * @file Orchestration.ts
+ * @description Canonical declarative Orchestration compositor for KrnlTS services.
+ * Aligned with Skipo Orchestration architecture.
+ */
+interface OrchestrationDescriptor {
+    id: string;
+    name?: string;
+    version?: string;
+    description?: string;
+}
+interface OrchestrationFlowStep {
+    type: 'functionality' | 'orchestration';
+    target: string;
+    flow?: string;
+}
+interface OrchestrationFlow {
+    name: string;
+    steps: OrchestrationFlowStep[];
+    visibility: 'public' | 'private' | 'internal';
+    thenFunctionality(funcName: string): OrchestrationFlow;
+    thenOrchestration(orchestrationName: string, flowName?: string): OrchestrationFlow;
+    register(options?: {
+        visibility?: 'public' | 'private' | 'internal';
+    }): OrchestrationFlow;
+}
+/**
+ * Declarative Orchestration compositor.
+ * Focused strictly on composing functionalities and other orchestrations into named flows.
+ * Does not contain procedural algorithms, loops, or application-level configuration.
+ */
+declare class Orchestration {
+    readonly id: string;
+    readonly name: string;
+    readonly version: string;
+    readonly description: string;
+    private readonly flows;
+    constructor(descriptor: OrchestrationDescriptor);
+    flow(name: string): OrchestrationFlow;
+    getFlow(name: string): OrchestrationFlow | undefined;
+    listFlows(): OrchestrationFlow[];
+    clearFlows(): void;
+}
+
+/**
+ * @file ServiceFacade.ts
+ * @description Canonical ServiceFacade for KrnlTS services.
+ * Structurally analogous to Skipo's BackendFacade, representing a single service's
+ * public semantic boundary, composing functionalities, orchestrations, operations,
+ * state, events, dependencies, capabilities, and lifecycle.
+ */
+
+interface ServiceFacadeConfig<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>> {
+    id: string;
+    name?: string;
+    version?: string;
+    description?: string;
+    functionalities?: Record<string, unknown>;
+    orchestrations?: Record<string, Orchestration>;
+    definition?: ServiceDefinition<TState, TEvents>;
+    instance?: IService<TState, TEvents>;
+    dependencies?: DependencyContract[];
+    capabilities?: ServiceCapability[];
+}
+declare class ServiceFacade<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>> {
+    readonly id: string;
+    readonly name: string;
+    readonly version: string;
+    readonly description: string;
+    readonly functionalities: Record<string, unknown>;
+    readonly orchestrations: Record<string, Orchestration>;
+    readonly dependencies: readonly DependencyContract[];
+    readonly capabilities: readonly ServiceCapability[];
+    private readonly instance;
+    constructor(config: ServiceFacadeConfig<TState, TEvents>);
+    getInstance(): IService<TState, TEvents>;
+    getStatus(): ServiceStatus;
+    start(): Promise<void>;
+    stop(): Promise<void>;
+    dispose(): Promise<void>;
+    call<TIn = unknown, TOut = unknown>(op: string, input?: TIn, ctx?: OperationContext): Promise<TOut>;
+    getState(): Readonly<TState>;
+    setState(mutation: Partial<TState>): void;
+    on<K extends keyof TEvents & string>(event: K, handler: (payload: TEvents[K]) => void): () => void;
+    emit<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): void;
+    registerFunctionality(name: string, functionality: unknown): this;
+    registerOrchestration(name: string, orchestration: Orchestration): this;
+}
+declare function createServiceFacade<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>>(config: ServiceFacadeConfig<TState, TEvents>): ServiceFacade<TState, TEvents>;
+
+/**
  * @file HttpProtocolAdapter.ts
  * @description HTTP/HTTPS adapter for service exposition and remote consumption.
  */
@@ -417,97 +507,4 @@ declare class ProtocolResolver {
     static getSupportedProtocols(definition: ServiceDefinition): ProtocolType[];
 }
 
-/**
- * @file Entity.ts
- * @description Canonical declarative Entity actor and application definition for KrnlTS.
- */
-
-interface EntityDescriptor {
-    id: string;
-    version: string;
-    description?: string;
-    capabilities?: ServiceCapability[];
-}
-interface EntityFlowChain {
-    name: string;
-    steps: Array<{
-        type: 'functionality' | 'entityOrchestration';
-        target: string;
-        orchestration?: string;
-    }>;
-    visibility: 'public' | 'private' | 'internal';
-    thenFunctionality(funcName: string): EntityFlowChain;
-    thenEntityOrchestration(entityName: string, orchName: string): EntityFlowChain;
-    register(options?: {
-        visibility?: 'public' | 'private' | 'internal';
-    }): EntityFlowChain;
-}
-interface LocalComponentDescriptor {
-    id: string;
-    uiSpec?: Record<string, unknown>;
-    metadata?: Record<string, unknown>;
-}
-/**
- * Base declarative Entity compositor.
- * Follows Entity Purity Law: purely declarative orchestrator with no procedural loops.
- */
-declare class Entity {
-    readonly id: string;
-    readonly version: string;
-    readonly description: string;
-    private readonly flows;
-    private readonly locals;
-    constructor(descriptor: EntityDescriptor);
-    boot(): Promise<void>;
-    init(): Promise<void>;
-    dispose(): Promise<void>;
-    flow(name: string): EntityFlowChain;
-    addLocal(descriptor: LocalComponentDescriptor): this;
-    getFlow(name: string): EntityFlowChain | undefined;
-    listFlows(): EntityFlowChain[];
-    getLocal(id: string): LocalComponentDescriptor | undefined;
-}
-/**
- * Magnetic loader dynamically resolving and attaching functionality quad-units to an entity.
- */
-declare class KrnlMagneticLoader {
-    static loadAll(entity: Entity, metaUrl?: string): Promise<string[]>;
-}
-interface AppProtocolConfig {
-    protocol: ProtocolType | string;
-    port?: number;
-    prefix?: string;
-    name?: string;
-    [key: string]: unknown;
-}
-interface AppFrontendConfig {
-    rootEntity: string;
-    variant?: number;
-}
-interface AppDefinition {
-    name: string;
-    version: string;
-    description?: string;
-    protocols?: AppProtocolConfig[];
-    entities?: Array<new () => Entity>;
-    frontend?: AppFrontendConfig;
-}
-declare function defineApp(def: AppDefinition): AppDefinition;
-declare const Protocols: {
-    HTTP: (opts?: {
-        port?: number;
-        prefix?: string;
-    }) => AppProtocolConfig;
-    WebSocket: (opts?: {
-        port?: number;
-    }) => AppProtocolConfig;
-    MCP: (opts?: {
-        name?: string;
-    }) => AppProtocolConfig;
-    UDP: (opts?: {
-        port?: number;
-    }) => AppProtocolConfig;
-    P2P: (opts?: Record<string, unknown>) => AppProtocolConfig;
-};
-
-export { type AppDefinition, type AppFrontendConfig, type AppProtocolConfig, type Connection, type DependencyContract, type EndpointDescriptor, Entity, type EntityDescriptor, type EntityFlowChain, type EventContract, HttpProtocolAdapter, type IService, KrnlMagneticLoader, KrnlPackageReconciler, type LifecycleContract, LifecycleManager, type LocalComponentDescriptor, MemoryTransport, type OperationContext, type OperationContract, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, Protocols, type ReconcileResult, type RegisteredServiceRecord, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, UdpProtocolAdapter, WebSocketProtocolAdapter, createService, createServiceDefinition, createServiceProxy, defineApp, validateServiceDefinition };
+export { type Connection, type DependencyContract, type EndpointDescriptor, type EventContract, HttpProtocolAdapter, type IService, KrnlPackageReconciler, type LifecycleContract, LifecycleManager, MemoryTransport, type OperationContext, type OperationContract, Orchestration, type OrchestrationDescriptor, type OrchestrationFlow, type OrchestrationFlowStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, UdpProtocolAdapter, WebSocketProtocolAdapter, createService, createServiceDefinition, createServiceFacade, createServiceProxy, validateServiceDefinition };

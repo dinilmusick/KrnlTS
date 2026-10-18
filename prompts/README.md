@@ -26,7 +26,7 @@ This directory contains **task-specific, token-efficient prompt attachments** fo
 | **UI Components & Frontend** | [`TASK_UI_COMPONENT_FRONTEND.md`](./TASK_UI_COMPONENT_FRONTEND.md) | Central style authority CSS tokens, reactive `state:changed` listeners, Docks, Force Graphs, React Flow nodes |
 | **APIs & Protocol Adapters** | [`TASK_API_PROTOCOL_ADAPTER.md`](./TASK_API_PROTOCOL_ADAPTER.md) | REST, WebSocket, MCP, ACP unified port adapters, Zod/Protobuf schema guards, port discovery |
 | **Bug Fixing & Verification** | [`TASK_DEBUG_FIX_VERIFY.md`](./TASK_DEBUG_FIX_VERIFY.md) | Invariant verification, regression test scripts, type-safety, contract preservation |
-| **System Orchestration & P2P** | [`TASK_SYSTEM_ORCHESTRATION.md`](./TASK_SYSTEM_ORCHESTRATION.md) | Magnetic Loader autoloading, P2P Ingress network, cross-entity event bus cascading |
+| **System Orchestration & P2P** | [`TASK_SYSTEM_ORCHESTRATION.md`](./TASK_SYSTEM_ORCHESTRATION.md) | Magnetic Loader declarations, P2P Ingress network, declarative Orchestration flow cascading |
 
 ---
 
@@ -35,7 +35,7 @@ This directory contains **task-specific, token-efficient prompt attachments** fo
 Simply append the contents of the appropriate `TASK_*.md` file to your prompt:
 
 ```text
-[Your specific instruction here, e.g.: "Add a user activity tracking functionality to the AnalyticsEntity"]
+[Your specific instruction here, e.g.: "Add a user activity tracking functionality to the AnalyticsService"]
 
 ---
 [ATTACH_PROMPT: Paste contents of TASK_CREATE_FEATURE.md here]

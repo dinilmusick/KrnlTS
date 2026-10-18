@@ -11,7 +11,8 @@ import { runValidate } from './validate.js';
 import { generateMagneticDeclarations } from './watch.js';
 
 export interface BuildOptions {
-  entity?: string;
+  service?: string;
+  orchestration?: string;
   all?: boolean;
 }
 
@@ -22,10 +23,11 @@ export async function runBuild(
   // 1. Reconcile package dependencies from manifests
   KrnlPackageReconciler.reconcile(projectRoot, true);
 
-  if (options.entity) {
-    console.log(`🏗️  [Krnl Build] Target entity variant: "${options.entity}"`);
+  const target = options.service || options.orchestration;
+  if (target) {
+    console.log(`🏗️  [Krnl Build] Target service/orchestration variant: "${target}"`);
   } else if (options.all) {
-    console.log(`🏗️  [Krnl Build] Combined multi-entity build`);
+    console.log(`🏗️  [Krnl Build] Combined multi-service build`);
   }
 
   // 2. Validate AST and 4-layer purity

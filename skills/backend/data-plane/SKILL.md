@@ -39,7 +39,7 @@ When executing database operations, the system resolves connection credentials v
 
 $$\text{ResolvedConfig} = \begin{cases}
 \text{Feature-Level Explicit Credentials} & \text{if } f.\text{credentials} \neq \emptyset \\
-\text{Host Entity Workspace Config} & \text{else if } E.\text{configuredBackend}(f.\text{service}) \neq \emptyset \\
+\text{Host Service Workspace Config} & \text{else if } S.\text{configuredBackend}(f.\text{service}) \neq \emptyset \\
 \text{Local SQLite / POSIX Storage} & \text{otherwise (Zero-Failure Fallback)}
 \end{cases}$$
 
@@ -49,7 +49,7 @@ import { WorkspaceBackendFactory } from "@ultrst-armada/krnl";
 // Automatic cascade resolution with safe local SQLite fallback
 const credentials = WorkspaceBackendFactory.resolveCredentialsCascade(
   featureConfig,
-  entitySettings,
+  serviceSettings,
   { type: "sqlite", filePath: "./workspace.sqlite", enableWAL: true }
 );
 ```

@@ -3,11 +3,11 @@ import * as path from 'path';
 
 export function scaffoldFrontend(targetDir: string, projectName: string): void {
   const fLibDir = path.join(targetDir, 'krnl', 'frontend', 'libraries', 'ButtonConcepts');
-  const fEntityDir = path.join(targetDir, 'krnl', 'frontend', 'entities', 'App');
+  const fOrchDir = path.join(targetDir, 'krnl', 'frontend', 'orchestrations', 'App');
   const fFuncDir = path.join(targetDir, 'krnl', 'frontend', 'functionalities', 'Hello');
 
   fs.mkdirSync(path.join(fLibDir, 'tests'), { recursive: true });
-  fs.mkdirSync(path.join(fEntityDir, 'tests'), { recursive: true });
+  fs.mkdirSync(path.join(fOrchDir, 'tests'), { recursive: true });
   fs.mkdirSync(path.join(fFuncDir, 'tests'), { recursive: true });
   fs.mkdirSync(path.join(targetDir, 'docs'), { recursive: true });
   fs.mkdirSync(path.join(targetDir, '.krnl'), { recursive: true });
@@ -34,13 +34,13 @@ export function scaffoldFrontend(targetDir: string, projectName: string): void {
     `import { describe, it, expect } from "vitest";\ndescribe("Button component", () => { it("defined correctly", () => { expect(true).toBe(true); }); });\n`
   );
 
-  // Frontend Entity
+  // Frontend Orchestration View
   fs.writeFileSync(
-    path.join(fEntityDir, 'App0.tsx'),
-    `import React from "react";\nimport { Button } from "../../libraries/ButtonConcepts/components.js";\nexport const App0: React.FC = () => {\n  return (\n    <div className="krnl-entity-app">\n      <h1>App View (Variant 0)</h1>\n      <Button label="Click Me" onClick={() => alert("Welcome to Krnl!")} />\n    </div>\n  );\n};\nexport default App0;\n`
+    path.join(fOrchDir, 'App0.tsx'),
+    `import React from "react";\nimport { Button } from "../../libraries/ButtonConcepts/components.js";\nexport const App0: React.FC = () => {\n  return (\n    <div className="krnl-app-view">\n      <h1>App View (Variant 0)</h1>\n      <Button label="Click Me" onClick={() => alert("Welcome to Krnl!")} />\n    </div>\n  );\n};\nexport default App0;\n`
   );
   fs.writeFileSync(
-    path.join(fEntityDir, 'tests', 'App0.test.tsx'),
+    path.join(fOrchDir, 'tests', 'App0.test.tsx'),
     `import { describe, it, expect } from "vitest";\ndescribe("App0 Component", () => { it("mounts variant 0", () => { expect(true).toBe(true); }); });\n`
   );
 

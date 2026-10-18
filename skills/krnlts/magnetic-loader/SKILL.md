@@ -1,35 +1,28 @@
 ---
 name: krnlts-magnetic-loader
-description: Directives for KrnlMagneticLoader auto-discovery, manifest aggregation, and boot order invariants.
+description: Directives for KrnlTS magnetic filesystem scanning, manifest reconciliation, and ambient declaration generation.
 ---
 
-# KRNLTS MAGNETIC LOADER
+# KRNLTS MAGNETIC DECLARATION & DISCOVERY
 
-## 1. AUTOMATIC FILESYSTEM DISCOVERY (`KrnlMagneticLoader`)
-```typescript
-import { KrnlMagneticLoader } from "@ultrst-armada/krnl";
+## 1. AMBIENT DECLARATION GENERATION (`krnl watch` / `krnl build`)
+The magnetic declaration engine scans `krnl/backend/functionalities/` and `krnl/backend/libraries/` to produce ambient TypeScript declarations (`krnl-magnetic.d.ts`), enabling zero-boilerplate type inference for helper functions and events.
 
-// Discovers shared src/functionalities/ and protocol_adapters/ for flat entities
-await KrnlMagneticLoader.loadAll(entity, import.meta.url);
+```bash
+# Generate ambient declarations and watch for changes
+krnl watch
+
+# Automated execution during build
+krnl build
 ```
-
-- **Flat Discovery**: Shared functionalities are loaded from `src/functionalities/` and bound to the entity.
-- **Entity Registration**: Every entity is registered into `KrnlEntityRegistry` during `loadAll()` to enable cross-entity orchestration.
-- **Zero Nested Entities**: Nested `entities/` folders are prohibited; all entities reside directly in `src/` at the same level.
-
-### Critical Boot Order Invariant:
-```
-RULE: ALL manual addLocal() calls with uiSpec MUST occur BEFORE KrnlMagneticLoader.loadAll().
-WHY: loadAll() triggers frontend generation. Any late addLocal() calls are invisible to UI.
-```
-
 
 ---
 
-## 3. WORKSPACE MANIFEST AGGREGATION
+## 2. MANIFEST RECONCILIATION (`KrnlPackageReconciler`)
+Every functionality and concept library defines a local `manifest.json`. The package reconciler aggregates these into the root `package.json` to prevent dependency drift:
+
 ```typescript
-const requirements = rootEntity.getWorkspaceRequirements();
-// Yields aggregated npm dependencies, build requirements, and conflicts:
-// { dependencies: Record<string, string>, conflicts: Array<{ package, versions }> }
+import { KrnlPackageReconciler } from "@ultrst-armada/krnl-core";
+
+KrnlPackageReconciler.reconcile(projectRoot, true);
 ```
-If `conflicts.length > 0`, workspace materialization halts to prevent dependency corruption.

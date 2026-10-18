@@ -34,7 +34,7 @@ function verifyInteractiveElement(element):
   FORBID: setInterval() polling to fetch fresh state.
   FORBID: continuous onTick / requestAnimationFrame loops while idle.
 ```
-- **Push over Pull**: UI components must subscribe to WebSocket events, Server-Sent Events (SSE), or reactive state store listeners (`useStore.subscribe`, `entity.on()`).
+- **Push over Pull**: UI components must subscribe to WebSocket events, Server-Sent Events (SSE), or reactive state store listeners (`useStore.subscribe`, `facade.on()`).
 - **Zero Idle CPU**: Rendering occurs reactively upon incoming event dispatch, keeping background idle CPU utilization at 0%.
 - **Polling Prohibition**: Never use timers to poll backend endpoints for updates unless no push mechanism exists (and if so, use user-initiated refresh or backoff).
 

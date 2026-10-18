@@ -2,11 +2,11 @@ export const contextDestructuringRule = {
   meta: {
     type: 'problem',
     docs: {
-      description: 'Prevent the { state, system } destructuring trap; require { state, entity } in functionality handlers.',
+      description: 'Prevent the { state, system } destructuring trap; require { state, facade } or { state, service } in functionality handlers.',
       recommended: true,
     },
     messages: {
-      destructureSystem: "Functionality context parameter destructures 'system'. Functionality passes { state, entity }. Always destructure 'entity'.",
+      destructureSystem: "Functionality context parameter destructures 'system'. Functionality passes { state, facade }. Destructure 'facade' or 'service'.",
     },
   },
   create(context: any) {
@@ -29,14 +29,14 @@ function checkParams(node: any, context: any) {
     const ctxParam = node.params[1];
     if (ctxParam && ctxParam.type === 'ObjectPattern') {
       let hasSystem = false;
-      let hasEntity = false;
+      let hasValidContext = false;
       for (const prop of ctxParam.properties) {
         if (prop.type === 'Property' && prop.key.type === 'Identifier') {
           if (prop.key.name === 'system') hasSystem = true;
-          if (prop.key.name === 'entity') hasEntity = true;
+          if (['facade', 'service', 'orchestration'].includes(prop.key.name)) hasValidContext = true;
         }
       }
-      if (hasSystem && !hasEntity) {
+      if (hasSystem && !hasValidContext) {
         context.report({
           node: ctxParam,
           messageId: 'destructureSystem',

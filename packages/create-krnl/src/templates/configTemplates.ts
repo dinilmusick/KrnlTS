@@ -58,25 +58,17 @@ export function getTsConfig(projectName: string): string {
 }
 
 export function getAppEntrypoint(projectName: string): string {
-  return `import { defineApp, Protocols } from "@ultrst-armada/krnl-core";
-import { App } from "./krnl/backend/entities/App/App.js";
+  const safeIdentifier = projectName.replace(/[^a-zA-Z0-9_$]/g, '_');
+  return `import { AppServiceFacade } from "./krnl/backend/services/App/AppServiceFacade.js";
 
-export default defineApp({
-  name: "${projectName}",
-  version: "1.0.0",
-  description: "${projectName} application entrypoint",
-  protocols: [
-    Protocols.HTTP({ port: 8080, prefix: "/api" }),
-    Protocols.WebSocket({ port: 8081 }),
-    Protocols.MCP({ name: "${projectName}-agent-tools" })
-  ],
-  entities: [
-    App
-  ],
-  frontend: {
-    rootEntity: "App",
-    variant: 0
-  }
-});
+export const services = {
+  app: AppServiceFacade,
+};
+
+export const ${safeIdentifier}Backend = {
+  services,
+};
+
+export default AppServiceFacade;
 `;
 }

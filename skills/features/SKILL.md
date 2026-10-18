@@ -16,7 +16,7 @@ description: Directives for incremental codebase evolution (anti-nuke / no rewri
 - **Consult `docs/HISTORY.md` First**: Before beginning any major refactor, the agent MUST read `docs/HISTORY.md` to refresh memory on past user intents, constraints, and architecture decisions.
 - **NEVER Nuke Working Code**: AI agents MUST NEVER wipe out whole project directories, delete existing files wholesale, or rebuild the entire codebase from scratch when requested to make a large change or architectural pivot.
 - **Surgical In-Place Modification**: Transform the system incrementally. Identify specific files and functions requiring modification, preserving all working components, edge-case handlers, and helper libraries.
-- **Preserve Unaffected Subsystems**: Unrelated entities, quad-units, UI views, and concept utilities must remain completely intact.
+- **Preserve Unaffected Subsystems**: Unrelated services, orchestrations, quad-units, UI views, and concept utilities must remain completely intact.
 - **Record in `docs/HISTORY.md`**: Upon completing major changes, append a bulleted entry in `docs/HISTORY.md` capturing the user's intent, rationale, and specific structural changes.
 - **Why This Matters**: Rewriting from scratch wipes out customized user configurations, introduces massive regression surfaces, and causes severe instability.
 
@@ -32,11 +32,11 @@ FORBID: Zombie code, commented-out blocks, disabled flags, dangling stubs.
 ### Complete Multi-Layer Deletion Checklist:
 ```
 [ ] 1. Functionality Quad-Unit Folder:
-       • Completely delete: entities/<Entity>/functionalities/<FeatureName>/
+       • Completely delete: krnl/backend/functionalities/<FeatureName>/ and krnl/frontend/functionalities/<FeatureName>/
        • Eradicate: <FeatureName>Atom.ts, main_function/ (logic.ts, lifecycle.ts),
          state_data/state.ts, helper_functions/, events/, manifest.json.
-[ ] 2. Entity Orchestrator:
-       • Remove imports, functionality registration, and flow references from entities/<Entity>/<Entity>.ts.
+[ ] 2. Service Facade & Orchestrator:
+       • Remove imports, functionality registration, and flow references from services/<Service>/ and orchestrations/<Orchestration>/.
 [ ] 3. System Ingress Surface & Routing:
        • Remove route handlers, endpoint mappings, and WebSocket actions from assembler.ts & protocol_adapters/.
 [ ] 4. UI Layer & Packages:

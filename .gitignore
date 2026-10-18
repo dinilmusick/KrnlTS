@@ -11,5 +11,4 @@ temp/
 krnlts-guide/
 krnl-magnetic.d.ts
 scratch/
-
-
+/dist/

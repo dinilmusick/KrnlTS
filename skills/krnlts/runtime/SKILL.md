@@ -1,59 +1,44 @@
 ---
 name: krnlts-runtime-core
-description: Directives for generic Entity<TState, TEvents> runtime execution, capability bubbling, flow construction, and state mutations in KrnlTS.
+description: Directives for ServiceFacade, pure declarative Orchestration, operation dispatch, and state store in KrnlTS.
 ---
 
-# KRNLTS RUNTIME & CORE ENTITY ENGINE
+# KRNLTS RUNTIME: SERVICE FACADE & ORCHESTRATION
 
-## 1. GENERIC ENTITY CLASS (`Entity<TState, TEvents>`)
+## 1. SERVICE FACADE (`ServiceFacade`)
+A `ServiceFacade` establishes the public semantic boundary of a KrnlTS service. It aggregates functionalities, orchestrations, operations, lifecycle, reactive state, and events.
+
 ```typescript
-import { Entity } from "@ultrst-armada/krnl";
+import { ServiceFacade } from "@ultrst-armada/krnl-core";
 
-interface OrderState {
-  orderId: string;
-  total: number;
-  status: "pending" | "processed";
-}
-
-interface OrderEvents {
-  "order:processed": { orderId: string; total: number };
-}
-
-/** @role skeleton */
-export class OrderEntity extends Entity<OrderState, OrderEvents> {
-  constructor() {
-    super("OrderEntity", null, {
-      initialState: { orderId: "", total: 0, status: "pending" }
-    });
+export const billingServiceFacade = new ServiceFacade({
+  id: "BillingService",
+  version: "1.0.0",
+  functionalities: ["calculateTax", "recordPayment"],
+  orchestrations: ["checkoutPipeline"],
+  operations: {
+    customAction: async (payload, context) => {
+      return { ok: true, payload };
+    }
   }
-
-  processOrder(amount: number) {
-    this.setState({ total: amount, status: "processed" });
-    this.emitEvent("order:processed", { orderId: this.state.orderId, total: amount });
-  }
-}
+});
 ```
 
 ---
 
-## 2. CAPABILITY BUBBLING & QUALIFIED RESOLUTION
-1. **Bubbling State**: Child entity capabilities automatically bubble up to parent entities (`localFunctionalities` $\to$ `remoteFunctionalities`).
-2. **Qualified IDs**: Ingress adapters receive qualified IDs (e.g. `Root.Order.processOrder`) and resolve them via `root.resolveCapability("Root.Order.processOrder")` $\to$ `{ owner: orderEntity, fid: "processOrder" }`.
-3. **Execution**: The owner executes `owner.call(fid, input)`.
+## 2. PURE DECLARATIVE ORCHESTRATION (`Orchestration`)
+An `Orchestration` is purely a declarative composition of steps sequencing functionalities and peer orchestrations.
 
----
-
-## 3. FIRST-CLASS FLOWS & CROSS-ENTITY ORCHESTRATION (`KrnlFlowBuilder`)
 ```typescript
-myEntity.flow("checkoutPipeline")
+import { Orchestration } from "@ultrst-armada/krnl-core";
+
+export const checkoutPipeline = new Orchestration("checkoutPipeline")
   .thenFunctionality("validateCart")
-  .thenEntityOrchestration("BillingSystem", "chargeCustomer")
-  .branch((res) => res.isApproved, "fulfillOrder", "cancelOrder")
-  .register({
-    visibility: "public",
-    description: "Multi-step checkout pipeline"
-  });
+  .thenFunctionality("calculateTax")
+  .thenOrchestration("paymentConfirmation");
 ```
-- Flows are registered as regular functionalities and invoked via `entity.call("checkoutPipeline", payload)`.
-- **Cross-Entity Orchestration**: `.thenEntityOrchestration(entityName, orchestrationId)` allows flat entities to invoke peer entity orchestrations seamlessly via `KrnlEntityRegistry`.
-- **Library Prohibition Invariant**: Entities MUST NOT call libraries directly via `thenFunction()`. Only functionalities in `src/functionalities/` are permitted to call shared libraries (`src/libraries/*`).
+
+### Invariants:
+1. **Zero Direct Library Calls**: Orchestrations sequence functionalities and peer orchestrations. Direct calls to Layer 0 libraries from an orchestration are forbidden (`krnl/orchestration-no-libraries`).
+2. **Zero Application Leakage**: No `AppDefinition`, UI specifications, or protocol listeners reside inside Orchestrations.
+3. **Execution via Facade**: The service boundary invokes orchestrations and operations via `facade.call(name, payload)`.

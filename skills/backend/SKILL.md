@@ -41,7 +41,7 @@ CANONICAL VALID AppFactory.ts:
 
 ### LAW B: One Module Per File
 ```
-Every .ts backend file exports exactly ONE primary entity:
+Every .ts backend file exports exactly ONE primary module:
   ONE service class  |  ONE controller  |  ONE router factory  |  ONE utility
 
 FORBIDDEN:

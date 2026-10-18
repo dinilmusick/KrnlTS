@@ -11,7 +11,8 @@ import { generateMagneticDeclarations } from './watch.js';
 
 export interface DevOptions {
   port?: number;
-  entity?: string;
+  service?: string;
+  orchestration?: string;
   all?: boolean;
   dryRun?: boolean;
 }

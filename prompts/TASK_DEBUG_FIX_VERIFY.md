@@ -16,7 +16,7 @@ $$\begin{array}{lll}
 \text{Error Tag} & \text{Root Cause} & \text{Resolution Action} \\
 \hline
 \text{[AccessDenied]} & \text{Port/Key/Admin mismatch} & \text{Verify AdminGuard token format ("sess::<userId>::...") or header key} \\
-\text{[DependencyGate]} & \text{Unsatisfied requires spec} & \text{Check entity capability resolution or startup boot barrier} \\
+\text{[DependencyGate]} & \text{Unsatisfied requires spec} & \text{Check service capability resolution or startup boot barrier} \\
 \text{[KrnlSchemaError]} & \text{Input/Output type mismatch} & \text{Validate payload against Zod/Protobuf definitions} \\
 \text{[KrnlBackendWarning]} & \text{Table or DB connection error} & \text{Ensure provider credentials and filePath/endpoint are valid} \\
 \text{[CadenceDeviation]} & \text{Unchecked turns > threshold} & \text{Execute full 6-pillar audit, fix deviations, reset counter to 0}
@@ -27,20 +27,20 @@ $$\begin{array}{lll}
 // ══════════════════════════════════════════════════════════════════════════════════════════
 // 1. IMPORTS & TEST HARNESS SETUP
 // ══════════════════════════════════════════════════════════════════════════════════════════
-import { Entity, krnlLocalFunctionality } from "../dist/index.js";
+import { ServiceFacade } from "../dist/index.js";
 
 /**
  * ──────────────────────────────────────────────────────────────────────────────────────────
  * TEST SUITE: verifyUserSessionAuthenticationAndPermissionCascading
  * ──────────────────────────────────────────────────────────────────────────────────────────
- * Purpose: Automated regression test verifying that session token validation and table CRUD
- *          mutations complete without contract violations.
+ * Purpose: Automated regression test verifying that session token validation and operations
+ *          complete without contract violations.
  *
  * Test Flow Chart:
- *   [Initialize Root Entity] ───► [Configure Backend Credentials]
+ *   [Initialize Service Facade] ───► [Configure Operations & State]
  *                                           │
  *                                           ▼
- *                              [Invoke Target Functionality]
+ *                              [Invoke Target Operation/Functionality]
  *                                           │
  *                                           ▼
  *                              [Assert Exact Return Schema] ───► [Cleanup & Exit 0]
@@ -48,16 +48,17 @@ import { Entity, krnlLocalFunctionality } from "../dist/index.js";
  */
 async function verifyUserSessionAuthenticationAndPermissionCascading(): Promise<void> {
   console.log("Starting automated verification harness...");
-  const testRootSystemEntity = new Entity("TestRootSystemEntity");
-
-  // 1. Setup & Configure Backend
-  testRootSystemEntity.configureBackend({
-    defaultService: "sqlite",
-    sqlite: { type: "sqlite", filePath: "./test_temp.sqlite", enableWAL: true }
+  const testServiceFacade = new ServiceFacade({
+    id: "TestService",
+    version: "1.0.0",
+    functionalities: ["track_user_activity_metrics"],
+    operations: {
+      track_user_activity_metrics: async (payload: any) => ({ status: "success", payload })
+    }
   });
 
-  // 2. Execute Functionality Call
-  const executionResult = await testRootSystemEntity.call("track_user_activity_metrics", {
+  // 1. Execute Operation / Functionality Call
+  const executionResult = await testServiceFacade.call("track_user_activity_metrics", {
     userId: "usr_regression_test_01",
     activityType: "LOGIN"
   });

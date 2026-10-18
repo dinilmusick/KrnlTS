@@ -78,4 +78,50 @@ describe('KrnlValidatorEngine', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it('validates Orchestration purity and flags procedural violations and direct library imports', () => {
+    const validOrch = `
+import { Orchestration } from '@ultrst-armada/krnl-core';
+export class ValidOrch extends Orchestration {
+  constructor() {
+    super({ id: 'ValidOrch' });
+    this.flow('checkout')
+      .thenFunctionality('ProcessPayment')
+      .thenOrchestration('AuditOrch', 'log')
+      .register();
+  }
+}
+`;
+    const rootValid = fixture(validOrch);
+    try {
+      const report = new KrnlValidatorEngine(rootValid).validateAll();
+      expect(report.valid).toBe(true);
+    } finally {
+      rmSync(rootValid, { recursive: true, force: true });
+    }
+
+    const invalidOrch = `
+import { Orchestration } from '@ultrst-armada/krnl-core';
+import { helper } from '../libraries/MathConcepts/functions.js';
+export class BadOrch extends Orchestration {
+  constructor() {
+    super({ id: 'BadOrch' });
+    for (let i = 0; i < 10; i++) {}
+  }
+  customHelper() {
+    return 1;
+  }
+}
+`;
+    const rootInvalid = fixture(invalidOrch);
+    try {
+      const report = new KrnlValidatorEngine(rootInvalid).validateAll();
+      expect(report.valid).toBe(false);
+      expect(report.errors.some((e) => e.ruleId === 'krnl/orchestration-purity')).toBe(true);
+      expect(report.errors.some((e) => e.ruleId === 'krnl/orchestration-no-libraries')).toBe(true);
+    } finally {
+      rmSync(rootInvalid, { recursive: true, force: true });
+    }
+  });
 });
+

@@ -1,6 +1,6 @@
 ---
 name: architecture-5turn-audit-guidelines
-description: Mandatory 5-turn periodic audit to identify and remediate deviations in Entity-Functionality structures, deduplication, and 4-layer function isolation.
+description: Mandatory 5-turn periodic audit to identify and remediate deviations in Service, Orchestration, Functionality structures, deduplication, and 4-layer function isolation.
 ---
 
 # 5-TURN PERIODIC ARCHITECTURAL AUDIT & CONVERGENCE
@@ -15,19 +15,19 @@ CADENCE_TRIGGER:
 
 ---
 
-## 2. 4-PILLAR ARCHITECTURAL AUDIT CHECKLIST
+## 2. 5-PILLAR ARCHITECTURAL AUDIT CHECKLIST
 
-### Pillar I: Entity & Functionality Quad-Unit Structure Audit
-- [ ] Every entity resides in `entities/<EntityName>/` with `<EntityName>.ts` (`@role skeleton`).
-- [ ] Every feature resides in `entities/<EntityName>/functionalities/<FeatureName>/`.
-- [ ] Each functionality contains:
-  - `main_function/logic.ts` (`@role skeleton`, receiving `(input, { state, entity })`)
+### Pillar I: Service, Orchestration & Functionality Structure Audit
+- [ ] Every service resides in `services/<ServiceName>/` with `<ServiceName>ServiceFacade.ts`.
+- [ ] Every orchestration flow resides in `orchestrations/<OrchestrationName>/`.
+- [ ] Every feature resides in `functionalities/<FeatureName>/` as a quad-unit:
+  - `main_function/logic.ts` (`@role skeleton`, receiving `(input, { state, facade })`)
   - `state_data/state.ts` (`@role component`)
   - `helper_functions/` (`@role component`)
   - `events/` (`@role component`)
   - `manifest.json` (declared dependencies)
-- [ ] Public features are exposed at the System Entity entrypoint (`assembler.ts` / `index.ts`).
-- **Action on Deviation**: Reorganize loose files into KrnlTS quad-unit folders and register them in the entity orchestrator.
+- [ ] Public features are exposed at the ServiceFacade boundary.
+- **Action on Deviation**: Reorganize loose files into KrnlTS quad-unit and orchestration folders.
 
 ### Pillar II: Data Struct & Signature Deduplication Audit
 - [ ] Data structures with overlap $S_{\text{struct}}(A, B) \ge 0.65$ folded into a base parent in `libraries/{Domain}Concepts.ts`.
@@ -50,7 +50,7 @@ CADENCE_TRIGGER:
 ### Pillar V: Event-Driven vs. Polling/onTick Audit
 - [ ] Zero `onTick()`, `tick()`, or continuous RAF loops running while idle.
 - [ ] Zero `setInterval()` / `setTimeout()` busy polling loops for state, IPC, or database checks.
-- [ ] State changes communicate reactively via `entity.emitEvent()`, `entity.on()`, `state:changed`, or WebSocket/SSE streams.
+- [ ] State changes communicate reactively via `facade.emitEvent()`, `facade.on()`, `state:changed`, or WebSocket/SSE streams.
 - **Action on Deviation**: Refactor polling loops into reactive event subscriptions or push listeners.
 
 ---

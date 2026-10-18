@@ -126,18 +126,20 @@ describe('Krnl CLI Real Integration Suite', () => {
     }
   });
 
-  it('scaffolds entity correctly via generate command', async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'krnl-gen-entity-'));
+  it('scaffolds orchestration correctly via generate command without entity or application leakage', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'krnl-gen-orch-'));
     try {
-      await runGenerate('entity', 'UserAccount', undefined, tmpDir);
-      const backendFile = path.join(tmpDir, 'src', 'entities', 'UserAccount', 'UserAccount.ts');
-      const flowFile = path.join(tmpDir, 'src', 'entities', 'UserAccount', 'orchestrations', 'DefaultFlow.ts');
-      const frontendFile = path.join(tmpDir, 'src', 'entities', 'UserAccount', 'UserAccount0.tsx');
+      await runGenerate('orchestration', 'UserAccount', undefined, tmpDir);
+      const orchFile = path.join(tmpDir, 'src', 'orchestrations', 'UserAccount', 'UserAccountOrchestration.ts');
+      const testFile = path.join(tmpDir, 'src', 'orchestrations', 'UserAccount', 'tests', 'UserAccountOrchestration.test.ts');
 
-      expect(fs.existsSync(backendFile)).toBe(true);
-      expect(fs.existsSync(flowFile)).toBe(true);
-      expect(fs.existsSync(frontendFile)).toBe(true);
-      expect(fs.readFileSync(backendFile, 'utf8')).toContain('class UserAccount extends Entity');
+      expect(fs.existsSync(orchFile)).toBe(true);
+      expect(fs.existsSync(testFile)).toBe(true);
+      const content = fs.readFileSync(orchFile, 'utf8');
+      expect(content).toContain('class UserAccountOrchestration extends Orchestration');
+      expect(content).not.toContain('extends Entity');
+      expect(content).not.toContain('defineApp');
+      expect(content).not.toContain('Protocols');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

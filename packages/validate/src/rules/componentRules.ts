@@ -81,7 +81,7 @@ export function checkComponentRules(
           ruleId: 'krnl/helper-purity',
           filePath,
           line: decl.getStartLineNumber(),
-          message: `Helper functions (Layer 1) cannot directly import I/O modules ('${spec}'). Delegate to Layer 0 libraries or Entity context.`,
+          message: `Helper functions (Layer 1) cannot directly import I/O modules ('${spec}'). Delegate to Layer 0 libraries or ServiceFacade context.`,
           severity: 'error',
         });
       }

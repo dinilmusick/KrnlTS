@@ -106,7 +106,7 @@ var helperPurityRule = {
       recommended: true
     },
     messages: {
-      impureImport: "Helper functions (Layer 1) cannot import I/O or state module '{{module}}'. Delegate to Layer 0 libraries or Entity context."
+      impureImport: "Helper functions (Layer 1) cannot import I/O or state module '{{module}}'. Delegate to Layer 0 libraries or ServiceFacade context."
     }
   },
   create(context) {
@@ -137,7 +137,7 @@ var noPollingRule = {
       recommended: true
     },
     messages: {
-      noPolling: "Prohibited use of '{{callee}}'. Krnl systems must use reactive events (entity.emitEvent / entity.on) instead of polling."
+      noPolling: "Prohibited use of '{{callee}}'. Krnl systems must use reactive events (facade.emitEvent / facade.on) instead of polling."
     }
   },
   create(context) {
@@ -166,11 +166,11 @@ var contextDestructuringRule = {
   meta: {
     type: "problem",
     docs: {
-      description: "Prevent the { state, system } destructuring trap; require { state, entity } in functionality handlers.",
+      description: "Prevent the { state, system } destructuring trap; require { state, facade } or { state, service } in functionality handlers.",
       recommended: true
     },
     messages: {
-      destructureSystem: "Functionality context parameter destructures 'system'. Functionality passes { state, entity }. Always destructure 'entity'."
+      destructureSystem: "Functionality context parameter destructures 'system'. Functionality passes { state, facade }. Destructure 'facade' or 'service'."
     }
   },
   create(context) {
@@ -192,14 +192,14 @@ function checkParams(node, context) {
     const ctxParam = node.params[1];
     if (ctxParam && ctxParam.type === "ObjectPattern") {
       let hasSystem = false;
-      let hasEntity = false;
+      let hasValidContext = false;
       for (const prop of ctxParam.properties) {
         if (prop.type === "Property" && prop.key.type === "Identifier") {
           if (prop.key.name === "system") hasSystem = true;
-          if (prop.key.name === "entity") hasEntity = true;
+          if (["facade", "service", "orchestration"].includes(prop.key.name)) hasValidContext = true;
         }
       }
-      if (hasSystem && !hasEntity) {
+      if (hasSystem && !hasValidContext) {
         context.report({
           node: ctxParam,
           messageId: "destructureSystem"

@@ -6,7 +6,7 @@ export const noPollingRule = {
       recommended: true,
     },
     messages: {
-      noPolling: "Prohibited use of '{{callee}}'. Krnl systems must use reactive events (entity.emitEvent / entity.on) instead of polling.",
+      noPolling: "Prohibited use of '{{callee}}'. Krnl systems must use reactive events (facade.emitEvent / facade.on) instead of polling.",
     },
   },
   create(context: any) {

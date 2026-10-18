@@ -6,7 +6,7 @@ export const helperPurityRule = {
       recommended: true,
     },
     messages: {
-      impureImport: "Helper functions (Layer 1) cannot import I/O or state module '{{module}}'. Delegate to Layer 0 libraries or Entity context.",
+      impureImport: "Helper functions (Layer 1) cannot import I/O or state module '{{module}}'. Delegate to Layer 0 libraries or ServiceFacade context.",
     },
   },
   create(context: any) {

@@ -43,7 +43,7 @@ A concept folder may contain from 1 to all of the following file types:
 
 ## 3. FRONTEND UI PRIMITIVES INVARIANT
 - `frontend/libraries/` defines the fundamental atomic primitives (buttons, text fields, dropdowns, scrollbars, tooltips, tiles).
-- These primitives are the **exclusive building blocks** for composing all entity and functionality UIs across the entire application.
+- These primitives are the **exclusive building blocks** for composing all service, orchestration, and functionality UIs across the entire application.
 
 ---
 

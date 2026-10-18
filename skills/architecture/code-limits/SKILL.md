@@ -71,7 +71,7 @@ ENFORCEMENT:
 
 ## 2. ONE COMPONENT / ONE MODULE PER FILE (STRICT)
 ```
-RULE: Every file exports exactly ONE primary entity:
+RULE: Every file exports exactly ONE primary component or module:
   - Frontend: ONE React component (named export or default export)
   - Backend:  ONE service class, ONE controller, ONE route group, or ONE utility
 

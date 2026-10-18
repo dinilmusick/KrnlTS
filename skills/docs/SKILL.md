@@ -17,7 +17,7 @@ Whenever big changes, new features, or architectural refactors are requested by 
 - **Rationale**: <Why this change was made and the core motivation behind it>
 
 ### Architectural Decisions & Changes:
-- **Entities & Quad-Units**: <Entities and functionalities added/modified/purged>
+- **Services & Quad-Units**: <Services, orchestrations, and functionalities added/modified/purged>
 - **Concept Libraries**: <Polymorphic templates introduced or modified in libraries/>
 - **State & Ingress**: <State models updated, protocol adapter routes added/removed>
 - **UI & Controls**: <UI views, modals, and event bindings created/updated>
@@ -49,7 +49,7 @@ Whenever big changes, new features, or architectural refactors are requested by 
 Every function, class, data structure, type, and code asset MUST be thoroughly documented directly in the code itself:
 1. **Utility & Purpose**: Clear explanation of what the asset does, why it exists, and when to use it.
 2. **Usage Examples**: Concrete, runnable code examples demonstrating input and expected output.
-3. **ASCII / Text Flow Chart**: Visual diagram illustrating where and how the asset fits into the lifecycle, data pipeline, or entity composition.
+3. **ASCII / Text Flow Chart**: Visual diagram illustrating where and how the asset fits into the lifecycle, data pipeline, or service orchestration.
 
 ### Canonical Docblock Template:
 ```typescript
@@ -105,7 +105,7 @@ Every code file MUST use bold visual demarcation headers to partition distinct a
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 5. ATOMIC FUNCTIONALITY / ENTITY ORCHESTRATION (L3)
+// 5. ATOMIC FUNCTIONALITY / SERVICE ORCHESTRATION (L3)
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════════════════════════

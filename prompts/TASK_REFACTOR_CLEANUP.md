@@ -68,14 +68,14 @@ Refactored files MUST partition logic with bold visual demarcation lines:
 // ══════════════════════════════════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
-// 5. ATOMIC FUNCTIONALITY / ENTITY ORCHESTRATION (L3)
+// 5. ATOMIC FUNCTIONALITY / SERVICE ORCHESTRATION (L3)
 // ══════════════════════════════════════════════════════════════════════════════════════════
 ```
 
 ## 4. DEDUPLICATION & TEMPLATING RULES
-- **Similarity Threshold**: If 2 or more classes/methods share $\ge 80\%$ structure $\implies$ abstract into a shared `BaseEntity`, `PocerBlock`, or utility helper in `src/krnl/tools/`.
-- **Credential & Backend DRY**: Never re-instantiate ad-hoc database connections. Use `entity.configureBackend(...)` and cascade down.
-- **Shared State**: Move ad-hoc global variables into reactive entity state (`state:changed` emitter).
+- **Similarity Threshold**: If 2 or more classes/methods share $\ge 80\%$ structure $\implies$ abstract into a shared utility helper in `src/krnl/tools/`.
+- **Credential & Backend DRY**: Never re-instantiate ad-hoc database connections. Use service backend configuration and cascade down.
+- **Shared State**: Move ad-hoc global variables into reactive service state (`ServiceStateStore` / `facade.emitEvent`).
 
 ## 5. REFACTORING WORKFLOW
 $$\text{Scan}(\mathcal{C}) \xrightarrow{\text{AST/Tokens}} \text{Extract } L_0/L_1 \xrightarrow{\text{Isolate}} \text{Wrap } L_2 \text{ in Providers} \xrightarrow{\text{Assemble}} \text{Map to Functionalities} \xrightarrow{\text{Verify}} \text{Zero Regression}$$

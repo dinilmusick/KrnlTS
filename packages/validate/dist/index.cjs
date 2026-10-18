@@ -36,7 +36,7 @@ module.exports = __toCommonJS(index_exports);
 
 // src/KrnlValidatorEngine.ts
 var fs2 = __toESM(require("fs"), 1);
-var path4 = __toESM(require("path"), 1);
+var path3 = __toESM(require("path"), 1);
 var import_ts_morph4 = require("ts-morph");
 
 // src/rules/fileLimits.ts
@@ -159,7 +159,7 @@ function checkComponentRules(sf) {
           ruleId: "krnl/helper-purity",
           filePath,
           line: decl.getStartLineNumber(),
-          message: `Helper functions (Layer 1) cannot directly import I/O modules ('${spec}'). Delegate to Layer 0 libraries or Entity context.`,
+          message: `Helper functions (Layer 1) cannot directly import I/O modules ('${spec}'). Delegate to Layer 0 libraries or ServiceFacade context.`,
           severity: "error"
         });
       }
@@ -168,15 +168,13 @@ function checkComponentRules(sf) {
   return { errors, warnings };
 }
 
-// src/rules/entityRules.ts
-var path2 = __toESM(require("path"), 1);
+// src/rules/orchestrationRules.ts
 var import_ts_morph2 = require("ts-morph");
-function checkEntityRules(sf) {
+function checkOrchestrationRules(sf) {
   const errors = [];
   const warnings = [];
   const filePath = sf.getFilePath();
   const sourceText = sf.getText();
-  const baseName = path2.basename(filePath);
   const calls = sf.getDescendantsOfKind(import_ts_morph2.SyntaxKind.CallExpression);
   for (const call of calls) {
     const exprText = call.getExpression().getText();
@@ -185,7 +183,7 @@ function checkEntityRules(sf) {
         ruleId: "krnl/no-polling",
         filePath,
         line: call.getStartLineNumber(),
-        message: `Prohibited use of 'setInterval'. Krnl applications must use reactive event streams (entity.emitEvent / entity.on).`,
+        message: `Prohibited use of 'setInterval'. Krnl applications must use reactive event streams or triggers.`,
         severity: "error"
       });
     }
@@ -194,65 +192,36 @@ function checkEntityRules(sf) {
     const match = sourceText.match(/main\s*=\s*async\s*\([^,]+,\s*\{([^}]*)\}\s*\)/);
     if (match) {
       const destructured = match[1];
-      if (/\bsystem\b/.test(destructured) && !/\bentity\b/.test(destructured)) {
+      if (/\bsystem\b/.test(destructured)) {
         errors.push({
           ruleId: "krnl/context-destructuring",
           filePath,
-          message: `Functionality context parameter destructures 'system'. Functionality passes { state, entity }. Always destructure 'entity'.`,
+          message: `Functionality context parameter destructures 'system'. Functionality passes { state, orchestration } or service context.`,
           severity: "error"
         });
       }
     }
   }
-  const isEntityClass = sf.getClasses().some((c) => {
+  const isOrchestrationClass = sf.getClasses().some((c) => {
     const ext = c.getExtends();
-    return ext && (ext.getText().includes("Entity") || ext.getText().includes("krnlEntityBase"));
+    return ext && (ext.getText().includes("Orchestration") || ext.getText().includes("krnlOrchestrationBase"));
   });
-  if (isEntityClass) {
+  if (isOrchestrationClass) {
     for (const decl of sf.getImportDeclarations()) {
       const spec = decl.getModuleSpecifierValue();
       if (spec.includes("libraries/") || spec.includes("Concepts")) {
         errors.push({
-          ruleId: "krnl/entity-no-libraries",
+          ruleId: "krnl/orchestration-no-libraries",
           filePath,
           line: decl.getStartLineNumber(),
-          message: `Entity class violates Library Calling Invariant. Entities must not call or import libraries directly ('${spec}'). Only functionalities in 'src/functionalities/' are permitted to call shared libraries.`,
+          message: `Orchestration class violates Library Calling Invariant. Orchestrations must not call or import libraries directly ('${spec}'). Only functionalities are permitted to call shared libraries.`,
           severity: "error"
         });
       }
     }
-    let loadAllLine = -1;
-    const addLocalLines = [];
-    for (const call of calls) {
-      const txt = call.getText();
-      if (txt.includes("MagneticLoader.loadAll") || txt.includes("KrnlMagneticLoader.loadAll")) {
-        loadAllLine = call.getStartLineNumber();
-      } else if (txt.startsWith("this.addLocal(")) {
-        const hasUiSpec = txt.includes("uiSpec");
-        const idMatch = txt.match(/id\s*:\s*["']([^"']+)["']/);
-        addLocalLines.push({
-          line: call.getStartLineNumber(),
-          hasUiSpec,
-          id: idMatch ? idMatch[1] : "unknown"
-        });
-      }
-    }
-    if (loadAllLine !== -1) {
-      for (const al of addLocalLines) {
-        if (al.hasUiSpec && al.line > loadAllLine) {
-          errors.push({
-            ruleId: "krnl/boot-order",
-            filePath,
-            line: al.line,
-            message: `addLocal('${al.id}') with uiSpec at line ${al.line} appears AFTER loadAll() at line ${loadAllLine}. All addLocal() with UI must precede loadAll().`,
-            severity: "error"
-          });
-        }
-      }
-    }
     for (const cls of sf.getClasses()) {
       const ext = cls.getExtends();
-      if (ext && (ext.getText().includes("Entity") || ext.getText().includes("krnlEntityBase"))) {
+      if (ext && (ext.getText().includes("Orchestration") || ext.getText().includes("krnlOrchestrationBase"))) {
         const loops = [
           ...cls.getDescendantsOfKind(import_ts_morph2.SyntaxKind.ForStatement),
           ...cls.getDescendantsOfKind(import_ts_morph2.SyntaxKind.ForOfStatement),
@@ -262,21 +231,21 @@ function checkEntityRules(sf) {
         ];
         for (const loop of loops) {
           errors.push({
-            ruleId: "krnl/entity-purity",
+            ruleId: "krnl/orchestration-purity",
             filePath,
             line: loop.getStartLineNumber(),
-            message: `Entity '${cls.getName() || "Anonymous"}' violates Entity Purity Law. Loops and procedural algorithms are prohibited inside entities. Move logic to a functionality or a global library function.`,
+            message: `Orchestration '${cls.getName() || "Anonymous"}' violates Orchestration Purity Law. Loops and procedural algorithms are prohibited inside orchestrations. Move logic to a functionality or a global library function.`,
             severity: "error"
           });
         }
         for (const method of cls.getMethods()) {
           const methodName = method.getName();
-          if (!["boot", "init", "dispose"].includes(methodName)) {
+          if (!["flow", "getFlow", "listFlows", "clearFlows"].includes(methodName)) {
             errors.push({
-              ruleId: "krnl/entity-purity",
+              ruleId: "krnl/orchestration-purity",
               filePath,
               line: method.getStartLineNumber(),
-              message: `Entity '${cls.getName() || "Anonymous"}' defines custom method '${methodName}'. Entities are purely declarative compositors/orchestrators. Define capabilities as functionalities or global library functions.`,
+              message: `Orchestration '${cls.getName() || "Anonymous"}' defines custom method '${methodName}'. Orchestrations are purely declarative compositors. Define capabilities as functionalities or global library functions.`,
               severity: "error"
             });
           }
@@ -285,7 +254,7 @@ function checkEntityRules(sf) {
     }
     for (const call of calls) {
       const callText = call.getText();
-      if (callText.startsWith("this.orchestration(") || callText.startsWith("this.flow(")) {
+      if (callText.startsWith("this.flow(") || callText.startsWith("orchestration.flow(")) {
         let currentExpr = call;
         const chainCalls = [];
         while (currentExpr && import_ts_morph2.Node.isCallExpression(currentExpr)) {
@@ -302,14 +271,14 @@ function checkEntityRules(sf) {
         }
         let chainId = "orchestration";
         for (const step of chainCalls) {
-          if (step.name === "orchestration" || step.name === "flow") {
+          if (step.name === "flow") {
             chainId = step.argText ? step.argText.replace(/['"]/g, "") : "orchestration";
           } else if (step.name === "thenFunction") {
             errors.push({
-              ruleId: "krnl/entity-no-direct-library-calls",
+              ruleId: "krnl/orchestration-no-direct-library-calls",
               filePath,
               line: step.node.getStartLineNumber(),
-              message: `Orchestration chain '${chainId}' violates Entity Purity Law. Entities cannot chain direct library functions via thenFunction(). Entities must only orchestrate functionalities (thenFunctionality) and orchestrations from other entities (thenEntityOrchestration).`,
+              message: `Orchestration flow '${chainId}' violates Orchestration Purity Law. Orchestrations cannot chain direct library functions via thenFunction(). Orchestrations must only sequence functionalities (thenFunctionality) and peer orchestrations (thenOrchestration).`,
               severity: "error"
             });
           }
@@ -322,15 +291,15 @@ function checkEntityRules(sf) {
 
 // src/rules/workspaceRules.ts
 var fs = __toESM(require("fs"), 1);
-var path3 = __toESM(require("path"), 1);
+var path2 = __toESM(require("path"), 1);
 var import_ts_morph3 = require("ts-morph");
 function checkTopLevelPurity(sf) {
   const errors = [];
   const warnings = [];
   const filePath = sf.getFilePath();
-  const baseName = path3.basename(filePath);
+  const baseName = path2.basename(filePath);
   const isUiTopLevel = /^(App|main|index|_app|root)\.(tsx|jsx)$/i.test(baseName);
-  const isBackendTopLevel = /^(server|app|index)\.(ts|js)$/i.test(baseName) && !filePath.includes("/components/") && !filePath.includes("/entities/") && !filePath.includes("/libraries/");
+  const isBackendTopLevel = /^(server|app|index)\.(ts|js)$/i.test(baseName) && !filePath.includes("/components/") && !filePath.includes("/orchestrations/") && !filePath.includes("/services/") && !filePath.includes("/libraries/");
   if (isUiTopLevel) {
     const jsxElements = sf.getDescendantsOfKind(import_ts_morph3.SyntaxKind.JsxOpeningElement);
     const jsxSelfClosing = sf.getDescendantsOfKind(import_ts_morph3.SyntaxKind.JsxSelfClosingElement);
@@ -388,19 +357,19 @@ function checkTopLevelPurity(sf) {
   return { errors, warnings };
 }
 function checkWorkspaceLayout(projectRoot, errors) {
-  const krnlDir = path3.join(projectRoot, "krnl");
-  const srcDir = path3.join(projectRoot, "src");
+  const krnlDir = path2.join(projectRoot, "krnl");
+  const srcDir = path2.join(projectRoot, "src");
   const targetDir = fs.existsSync(krnlDir) ? krnlDir : fs.existsSync(srcDir) ? srcDir : null;
   if (!targetDir) return;
-  const backendDir = path3.join(targetDir, "backend");
-  const frontendDir = path3.join(targetDir, "frontend");
+  const backendDir = path2.join(targetDir, "backend");
+  const frontendDir = path2.join(targetDir, "frontend");
   if (fs.existsSync(backendDir)) {
-    const bLibs = path3.join(backendDir, "libraries");
+    const bLibs = path2.join(backendDir, "libraries");
     if (fs.existsSync(bLibs)) {
       for (const entry of fs.readdirSync(bLibs, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        const libPath = path3.join(bLibs, entry.name);
-        if (!fs.existsSync(path3.join(libPath, "manifest.json"))) {
+        const libPath = path2.join(bLibs, entry.name);
+        if (!fs.existsSync(path2.join(libPath, "manifest.json"))) {
           errors.push({
             ruleId: "krnl/concept-manifest-required",
             filePath: libPath,
@@ -410,12 +379,12 @@ function checkWorkspaceLayout(projectRoot, errors) {
         }
       }
     }
-    const bFuncs = path3.join(backendDir, "functionalities");
+    const bFuncs = path2.join(backendDir, "functionalities");
     if (fs.existsSync(bFuncs)) {
       for (const entry of fs.readdirSync(bFuncs, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        const funcPath = path3.join(bFuncs, entry.name);
-        if (!fs.existsSync(path3.join(funcPath, "manifest.json"))) {
+        const funcPath = path2.join(bFuncs, entry.name);
+        if (!fs.existsSync(path2.join(funcPath, "manifest.json"))) {
           errors.push({
             ruleId: "krnl/functionality-manifest-required",
             filePath: funcPath,
@@ -427,12 +396,12 @@ function checkWorkspaceLayout(projectRoot, errors) {
     }
   }
   if (fs.existsSync(frontendDir)) {
-    const fLibs = path3.join(frontendDir, "libraries");
+    const fLibs = path2.join(frontendDir, "libraries");
     if (fs.existsSync(fLibs)) {
       for (const entry of fs.readdirSync(fLibs, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        const libPath = path3.join(fLibs, entry.name);
-        if (!fs.existsSync(path3.join(libPath, "manifest.json"))) {
+        const libPath = path2.join(fLibs, entry.name);
+        if (!fs.existsSync(path2.join(libPath, "manifest.json"))) {
           errors.push({
             ruleId: "krnl/frontend-concept-manifest-required",
             filePath: libPath,
@@ -442,12 +411,12 @@ function checkWorkspaceLayout(projectRoot, errors) {
         }
       }
     }
-    const fFuncs = path3.join(frontendDir, "functionalities");
+    const fFuncs = path2.join(frontendDir, "functionalities");
     if (fs.existsSync(fFuncs)) {
       for (const entry of fs.readdirSync(fFuncs, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        const funcPath = path3.join(fFuncs, entry.name);
-        if (!fs.existsSync(path3.join(funcPath, "manifest.json"))) {
+        const funcPath = path2.join(fFuncs, entry.name);
+        if (!fs.existsSync(path2.join(funcPath, "manifest.json"))) {
           errors.push({
             ruleId: "krnl/frontend-functionality-manifest-required",
             filePath: funcPath,
@@ -467,13 +436,13 @@ var KrnlValidatorEngine = class {
   limitOptions;
   constructor(optionsOrRoot) {
     const options = typeof optionsOrRoot === "string" ? { projectRoot: optionsOrRoot } : optionsOrRoot;
-    this.projectRoot = path4.resolve(options.projectRoot || process.cwd());
+    this.projectRoot = path3.resolve(options.projectRoot || process.cwd());
     this.limitOptions = {
       maxFileLineLimit: options.maxFileLineLimit ?? 200,
       maxMainLogicLimit: options.maxMainLogicLimit ?? 20,
       maxHelperLineLimit: options.maxHelperLineLimit ?? 30
     };
-    const tsConfigPath = path4.join(this.projectRoot, "tsconfig.json");
+    const tsConfigPath = path3.join(this.projectRoot, "tsconfig.json");
     if (fs2.existsSync(tsConfigPath)) {
       this.project = new import_ts_morph4.Project({ tsConfigFilePath: tsConfigPath, skipAddingFilesFromTsConfig: true });
     } else {
@@ -503,17 +472,17 @@ var KrnlValidatorEngine = class {
   }
   validateSourceFile(sf) {
     const filePath = sf.getFilePath();
-    const baseName = path4.basename(filePath);
+    const baseName = path3.basename(filePath);
     if (baseName.includes("_pb.") || baseName.endsWith(".d.ts")) {
       return { errors: [], warnings: [] };
     }
     const limits = checkFileLimits(sf, this.limitOptions);
     const purity = checkTopLevelPurity(sf);
     const components = checkComponentRules(sf);
-    const entity = checkEntityRules(sf);
+    const orchestration = checkOrchestrationRules(sf);
     return {
-      errors: [...limits.errors, ...purity.errors, ...components.errors, ...entity.errors],
-      warnings: [...limits.warnings, ...purity.warnings, ...components.warnings, ...entity.warnings]
+      errors: [...limits.errors, ...purity.errors, ...components.errors, ...orchestration.errors],
+      warnings: [...limits.warnings, ...purity.warnings, ...components.warnings, ...orchestration.warnings]
     };
   }
   collectSourceFiles(dir, collected = []) {
@@ -521,7 +490,7 @@ var KrnlValidatorEngine = class {
     const entries = fs2.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.name === "node_modules" || entry.name === "dist" || entry.name === ".git") continue;
-      const full = path4.join(dir, entry.name);
+      const full = path3.join(dir, entry.name);
       if (entry.isDirectory()) {
         this.collectSourceFiles(full, collected);
       } else if (entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".js") || entry.name.endsWith(".tsx") || entry.name.endsWith(".jsx"))) {

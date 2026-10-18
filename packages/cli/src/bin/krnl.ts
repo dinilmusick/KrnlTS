@@ -57,11 +57,11 @@ async function main() {
     }
     case "build": {
       const targetDir = args[1] && !args[1].startsWith("-") ? path.resolve(process.cwd(), args[1]) : process.cwd();
-      const entityArgIdx = args.indexOf("--entity");
-      const targetEntity = entityArgIdx !== -1 ? args[entityArgIdx + 1] : undefined;
+      const serviceArgIdx = args.indexOf("--service") !== -1 ? args.indexOf("--service") : args.indexOf("--orchestration");
+      const targetService = serviceArgIdx !== -1 ? args[serviceArgIdx + 1] : undefined;
       const isAll = args.includes("--all");
 
-      const res = await runBuild(targetDir, { entity: targetEntity, all: isAll });
+      const res = await runBuild(targetDir, { service: targetService, orchestration: targetService, all: isAll });
       process.exit(res.success ? 0 : 1);
       break;
     }
@@ -69,12 +69,12 @@ async function main() {
       const targetDir = args[1] && !args[1].startsWith("-") ? path.resolve(process.cwd(), args[1]) : process.cwd();
       const portArgIdx = args.indexOf("--port");
       const port = portArgIdx !== -1 ? parseInt(args[portArgIdx + 1], 10) : 8080;
-      const entityArgIdx = args.indexOf("--entity");
-      const targetEntity = entityArgIdx !== -1 ? args[entityArgIdx + 1] : undefined;
+      const serviceArgIdx = args.indexOf("--service") !== -1 ? args.indexOf("--service") : args.indexOf("--orchestration");
+      const targetService = serviceArgIdx !== -1 ? args[serviceArgIdx + 1] : undefined;
       const isAll = args.includes("--all");
       const dryRun = args.includes("--dry-run") || args.includes("--once");
 
-      const devInstance = await runDev(targetDir, { port, entity: targetEntity, all: isAll, dryRun });
+      const devInstance = await runDev(targetDir, { port, service: targetService, orchestration: targetService, all: isAll, dryRun });
       if (dryRun) {
         process.exit(0);
       }
@@ -104,15 +104,15 @@ Commands:
   validate          Run deep AST & 4-layer function purity validation
   sync              Reconcile package.json from all co-located manifest.json files
   watch             Generate ambient TypeScript declarations (krnl-magnetic.d.ts)
-  generate          Scaffold entities, functionalities, libraries
+  generate          Scaffold orchestrations, functionalities, libraries
                     Examples:
-                      krnl generate entity UserSystem
-                      krnl generate functionality CreateProfile
+                      krnl generate orchestration Payment
+                      krnl generate functionality ProcessPayment
                       krnl generate library Math
 
 Options:
-  --entity <name>   Target a specific entity app variant to run or build
-  --all             Run or build all entities as a combined multi-entity build
+  --service <name>  Target a specific service variant to run or build
+  --all             Run or build all services as a combined build
   --port <number>   Specify port for Krnl service dev server (default: 8080)
   --dry-run, --once Verify environment without running persistent server
   --watch, -w       Enable continuous file watcher (for watch command)

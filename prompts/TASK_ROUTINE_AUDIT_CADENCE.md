@@ -27,7 +27,7 @@ $$\begin{array}{lll}
 \end{array}$$
 
 ## 3. 6-PILLAR AUDIT & APP DEBUGGING CHECKLIST
-1. **Quad-Units**: All features reside in `entities/<EntityName>/functionalities/<FeatureName>/` with `main_function/`, `state_data/`, `helper_functions/`, `events/`, `manifest.json`.
+1. **Quad-Units**: All features reside in `krnl/backend/functionalities/<FeatureName>/` with `main_function/`, `state_data/`, `helper_functions/`, `events/`, `manifest.json`.
 2. **Layer Purity**: Strict $L_0 \to L_1 \to L_2 \to L_3$ flow. Zero inline calculations in $L_1/L_2$. Zero direct calls from $L_2/L_3$ to $L_0$.
 3. **Multi-Tier Line Limits**: Files $\le 200$ lines, helpers $\le 30$ lines, main functions $\le 20$ lines.
 4. **Deduplication**: Abstract shared structs ($\ge 65\%$ overlap) into `libraries/{Domain}Concepts.ts`. Unify identical signatures.

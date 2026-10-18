@@ -24,19 +24,18 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 
 // src/bin/krnl.ts
-var path13 = __toESM(require("path"), 1);
+var path12 = __toESM(require("path"), 1);
 var fs11 = __toESM(require("fs"), 1);
 
 // ../validate/dist/index.js
 var fs2 = __toESM(require("fs"), 1);
-var path4 = __toESM(require("path"), 1);
+var path3 = __toESM(require("path"), 1);
 var import_ts_morph = require("ts-morph");
 var path = __toESM(require("path"), 1);
 var import_ts_morph2 = require("ts-morph");
-var path2 = __toESM(require("path"), 1);
 var import_ts_morph3 = require("ts-morph");
 var fs = __toESM(require("fs"), 1);
-var path3 = __toESM(require("path"), 1);
+var path2 = __toESM(require("path"), 1);
 var import_ts_morph4 = require("ts-morph");
 function checkFileLimits(sf, options) {
   const errors = [];
@@ -153,7 +152,7 @@ function checkComponentRules(sf) {
           ruleId: "krnl/helper-purity",
           filePath,
           line: decl.getStartLineNumber(),
-          message: `Helper functions (Layer 1) cannot directly import I/O modules ('${spec}'). Delegate to Layer 0 libraries or Entity context.`,
+          message: `Helper functions (Layer 1) cannot directly import I/O modules ('${spec}'). Delegate to Layer 0 libraries or ServiceFacade context.`,
           severity: "error"
         });
       }
@@ -161,12 +160,11 @@ function checkComponentRules(sf) {
   }
   return { errors, warnings };
 }
-function checkEntityRules(sf) {
+function checkOrchestrationRules(sf) {
   const errors = [];
   const warnings = [];
   const filePath = sf.getFilePath();
   const sourceText = sf.getText();
-  const baseName = path2.basename(filePath);
   const calls = sf.getDescendantsOfKind(import_ts_morph3.SyntaxKind.CallExpression);
   for (const call of calls) {
     const exprText = call.getExpression().getText();
@@ -175,7 +173,7 @@ function checkEntityRules(sf) {
         ruleId: "krnl/no-polling",
         filePath,
         line: call.getStartLineNumber(),
-        message: `Prohibited use of 'setInterval'. Krnl applications must use reactive event streams (entity.emitEvent / entity.on).`,
+        message: `Prohibited use of 'setInterval'. Krnl applications must use reactive event streams or triggers.`,
         severity: "error"
       });
     }
@@ -184,65 +182,36 @@ function checkEntityRules(sf) {
     const match = sourceText.match(/main\s*=\s*async\s*\([^,]+,\s*\{([^}]*)\}\s*\)/);
     if (match) {
       const destructured = match[1];
-      if (/\bsystem\b/.test(destructured) && !/\bentity\b/.test(destructured)) {
+      if (/\bsystem\b/.test(destructured)) {
         errors.push({
           ruleId: "krnl/context-destructuring",
           filePath,
-          message: `Functionality context parameter destructures 'system'. Functionality passes { state, entity }. Always destructure 'entity'.`,
+          message: `Functionality context parameter destructures 'system'. Functionality passes { state, orchestration } or service context.`,
           severity: "error"
         });
       }
     }
   }
-  const isEntityClass = sf.getClasses().some((c) => {
+  const isOrchestrationClass = sf.getClasses().some((c) => {
     const ext = c.getExtends();
-    return ext && (ext.getText().includes("Entity") || ext.getText().includes("krnlEntityBase"));
+    return ext && (ext.getText().includes("Orchestration") || ext.getText().includes("krnlOrchestrationBase"));
   });
-  if (isEntityClass) {
+  if (isOrchestrationClass) {
     for (const decl of sf.getImportDeclarations()) {
       const spec = decl.getModuleSpecifierValue();
       if (spec.includes("libraries/") || spec.includes("Concepts")) {
         errors.push({
-          ruleId: "krnl/entity-no-libraries",
+          ruleId: "krnl/orchestration-no-libraries",
           filePath,
           line: decl.getStartLineNumber(),
-          message: `Entity class violates Library Calling Invariant. Entities must not call or import libraries directly ('${spec}'). Only functionalities in 'src/functionalities/' are permitted to call shared libraries.`,
+          message: `Orchestration class violates Library Calling Invariant. Orchestrations must not call or import libraries directly ('${spec}'). Only functionalities are permitted to call shared libraries.`,
           severity: "error"
         });
       }
     }
-    let loadAllLine = -1;
-    const addLocalLines = [];
-    for (const call of calls) {
-      const txt = call.getText();
-      if (txt.includes("MagneticLoader.loadAll") || txt.includes("KrnlMagneticLoader.loadAll")) {
-        loadAllLine = call.getStartLineNumber();
-      } else if (txt.startsWith("this.addLocal(")) {
-        const hasUiSpec = txt.includes("uiSpec");
-        const idMatch = txt.match(/id\s*:\s*["']([^"']+)["']/);
-        addLocalLines.push({
-          line: call.getStartLineNumber(),
-          hasUiSpec,
-          id: idMatch ? idMatch[1] : "unknown"
-        });
-      }
-    }
-    if (loadAllLine !== -1) {
-      for (const al of addLocalLines) {
-        if (al.hasUiSpec && al.line > loadAllLine) {
-          errors.push({
-            ruleId: "krnl/boot-order",
-            filePath,
-            line: al.line,
-            message: `addLocal('${al.id}') with uiSpec at line ${al.line} appears AFTER loadAll() at line ${loadAllLine}. All addLocal() with UI must precede loadAll().`,
-            severity: "error"
-          });
-        }
-      }
-    }
     for (const cls of sf.getClasses()) {
       const ext = cls.getExtends();
-      if (ext && (ext.getText().includes("Entity") || ext.getText().includes("krnlEntityBase"))) {
+      if (ext && (ext.getText().includes("Orchestration") || ext.getText().includes("krnlOrchestrationBase"))) {
         const loops = [
           ...cls.getDescendantsOfKind(import_ts_morph3.SyntaxKind.ForStatement),
           ...cls.getDescendantsOfKind(import_ts_morph3.SyntaxKind.ForOfStatement),
@@ -252,21 +221,21 @@ function checkEntityRules(sf) {
         ];
         for (const loop of loops) {
           errors.push({
-            ruleId: "krnl/entity-purity",
+            ruleId: "krnl/orchestration-purity",
             filePath,
             line: loop.getStartLineNumber(),
-            message: `Entity '${cls.getName() || "Anonymous"}' violates Entity Purity Law. Loops and procedural algorithms are prohibited inside entities. Move logic to a functionality or a global library function.`,
+            message: `Orchestration '${cls.getName() || "Anonymous"}' violates Orchestration Purity Law. Loops and procedural algorithms are prohibited inside orchestrations. Move logic to a functionality or a global library function.`,
             severity: "error"
           });
         }
         for (const method of cls.getMethods()) {
           const methodName = method.getName();
-          if (!["boot", "init", "dispose"].includes(methodName)) {
+          if (!["flow", "getFlow", "listFlows", "clearFlows"].includes(methodName)) {
             errors.push({
-              ruleId: "krnl/entity-purity",
+              ruleId: "krnl/orchestration-purity",
               filePath,
               line: method.getStartLineNumber(),
-              message: `Entity '${cls.getName() || "Anonymous"}' defines custom method '${methodName}'. Entities are purely declarative compositors/orchestrators. Define capabilities as functionalities or global library functions.`,
+              message: `Orchestration '${cls.getName() || "Anonymous"}' defines custom method '${methodName}'. Orchestrations are purely declarative compositors. Define capabilities as functionalities or global library functions.`,
               severity: "error"
             });
           }
@@ -275,7 +244,7 @@ function checkEntityRules(sf) {
     }
     for (const call of calls) {
       const callText = call.getText();
-      if (callText.startsWith("this.orchestration(") || callText.startsWith("this.flow(")) {
+      if (callText.startsWith("this.flow(") || callText.startsWith("orchestration.flow(")) {
         let currentExpr = call;
         const chainCalls = [];
         while (currentExpr && import_ts_morph3.Node.isCallExpression(currentExpr)) {
@@ -292,14 +261,14 @@ function checkEntityRules(sf) {
         }
         let chainId = "orchestration";
         for (const step of chainCalls) {
-          if (step.name === "orchestration" || step.name === "flow") {
+          if (step.name === "flow") {
             chainId = step.argText ? step.argText.replace(/['"]/g, "") : "orchestration";
           } else if (step.name === "thenFunction") {
             errors.push({
-              ruleId: "krnl/entity-no-direct-library-calls",
+              ruleId: "krnl/orchestration-no-direct-library-calls",
               filePath,
               line: step.node.getStartLineNumber(),
-              message: `Orchestration chain '${chainId}' violates Entity Purity Law. Entities cannot chain direct library functions via thenFunction(). Entities must only orchestrate functionalities (thenFunctionality) and orchestrations from other entities (thenEntityOrchestration).`,
+              message: `Orchestration flow '${chainId}' violates Orchestration Purity Law. Orchestrations cannot chain direct library functions via thenFunction(). Orchestrations must only sequence functionalities (thenFunctionality) and peer orchestrations (thenOrchestration).`,
               severity: "error"
             });
           }
@@ -313,9 +282,9 @@ function checkTopLevelPurity(sf) {
   const errors = [];
   const warnings = [];
   const filePath = sf.getFilePath();
-  const baseName = path3.basename(filePath);
+  const baseName = path2.basename(filePath);
   const isUiTopLevel = /^(App|main|index|_app|root)\.(tsx|jsx)$/i.test(baseName);
-  const isBackendTopLevel = /^(server|app|index)\.(ts|js)$/i.test(baseName) && !filePath.includes("/components/") && !filePath.includes("/entities/") && !filePath.includes("/libraries/");
+  const isBackendTopLevel = /^(server|app|index)\.(ts|js)$/i.test(baseName) && !filePath.includes("/components/") && !filePath.includes("/orchestrations/") && !filePath.includes("/services/") && !filePath.includes("/libraries/");
   if (isUiTopLevel) {
     const jsxElements = sf.getDescendantsOfKind(import_ts_morph4.SyntaxKind.JsxOpeningElement);
     const jsxSelfClosing = sf.getDescendantsOfKind(import_ts_morph4.SyntaxKind.JsxSelfClosingElement);
@@ -373,19 +342,19 @@ function checkTopLevelPurity(sf) {
   return { errors, warnings };
 }
 function checkWorkspaceLayout(projectRoot, errors) {
-  const krnlDir = path3.join(projectRoot, "krnl");
-  const srcDir = path3.join(projectRoot, "src");
+  const krnlDir = path2.join(projectRoot, "krnl");
+  const srcDir = path2.join(projectRoot, "src");
   const targetDir = fs.existsSync(krnlDir) ? krnlDir : fs.existsSync(srcDir) ? srcDir : null;
   if (!targetDir) return;
-  const backendDir = path3.join(targetDir, "backend");
-  const frontendDir = path3.join(targetDir, "frontend");
+  const backendDir = path2.join(targetDir, "backend");
+  const frontendDir = path2.join(targetDir, "frontend");
   if (fs.existsSync(backendDir)) {
-    const bLibs = path3.join(backendDir, "libraries");
+    const bLibs = path2.join(backendDir, "libraries");
     if (fs.existsSync(bLibs)) {
       for (const entry of fs.readdirSync(bLibs, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        const libPath = path3.join(bLibs, entry.name);
-        if (!fs.existsSync(path3.join(libPath, "manifest.json"))) {
+        const libPath = path2.join(bLibs, entry.name);
+        if (!fs.existsSync(path2.join(libPath, "manifest.json"))) {
           errors.push({
             ruleId: "krnl/concept-manifest-required",
             filePath: libPath,
@@ -395,12 +364,12 @@ function checkWorkspaceLayout(projectRoot, errors) {
         }
       }
     }
-    const bFuncs = path3.join(backendDir, "functionalities");
+    const bFuncs = path2.join(backendDir, "functionalities");
     if (fs.existsSync(bFuncs)) {
       for (const entry of fs.readdirSync(bFuncs, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        const funcPath = path3.join(bFuncs, entry.name);
-        if (!fs.existsSync(path3.join(funcPath, "manifest.json"))) {
+        const funcPath = path2.join(bFuncs, entry.name);
+        if (!fs.existsSync(path2.join(funcPath, "manifest.json"))) {
           errors.push({
             ruleId: "krnl/functionality-manifest-required",
             filePath: funcPath,
@@ -412,12 +381,12 @@ function checkWorkspaceLayout(projectRoot, errors) {
     }
   }
   if (fs.existsSync(frontendDir)) {
-    const fLibs = path3.join(frontendDir, "libraries");
+    const fLibs = path2.join(frontendDir, "libraries");
     if (fs.existsSync(fLibs)) {
       for (const entry of fs.readdirSync(fLibs, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        const libPath = path3.join(fLibs, entry.name);
-        if (!fs.existsSync(path3.join(libPath, "manifest.json"))) {
+        const libPath = path2.join(fLibs, entry.name);
+        if (!fs.existsSync(path2.join(libPath, "manifest.json"))) {
           errors.push({
             ruleId: "krnl/frontend-concept-manifest-required",
             filePath: libPath,
@@ -427,12 +396,12 @@ function checkWorkspaceLayout(projectRoot, errors) {
         }
       }
     }
-    const fFuncs = path3.join(frontendDir, "functionalities");
+    const fFuncs = path2.join(frontendDir, "functionalities");
     if (fs.existsSync(fFuncs)) {
       for (const entry of fs.readdirSync(fFuncs, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        const funcPath = path3.join(fFuncs, entry.name);
-        if (!fs.existsSync(path3.join(funcPath, "manifest.json"))) {
+        const funcPath = path2.join(fFuncs, entry.name);
+        if (!fs.existsSync(path2.join(funcPath, "manifest.json"))) {
           errors.push({
             ruleId: "krnl/frontend-functionality-manifest-required",
             filePath: funcPath,
@@ -450,13 +419,13 @@ var KrnlValidatorEngine = class {
   limitOptions;
   constructor(optionsOrRoot) {
     const options = typeof optionsOrRoot === "string" ? { projectRoot: optionsOrRoot } : optionsOrRoot;
-    this.projectRoot = path4.resolve(options.projectRoot || process.cwd());
+    this.projectRoot = path3.resolve(options.projectRoot || process.cwd());
     this.limitOptions = {
       maxFileLineLimit: options.maxFileLineLimit ?? 200,
       maxMainLogicLimit: options.maxMainLogicLimit ?? 20,
       maxHelperLineLimit: options.maxHelperLineLimit ?? 30
     };
-    const tsConfigPath = path4.join(this.projectRoot, "tsconfig.json");
+    const tsConfigPath = path3.join(this.projectRoot, "tsconfig.json");
     if (fs2.existsSync(tsConfigPath)) {
       this.project = new import_ts_morph.Project({ tsConfigFilePath: tsConfigPath, skipAddingFilesFromTsConfig: true });
     } else {
@@ -486,17 +455,17 @@ var KrnlValidatorEngine = class {
   }
   validateSourceFile(sf) {
     const filePath = sf.getFilePath();
-    const baseName = path4.basename(filePath);
+    const baseName = path3.basename(filePath);
     if (baseName.includes("_pb.") || baseName.endsWith(".d.ts")) {
       return { errors: [], warnings: [] };
     }
     const limits = checkFileLimits(sf, this.limitOptions);
     const purity = checkTopLevelPurity(sf);
     const components = checkComponentRules(sf);
-    const entity = checkEntityRules(sf);
+    const orchestration = checkOrchestrationRules(sf);
     return {
-      errors: [...limits.errors, ...purity.errors, ...components.errors, ...entity.errors],
-      warnings: [...limits.warnings, ...purity.warnings, ...components.warnings, ...entity.warnings]
+      errors: [...limits.errors, ...purity.errors, ...components.errors, ...orchestration.errors],
+      warnings: [...limits.warnings, ...purity.warnings, ...components.warnings, ...orchestration.warnings]
     };
   }
   collectSourceFiles(dir, collected = []) {
@@ -504,7 +473,7 @@ var KrnlValidatorEngine = class {
     const entries = fs2.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.name === "node_modules" || entry.name === "dist" || entry.name === ".git") continue;
-      const full = path4.join(dir, entry.name);
+      const full = path3.join(dir, entry.name);
       if (entry.isDirectory()) {
         this.collectSourceFiles(full, collected);
       } else if (entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".js") || entry.name.endsWith(".tsx") || entry.name.endsWith(".jsx"))) {
@@ -544,119 +513,85 @@ async function runValidate(projectRoot = process.cwd()) {
   return true;
 }
 
-// src/commands/generators/entityGenerator.ts
+// src/commands/generators/orchestrationGenerator.ts
 var fs4 = __toESM(require("fs"), 1);
-var path6 = __toESM(require("path"), 1);
+var path5 = __toESM(require("path"), 1);
 
 // src/commands/generators/common.ts
 var fs3 = __toESM(require("fs"), 1);
-var path5 = __toESM(require("path"), 1);
+var path4 = __toESM(require("path"), 1);
 function getPlaneRoots(projectRoot) {
-  const krnlRoot = path5.join(projectRoot, "krnl");
+  const krnlRoot = path4.join(projectRoot, "krnl");
   if (fs3.existsSync(krnlRoot)) {
     return {
-      backend: path5.join(krnlRoot, "backend"),
-      frontend: path5.join(krnlRoot, "frontend"),
+      backend: path4.join(krnlRoot, "backend"),
+      frontend: path4.join(krnlRoot, "frontend"),
       isKrnlDir: true
     };
   }
   return {
-    backend: path5.join(projectRoot, "src"),
-    frontend: path5.join(projectRoot, "src"),
+    backend: path4.join(projectRoot, "src"),
+    frontend: path4.join(projectRoot, "src"),
     isKrnlDir: false
   };
 }
 
-// src/commands/generators/entityGenerator.ts
-function generateEntity(name, projectRoot) {
-  const { backend, frontend } = getPlaneRoots(projectRoot);
-  const bEntityDir = path6.join(backend, "entities", name);
-  fs4.mkdirSync(path6.join(bEntityDir, "orchestrations"), { recursive: true });
-  fs4.mkdirSync(path6.join(bEntityDir, "tests"), { recursive: true });
+// src/commands/generators/orchestrationGenerator.ts
+function generateOrchestration(name, projectRoot) {
+  const { backend } = getPlaneRoots(projectRoot);
+  const orchDir = path5.join(backend, "orchestrations", name);
+  fs4.mkdirSync(path5.join(orchDir, "tests"), { recursive: true });
   fs4.writeFileSync(
-    path6.join(bEntityDir, `${name}.ts`),
-    `import { Entity, KrnlMagneticLoader } from "@ultrst-armada/krnl-core";
+    path5.join(orchDir, `${name}Orchestration.ts`),
+    `import { Orchestration } from '@ultrst-armada/krnl-core';
 
 /**
- * @role skeleton
+ * @role orchestration
+ * Declaratively composes functionalities into named flows.
  */
-export class ${name} extends Entity {
+export class ${name}Orchestration extends Orchestration {
   constructor() {
     super({
-      id: "${name}",
-      version: "1.0.0",
-      description: "${name} entity"
+      id: '${name}Orchestration',
+      name: '${name}',
+      version: '1.0.0',
+      description: '${name} declarative orchestration flow',
     });
-  }
 
-  async boot(): Promise<void> {
-    await KrnlMagneticLoader.loadAll(this, import.meta.url);
+    this.flow('default')
+      .thenFunctionality('Execute${name}')
+      .register({ visibility: 'public' });
   }
 }
 
-export default ${name};
+export default ${name}Orchestration;
 `
   );
   fs4.writeFileSync(
-    path6.join(bEntityDir, "orchestrations", "DefaultFlow.ts"),
-    `export function configureDefaultFlow(entity: any) {
-  return entity.flow("defaultFlow")
-    .register({ visibility: "public" });
-}
-`
-  );
-  fs4.writeFileSync(
-    path6.join(bEntityDir, "tests", `${name}.test.ts`),
-    `import { describe, it, expect } from "vitest";
-import { ${name} } from "../${name}.js";
+    path5.join(orchDir, "tests", `${name}Orchestration.test.ts`),
+    `import { describe, it, expect } from 'vitest';
+import { ${name}Orchestration } from '../${name}Orchestration.js';
 
-describe("${name} Entity", () => {
-  it("instantiates correctly", () => {
-    const instance = new ${name}();
-    expect(instance.id).toBe("${name}");
+describe('${name}Orchestration', () => {
+  it('instantiates and configures declarative flow correctly', () => {
+    const orchestration = new ${name}Orchestration();
+    expect(orchestration.id).toBe('${name}Orchestration');
+    expect(orchestration.getFlow('default')).toBeDefined();
+    expect(orchestration.getFlow('default')?.steps).toHaveLength(1);
   });
 });
 `
   );
-  const fEntityDir = path6.join(frontend, "entities", name);
-  fs4.mkdirSync(path6.join(fEntityDir, "tests"), { recursive: true });
-  fs4.writeFileSync(
-    path6.join(fEntityDir, `${name}0.tsx`),
-    `import React from "react";
-
-export const ${name}0: React.FC = () => {
-  return (
-    <div className="krnl-entity-${name.toLowerCase()}">
-      <h2>${name} (Variant 0)</h2>
-    </div>
-  );
-};
-
-export default ${name}0;
-`
-  );
-  fs4.writeFileSync(
-    path6.join(fEntityDir, "tests", `${name}0.test.tsx`),
-    `import { describe, it, expect } from "vitest";
-
-describe("${name}0 Component", () => {
-  it("renders variant 0", () => {
-    expect(true).toBe(true);
-  });
-});
-`
-  );
-  console.log(`\u2705 Created Backend Entity Folder: krnl/backend/entities/${name}/`);
-  console.log(`\u2705 Created Frontend Entity Folder: krnl/frontend/entities/${name}/`);
+  console.log(`\u2705 Created Orchestration: krnl/backend/orchestrations/${name}/`);
 }
 
 // src/commands/generators/functionalityGenerator.ts
 var fs6 = __toESM(require("fs"), 1);
-var path8 = __toESM(require("path"), 1);
+var path7 = __toESM(require("path"), 1);
 
 // ../core/dist/index.js
 var fs5 = __toESM(require("fs"), 1);
-var path7 = __toESM(require("path"), 1);
+var path6 = __toESM(require("path"), 1);
 var KrnlPackageReconciler = class {
   /**
    * Scans all manifest.json files across backend and frontend and reconciles root package.json.
@@ -704,7 +639,7 @@ var KrnlPackageReconciler = class {
       }
       resolvedDevDeps[pkg] = versions[versions.length - 1];
     }
-    const pkgJsonPath = path7.join(projectRoot, "package.json");
+    const pkgJsonPath = path6.join(projectRoot, "package.json");
     let updated = false;
     if (fs5.existsSync(pkgJsonPath)) {
       const pkgContent = JSON.parse(fs5.readFileSync(pkgJsonPath, "utf8"));
@@ -742,12 +677,12 @@ var KrnlPackageReconciler = class {
    */
   static findManifests(projectRoot) {
     const searchDirs = [
-      path7.join(projectRoot, "krnl", "backend", "libraries"),
-      path7.join(projectRoot, "krnl", "backend", "functionalities"),
-      path7.join(projectRoot, "krnl", "frontend", "libraries"),
-      path7.join(projectRoot, "krnl", "frontend", "functionalities"),
-      path7.join(projectRoot, "src", "functionalities"),
-      path7.join(projectRoot, "src", "libraries")
+      path6.join(projectRoot, "krnl", "backend", "libraries"),
+      path6.join(projectRoot, "krnl", "backend", "functionalities"),
+      path6.join(projectRoot, "krnl", "frontend", "libraries"),
+      path6.join(projectRoot, "krnl", "frontend", "functionalities"),
+      path6.join(projectRoot, "src", "functionalities"),
+      path6.join(projectRoot, "src", "libraries")
     ];
     const found = [];
     for (const dir of searchDirs) {
@@ -762,7 +697,7 @@ var KrnlPackageReconciler = class {
       const entries = fs5.readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
         if (entry.name === "node_modules" || entry.name === "dist" || entry.name === ".git") continue;
-        const full = path7.join(dir, entry.name);
+        const full = path6.join(dir, entry.name);
         if (entry.isDirectory()) {
           this.scanRecursive(full, found);
         } else if (entry.isFile() && entry.name === "manifest.json") {
@@ -777,14 +712,14 @@ var KrnlPackageReconciler = class {
 // src/commands/generators/functionalityGenerator.ts
 function generateFunctionality(name, projectRoot) {
   const { backend, frontend } = getPlaneRoots(projectRoot);
-  const bFuncDir = path8.join(backend, "functionalities", name);
-  fs6.mkdirSync(path8.join(bFuncDir, "main_function"), { recursive: true });
-  fs6.mkdirSync(path8.join(bFuncDir, "state_data"), { recursive: true });
-  fs6.mkdirSync(path8.join(bFuncDir, "helper_functions"), { recursive: true });
-  fs6.mkdirSync(path8.join(bFuncDir, "events"), { recursive: true });
-  fs6.mkdirSync(path8.join(bFuncDir, "tests"), { recursive: true });
+  const bFuncDir = path7.join(backend, "functionalities", name);
+  fs6.mkdirSync(path7.join(bFuncDir, "main_function"), { recursive: true });
+  fs6.mkdirSync(path7.join(bFuncDir, "state_data"), { recursive: true });
+  fs6.mkdirSync(path7.join(bFuncDir, "helper_functions"), { recursive: true });
+  fs6.mkdirSync(path7.join(bFuncDir, "events"), { recursive: true });
+  fs6.mkdirSync(path7.join(bFuncDir, "tests"), { recursive: true });
   fs6.writeFileSync(
-    path8.join(bFuncDir, `${name}Atom.ts`),
+    path7.join(bFuncDir, `${name}Atom.ts`),
     `export interface ${name}Input {
   payload?: string;
 }
@@ -796,7 +731,7 @@ export interface ${name}Output {
 `
   );
   fs6.writeFileSync(
-    path8.join(bFuncDir, "manifest.json"),
+    path7.join(bFuncDir, "manifest.json"),
     JSON.stringify(
       {
         name,
@@ -808,7 +743,7 @@ export interface ${name}Output {
     )
   );
   fs6.writeFileSync(
-    path8.join(bFuncDir, "main_function", "logic.ts"),
+    path7.join(bFuncDir, "main_function", "logic.ts"),
     `import type { ${name}Input, ${name}Output } from "../${name}Atom.js";
 
 export const main = async (input: ${name}Input, { state }: any): Promise<${name}Output> => {
@@ -820,13 +755,13 @@ export const main = async (input: ${name}Input, { state }: any): Promise<${name}
 `
   );
   fs6.writeFileSync(
-    path8.join(bFuncDir, "main_function", "lifecycle.ts"),
+    path7.join(bFuncDir, "main_function", "lifecycle.ts"),
     `export async function onMount() {}
 export async function onTeardown() {}
 `
   );
   fs6.writeFileSync(
-    path8.join(bFuncDir, "state_data", "state.ts"),
+    path7.join(bFuncDir, "state_data", "state.ts"),
     `export interface ${name}State {
   executionCount: number;
 }
@@ -837,7 +772,7 @@ export const initialState: ${name}State = {
 `
   );
   fs6.writeFileSync(
-    path8.join(bFuncDir, "helper_functions", "helper.ts"),
+    path7.join(bFuncDir, "helper_functions", "helper.ts"),
     `/**
  * @role component
  */
@@ -847,7 +782,7 @@ export function exampleHelper(): boolean {
 `
   );
   fs6.writeFileSync(
-    path8.join(bFuncDir, "events", "events.ts"),
+    path7.join(bFuncDir, "events", "events.ts"),
     `/**
  * @role component
  */
@@ -857,7 +792,7 @@ export interface ${name}CompletedEvent {
 `
   );
   fs6.writeFileSync(
-    path8.join(bFuncDir, "tests", `${name}.test.ts`),
+    path7.join(bFuncDir, "tests", `${name}.test.ts`),
     `import { describe, it, expect } from "vitest";
 
 describe("${name} functionality", () => {
@@ -867,10 +802,10 @@ describe("${name} functionality", () => {
 });
 `
   );
-  const fFuncDir = path8.join(frontend, "functionalities", name);
-  fs6.mkdirSync(path8.join(fFuncDir, "tests"), { recursive: true });
+  const fFuncDir = path7.join(frontend, "functionalities", name);
+  fs6.mkdirSync(path7.join(fFuncDir, "tests"), { recursive: true });
   fs6.writeFileSync(
-    path8.join(fFuncDir, `${name}0.tsx`),
+    path7.join(fFuncDir, `${name}0.tsx`),
     `import React from "react";
 
 export const ${name}0: React.FC = () => {
@@ -885,11 +820,11 @@ export default ${name}0;
 `
   );
   fs6.writeFileSync(
-    path8.join(fFuncDir, "manifest.json"),
+    path7.join(fFuncDir, "manifest.json"),
     JSON.stringify({ name: `${name}UI`, dependencies: {} }, null, 2)
   );
   fs6.writeFileSync(
-    path8.join(fFuncDir, "tests", `${name}0.test.tsx`),
+    path7.join(fFuncDir, "tests", `${name}0.test.tsx`),
     `import { describe, it, expect } from "vitest";
 
 describe("${name}0 Component", () => {
@@ -906,14 +841,14 @@ describe("${name}0 Component", () => {
 
 // src/commands/generators/libraryGenerator.ts
 var fs7 = __toESM(require("fs"), 1);
-var path9 = __toESM(require("path"), 1);
+var path8 = __toESM(require("path"), 1);
 function generateLibrary(name, projectRoot) {
   const { backend, frontend } = getPlaneRoots(projectRoot);
   const conceptName = name.endsWith("Concepts") ? name : `${name}Concepts`;
-  const bLibDir = path9.join(backend, "libraries", conceptName);
-  fs7.mkdirSync(path9.join(bLibDir, "tests"), { recursive: true });
+  const bLibDir = path8.join(backend, "libraries", conceptName);
+  fs7.mkdirSync(path8.join(bLibDir, "tests"), { recursive: true });
   fs7.writeFileSync(
-    path9.join(bLibDir, "definitions.ts"),
+    path8.join(bLibDir, "definitions.ts"),
     `/**
  * @file definitions.ts
  * @role component
@@ -924,7 +859,7 @@ export interface ${conceptName}Options {
 `
   );
   fs7.writeFileSync(
-    path9.join(bLibDir, "functions.ts"),
+    path8.join(bLibDir, "functions.ts"),
     `/**
  * @file functions.ts
  * @role component
@@ -937,11 +872,11 @@ export function ${name.toLowerCase()}Transform<T>(data: T, _opts?: ${conceptName
 `
   );
   fs7.writeFileSync(
-    path9.join(bLibDir, "manifest.json"),
+    path8.join(bLibDir, "manifest.json"),
     JSON.stringify({ name: conceptName, dependencies: {} }, null, 2)
   );
   fs7.writeFileSync(
-    path9.join(bLibDir, "tests", `${conceptName}.test.ts`),
+    path8.join(bLibDir, "tests", `${conceptName}.test.ts`),
     `import { describe, it, expect } from "vitest";
 
 describe("${conceptName}", () => {
@@ -951,17 +886,17 @@ describe("${conceptName}", () => {
 });
 `
   );
-  const fLibDir = path9.join(frontend, "libraries", conceptName);
-  fs7.mkdirSync(path9.join(fLibDir, "tests"), { recursive: true });
+  const fLibDir = path8.join(frontend, "libraries", conceptName);
+  fs7.mkdirSync(path8.join(fLibDir, "tests"), { recursive: true });
   fs7.writeFileSync(
-    path9.join(fLibDir, "definitions.ts"),
+    path8.join(fLibDir, "definitions.ts"),
     `export interface ${name}Props {
   label?: string;
 }
 `
   );
   fs7.writeFileSync(
-    path9.join(fLibDir, "components.tsx"),
+    path8.join(fLibDir, "components.tsx"),
     `import React from "react";
 import type { ${name}Props } from "./definitions.js";
 import "./styles.css";
@@ -972,18 +907,18 @@ export const ${name}: React.FC<${name}Props> = ({ label = "${name}" }) => {
 `
   );
   fs7.writeFileSync(
-    path9.join(fLibDir, "styles.css"),
+    path8.join(fLibDir, "styles.css"),
     `.krnl-${name.toLowerCase()} {
   font-family: inherit;
 }
 `
   );
   fs7.writeFileSync(
-    path9.join(fLibDir, "manifest.json"),
+    path8.join(fLibDir, "manifest.json"),
     JSON.stringify({ name: `${conceptName}UI`, dependencies: {} }, null, 2)
   );
   fs7.writeFileSync(
-    path9.join(fLibDir, "tests", `${name}.test.tsx`),
+    path8.join(fLibDir, "tests", `${name}.test.tsx`),
     `import { describe, it, expect } from "vitest";
 
 describe("${name} UI Concept", () => {
@@ -999,14 +934,14 @@ describe("${name} UI Concept", () => {
 }
 
 // src/commands/generate.ts
-async function runGenerate(type, name, _parentEntity, projectRoot = process.cwd()) {
+async function runGenerate(type, name, _parentService, projectRoot = process.cwd()) {
   if (!name) {
-    console.error("\u274C Error: Resource name is required. Usage: krnl generate <entity|functionality|library> <Name>");
+    console.error("\u274C Error: Resource name is required. Usage: krnl generate <orchestration|functionality|library> <Name>");
     process.exit(1);
   }
   switch (type.toLowerCase()) {
-    case "entity":
-      generateEntity(name, projectRoot);
+    case "orchestration":
+      generateOrchestration(name, projectRoot);
       break;
     case "functionality":
       generateFunctionality(name, projectRoot);
@@ -1015,32 +950,32 @@ async function runGenerate(type, name, _parentEntity, projectRoot = process.cwd(
       generateLibrary(name, projectRoot);
       break;
     default:
-      console.error(`\u274C Unknown resource type "${type}". Valid types: entity, functionality, library`);
+      console.error(`\u274C Unknown resource type "${type}". Valid types: orchestration, functionality, library`);
       process.exit(1);
   }
 }
 
 // src/commands/watch.ts
 var fs8 = __toESM(require("fs"), 1);
-var path10 = __toESM(require("path"), 1);
+var path9 = __toESM(require("path"), 1);
 function generateMagneticDeclarations(projectRoot = process.cwd()) {
   const { results: functionalities, libDirs } = scanDirectory(projectRoot);
   let dtsContent = `// Automatically generated by Krnl Magnetic Watcher. Do not edit manually.
 
 `;
-  dtsContent += `import { Entity } from '@ultrst-armada/krnl-core';
+  dtsContent += `import { Orchestration } from '@ultrst-armada/krnl-core';
 
 `;
   const globalDeclarations = [];
   for (const func of functionalities) {
-    const helpersDir = path10.join(func.funcPath, "helper_functions");
+    const helpersDir = path9.join(func.funcPath, "helper_functions");
     if (fs8.existsSync(helpersDir)) {
       const files = fs8.readdirSync(helpersDir);
       for (const file of files) {
         if (file.endsWith(".js") || file.endsWith(".ts")) {
-          const filePath = path10.join(helpersDir, file);
-          const baseName = path10.basename(file, path10.extname(file));
-          const importPath = `./${path10.relative(projectRoot, filePath).replace(/\\/g, "/")}`;
+          const filePath = path9.join(helpersDir, file);
+          const baseName = path9.basename(file, path9.extname(file));
+          const importPath = `./${path9.relative(projectRoot, filePath).replace(/\\/g, "/")}`;
           const { named, hasDefault } = parseExports(filePath, baseName);
           if (hasDefault) {
             globalDeclarations.push(`  const ${baseName}: typeof import('${importPath}')['default'];`);
@@ -1051,14 +986,14 @@ function generateMagneticDeclarations(projectRoot = process.cwd()) {
         }
       }
     }
-    const eventsDir = path10.join(func.funcPath, "events");
+    const eventsDir = path9.join(func.funcPath, "events");
     if (fs8.existsSync(eventsDir)) {
       const files = fs8.readdirSync(eventsDir);
       for (const file of files) {
         if (file.endsWith(".js") || file.endsWith(".ts")) {
-          const filePath = path10.join(eventsDir, file);
-          const baseName = path10.basename(file, path10.extname(file));
-          const importPath = `./${path10.relative(projectRoot, filePath).replace(/\\/g, "/")}`;
+          const filePath = path9.join(eventsDir, file);
+          const baseName = path9.basename(file, path9.extname(file));
+          const importPath = `./${path9.relative(projectRoot, filePath).replace(/\\/g, "/")}`;
           const { named, hasDefault } = parseExports(filePath, baseName);
           if (hasDefault) {
             globalDeclarations.push(`  const ${baseName}: typeof import('${importPath}')['default'];`);
@@ -1079,7 +1014,7 @@ ${Array.from(new Set(globalDeclarations)).join("\n")}
 }
 `;
   }
-  const outPath = path10.join(projectRoot, "krnl-magnetic.d.ts");
+  const outPath = path9.join(projectRoot, "krnl-magnetic.d.ts");
   fs8.writeFileSync(outPath, dtsContent);
   console.log(`[Krnl Watch] Updated ambient declarations: ${outPath}`);
 }
@@ -1087,12 +1022,12 @@ function scanLibFiles(dir, projectRoot, decls) {
   if (!fs8.existsSync(dir)) return;
   for (const entry of fs8.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
-    const full = path10.join(dir, entry.name);
+    const full = path9.join(dir, entry.name);
     if (entry.isDirectory()) {
       scanLibFiles(full, projectRoot, decls);
     } else if ((entry.name.endsWith(".ts") || entry.name.endsWith(".js")) && !entry.name.endsWith(".d.ts")) {
-      const baseName = path10.basename(entry.name, path10.extname(entry.name));
-      const importPath = `./${path10.relative(projectRoot, full).replace(/\\/g, "/")}`;
+      const baseName = path9.basename(entry.name, path9.extname(entry.name));
+      const importPath = `./${path9.relative(projectRoot, full).replace(/\\/g, "/")}`;
       const { named, hasDefault } = parseExports(full, baseName);
       if (hasDefault) decls.push(`  const ${baseName}: typeof import('${importPath}')['default'];`);
       for (const n of named) decls.push(`  const ${n}: typeof import('${importPath}')['${n}'];`);
@@ -1105,11 +1040,11 @@ function scanDirectory(dir, results = [], libDirs = []) {
   for (const entry of list) {
     if (entry.isDirectory()) {
       if (entry.name === "node_modules" || entry.name === "dist" || entry.name === ".git") continue;
-      const fullPath = path10.join(dir, entry.name);
+      const fullPath = path9.join(dir, entry.name);
       if (entry.name === "functionalities") {
         const funcs = fs8.readdirSync(fullPath, { withFileTypes: true });
         for (const f of funcs) {
-          if (f.isDirectory()) results.push({ funcPath: path10.join(fullPath, f.name), funcName: f.name });
+          if (f.isDirectory()) results.push({ funcPath: path9.join(fullPath, f.name), funcName: f.name });
         }
       } else if (entry.name === "libraries" || entry.name === "library") {
         libDirs.push(fullPath);
@@ -1136,15 +1071,16 @@ function parseExports(filePath, defaultName) {
 }
 
 // src/commands/build.ts
-var path11 = __toESM(require("path"), 1);
+var path10 = __toESM(require("path"), 1);
 var fs9 = __toESM(require("fs"), 1);
 var import_child_process = require("child_process");
 async function runBuild(projectRoot = process.cwd(), options = {}) {
   KrnlPackageReconciler.reconcile(projectRoot, true);
-  if (options.entity) {
-    console.log(`\u{1F3D7}\uFE0F  [Krnl Build] Target entity variant: "${options.entity}"`);
+  const target = options.service || options.orchestration;
+  if (target) {
+    console.log(`\u{1F3D7}\uFE0F  [Krnl Build] Target service/orchestration variant: "${target}"`);
   } else if (options.all) {
-    console.log(`\u{1F3D7}\uFE0F  [Krnl Build] Combined multi-entity build`);
+    console.log(`\u{1F3D7}\uFE0F  [Krnl Build] Combined multi-service build`);
   }
   console.log("\u{1F50D} [Krnl Build] Running AST & layer purity validation...");
   const valid = await runValidate(projectRoot);
@@ -1153,10 +1089,10 @@ async function runBuild(projectRoot = process.cwd(), options = {}) {
     return { success: false, error: "Validation failed" };
   }
   generateMagneticDeclarations(projectRoot);
-  const tsConfigPath = path11.join(projectRoot, "tsconfig.json");
+  const tsConfigPath = path10.join(projectRoot, "tsconfig.json");
   if (fs9.existsSync(tsConfigPath)) {
     console.log("\u{1F3D7}\uFE0F  [Krnl Build] Compiling TypeScript source files to dist/...");
-    const localTsc = path11.join(projectRoot, "node_modules", ".bin", "tsc");
+    const localTsc = path10.join(projectRoot, "node_modules", ".bin", "tsc");
     const tscCmd = fs9.existsSync(localTsc) ? localTsc : "tsc";
     try {
       (0, import_child_process.execSync)(`${tscCmd} -p tsconfig.json`, { cwd: projectRoot, stdio: "inherit" });
@@ -1173,7 +1109,7 @@ async function runBuild(projectRoot = process.cwd(), options = {}) {
 
 // src/commands/dev.ts
 var http = __toESM(require("http"), 1);
-var path12 = __toESM(require("path"), 1);
+var path11 = __toESM(require("path"), 1);
 var fs10 = __toESM(require("fs"), 1);
 async function runDev(projectRoot = process.cwd(), options = {}) {
   const port = options.port ?? 8080;
@@ -1196,7 +1132,7 @@ async function runDev(projectRoot = process.cwd(), options = {}) {
       return;
     }
     if (url.pathname === "/manifest") {
-      const pkgPath = path12.join(projectRoot, "package.json");
+      const pkgPath = path11.join(projectRoot, "package.json");
       const pkg = fs10.existsSync(pkgPath) ? JSON.parse(fs10.readFileSync(pkgPath, "utf8")) : {};
       res.writeHead(200);
       res.end(JSON.stringify({ name: pkg.name || "krnl-app", version: pkg.version || "1.0.0" }));
@@ -1237,7 +1173,7 @@ var command = args[0] || "help";
 async function main() {
   switch (command) {
     case "sync": {
-      const targetDir = args[1] && !args[1].startsWith("-") ? path13.resolve(process.cwd(), args[1]) : process.cwd();
+      const targetDir = args[1] && !args[1].startsWith("-") ? path12.resolve(process.cwd(), args[1]) : process.cwd();
       console.log("\u{1F4E6} [Krnl Sync] Reconciling package.json from all manifest.json files...");
       const res = KrnlPackageReconciler.reconcile(targetDir, true);
       console.log(`\u2705 Reconciled dependencies from ${res.totalManifests} manifest.json file(s).`);
@@ -1247,7 +1183,7 @@ async function main() {
       break;
     }
     case "validate": {
-      const targetDir = args[1] && !args[1].startsWith("-") ? path13.resolve(process.cwd(), args[1]) : process.cwd();
+      const targetDir = args[1] && !args[1].startsWith("-") ? path12.resolve(process.cwd(), args[1]) : process.cwd();
       const valid = await runValidate(targetDir);
       process.exit(valid ? 0 : 1);
       break;
@@ -1281,23 +1217,23 @@ async function main() {
       break;
     }
     case "build": {
-      const targetDir = args[1] && !args[1].startsWith("-") ? path13.resolve(process.cwd(), args[1]) : process.cwd();
-      const entityArgIdx = args.indexOf("--entity");
-      const targetEntity = entityArgIdx !== -1 ? args[entityArgIdx + 1] : void 0;
+      const targetDir = args[1] && !args[1].startsWith("-") ? path12.resolve(process.cwd(), args[1]) : process.cwd();
+      const serviceArgIdx = args.indexOf("--service") !== -1 ? args.indexOf("--service") : args.indexOf("--orchestration");
+      const targetService = serviceArgIdx !== -1 ? args[serviceArgIdx + 1] : void 0;
       const isAll = args.includes("--all");
-      const res = await runBuild(targetDir, { entity: targetEntity, all: isAll });
+      const res = await runBuild(targetDir, { service: targetService, orchestration: targetService, all: isAll });
       process.exit(res.success ? 0 : 1);
       break;
     }
     case "dev": {
-      const targetDir = args[1] && !args[1].startsWith("-") ? path13.resolve(process.cwd(), args[1]) : process.cwd();
+      const targetDir = args[1] && !args[1].startsWith("-") ? path12.resolve(process.cwd(), args[1]) : process.cwd();
       const portArgIdx = args.indexOf("--port");
       const port = portArgIdx !== -1 ? parseInt(args[portArgIdx + 1], 10) : 8080;
-      const entityArgIdx = args.indexOf("--entity");
-      const targetEntity = entityArgIdx !== -1 ? args[entityArgIdx + 1] : void 0;
+      const serviceArgIdx = args.indexOf("--service") !== -1 ? args.indexOf("--service") : args.indexOf("--orchestration");
+      const targetService = serviceArgIdx !== -1 ? args[serviceArgIdx + 1] : void 0;
       const isAll = args.includes("--all");
       const dryRun = args.includes("--dry-run") || args.includes("--once");
-      const devInstance = await runDev(targetDir, { port, entity: targetEntity, all: isAll, dryRun });
+      const devInstance = await runDev(targetDir, { port, service: targetService, orchestration: targetService, all: isAll, dryRun });
       if (dryRun) {
         process.exit(0);
       }
@@ -1326,15 +1262,15 @@ Commands:
   validate          Run deep AST & 4-layer function purity validation
   sync              Reconcile package.json from all co-located manifest.json files
   watch             Generate ambient TypeScript declarations (krnl-magnetic.d.ts)
-  generate          Scaffold entities, functionalities, libraries
+  generate          Scaffold orchestrations, functionalities, libraries
                     Examples:
-                      krnl generate entity UserSystem
-                      krnl generate functionality CreateProfile
+                      krnl generate orchestration Payment
+                      krnl generate functionality ProcessPayment
                       krnl generate library Math
 
 Options:
-  --entity <name>   Target a specific entity app variant to run or build
-  --all             Run or build all entities as a combined multi-entity build
+  --service <name>  Target a specific service variant to run or build
+  --all             Run or build all services as a combined build
   --port <number>   Specify port for Krnl service dev server (default: 8080)
   --dry-run, --once Verify environment without running persistent server
   --watch, -w       Enable continuous file watcher (for watch command)

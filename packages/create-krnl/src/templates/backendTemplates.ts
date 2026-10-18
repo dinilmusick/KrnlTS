@@ -3,12 +3,13 @@ import * as path from 'path';
 
 export function scaffoldBackend(targetDir: string): void {
   const bLibDir = path.join(targetDir, 'krnl', 'backend', 'libraries', 'AppConcepts');
-  const bEntityDir = path.join(targetDir, 'krnl', 'backend', 'entities', 'App');
+  const bOrchDir = path.join(targetDir, 'krnl', 'backend', 'orchestrations', 'App');
+  const bServiceDir = path.join(targetDir, 'krnl', 'backend', 'services', 'App');
   const bFuncDir = path.join(targetDir, 'krnl', 'backend', 'functionalities', 'Hello');
 
   fs.mkdirSync(path.join(bLibDir, 'tests'), { recursive: true });
-  fs.mkdirSync(path.join(bEntityDir, 'orchestrations'), { recursive: true });
-  fs.mkdirSync(path.join(bEntityDir, 'tests'), { recursive: true });
+  fs.mkdirSync(path.join(bOrchDir, 'tests'), { recursive: true });
+  fs.mkdirSync(path.join(bServiceDir, 'tests'), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, 'main_function'), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, 'state_data'), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, 'helper_functions'), { recursive: true });
@@ -33,18 +34,60 @@ export function scaffoldBackend(targetDir: string): void {
     `import { describe, it, expect } from "vitest";\nimport { pureTransform } from "../functions.js";\ndescribe("AppConcepts", () => { it("transforms data", () => { expect(pureTransform(42)).toBe(42); }); });\n`
   );
 
-  // App Entity
+  // App Orchestration
   fs.writeFileSync(
-    path.join(bEntityDir, 'App.ts'),
-    `import { Entity, KrnlMagneticLoader } from "@ultrst-armada/krnl-core";\nexport class App extends Entity {\n  constructor() { super({ id: "App", version: "1.0.0", description: "Root application entity" }); }\n  async boot(): Promise<void> { await KrnlMagneticLoader.loadAll(this, import.meta.url); }\n}\nexport default App;\n`
+    path.join(bOrchDir, 'AppOrchestration.ts'),
+    `import { Orchestration } from "@ultrst-armada/krnl-core";
+
+/**
+ * @role orchestration
+ * Declarative Orchestration flow for App.
+ */
+export class AppOrchestration extends Orchestration {
+  constructor() {
+    super({
+      id: "AppOrchestration",
+      name: "App",
+      version: "1.0.0",
+      description: "Root application orchestration flow",
+    });
+
+    this.flow("default")
+      .thenFunctionality("Hello")
+      .register({ visibility: "public" });
+  }
+}
+
+export default AppOrchestration;
+`
   );
   fs.writeFileSync(
-    path.join(bEntityDir, 'orchestrations', 'BootFlow.ts'),
-    `export function configureBootFlow(entity: any) {\n  return entity.flow("bootSequence").thenFunctionality("Hello").register({ visibility: "public" });\n}\n`
+    path.join(bOrchDir, 'tests', 'AppOrchestration.test.ts'),
+    `import { describe, it, expect } from "vitest";\nimport { AppOrchestration } from "../AppOrchestration.js";\ndescribe("AppOrchestration", () => { it("initializes flow correctly", () => { expect(new AppOrchestration().id).toBe("AppOrchestration"); }); });\n`
+  );
+
+  // App ServiceFacade
+  fs.writeFileSync(
+    path.join(bServiceDir, 'AppServiceFacade.ts'),
+    `import { ServiceFacade } from "@ultrst-armada/krnl-core";
+import { AppOrchestration } from "../../orchestrations/App/AppOrchestration.js";
+
+export const AppServiceFacade = new ServiceFacade({
+  id: "app.service",
+  name: "AppService",
+  version: "1.0.0",
+  description: "Primary application service facade",
+  orchestrations: {
+    App: new AppOrchestration(),
+  },
+});
+
+export default AppServiceFacade;
+`
   );
   fs.writeFileSync(
-    path.join(bEntityDir, 'tests', 'App.test.ts'),
-    `import { describe, it, expect } from "vitest";\nimport { App } from "../App.js";\ndescribe("App Entity", () => { it("initializes with id App", () => { expect(new App().id).toBe("App"); }); });\n`
+    path.join(bServiceDir, 'tests', 'AppServiceFacade.test.ts'),
+    `import { describe, it, expect } from "vitest";\nimport { AppServiceFacade } from "../AppServiceFacade.js";\ndescribe("AppServiceFacade", () => { it("exposes orchestrations correctly", () => { expect(AppServiceFacade.id).toBe("app.service"); expect(AppServiceFacade.orchestrations.App).toBeDefined(); }); });\n`
   );
 
   // Hello Functionality

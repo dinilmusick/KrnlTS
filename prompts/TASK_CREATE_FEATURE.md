@@ -1,9 +1,9 @@
 # TASK: CREATE_FEATURE_PROTOCOL (KRNL_FUNCTIONALITY)
-$GOAL := \text{CreateAtomicFeature}(F) \implies \text{krnlLocalFunctionality}(F) \in \text{Entity}(E)
+$GOAL := \text{CreateAtomicFeature}(F) \implies \text{Functionality}(F) \in \text{Service}(S)
 
 ## 1. ATOMIC COMPOSITION, NAMING & TOPOLOGY
 $\forall \text{Feature } f$:
-- File Location: `entities/{LongDescriptiveEntityName}/functionalities/{LongDescriptiveFeatureName}Functionality.ts`
+- File Location: `krnl/backend/functionalities/{LongDescriptiveFeatureName}/`
 - Naming Convention: Always use long, descriptive, unambiguous names for files, functions, types, and variables (zero cryptic abbreviations).
 - Line Count Constraint: $| \text{Lines}(f) | \le 150$. (If $>150 \implies \text{split into } L_0/L_1 \text{ helpers}$).
 - Rule: $\text{Functionality} = \langle \text{DocblockWithFlowchart}, \text{Logic}, \text{State}, \text{Schema}, \text{Emitters}, \text{Helpers}, \text{Table}, \text{Tests} \rangle$.
@@ -107,7 +107,7 @@ function normalizeUserActivityPayload(input: UserActivityInput) {
  *                        [L3: Emit Reactive Event & Return Result]
  *
  * Example Usage:
- *   const result = await entity.call("track_user_activity_metrics", {
+ *   const result = await serviceFacade.call("track_user_activity_metrics", {
  *     userId: "usr_1001",
  *     activityType: "LOGIN"
  *   });
@@ -116,7 +116,7 @@ function normalizeUserActivityPayload(input: UserActivityInput) {
 export const TrackUserActivityMetricsFunctionality = new krnlLocalFunctionality({
   id: "track_user_activity_metrics",
   description: "Records and tracks real-time user activity events in dedicated storage.",
-  visibility: "public", // Bubbles up to host entity interface
+  visibility: "public", // Bubbles up to host service interface
   backend: "sqlite",    // Auto-creates and binds dedicated table "track_user_activity_metrics"
   schema: {
     input: UserActivityInputSchema,

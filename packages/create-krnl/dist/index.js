@@ -64,26 +64,18 @@ function getTsConfig(projectName2) {
   );
 }
 function getAppEntrypoint(projectName2) {
-  return `import { defineApp, Protocols } from "@ultrst-armada/krnl-core";
-import { App } from "./krnl/backend/entities/App/App.js";
+  const safeIdentifier = projectName2.replace(/[^a-zA-Z0-9_$]/g, "_");
+  return `import { AppServiceFacade } from "./krnl/backend/services/App/AppServiceFacade.js";
 
-export default defineApp({
-  name: "${projectName2}",
-  version: "1.0.0",
-  description: "${projectName2} application entrypoint",
-  protocols: [
-    Protocols.HTTP({ port: 8080, prefix: "/api" }),
-    Protocols.WebSocket({ port: 8081 }),
-    Protocols.MCP({ name: "${projectName2}-agent-tools" })
-  ],
-  entities: [
-    App
-  ],
-  frontend: {
-    rootEntity: "App",
-    variant: 0
-  }
-});
+export const services = {
+  app: AppServiceFacade,
+};
+
+export const ${safeIdentifier}Backend = {
+  services,
+};
+
+export default AppServiceFacade;
 `;
 }
 
@@ -92,11 +84,12 @@ import * as fs from "fs";
 import * as path from "path";
 function scaffoldBackend(targetDir2) {
   const bLibDir = path.join(targetDir2, "krnl", "backend", "libraries", "AppConcepts");
-  const bEntityDir = path.join(targetDir2, "krnl", "backend", "entities", "App");
+  const bOrchDir = path.join(targetDir2, "krnl", "backend", "orchestrations", "App");
+  const bServiceDir = path.join(targetDir2, "krnl", "backend", "services", "App");
   const bFuncDir = path.join(targetDir2, "krnl", "backend", "functionalities", "Hello");
   fs.mkdirSync(path.join(bLibDir, "tests"), { recursive: true });
-  fs.mkdirSync(path.join(bEntityDir, "orchestrations"), { recursive: true });
-  fs.mkdirSync(path.join(bEntityDir, "tests"), { recursive: true });
+  fs.mkdirSync(path.join(bOrchDir, "tests"), { recursive: true });
+  fs.mkdirSync(path.join(bServiceDir, "tests"), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, "main_function"), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, "state_data"), { recursive: true });
   fs.mkdirSync(path.join(bFuncDir, "helper_functions"), { recursive: true });
@@ -125,27 +118,61 @@ describe("AppConcepts", () => { it("transforms data", () => { expect(pureTransfo
 `
   );
   fs.writeFileSync(
-    path.join(bEntityDir, "App.ts"),
-    `import { Entity, KrnlMagneticLoader } from "@ultrst-armada/krnl-core";
-export class App extends Entity {
-  constructor() { super({ id: "App", version: "1.0.0", description: "Root application entity" }); }
-  async boot(): Promise<void> { await KrnlMagneticLoader.loadAll(this, import.meta.url); }
+    path.join(bOrchDir, "AppOrchestration.ts"),
+    `import { Orchestration } from "@ultrst-armada/krnl-core";
+
+/**
+ * @role orchestration
+ * Declarative Orchestration flow for App.
+ */
+export class AppOrchestration extends Orchestration {
+  constructor() {
+    super({
+      id: "AppOrchestration",
+      name: "App",
+      version: "1.0.0",
+      description: "Root application orchestration flow",
+    });
+
+    this.flow("default")
+      .thenFunctionality("Hello")
+      .register({ visibility: "public" });
+  }
 }
-export default App;
+
+export default AppOrchestration;
 `
   );
   fs.writeFileSync(
-    path.join(bEntityDir, "orchestrations", "BootFlow.ts"),
-    `export function configureBootFlow(entity: any) {
-  return entity.flow("bootSequence").thenFunctionality("Hello").register({ visibility: "public" });
-}
-`
-  );
-  fs.writeFileSync(
-    path.join(bEntityDir, "tests", "App.test.ts"),
+    path.join(bOrchDir, "tests", "AppOrchestration.test.ts"),
     `import { describe, it, expect } from "vitest";
-import { App } from "../App.js";
-describe("App Entity", () => { it("initializes with id App", () => { expect(new App().id).toBe("App"); }); });
+import { AppOrchestration } from "../AppOrchestration.js";
+describe("AppOrchestration", () => { it("initializes flow correctly", () => { expect(new AppOrchestration().id).toBe("AppOrchestration"); }); });
+`
+  );
+  fs.writeFileSync(
+    path.join(bServiceDir, "AppServiceFacade.ts"),
+    `import { ServiceFacade } from "@ultrst-armada/krnl-core";
+import { AppOrchestration } from "../../orchestrations/App/AppOrchestration.js";
+
+export const AppServiceFacade = new ServiceFacade({
+  id: "app.service",
+  name: "AppService",
+  version: "1.0.0",
+  description: "Primary application service facade",
+  orchestrations: {
+    App: new AppOrchestration(),
+  },
+});
+
+export default AppServiceFacade;
+`
+  );
+  fs.writeFileSync(
+    path.join(bServiceDir, "tests", "AppServiceFacade.test.ts"),
+    `import { describe, it, expect } from "vitest";
+import { AppServiceFacade } from "../AppServiceFacade.js";
+describe("AppServiceFacade", () => { it("exposes orchestrations correctly", () => { expect(AppServiceFacade.id).toBe("app.service"); expect(AppServiceFacade.orchestrations.App).toBeDefined(); }); });
 `
   );
   fs.writeFileSync(
@@ -205,10 +232,10 @@ import * as fs2 from "fs";
 import * as path2 from "path";
 function scaffoldFrontend(targetDir2, projectName2) {
   const fLibDir = path2.join(targetDir2, "krnl", "frontend", "libraries", "ButtonConcepts");
-  const fEntityDir = path2.join(targetDir2, "krnl", "frontend", "entities", "App");
+  const fOrchDir = path2.join(targetDir2, "krnl", "frontend", "orchestrations", "App");
   const fFuncDir = path2.join(targetDir2, "krnl", "frontend", "functionalities", "Hello");
   fs2.mkdirSync(path2.join(fLibDir, "tests"), { recursive: true });
-  fs2.mkdirSync(path2.join(fEntityDir, "tests"), { recursive: true });
+  fs2.mkdirSync(path2.join(fOrchDir, "tests"), { recursive: true });
   fs2.mkdirSync(path2.join(fFuncDir, "tests"), { recursive: true });
   fs2.mkdirSync(path2.join(targetDir2, "docs"), { recursive: true });
   fs2.mkdirSync(path2.join(targetDir2, ".krnl"), { recursive: true });
@@ -245,12 +272,12 @@ describe("Button component", () => { it("defined correctly", () => { expect(true
 `
   );
   fs2.writeFileSync(
-    path2.join(fEntityDir, "App0.tsx"),
+    path2.join(fOrchDir, "App0.tsx"),
     `import React from "react";
 import { Button } from "../../libraries/ButtonConcepts/components.js";
 export const App0: React.FC = () => {
   return (
-    <div className="krnl-entity-app">
+    <div className="krnl-app-view">
       <h1>App View (Variant 0)</h1>
       <Button label="Click Me" onClick={() => alert("Welcome to Krnl!")} />
     </div>
@@ -260,7 +287,7 @@ export default App0;
 `
   );
   fs2.writeFileSync(
-    path2.join(fEntityDir, "tests", "App0.test.tsx"),
+    path2.join(fOrchDir, "tests", "App0.test.tsx"),
     `import { describe, it, expect } from "vitest";
 describe("App0 Component", () => { it("mounts variant 0", () => { expect(true).toBe(true); }); });
 `

@@ -258,68 +258,131 @@ describe('KrnlTS kernel invariants', () => {
     });
   });
 
-  describe('Declarative Entity and Application Layer', () => {
-    it('instantiates and configures declarative entities without procedural loops', async () => {
-      const { Entity, KrnlMagneticLoader } = await import('../entities/Entity.js');
+  describe('Canonical Orchestration and ServiceFacade Architecture', () => {
+    it('instantiates and configures declarative Orchestration flows without application leakage', async () => {
+      const { Orchestration } = await import('../orchestration/Orchestration.js');
 
-      class TestEntity extends Entity {
+      class TestOrchestration extends Orchestration {
         constructor() {
-          super({ id: 'TestEntity', version: '1.2.0', description: 'Test entity actor' });
+          super({ id: 'PaymentOrchestration', name: 'Payment', version: '1.2.0', description: 'Payment orchestration flow' });
         }
       }
 
-      const entity = new TestEntity();
-      expect(entity.id).toBe('TestEntity');
-      expect(entity.version).toBe('1.2.0');
+      const orch = new TestOrchestration();
+      expect(orch.id).toBe('PaymentOrchestration');
+      expect(orch.name).toBe('Payment');
+      expect(orch.version).toBe('1.2.0');
 
-      const flow = entity
-        .flow('mainFlow')
-        .thenFunctionality('Hello')
-        .thenEntityOrchestration('Billing', 'Process')
+      const flow = orch
+        .flow('checkoutFlow')
+        .thenFunctionality('ValidateCart')
+        .thenFunctionality('ChargeCard')
+        .thenOrchestration('NotificationOrchestration', 'sendReceipt')
         .register({ visibility: 'public' });
 
-      expect(flow.steps).toHaveLength(2);
+      expect(flow.name).toBe('checkoutFlow');
+      expect(flow.steps).toHaveLength(3);
+      expect(flow.steps[0]).toEqual({ type: 'functionality', target: 'ValidateCart' });
+      expect(flow.steps[1]).toEqual({ type: 'functionality', target: 'ChargeCard' });
+      expect(flow.steps[2]).toEqual({ type: 'orchestration', target: 'NotificationOrchestration', flow: 'sendReceipt' });
       expect(flow.visibility).toBe('public');
-      expect(entity.getFlow('mainFlow')).toBe(flow);
+      expect(orch.getFlow('checkoutFlow')).toBe(flow);
+      expect(orch.listFlows()).toHaveLength(1);
 
-      entity.addLocal({ id: 'comp-1', uiSpec: { width: 100 } });
-      expect(entity.getLocal('comp-1')?.id).toBe('comp-1');
+      orch.clearFlows();
+      expect(orch.listFlows()).toHaveLength(0);
 
-      const loaded = await KrnlMagneticLoader.loadAll(entity, 'file:///path/to/meta');
-      expect(loaded).toEqual(['TestEntity']);
-
-      await entity.dispose();
-      expect(entity.listFlows()).toHaveLength(0);
+      expect(() => orch.flow('')).toThrow(/Flow name must be a non-empty string/);
+      expect(() => orch.flow('bad').thenFunctionality('')).toThrow(/Functionality name must be a non-empty string/);
+      expect(() => orch.flow('bad').thenOrchestration('')).toThrow(/Orchestration name must be a non-empty string/);
+      expect(() => new Orchestration(null as any)).toThrow(/Valid orchestration descriptor/);
     });
 
-    it('configures defineApp and Protocols correctly', async () => {
-      const { defineApp, Protocols, Entity } = await import('../entities/Entity.js');
+    it('instantiates ServiceFacade as the public semantic boundary and integrates with runtime', async () => {
+      const { ServiceFacade, createServiceFacade } = await import('../services/ServiceFacade.js');
+      const { Orchestration } = await import('../orchestration/Orchestration.js');
 
-      class SubEntity extends Entity {
-        constructor() {
-          super({ id: 'Sub', version: '1.0.0' });
-        }
-      }
+      const orch = new Orchestration({ id: 'AuthOrch', name: 'AuthFlow' });
+      orch.flow('loginFlow').thenFunctionality('VerifyPassword').register();
 
-      const app = defineApp({
-        name: 'sample-app',
+      const facade = createServiceFacade({
+        id: 'auth.service',
+        name: 'AuthService',
         version: '1.0.0',
-        protocols: [
-          Protocols.HTTP({ port: 8080, prefix: '/api' }),
-          Protocols.WebSocket({ port: 8081 }),
-          Protocols.MCP({ name: 'mcp-tool' }),
-        ],
-        entities: [SubEntity],
-        frontend: { rootEntity: 'Sub', variant: 0 },
+        description: 'Authentication Service Facade',
+        functionalities: {
+          VerifyPassword: { execute: vi.fn() },
+        },
+        orchestrations: {
+          AuthOrch: orch,
+        },
+        definition: {
+          id: 'auth.service',
+          name: 'AuthService',
+          version: '1.0.0',
+          state: {
+            initial: { sessionCount: 0 },
+          },
+          operations: {
+            login: {
+              id: 'login',
+              name: 'Login',
+              handler: async (_input, ctx) => {
+                return { success: true, user: 'admin' };
+              },
+            },
+          },
+        },
       });
 
-      expect(app.name).toBe('sample-app');
-      expect(app.protocols).toHaveLength(3);
-      expect(app.protocols![0].protocol).toBe('http');
-      expect(app.protocols![1].protocol).toBe('ws');
-      expect(app.protocols![2].protocol).toBe('mcp');
-      expect(() => defineApp(null as any)).toThrow(/Application definition must be an object/);
-      expect(() => defineApp({ name: '' } as any)).toThrow(/specify a non-empty name/);
+      expect(facade.id).toBe('auth.service');
+      expect(facade.name).toBe('AuthService');
+      expect(facade.functionalities.VerifyPassword).toBeDefined();
+      expect(facade.orchestrations.AuthOrch).toBe(orch);
+      expect(facade.getStatus()).toBe('uninitialized');
+
+      // Test runtime lifecycle through facade
+      await facade.start();
+      expect(facade.getStatus()).toBe('running');
+
+      // State access through facade
+      expect(facade.getState()).toEqual({ sessionCount: 0 });
+      facade.setState({ sessionCount: 1 });
+      expect(facade.getState()).toEqual({ sessionCount: 1 });
+
+      // Event pub/sub through facade
+      const eventSpy = vi.fn();
+      const unsub = facade.on('user:login' as any, eventSpy);
+      facade.emit('user:login' as any, { userId: 'u1' });
+      expect(eventSpy).toHaveBeenCalledWith({ userId: 'u1' });
+      unsub();
+
+      // Operation invocation through facade
+      const res = await facade.call('login', {});
+      expect(res).toEqual({ success: true, user: 'admin' });
+
+      // Dynamic registration
+      facade.registerFunctionality('RefreshToken', { execute: vi.fn() });
+      expect(facade.functionalities.RefreshToken).toBeDefined();
+
+      const secondOrch = new Orchestration({ id: 'SessionOrch' });
+      facade.registerOrchestration('SessionOrch', secondOrch);
+      expect(facade.orchestrations.SessionOrch).toBe(secondOrch);
+
+      await facade.stop();
+      expect(facade.getStatus()).toBe('stopped');
+      await facade.dispose();
+    });
+
+    it('proves old Entity and application concepts are no longer the canonical API', async () => {
+      const coreExports = await import('../index.js');
+      expect((coreExports as any).Entity).toBeUndefined();
+      expect((coreExports as any).defineApp).toBeUndefined();
+      expect((coreExports as any).Protocols).toBeUndefined();
+      expect((coreExports as any).KrnlMagneticLoader).toBeUndefined();
+      expect(coreExports.Orchestration).toBeDefined();
+      expect(coreExports.ServiceFacade).toBeDefined();
+      expect(coreExports.createServiceFacade).toBeDefined();
     });
   });
 });
