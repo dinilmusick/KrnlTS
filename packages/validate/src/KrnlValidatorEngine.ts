@@ -6,6 +6,7 @@ import { checkFileLimits, FileLimitOptions } from './rules/fileLimits.js';
 import { checkComponentRules } from './rules/componentRules.js';
 import { checkOrchestrationRules } from './rules/orchestrationRules.js';
 import { checkTopLevelPurity, checkWorkspaceLayout } from './rules/workspaceRules.js';
+import { checkServiceBoundaries } from './rules/serviceBoundaryRules.js';
 
 export interface KrnlValidatorOptions {
   projectRoot: string;
@@ -71,10 +72,23 @@ export class KrnlValidatorEngine {
     const purity = checkTopLevelPurity(sf);
     const components = checkComponentRules(sf);
     const orchestration = checkOrchestrationRules(sf);
+    const boundaries = checkServiceBoundaries(sf);
 
     return {
-      errors: [...limits.errors, ...purity.errors, ...components.errors, ...orchestration.errors],
-      warnings: [...limits.warnings, ...purity.warnings, ...components.warnings, ...orchestration.warnings],
+      errors: [
+        ...limits.errors,
+        ...purity.errors,
+        ...components.errors,
+        ...orchestration.errors,
+        ...boundaries.errors,
+      ],
+      warnings: [
+        ...limits.warnings,
+        ...purity.warnings,
+        ...components.warnings,
+        ...orchestration.warnings,
+        ...boundaries.warnings,
+      ],
     };
   }
 

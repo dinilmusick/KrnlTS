@@ -105,10 +105,13 @@ export class KrnlPackageReconciler {
    */
   static findManifests(projectRoot: string): string[] {
     const searchDirs = [
+      path.join(projectRoot, 'krnl', 'backend', 'services'),
       path.join(projectRoot, 'krnl', 'backend', 'libraries'),
       path.join(projectRoot, 'krnl', 'backend', 'functionalities'),
       path.join(projectRoot, 'krnl', 'frontend', 'libraries'),
       path.join(projectRoot, 'krnl', 'frontend', 'functionalities'),
+      path.join(projectRoot, 'src', 'backend', 'services'),
+      path.join(projectRoot, 'src', 'services'),
       path.join(projectRoot, 'src', 'functionalities'),
       path.join(projectRoot, 'src', 'libraries'),
     ];

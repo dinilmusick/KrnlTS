@@ -1401,6 +1401,9 @@ var TimeoutError = class extends DOMException {
   }
 };
 
+// src/orchestration/canonical/KrnlQ.ts
+import { randomUUID } from "crypto";
+
 // src/orchestration/canonical/model.ts
 function validateOrchestrationDAG(steps) {
   const errors = [];
@@ -1601,6 +1604,13 @@ var KrnlWorkerPool = class {
 };
 
 // src/orchestration/canonical/KrnlQ.ts
+function generateSecureId(prefix) {
+  try {
+    return `${prefix}_${randomUUID()}`;
+  } catch {
+    return `${prefix}_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+  }
+}
 var KrnlQueue = class {
   queueName;
   queue;
@@ -1608,8 +1618,10 @@ var KrnlQueue = class {
   jobs = /* @__PURE__ */ new Map();
   idempotencyStore = /* @__PURE__ */ new Map();
   activeOrchestrations = /* @__PURE__ */ new Map();
+  maxRetainedJobs;
   constructor(options = {}) {
     this.queueName = options.queueName ?? "krnl_default_queue";
+    this.maxRetainedJobs = options.maxRetainedJobs ?? 1e3;
     const concurrency = options.concurrency ?? 10;
     this.queue = new PQueue({
       concurrency,
@@ -1647,6 +1659,28 @@ var KrnlQueue = class {
   }
   clear() {
     this.queue.clear();
+    for (const job of this.jobs.values()) {
+      if (job.status === "waiting") {
+        job.status = "cancelled";
+        job.completedAt = Date.now();
+        job.abortController.abort();
+        const cancelErr = new Error("The operation was aborted");
+        cancelErr.name = "AbortError";
+        job.rejectPromise(cancelErr);
+      }
+    }
+  }
+  pruneJobs() {
+    if (this.jobs.size <= this.maxRetainedJobs) return;
+    const excess = this.jobs.size - this.maxRetainedJobs;
+    let pruned = 0;
+    for (const [id, record] of this.jobs.entries()) {
+      if (record.status === "completed" || record.status === "failed" || record.status === "cancelled") {
+        this.jobs.delete(id);
+        pruned++;
+        if (pruned >= excess) break;
+      }
+    }
   }
   async drain() {
     await this.queue.onIdle();
@@ -1680,7 +1714,8 @@ var KrnlQueue = class {
    * Enqueues a job returning a strong handle.
    */
   enqueue(jobDef) {
-    const jobId = jobDef.id || `job_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+    this.pruneJobs();
+    const jobId = jobDef.id || generateSecureId("job");
     const abortController = new AbortController();
     if (jobDef.options?.abortSignal) {
       if (jobDef.options.abortSignal.aborted) {
@@ -1874,11 +1909,12 @@ var KrnlQueue = class {
   }
   /**
    * Executes a full Canonical Orchestration DAG through KrnlQ and worker boundary.
+   * This is a first-class queued job scheduled via this.enqueue() to respect concurrency and worker limits.
    */
   async executeOrchestration(descriptor, steps, input, options = {}) {
     const startedAt = Date.now();
-    const correlationId = options.correlationId || `corr_${Math.random().toString(36).substring(2, 11)}`;
-    const executionId = `exec_${Math.random().toString(36).substring(2, 11)}`;
+    const correlationId = options.correlationId || generateSecureId("corr");
+    const executionId = generateSecureId("exec");
     if (options.idempotencyKey && this.idempotencyStore.has(options.idempotencyKey)) {
       const cached = this.idempotencyStore.get(options.idempotencyKey);
       return cached.data;
@@ -1921,109 +1957,127 @@ var KrnlQueue = class {
       context.isCancelled = true;
     });
     this.activeOrchestrations.set(executionId, { abortController, context });
-    const timeoutMs = options.timeoutMs || descriptor.timeoutMs;
-    let timeoutTimer;
-    let isWorkflowTimeout = false;
-    if (timeoutMs && timeoutMs > 0) {
-      timeoutTimer = setTimeout(() => {
-        isWorkflowTimeout = true;
-        context.isCancelled = true;
-        abortController.abort();
-      }, timeoutMs);
-    }
-    const stepResults = {};
-    const executedSteps = /* @__PURE__ */ new Set();
-    const executedComps = [];
-    let finalOutput = void 0;
-    let orchestrationStatus = "COMPLETED";
-    let errorMessage;
-    try {
-      while (executedSteps.size < steps.length) {
-        if (context.isCancelled) {
-          orchestrationStatus = "CANCELLED";
-          errorMessage = "Orchestration execution cancelled.";
-          break;
-        }
-        const readySteps = steps.filter((step) => {
-          if (executedSteps.has(step.id)) return false;
-          if (!step.dependsOn || step.dependsOn.length === 0) return true;
-          return step.dependsOn.every((dep) => executedSteps.has(dep));
-        });
-        if (readySteps.length === 0) {
-          break;
-        }
-        const batch = readySteps.slice(0, this.concurrency);
-        const batchPromises = batch.map(async (step) => {
-          const stepRes = await this.executeSingleStep(step, context, options.nestedRunner);
-          stepResults[step.id] = stepRes;
-          executedSteps.add(step.id);
-          if (stepRes.status === "COMPLETED") {
-            context.results[step.id] = stepRes.output;
-            finalOutput = stepRes.output;
-            if (step.compensation?.handler) {
-              executedComps.push(() => step.compensation.handler(context));
-            }
-          } else if (stepRes.status === "SKIPPED") {
-          } else if (stepRes.status === "CANCELLED") {
-            const cancelErr = new Error("The operation was aborted");
-            cancelErr.name = "AbortError";
-            throw cancelErr;
-          } else {
-            throw new Error(stepRes.error || `Step "${step.id}" failed with status ${stepRes.status}`);
-          }
-        });
-        await Promise.all(batchPromises);
-      }
-    } catch (err) {
-      const wasCancelled = context.isCancelled || abortController.signal.aborted || err?.name === "AbortError";
-      if (isWorkflowTimeout) {
-        orchestrationStatus = "TIMED_OUT";
-        errorMessage = `Orchestration timed out after ${timeoutMs}ms.`;
-      } else if (wasCancelled) {
-        orchestrationStatus = "CANCELLED";
-        errorMessage = "The operation was aborted";
-      } else {
-        orchestrationStatus = "FAILED";
-        errorMessage = err?.message || String(err);
-      }
-      if (executedComps.length > 0) {
-        for (let i = executedComps.length - 1; i >= 0; i--) {
-          try {
-            await executedComps[i]();
-          } catch (compErr) {
-            console.error(`[KrnlQ] Compensation failed:`, compErr);
-          }
-        }
-      }
-    } finally {
-      if (timeoutTimer) clearTimeout(timeoutTimer);
-      this.activeOrchestrations.delete(executionId);
-    }
-    const result = {
-      orchestrationId: descriptor.id,
-      correlationId,
-      status: orchestrationStatus,
-      output: finalOutput,
-      stepResults,
-      error: errorMessage,
-      startedAt,
-      completedAt: Date.now(),
-      executionMetadata: {
-        executionId,
-        scope: descriptor.scope,
-        stepsCount: steps.length,
-        executedCount: executedSteps.size
-      }
-    };
-    if (options.idempotencyKey) {
-      this.idempotencyStore.set(options.idempotencyKey, {
+    const handle = this.enqueue({
+      id: executionId,
+      name: descriptor.name || descriptor.id,
+      payload: input,
+      options: {
+        idempotencyKey: options.idempotencyKey,
         correlationId,
-        status: orchestrationStatus === "COMPLETED" ? "COMPLETED" : "FAILED",
-        data: result,
-        executionTimestamp: Date.now()
-      });
-    }
-    return result;
+        metadata: options.metadata,
+        abortSignal: abortController.signal
+      },
+      handler: async () => {
+        const timeoutMs = options.timeoutMs || descriptor.timeoutMs;
+        let timeoutTimer;
+        let isWorkflowTimeout = false;
+        if (timeoutMs && timeoutMs > 0) {
+          timeoutTimer = setTimeout(() => {
+            isWorkflowTimeout = true;
+            context.isCancelled = true;
+            abortController.abort();
+          }, timeoutMs);
+        }
+        const stepResults = {};
+        const executedSteps = /* @__PURE__ */ new Set();
+        const executedComps = [];
+        let finalOutput = void 0;
+        let orchestrationStatus = "COMPLETED";
+        let errorMessage;
+        try {
+          while (executedSteps.size < steps.length) {
+            if (context.isCancelled) {
+              orchestrationStatus = "CANCELLED";
+              errorMessage = "Orchestration execution cancelled.";
+              break;
+            }
+            const readySteps = steps.filter((step) => {
+              if (executedSteps.has(step.id)) return false;
+              if (!step.dependsOn || step.dependsOn.length === 0) return true;
+              return step.dependsOn.every((dep) => executedSteps.has(dep));
+            });
+            if (readySteps.length === 0) {
+              break;
+            }
+            const batch = readySteps.slice(0, this.concurrency);
+            const batchPromises = batch.map(async (step) => {
+              const stepRes = await this.executeSingleStep(step, context, options.nestedRunner);
+              stepResults[step.id] = stepRes;
+              executedSteps.add(step.id);
+              if (stepRes.status === "COMPLETED") {
+                context.results[step.id] = stepRes.output;
+                finalOutput = stepRes.output;
+                if (step.compensation?.handler) {
+                  executedComps.push(() => step.compensation.handler(context));
+                }
+              } else if (stepRes.status === "SKIPPED") {
+              } else if (stepRes.status === "CANCELLED") {
+                const cancelErr = new Error("The operation was aborted");
+                cancelErr.name = "AbortError";
+                throw cancelErr;
+              } else {
+                throw new Error(stepRes.error || `Step "${step.id}" failed with status ${stepRes.status}`);
+              }
+            });
+            await Promise.all(batchPromises);
+          }
+        } catch (err) {
+          const isExplicitStepFailure = err && err.name !== "AbortError" && err.message !== "The operation was aborted";
+          const wasCancelled = (context.isCancelled || abortController.signal.aborted || err?.name === "AbortError") && !isExplicitStepFailure;
+          if (isWorkflowTimeout) {
+            orchestrationStatus = "TIMED_OUT";
+            errorMessage = `Orchestration timed out after ${timeoutMs}ms.`;
+          } else if (isExplicitStepFailure) {
+            orchestrationStatus = "FAILED";
+            errorMessage = err?.message || String(err);
+          } else if (wasCancelled) {
+            orchestrationStatus = "CANCELLED";
+            errorMessage = "The operation was aborted";
+          } else {
+            orchestrationStatus = "FAILED";
+            errorMessage = err?.message || String(err);
+          }
+          if (executedComps.length > 0) {
+            for (let i = executedComps.length - 1; i >= 0; i--) {
+              try {
+                await executedComps[i]();
+              } catch (compErr) {
+                console.error(`[KrnlQ] Compensation failed:`, compErr);
+              }
+            }
+          }
+        } finally {
+          if (timeoutTimer) clearTimeout(timeoutTimer);
+          this.activeOrchestrations.delete(executionId);
+        }
+        const result = {
+          orchestrationId: descriptor.id,
+          correlationId,
+          status: orchestrationStatus,
+          output: finalOutput,
+          stepResults,
+          error: errorMessage,
+          startedAt,
+          completedAt: Date.now(),
+          executionMetadata: {
+            executionId,
+            scope: descriptor.scope,
+            stepsCount: steps.length,
+            executedCount: executedSteps.size
+          }
+        };
+        if (options.idempotencyKey) {
+          this.idempotencyStore.set(options.idempotencyKey, {
+            correlationId,
+            status: orchestrationStatus === "COMPLETED" ? "COMPLETED" : "FAILED",
+            data: result,
+            executionTimestamp: Date.now()
+          });
+        }
+        return result;
+      }
+    });
+    return await handle.result();
   }
   async executeSingleStep(step, context, nestedRunner) {
     const stepStart = Date.now();
@@ -2066,6 +2120,18 @@ var KrnlQueue = class {
         };
       }
       attempts++;
+      const stepAbortController = new AbortController();
+      if (context.abortSignal) {
+        if (context.abortSignal.aborted) {
+          stepAbortController.abort();
+        } else {
+          context.abortSignal.addEventListener("abort", () => stepAbortController.abort(), { once: true });
+        }
+      }
+      const stepContext = {
+        ...context,
+        abortSignal: stepAbortController.signal
+      };
       try {
         let stepOutput;
         let stepTimer;
@@ -2073,38 +2139,38 @@ var KrnlQueue = class {
         const runPromise = (async () => {
           if (step.type === "nested" && step.nestedOrchestrationId && nestedRunner) {
             const childContext = {
-              ...context,
+              ...stepContext,
               parentCorrelationId: context.correlationId,
               correlationId: `${context.correlationId}.${step.id}`
             };
             return await nestedRunner(step.nestedOrchestrationId, context.results, childContext);
           }
           if (step.type === "fanOut" && step.getItems) {
-            const items = await step.getItems(context);
+            const items = await step.getItems(stepContext);
             if (!Array.isArray(items)) throw new Error(`[fanOut] getItems must return an array.`);
             const concurrency = step.concurrency || 5;
             const results = [];
             for (let i = 0; i < items.length; i += concurrency) {
               const slice = items.slice(i, i + concurrency);
               const sliceRes = await Promise.all(
-                slice.map((item) => step.handler ? step.handler(item, context) : Promise.resolve(item))
+                slice.map((item) => step.handler ? step.handler(item, stepContext) : Promise.resolve(item))
               );
               results.push(...sliceRes);
             }
             return results;
           }
           if (step.handler) {
-            return await step.handler(context.results, context);
+            return await step.handler(context.results, stepContext);
           }
           return context.results;
         })();
         const abortPromise = new Promise((_, reject) => {
-          if (context.isCancelled || context.abortSignal?.aborted) {
+          if (stepAbortController.signal.aborted || context.isCancelled) {
             const err = new Error("The operation was aborted");
             err.name = "AbortError";
             reject(err);
           }
-          context.abortSignal?.addEventListener("abort", () => {
+          stepAbortController.signal.addEventListener("abort", () => {
             const err = new Error("The operation was aborted");
             err.name = "AbortError";
             reject(err);
@@ -2155,7 +2221,7 @@ var KrnlQueue = class {
         lastError = err;
         if (step.catchHandler && attempts >= maxAttempts) {
           try {
-            const recovered = await step.catchHandler(err, context);
+            const recovered = await step.catchHandler(err, stepContext);
             return {
               stepId: step.id,
               status: "COMPLETED",
@@ -2218,6 +2284,7 @@ var ServiceFacade = class {
   description;
   functionalities;
   functionalityOrchestrations;
+  libraries;
   dependencies;
   capabilities;
   instance;
@@ -2232,6 +2299,7 @@ var ServiceFacade = class {
     this.description = config.description || "";
     this.functionalities = config.functionalities ? { ...config.functionalities } : {};
     this.functionalityOrchestrations = config.functionalityOrchestrations ? { ...config.functionalityOrchestrations } : config.orchestrations ? { ...config.orchestrations } : {};
+    this.libraries = config.libraries ? { ...config.libraries } : {};
     this.dependencies = Object.freeze(config.dependencies ? [...config.dependencies] : []);
     this.capabilities = Object.freeze(config.capabilities ? [...config.capabilities] : []);
     if (config.instance) {
@@ -2481,6 +2549,23 @@ var ServiceFacade = class {
   /** @deprecated Use registerFunctionalityOrchestration */
   registerOrchestration(name, orchestration) {
     return this.registerFunctionalityOrchestration(name, orchestration);
+  }
+  registerLibrary(name, library) {
+    if (!name || typeof name !== "string") {
+      throw new Error("[ServiceFacade] Library name must be a non-empty string.");
+    }
+    if (library === void 0 || library === null) {
+      throw new Error(`[ServiceFacade] Library "${name}" must not be null or undefined.`);
+    }
+    this.libraries[name] = library;
+    return this;
+  }
+  getLibrary(name) {
+    const lib = this.libraries[name];
+    if (lib === void 0 || lib === null) {
+      throw new Error(`[ServiceFacade:${this.id}] Library "${name}" not found on service facade.`);
+    }
+    return lib;
   }
 };
 function createServiceFacade(config) {
@@ -3131,10 +3216,13 @@ var KrnlPackageReconciler = class {
    */
   static findManifests(projectRoot) {
     const searchDirs = [
+      path.join(projectRoot, "krnl", "backend", "services"),
       path.join(projectRoot, "krnl", "backend", "libraries"),
       path.join(projectRoot, "krnl", "backend", "functionalities"),
       path.join(projectRoot, "krnl", "frontend", "libraries"),
       path.join(projectRoot, "krnl", "frontend", "functionalities"),
+      path.join(projectRoot, "src", "backend", "services"),
+      path.join(projectRoot, "src", "services"),
       path.join(projectRoot, "src", "functionalities"),
       path.join(projectRoot, "src", "libraries")
     ];
@@ -3363,7 +3451,8 @@ var FunctionalityOrchestration = class {
         dependsOn: s.dependsOn ? [...s.dependsOn] : void 0,
         retryPolicy: s.retryPolicy ? { ...s.retryPolicy } : void 0,
         timeoutPolicy: s.timeoutPolicy ? { ...s.timeoutPolicy } : void 0,
-        compensation: s.compensation ? { name: s.compensation.name, target: s.compensation.target } : void 0,
+        compensationTarget: s.compensation?.target ?? s.compensation?.name,
+        compensationOperation: s.compensation?.operation ?? s.compensation?.name,
         nestedOrchestrationId: s.nestedOrchestrationId,
         concurrency: s.concurrency
       }))

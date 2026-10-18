@@ -559,6 +559,7 @@ interface KrnlQueueOptions {
     queueName?: string;
     concurrency?: number;
     autoStart?: boolean;
+    maxRetainedJobs?: number;
 }
 interface InternalJobRecord<TOutput = unknown> {
     id: string;
@@ -581,6 +582,7 @@ declare class KrnlQueue {
     private readonly jobs;
     private readonly idempotencyStore;
     private readonly activeOrchestrations;
+    private readonly maxRetainedJobs;
     constructor(options?: KrnlQueueOptions);
     get concurrency(): number;
     set concurrency(value: number);
@@ -592,6 +594,7 @@ declare class KrnlQueue {
     pause(): void;
     resume(): void;
     clear(): void;
+    private pruneJobs;
     drain(): Promise<void>;
     shutdown(options?: {
         drain?: boolean;
@@ -612,6 +615,7 @@ declare class KrnlQueue {
     executeCommand<TIn = unknown, TOut = unknown>(command: BackendCommand<TIn>, handler: (payload: TIn, context: ExecutionContext) => Promise<TOut>): Promise<NormalizedResult<TOut>>;
     /**
      * Executes a full Canonical Orchestration DAG through KrnlQ and worker boundary.
+     * This is a first-class queued job scheduled via this.enqueue() to respect concurrency and worker limits.
      */
     executeOrchestration<TInput = unknown, TOutput = unknown>(descriptor: OrchestrationDescriptor, steps: readonly OrchestrationStep[], input: TInput, options?: {
         correlationId?: string;
@@ -635,7 +639,7 @@ declare class KrnlQueue {
  * All external invocations strictly route through KrnlQ and worker execution boundary.
  */
 
-interface ServiceFacadeConfig<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>> {
+interface ServiceFacadeConfig<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>, TLibraries extends Record<string, unknown> = Record<string, unknown>> {
     id: string;
     name?: string;
     version?: string;
@@ -644,6 +648,7 @@ interface ServiceFacadeConfig<TState extends Record<string, unknown> = Record<st
     functionalityOrchestrations?: Record<string, FunctionalityOrchestration>;
     /** @deprecated Use functionalityOrchestrations */
     orchestrations?: Record<string, FunctionalityOrchestration>;
+    libraries?: TLibraries;
     definition?: ServiceDefinition<TState, TEvents>;
     instance?: IService<TState, TEvents>;
     dependencies?: DependencyContract[];
@@ -651,19 +656,20 @@ interface ServiceFacadeConfig<TState extends Record<string, unknown> = Record<st
     queueOptions?: KrnlQueueOptions;
     concurrency?: number;
 }
-type IServiceFacade = ServiceFacade;
-declare class ServiceFacade<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>> {
+type IServiceFacade = ServiceFacade<any, any, any>;
+declare class ServiceFacade<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>, TLibraries extends Record<string, unknown> = Record<string, unknown>> {
     readonly id: string;
     readonly name: string;
     readonly version: string;
     readonly description: string;
     readonly functionalities: Record<string, unknown>;
     readonly functionalityOrchestrations: Record<string, FunctionalityOrchestration>;
+    readonly libraries: TLibraries;
     readonly dependencies: readonly DependencyContract[];
     readonly capabilities: readonly ServiceCapability[];
     private readonly instance;
     private readonly queue;
-    constructor(config: ServiceFacadeConfig<TState, TEvents>);
+    constructor(config: ServiceFacadeConfig<TState, TEvents, TLibraries>);
     get orchestrations(): Record<string, FunctionalityOrchestration>;
     getInstance(): IService<TState, TEvents>;
     getQueue(): KrnlQueue;
@@ -710,8 +716,10 @@ declare class ServiceFacade<TState extends Record<string, unknown> = Record<stri
     registerFunctionalityOrchestration(name: string, orchestration: FunctionalityOrchestration): this;
     /** @deprecated Use registerFunctionalityOrchestration */
     registerOrchestration(name: string, orchestration: FunctionalityOrchestration): this;
+    registerLibrary<TLib = unknown>(name: string, library: TLib): this;
+    getLibrary<TLib = unknown>(name: string): TLib;
 }
-declare function createServiceFacade<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>>(config: ServiceFacadeConfig<TState, TEvents>): ServiceFacade<TState, TEvents>;
+declare function createServiceFacade<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>, TLibraries extends Record<string, unknown> = Record<string, unknown>>(config: ServiceFacadeConfig<TState, TEvents, TLibraries>): ServiceFacade<TState, TEvents, TLibraries>;
 
 /**
  * @file HttpProtocolAdapter.ts

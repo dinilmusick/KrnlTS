@@ -6,6 +6,7 @@
  */
 
 import PQueue from 'p-queue';
+import { randomUUID } from 'node:crypto';
 import {
   OrchestrationStep,
   OrchestrationDescriptor,
@@ -57,6 +58,7 @@ export interface KrnlQueueOptions {
   queueName?: string;
   concurrency?: number;
   autoStart?: boolean;
+  maxRetainedJobs?: number;
 }
 
 interface InternalJobRecord<TOutput = unknown> {
@@ -74,6 +76,14 @@ interface InternalJobRecord<TOutput = unknown> {
   promise: Promise<TOutput>;
 }
 
+function generateSecureId(prefix: string): string {
+  try {
+    return `${prefix}_${randomUUID()}`;
+  } catch {
+    return `${prefix}_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+  }
+}
+
 export class KrnlQueue {
   public readonly queueName: string;
   private readonly queue: PQueue;
@@ -81,9 +91,11 @@ export class KrnlQueue {
   private readonly jobs = new Map<string, InternalJobRecord<any>>();
   private readonly idempotencyStore = new Map<string, NormalizedResult<any>>();
   private readonly activeOrchestrations = new Map<string, { abortController: AbortController; context: OrchestrationContext }>();
+  private readonly maxRetainedJobs: number;
 
   constructor(options: KrnlQueueOptions = {}) {
     this.queueName = options.queueName ?? 'krnl_default_queue';
+    this.maxRetainedJobs = options.maxRetainedJobs ?? 1000;
     const concurrency = options.concurrency ?? 10;
     this.queue = new PQueue({
       concurrency,
@@ -131,6 +143,30 @@ export class KrnlQueue {
 
   clear(): void {
     this.queue.clear();
+    // Reconcile waiting jobs so their promises terminate cleanly
+    for (const job of this.jobs.values()) {
+      if (job.status === 'waiting') {
+        job.status = 'cancelled';
+        job.completedAt = Date.now();
+        job.abortController.abort();
+        const cancelErr = new Error('The operation was aborted');
+        cancelErr.name = 'AbortError';
+        job.rejectPromise(cancelErr);
+      }
+    }
+  }
+
+  private pruneJobs(): void {
+    if (this.jobs.size <= this.maxRetainedJobs) return;
+    const excess = this.jobs.size - this.maxRetainedJobs;
+    let pruned = 0;
+    for (const [id, record] of this.jobs.entries()) {
+      if (record.status === 'completed' || record.status === 'failed' || record.status === 'cancelled') {
+        this.jobs.delete(id);
+        pruned++;
+        if (pruned >= excess) break;
+      }
+    }
   }
 
   async drain(): Promise<void> {
@@ -174,7 +210,8 @@ export class KrnlQueue {
   enqueue<TInput = unknown, TOutput = unknown>(
     jobDef: KrnlJobDefinition<TInput, TOutput>
   ): KrnlJobHandle<TOutput> {
-    const jobId = jobDef.id || `job_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+    this.pruneJobs();
+    const jobId = jobDef.id || generateSecureId('job');
     const abortController = new AbortController();
 
     if (jobDef.options?.abortSignal) {
@@ -402,6 +439,7 @@ export class KrnlQueue {
 
   /**
    * Executes a full Canonical Orchestration DAG through KrnlQ and worker boundary.
+   * This is a first-class queued job scheduled via this.enqueue() to respect concurrency and worker limits.
    */
   async executeOrchestration<TInput = unknown, TOutput = unknown>(
     descriptor: OrchestrationDescriptor,
@@ -418,8 +456,8 @@ export class KrnlQueue {
     } = {}
   ): Promise<OrchestrationResult<TOutput>> {
     const startedAt = Date.now();
-    const correlationId = options.correlationId || `corr_${Math.random().toString(36).substring(2, 11)}`;
-    const executionId = `exec_${Math.random().toString(36).substring(2, 11)}`;
+    const correlationId = options.correlationId || generateSecureId('corr');
+    const executionId = generateSecureId('exec');
 
     // Idempotency check
     if (options.idempotencyKey && this.idempotencyStore.has(options.idempotencyKey)) {
@@ -471,127 +509,145 @@ export class KrnlQueue {
 
     this.activeOrchestrations.set(executionId, { abortController, context });
 
-    // Workflow-level timeout
-    const timeoutMs = options.timeoutMs || descriptor.timeoutMs;
-    let timeoutTimer: NodeJS.Timeout | undefined;
-    let isWorkflowTimeout = false;
-    if (timeoutMs && timeoutMs > 0) {
-      timeoutTimer = setTimeout(() => {
-        isWorkflowTimeout = true;
-        context.isCancelled = true;
-        abortController.abort();
-      }, timeoutMs);
-    }
-
-    const stepResults: Record<string, StepExecutionResult> = {};
-    const executedSteps = new Set<string>();
-    const executedComps: Array<() => Promise<void>> = [];
-
-    let finalOutput: any = undefined;
-    let orchestrationStatus: OrchestrationResult['status'] = 'COMPLETED';
-    let errorMessage: string | undefined;
-
-    try {
-      while (executedSteps.size < steps.length) {
-        if (context.isCancelled) {
-          orchestrationStatus = 'CANCELLED';
-          errorMessage = 'Orchestration execution cancelled.';
-          break;
-        }
-
-        const readySteps = steps.filter((step) => {
-          if (executedSteps.has(step.id)) return false;
-          if (!step.dependsOn || step.dependsOn.length === 0) return true;
-          return step.dependsOn.every((dep) => executedSteps.has(dep));
-        });
-
-        if (readySteps.length === 0) {
-          break;
-        }
-
-        // Limit concurrent ready steps by engine concurrency
-        const batch = readySteps.slice(0, this.concurrency);
-
-        const batchPromises = batch.map(async (step) => {
-          const stepRes = await this.executeSingleStep(step, context, options.nestedRunner);
-          stepResults[step.id] = stepRes;
-          executedSteps.add(step.id);
-
-          if (stepRes.status === 'COMPLETED') {
-            context.results[step.id] = stepRes.output;
-            finalOutput = stepRes.output;
-
-            if (step.compensation?.handler) {
-              executedComps.push(() => step.compensation!.handler!(context));
-            }
-          } else if (stepRes.status === 'SKIPPED') {
-            // Skipped step
-          } else if (stepRes.status === 'CANCELLED') {
-            const cancelErr = new Error('The operation was aborted');
-            cancelErr.name = 'AbortError';
-            throw cancelErr;
-          } else {
-            throw new Error(stepRes.error || `Step "${step.id}" failed with status ${stepRes.status}`);
-          }
-        });
-
-        await Promise.all(batchPromises);
-      }
-    } catch (err: any) {
-      const wasCancelled = context.isCancelled || abortController.signal.aborted || err?.name === 'AbortError';
-      if (isWorkflowTimeout) {
-        orchestrationStatus = 'TIMED_OUT';
-        errorMessage = `Orchestration timed out after ${timeoutMs}ms.`;
-      } else if (wasCancelled) {
-        orchestrationStatus = 'CANCELLED';
-        errorMessage = 'The operation was aborted';
-      } else {
-        orchestrationStatus = 'FAILED';
-        errorMessage = err?.message || String(err);
-      }
-
-      // SAGA COMPENSATION: Execute compensations in reverse order
-      if (executedComps.length > 0) {
-        for (let i = executedComps.length - 1; i >= 0; i--) {
-          try {
-            await executedComps[i]();
-          } catch (compErr) {
-            console.error(`[KrnlQ] Compensation failed:`, compErr);
-          }
-        }
-      }
-    } finally {
-      if (timeoutTimer) clearTimeout(timeoutTimer);
-      this.activeOrchestrations.delete(executionId);
-    }
-
-    const result: OrchestrationResult<TOutput> = {
-      orchestrationId: descriptor.id,
-      correlationId,
-      status: orchestrationStatus,
-      output: finalOutput as TOutput,
-      stepResults,
-      error: errorMessage,
-      startedAt,
-      completedAt: Date.now(),
-      executionMetadata: {
-        executionId,
-        scope: descriptor.scope,
-        stepsCount: steps.length,
-        executedCount: executedSteps.size,
-      },
-    };
-
-    if (options.idempotencyKey) {
-      this.idempotencyStore.set(options.idempotencyKey, {
+    const handle = this.enqueue<TInput, OrchestrationResult<TOutput>>({
+      id: executionId,
+      name: descriptor.name || descriptor.id,
+      payload: input,
+      options: {
+        idempotencyKey: options.idempotencyKey,
         correlationId,
-        status: orchestrationStatus === 'COMPLETED' ? 'COMPLETED' : 'FAILED',
-        data: result,
-        executionTimestamp: Date.now(),
-      });
-    }
+        metadata: options.metadata,
+        abortSignal: abortController.signal,
+      },
+      handler: async () => {
+        const timeoutMs = options.timeoutMs || descriptor.timeoutMs;
+        let timeoutTimer: NodeJS.Timeout | undefined;
+        let isWorkflowTimeout = false;
+        if (timeoutMs && timeoutMs > 0) {
+          timeoutTimer = setTimeout(() => {
+            isWorkflowTimeout = true;
+            context.isCancelled = true;
+            abortController.abort();
+          }, timeoutMs);
+        }
 
-    return result;
+        const stepResults: Record<string, StepExecutionResult> = {};
+        const executedSteps = new Set<string>();
+        const executedComps: Array<() => Promise<void>> = [];
+
+        let finalOutput: any = undefined;
+        let orchestrationStatus: OrchestrationResult['status'] = 'COMPLETED';
+        let errorMessage: string | undefined;
+
+        try {
+          while (executedSteps.size < steps.length) {
+            if (context.isCancelled) {
+              orchestrationStatus = 'CANCELLED';
+              errorMessage = 'Orchestration execution cancelled.';
+              break;
+            }
+
+            const readySteps = steps.filter((step) => {
+              if (executedSteps.has(step.id)) return false;
+              if (!step.dependsOn || step.dependsOn.length === 0) return true;
+              return step.dependsOn.every((dep) => executedSteps.has(dep));
+            });
+
+            if (readySteps.length === 0) {
+              break;
+            }
+
+            // Limit concurrent ready steps by engine concurrency
+            const batch = readySteps.slice(0, this.concurrency);
+
+            const batchPromises = batch.map(async (step) => {
+              const stepRes = await this.executeSingleStep(step, context, options.nestedRunner);
+              stepResults[step.id] = stepRes;
+              executedSteps.add(step.id);
+
+              if (stepRes.status === 'COMPLETED') {
+                context.results[step.id] = stepRes.output;
+                finalOutput = stepRes.output;
+
+                if (step.compensation?.handler) {
+                  executedComps.push(() => step.compensation!.handler!(context));
+                }
+              } else if (stepRes.status === 'SKIPPED') {
+                // Skipped step
+              } else if (stepRes.status === 'CANCELLED') {
+                const cancelErr = new Error('The operation was aborted');
+                cancelErr.name = 'AbortError';
+                throw cancelErr;
+              } else {
+                throw new Error(stepRes.error || `Step "${step.id}" failed with status ${stepRes.status}`);
+              }
+            });
+
+            await Promise.all(batchPromises);
+          }
+        } catch (err: any) {
+          const isExplicitStepFailure = err && err.name !== 'AbortError' && err.message !== 'The operation was aborted';
+          const wasCancelled = (context.isCancelled || abortController.signal.aborted || err?.name === 'AbortError') && !isExplicitStepFailure;
+          if (isWorkflowTimeout) {
+            orchestrationStatus = 'TIMED_OUT';
+            errorMessage = `Orchestration timed out after ${timeoutMs}ms.`;
+          } else if (isExplicitStepFailure) {
+            orchestrationStatus = 'FAILED';
+            errorMessage = err?.message || String(err);
+          } else if (wasCancelled) {
+            orchestrationStatus = 'CANCELLED';
+            errorMessage = 'The operation was aborted';
+          } else {
+            orchestrationStatus = 'FAILED';
+            errorMessage = err?.message || String(err);
+          }
+
+          // SAGA COMPENSATION: Execute compensations in reverse order
+          if (executedComps.length > 0) {
+            for (let i = executedComps.length - 1; i >= 0; i--) {
+              try {
+                await executedComps[i]();
+              } catch (compErr) {
+                console.error(`[KrnlQ] Compensation failed:`, compErr);
+              }
+            }
+          }
+        } finally {
+          if (timeoutTimer) clearTimeout(timeoutTimer);
+          this.activeOrchestrations.delete(executionId);
+        }
+
+        const result: OrchestrationResult<TOutput> = {
+          orchestrationId: descriptor.id,
+          correlationId,
+          status: orchestrationStatus,
+          output: finalOutput as TOutput,
+          stepResults,
+          error: errorMessage,
+          startedAt,
+          completedAt: Date.now(),
+          executionMetadata: {
+            executionId,
+            scope: descriptor.scope,
+            stepsCount: steps.length,
+            executedCount: executedSteps.size,
+          },
+        };
+
+        if (options.idempotencyKey) {
+          this.idempotencyStore.set(options.idempotencyKey, {
+            correlationId,
+            status: orchestrationStatus === 'COMPLETED' ? 'COMPLETED' : 'FAILED',
+            data: result,
+            executionTimestamp: Date.now(),
+          });
+        }
+
+        return result;
+      },
+    });
+
+    return await handle.result();
   }
 
   private async executeSingleStep(
@@ -644,6 +700,20 @@ export class KrnlQueue {
       }
 
       attempts++;
+      const stepAbortController = new AbortController();
+      if (context.abortSignal) {
+        if (context.abortSignal.aborted) {
+          stepAbortController.abort();
+        } else {
+          context.abortSignal.addEventListener('abort', () => stepAbortController.abort(), { once: true });
+        }
+      }
+
+      const stepContext: OrchestrationContext = {
+        ...context,
+        abortSignal: stepAbortController.signal,
+      };
+
       try {
         let stepOutput: any;
         let stepTimer: NodeJS.Timeout | undefined;
@@ -652,7 +722,7 @@ export class KrnlQueue {
         const runPromise = (async () => {
           if (step.type === 'nested' && step.nestedOrchestrationId && nestedRunner) {
             const childContext: OrchestrationContext = {
-              ...context,
+              ...stepContext,
               parentCorrelationId: context.correlationId,
               correlationId: `${context.correlationId}.${step.id}`,
             };
@@ -660,14 +730,14 @@ export class KrnlQueue {
           }
 
           if (step.type === 'fanOut' && step.getItems) {
-            const items = await step.getItems(context);
+            const items = await step.getItems(stepContext);
             if (!Array.isArray(items)) throw new Error(`[fanOut] getItems must return an array.`);
             const concurrency = step.concurrency || 5;
             const results: any[] = [];
             for (let i = 0; i < items.length; i += concurrency) {
               const slice = items.slice(i, i + concurrency);
               const sliceRes = await Promise.all(
-                slice.map((item) => (step.handler ? step.handler(item, context) : Promise.resolve(item)))
+                slice.map((item) => (step.handler ? step.handler(item, stepContext) : Promise.resolve(item)))
               );
               results.push(...sliceRes);
             }
@@ -675,19 +745,19 @@ export class KrnlQueue {
           }
 
           if (step.handler) {
-            return await step.handler(context.results, context);
+            return await step.handler(context.results, stepContext);
           }
 
           return context.results;
         })();
 
         const abortPromise = new Promise<never>((_, reject) => {
-          if (context.isCancelled || context.abortSignal?.aborted) {
+          if (stepAbortController.signal.aborted || context.isCancelled) {
             const err = new Error('The operation was aborted');
             err.name = 'AbortError';
             reject(err);
           }
-          context.abortSignal?.addEventListener('abort', () => {
+          stepAbortController.signal.addEventListener('abort', () => {
             const err = new Error('The operation was aborted');
             err.name = 'AbortError';
             reject(err);
@@ -751,7 +821,7 @@ export class KrnlQueue {
 
         if (step.catchHandler && attempts >= maxAttempts) {
           try {
-            const recovered = await step.catchHandler(err, context);
+            const recovered = await step.catchHandler(err, stepContext);
             return {
               stepId: step.id,
               status: 'COMPLETED',

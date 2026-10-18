@@ -370,6 +370,43 @@ function checkWorkspaceLayout(projectRoot, errors) {
   const backendDir = path2.join(targetDir, "backend");
   const frontendDir = path2.join(targetDir, "frontend");
   if (fs.existsSync(backendDir)) {
+    const bServices = path2.join(backendDir, "services");
+    if (fs.existsSync(bServices)) {
+      for (const sEntry of fs.readdirSync(bServices, { withFileTypes: true })) {
+        if (!sEntry.isDirectory()) continue;
+        const sDir = path2.join(bServices, sEntry.name);
+        const sLibs = path2.join(sDir, "libraries");
+        if (fs.existsSync(sLibs)) {
+          for (const entry of fs.readdirSync(sLibs, { withFileTypes: true })) {
+            if (!entry.isDirectory()) continue;
+            const libPath = path2.join(sLibs, entry.name);
+            if (!fs.existsSync(path2.join(libPath, "manifest.json"))) {
+              errors.push({
+                ruleId: "krnl/concept-manifest-required",
+                filePath: libPath,
+                message: `Service-owned concept library "${sEntry.name}/${entry.name}" is missing a manifest.json file.`,
+                severity: "error"
+              });
+            }
+          }
+        }
+        const sFuncs = path2.join(sDir, "functionalities");
+        if (fs.existsSync(sFuncs)) {
+          for (const entry of fs.readdirSync(sFuncs, { withFileTypes: true })) {
+            if (!entry.isDirectory()) continue;
+            const funcPath = path2.join(sFuncs, entry.name);
+            if (!fs.existsSync(path2.join(funcPath, "manifest.json"))) {
+              errors.push({
+                ruleId: "krnl/functionality-manifest-required",
+                filePath: funcPath,
+                message: `Service-owned functionality "${sEntry.name}/${entry.name}" is missing a manifest.json file.`,
+                severity: "error"
+              });
+            }
+          }
+        }
+      }
+    }
     const bLibs = path2.join(backendDir, "libraries");
     if (fs.existsSync(bLibs)) {
       for (const entry of fs.readdirSync(bLibs, { withFileTypes: true })) {
@@ -434,6 +471,34 @@ function checkWorkspaceLayout(projectRoot, errors) {
     }
   }
 }
+function checkServiceBoundaries(sf) {
+  const errors = [];
+  const warnings = [];
+  const filePath = sf.getFilePath().replace(/\\/g, "/");
+  const serviceMatch = filePath.match(/\/services\/([^/]+)\//);
+  if (!serviceMatch) {
+    return { errors, warnings };
+  }
+  const currentService = serviceMatch[1];
+  const imports = sf.getImportDeclarations();
+  for (const imp of imports) {
+    const spec = imp.getModuleSpecifierValue();
+    const crossServiceLibMatch = spec.match(/(?:^|\/|\.\.\/)services\/([^/]+)\/libraries\//) || spec.match(/\.\.\/(?:(?:\.\.\/)+)?([^/]+)\/libraries\//);
+    if (crossServiceLibMatch) {
+      const targetService = crossServiceLibMatch[1];
+      if (targetService !== currentService && targetService !== "." && targetService !== "..") {
+        errors.push({
+          ruleId: "krnl/no-cross-service-library-imports",
+          filePath,
+          line: imp.getStartLineNumber(),
+          message: `Cross-service library import forbidden: '${spec}'. Service '${currentService}' cannot import '${targetService}' libraries directly via filesystem. Access libraries through the '${targetService}' ServiceFacade (e.g. ${targetService}Facade.libraries).`,
+          severity: "error"
+        });
+      }
+    }
+  }
+  return { errors, warnings };
+}
 var KrnlValidatorEngine = class {
   project;
   projectRoot;
@@ -484,9 +549,22 @@ var KrnlValidatorEngine = class {
     const purity = checkTopLevelPurity(sf);
     const components = checkComponentRules(sf);
     const orchestration = checkOrchestrationRules(sf);
+    const boundaries = checkServiceBoundaries(sf);
     return {
-      errors: [...limits.errors, ...purity.errors, ...components.errors, ...orchestration.errors],
-      warnings: [...limits.warnings, ...purity.warnings, ...components.warnings, ...orchestration.warnings]
+      errors: [
+        ...limits.errors,
+        ...purity.errors,
+        ...components.errors,
+        ...orchestration.errors,
+        ...boundaries.errors
+      ],
+      warnings: [
+        ...limits.warnings,
+        ...purity.warnings,
+        ...components.warnings,
+        ...orchestration.warnings,
+        ...boundaries.warnings
+      ]
     };
   }
   collectSourceFiles(dir, collected = []) {
@@ -613,6 +691,7 @@ var path7 = __toESM(require("path"), 1);
 // ../core/dist/index.js
 var fs5 = __toESM(require("fs"), 1);
 var path6 = __toESM(require("path"), 1);
+var asyncHooks = globalThis.process?.getBuiltinModule?.("node:async_hooks");
 var KrnlPackageReconciler = class {
   /**
    * Scans all manifest.json files across backend and frontend and reconciles root package.json.
@@ -698,10 +777,13 @@ var KrnlPackageReconciler = class {
    */
   static findManifests(projectRoot) {
     const searchDirs = [
+      path6.join(projectRoot, "krnl", "backend", "services"),
       path6.join(projectRoot, "krnl", "backend", "libraries"),
       path6.join(projectRoot, "krnl", "backend", "functionalities"),
       path6.join(projectRoot, "krnl", "frontend", "libraries"),
       path6.join(projectRoot, "krnl", "frontend", "functionalities"),
+      path6.join(projectRoot, "src", "backend", "services"),
+      path6.join(projectRoot, "src", "services"),
       path6.join(projectRoot, "src", "functionalities"),
       path6.join(projectRoot, "src", "libraries")
     ];

@@ -96,6 +96,50 @@ export function checkWorkspaceLayout(
   const frontendDir = path.join(targetDir, 'frontend');
 
   if (fs.existsSync(backendDir)) {
+    // Check service-owned libraries and functionalities
+    const bServices = path.join(backendDir, 'services');
+    if (fs.existsSync(bServices)) {
+      for (const sEntry of fs.readdirSync(bServices, { withFileTypes: true })) {
+        if (!sEntry.isDirectory()) continue;
+        const sDir = path.join(bServices, sEntry.name);
+
+        // Service-owned libraries
+        const sLibs = path.join(sDir, 'libraries');
+        if (fs.existsSync(sLibs)) {
+          for (const entry of fs.readdirSync(sLibs, { withFileTypes: true })) {
+            if (!entry.isDirectory()) continue;
+            const libPath = path.join(sLibs, entry.name);
+            if (!fs.existsSync(path.join(libPath, 'manifest.json'))) {
+              errors.push({
+                ruleId: 'krnl/concept-manifest-required',
+                filePath: libPath,
+                message: `Service-owned concept library "${sEntry.name}/${entry.name}" is missing a manifest.json file.`,
+                severity: 'error',
+              });
+            }
+          }
+        }
+
+        // Service-owned functionalities
+        const sFuncs = path.join(sDir, 'functionalities');
+        if (fs.existsSync(sFuncs)) {
+          for (const entry of fs.readdirSync(sFuncs, { withFileTypes: true })) {
+            if (!entry.isDirectory()) continue;
+            const funcPath = path.join(sFuncs, entry.name);
+            if (!fs.existsSync(path.join(funcPath, 'manifest.json'))) {
+              errors.push({
+                ruleId: 'krnl/functionality-manifest-required',
+                filePath: funcPath,
+                message: `Service-owned functionality "${sEntry.name}/${entry.name}" is missing a manifest.json file.`,
+                severity: 'error',
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Legacy global backend libraries check (if present, require manifest, but encourage service ownership)
     const bLibs = path.join(backendDir, 'libraries');
     if (fs.existsSync(bLibs)) {
       for (const entry of fs.readdirSync(bLibs, { withFileTypes: true })) {

@@ -29,7 +29,8 @@ import {
 
 export interface ServiceFacadeConfig<
   TState extends Record<string, unknown> = Record<string, unknown>,
-  TEvents extends Record<string, unknown> = Record<string, unknown>
+  TEvents extends Record<string, unknown> = Record<string, unknown>,
+  TLibraries extends Record<string, unknown> = Record<string, unknown>
 > {
   id: string;
   name?: string;
@@ -39,6 +40,7 @@ export interface ServiceFacadeConfig<
   functionalityOrchestrations?: Record<string, FunctionalityOrchestration>;
   /** @deprecated Use functionalityOrchestrations */
   orchestrations?: Record<string, FunctionalityOrchestration>;
+  libraries?: TLibraries;
   definition?: ServiceDefinition<TState, TEvents>;
   instance?: IService<TState, TEvents>;
   dependencies?: DependencyContract[];
@@ -47,11 +49,12 @@ export interface ServiceFacadeConfig<
   concurrency?: number;
 }
 
-export type IServiceFacade = ServiceFacade;
+export type IServiceFacade = ServiceFacade<any, any, any>;
 
 export class ServiceFacade<
   TState extends Record<string, unknown> = Record<string, unknown>,
-  TEvents extends Record<string, unknown> = Record<string, unknown>
+  TEvents extends Record<string, unknown> = Record<string, unknown>,
+  TLibraries extends Record<string, unknown> = Record<string, unknown>
 > {
   public readonly id: string;
   public readonly name: string;
@@ -60,13 +63,14 @@ export class ServiceFacade<
 
   public readonly functionalities: Record<string, unknown>;
   public readonly functionalityOrchestrations: Record<string, FunctionalityOrchestration>;
+  public readonly libraries: TLibraries;
   public readonly dependencies: readonly DependencyContract[];
   public readonly capabilities: readonly ServiceCapability[];
 
   private readonly instance: IService<TState, TEvents>;
   private readonly queue: KrnlQueue;
 
-  constructor(config: ServiceFacadeConfig<TState, TEvents>) {
+  constructor(config: ServiceFacadeConfig<TState, TEvents, TLibraries>) {
     if (!config || !config.id || typeof config.id !== 'string') {
       throw new Error('[ServiceFacade] ServiceFacade requires a valid id.');
     }
@@ -81,6 +85,7 @@ export class ServiceFacade<
       : config.orchestrations
       ? { ...config.orchestrations }
       : {};
+    this.libraries = (config.libraries ? { ...config.libraries } : {}) as TLibraries;
     this.dependencies = Object.freeze(config.dependencies ? [...config.dependencies] : []);
     this.capabilities = Object.freeze(config.capabilities ? [...config.capabilities] : []);
 
@@ -413,11 +418,32 @@ export class ServiceFacade<
   registerOrchestration(name: string, orchestration: FunctionalityOrchestration): this {
     return this.registerFunctionalityOrchestration(name, orchestration);
   }
+
+  registerLibrary<TLib = unknown>(name: string, library: TLib): this {
+    if (!name || typeof name !== 'string') {
+      throw new Error('[ServiceFacade] Library name must be a non-empty string.');
+    }
+    if (library === undefined || library === null) {
+      throw new Error(`[ServiceFacade] Library "${name}" must not be null or undefined.`);
+    }
+    (this.libraries as Record<string, unknown>)[name] = library;
+    return this;
+  }
+
+  getLibrary<TLib = unknown>(name: string): TLib {
+    const lib = (this.libraries as Record<string, unknown>)[name];
+    if (lib === undefined || lib === null) {
+      throw new Error(`[ServiceFacade:${this.id}] Library "${name}" not found on service facade.`);
+    }
+    return lib as TLib;
+  }
 }
 
 export function createServiceFacade<
   TState extends Record<string, unknown> = Record<string, unknown>,
-  TEvents extends Record<string, unknown> = Record<string, unknown>
->(config: ServiceFacadeConfig<TState, TEvents>): ServiceFacade<TState, TEvents> {
-  return new ServiceFacade<TState, TEvents>(config);
+  TEvents extends Record<string, unknown> = Record<string, unknown>,
+  TLibraries extends Record<string, unknown> = Record<string, unknown>
+>(config: ServiceFacadeConfig<TState, TEvents, TLibraries>): ServiceFacade<TState, TEvents, TLibraries> {
+  return new ServiceFacade<TState, TEvents, TLibraries>(config);
 }
+
