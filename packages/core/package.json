@@ -15,7 +15,9 @@
     "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "build": "tsup src/index.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema,esbuild"
+    "build": "tsup src/index.ts --dts --format esm,cjs --external ws,zod,zod-to-json-schema,esbuild",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "esbuild": "^0.25.0",
@@ -29,6 +31,7 @@
     "@types/ws": "^8.18.1",
     "protobufjs-cli": "^2.6.1",
     "tsup": "^8.4.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^3.1.0"
   }
 }
