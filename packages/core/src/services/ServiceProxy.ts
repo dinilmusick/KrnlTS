@@ -65,6 +65,10 @@ export class ServiceProxy<
     this.lifecycle.transitionTo('stopped');
   }
 
+  async dispose(): Promise<void> {
+    if (this.lifecycle.getStatus() === 'running') await this.stop();
+  }
+
   async call<TIn = unknown, TOut = unknown>(
     op: string,
     input?: TIn,
