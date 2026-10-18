@@ -72,6 +72,15 @@ describe('KrnlTS kernel invariants', () => {
     expect(working.getStatus()).toBe('running');
   });
 
+  it('isolates event handler failures and continues delivery', async () => {
+    const service = createService(definition({ events: { ping: { name: 'ping' } } }));
+    const calls: string[] = [];
+    service.on('ping', () => { calls.push('first'); throw new Error('handler failed'); });
+    service.on('ping', () => { calls.push('second'); });
+    service.emit('ping', {});
+    expect(calls).toEqual(['first', 'second']);
+  });
+
   it('runtime-validates public service definitions', () => {
     expect(() => createServiceDefinition(definition({
       operations: { broken: { id: '', name: 'broken', handler: null } },
