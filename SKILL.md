@@ -46,7 +46,7 @@ Service lifecycle is an explicit state machine:
 
 `uninitialized -> initializing -> ready -> starting -> running -> stopping -> stopped`
 
-A stopped service may transition to `starting` for restart. Invalid transitions must throw.
+A stopped service may transition to `starting` for restart. Invalid transitions must throw. `stop()` is restartable shutdown; `dispose()` is terminal, idempotent resource disposal.
 
 ## 4. Service contract
 
