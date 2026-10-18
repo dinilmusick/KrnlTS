@@ -388,24 +388,24 @@ var rules = {
 };
 var plugin = {
   meta: {
-    name: "@dinilmusick/eslint-plugin-krnl",
-    version: "1.0.0"
+    name: "@ultrst-armada/eslint-plugin-krnl",
+    version: "1.0.2"
   },
   rules,
   configs: {
     recommended: {
       plugins: {
-        "@dinilmusick/krnl": { rules }
+        "@ultrst-armada/krnl": { rules }
       },
       rules: {
-        "@dinilmusick/krnl/file-line-limit": "error",
-        "@dinilmusick/krnl/import-suffix": "error",
-        "@dinilmusick/krnl/helper-purity": "error",
-        "@dinilmusick/krnl/no-polling": "error",
-        "@dinilmusick/krnl/context-destructuring": "error",
-        "@dinilmusick/krnl/no-server-in-subapp": "error",
-        "@dinilmusick/krnl/top-level-purity": "error",
-        "@dinilmusick/krnl/one-component-per-file": "error"
+        "@ultrst-armada/krnl/file-line-limit": "error",
+        "@ultrst-armada/krnl/import-suffix": "error",
+        "@ultrst-armada/krnl/helper-purity": "error",
+        "@ultrst-armada/krnl/no-polling": "error",
+        "@ultrst-armada/krnl/context-destructuring": "error",
+        "@ultrst-armada/krnl/no-server-in-subapp": "error",
+        "@ultrst-armada/krnl/top-level-purity": "error",
+        "@ultrst-armada/krnl/one-component-per-file": "error"
       }
     }
   }

@@ -161,7 +161,7 @@ declare const plugin: {
     configs: {
         recommended: {
             plugins: {
-                '@dinilmusick/krnl': {
+                '@ultrst-armada/krnl': {
                     rules: {
                         'file-line-limit': {
                             meta: {
@@ -320,14 +320,14 @@ declare const plugin: {
                 };
             };
             rules: {
-                '@dinilmusick/krnl/file-line-limit': string;
-                '@dinilmusick/krnl/import-suffix': string;
-                '@dinilmusick/krnl/helper-purity': string;
-                '@dinilmusick/krnl/no-polling': string;
-                '@dinilmusick/krnl/context-destructuring': string;
-                '@dinilmusick/krnl/no-server-in-subapp': string;
-                '@dinilmusick/krnl/top-level-purity': string;
-                '@dinilmusick/krnl/one-component-per-file': string;
+                '@ultrst-armada/krnl/file-line-limit': string;
+                '@ultrst-armada/krnl/import-suffix': string;
+                '@ultrst-armada/krnl/helper-purity': string;
+                '@ultrst-armada/krnl/no-polling': string;
+                '@ultrst-armada/krnl/context-destructuring': string;
+                '@ultrst-armada/krnl/no-server-in-subapp': string;
+                '@ultrst-armada/krnl/top-level-purity': string;
+                '@ultrst-armada/krnl/one-component-per-file': string;
             };
         };
     };
