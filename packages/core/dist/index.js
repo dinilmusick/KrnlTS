@@ -772,6 +772,14 @@ function validateEndpoint(endpoint) {
 }
 var ServiceRegistry = class {
   services = /* @__PURE__ */ new Map();
+  /**
+   * Registers a service definition and its endpoints into the registry.
+   *
+   * @param definition Validated service definition.
+   * @param endpoints Optional list of active endpoint descriptors.
+   * @throws Error if definition or endpoints fail validation.
+   * @throws Error if service is already registered under the same ID with a different version.
+   */
   register(definition, endpoints = []) {
     validateServiceDefinition(definition);
     for (const endpoint of endpoints) validateEndpoint(endpoint);
@@ -1040,13 +1048,125 @@ var ProtocolResolver = class {
     return definition.protocols || ["http"];
   }
 };
+
+// src/entities/Entity.ts
+var Entity = class {
+  id;
+  version;
+  description;
+  flows = /* @__PURE__ */ new Map();
+  locals = /* @__PURE__ */ new Map();
+  constructor(descriptor) {
+    if (!descriptor || typeof descriptor !== "object" || !descriptor.id) {
+      throw new Error("[Entity] Valid entity descriptor with non-empty id is required.");
+    }
+    this.id = descriptor.id;
+    this.version = descriptor.version || "1.0.0";
+    this.description = descriptor.description || "";
+  }
+  async boot() {
+  }
+  async init() {
+  }
+  async dispose() {
+    this.flows.clear();
+    this.locals.clear();
+  }
+  flow(name) {
+    const chain = {
+      name,
+      steps: [],
+      visibility: "internal",
+      thenFunctionality(funcName) {
+        chain.steps.push({ type: "functionality", target: funcName });
+        return chain;
+      },
+      thenEntityOrchestration(entityName, orchName) {
+        chain.steps.push({ type: "entityOrchestration", target: entityName, orchestration: orchName });
+        return chain;
+      },
+      register(options) {
+        if (options?.visibility) chain.visibility = options.visibility;
+        return chain;
+      }
+    };
+    this.flows.set(name, chain);
+    return chain;
+  }
+  addLocal(descriptor) {
+    if (!descriptor || !descriptor.id) {
+      throw new Error("[Entity] Local component requires a valid id.");
+    }
+    this.locals.set(descriptor.id, descriptor);
+    return this;
+  }
+  getFlow(name) {
+    return this.flows.get(name);
+  }
+  listFlows() {
+    return Array.from(this.flows.values());
+  }
+  getLocal(id) {
+    return this.locals.get(id);
+  }
+};
+var KrnlMagneticLoader = class {
+  static async loadAll(entity, metaUrl) {
+    if (!entity) throw new Error("[KrnlMagneticLoader] Target entity is required.");
+    const loaded = [];
+    if (metaUrl) {
+      loaded.push(entity.id);
+    }
+    return loaded;
+  }
+};
+function defineApp(def) {
+  if (!def || typeof def !== "object") {
+    throw new Error("[defineApp] Application definition must be an object.");
+  }
+  if (!def.name || typeof def.name !== "string" || def.name.trim() === "") {
+    throw new Error("[defineApp] Application definition must specify a non-empty name.");
+  }
+  return {
+    ...def,
+    version: def.version || "1.0.0",
+    protocols: def.protocols ? [...def.protocols] : [],
+    entities: def.entities ? [...def.entities] : []
+  };
+}
+var Protocols = {
+  HTTP: (opts = {}) => ({
+    protocol: "http",
+    port: opts.port ?? 8080,
+    prefix: opts.prefix ?? "/api"
+  }),
+  WebSocket: (opts = {}) => ({
+    protocol: "ws",
+    port: opts.port ?? 8081
+  }),
+  MCP: (opts = {}) => ({
+    protocol: "mcp",
+    name: opts.name ?? "krnl-mcp-agent"
+  }),
+  UDP: (opts = {}) => ({
+    protocol: "udp",
+    port: opts.port ?? 8082
+  }),
+  P2P: (opts = {}) => ({
+    protocol: "p2p",
+    ...opts
+  })
+};
 export {
+  Entity,
   HttpProtocolAdapter,
+  KrnlMagneticLoader,
   KrnlPackageReconciler,
   LifecycleManager,
   MemoryTransport,
   P2PProtocolAdapter,
   ProtocolResolver,
+  Protocols,
   ServiceDiscovery,
   ServiceEventBus,
   ServiceInstance,
@@ -1059,5 +1179,6 @@ export {
   createService,
   createServiceDefinition,
   createServiceProxy,
+  defineApp,
   validateServiceDefinition
 };

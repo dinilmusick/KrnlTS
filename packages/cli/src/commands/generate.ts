@@ -1,6 +1,6 @@
 import { generateEntity } from './generators/entityGenerator.js';
 import { generateFunctionality } from './generators/functionalityGenerator.js';
-import { generateLibrary, generateSubApp } from './generators/libraryGenerator.js';
+import { generateLibrary } from './generators/libraryGenerator.js';
 
 export async function runGenerate(
   type: string,
@@ -9,7 +9,7 @@ export async function runGenerate(
   projectRoot: string = process.cwd()
 ): Promise<void> {
   if (!name) {
-    console.error('❌ Error: Resource name is required. Usage: krnl generate <entity|functionality|library|subapp> <Name>');
+    console.error('❌ Error: Resource name is required. Usage: krnl generate <entity|functionality|library> <Name>');
     process.exit(1);
   }
 
@@ -23,11 +23,9 @@ export async function runGenerate(
     case 'library':
       generateLibrary(name, projectRoot);
       break;
-    case 'subapp':
-      generateSubApp(name, projectRoot);
-      break;
     default:
-      console.error(`❌ Unknown resource type "${type}". Valid types: entity, functionality, library, subapp`);
+      console.error(`❌ Unknown resource type "${type}". Valid types: entity, functionality, library`);
       process.exit(1);
   }
 }
+

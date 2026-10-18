@@ -37,7 +37,7 @@ $$\text{UserRole} \in \{ \text{USER}, \text{MODERATOR}, \text{ADMIN} \}$$
 
 - **AdminGuard Middleware**: Strict route-level barrier checking session validities and enforcing required role boundaries.
 ```typescript
-import { AdminGuard } from "@dinilmusick/krnlts";
+import { AdminGuard } from "@ultrst-armada/krnl";
 
 // Strict Admin Gate: Throws [AccessDenied] if session is null or role != "ADMIN"
 await AdminGuard.verify(authHeader, accountProvider);
@@ -93,7 +93,7 @@ console.log(`Connection OK: ${result.ok}, Latency: ${result.latencyMs}ms`);
 Every administrative mutation, backend connection switch, user role upgrade, and cluster failover event is recorded in an immutable append-only audit trail:
 
 ```typescript
-import { AuditLogger } from "@dinilmusick/krnlts";
+import { AuditLogger } from "@ultrst-armada/krnl";
 
 const auditLogger = new AuditLogger("./.krnl/control_plane/audit_trail.jsonl");
 

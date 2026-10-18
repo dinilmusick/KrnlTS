@@ -23,9 +23,28 @@ export interface RegisteredServiceRecord {
   registeredAt: number;
 }
 
+/**
+ * Central service catalog and capabilities registry.
+ *
+ * Duplicate Registration Semantics:
+ * 1. Same ID + Same Version:
+ *    Idempotent re-registration. Refreshes service definition and active endpoints,
+ *    while preserving the original registration timestamp (`registeredAt`).
+ * 2. Same ID + Different Version:
+ *    Refused with an Error. The catalog enforces a strict 1:1 mapping per service ID.
+ *    To change versions, consumer must explicitly call `unregister(serviceId)` first.
+ */
 export class ServiceRegistry {
   private readonly services: Map<string, RegisteredServiceRecord> = new Map();
 
+  /**
+   * Registers a service definition and its endpoints into the registry.
+   *
+   * @param definition Validated service definition.
+   * @param endpoints Optional list of active endpoint descriptors.
+   * @throws Error if definition or endpoints fail validation.
+   * @throws Error if service is already registered under the same ID with a different version.
+   */
   register(definition: ServiceDefinition, endpoints: EndpointDescriptor[] = []): void {
     validateServiceDefinition(definition);
     for (const endpoint of endpoints) validateEndpoint(endpoint);

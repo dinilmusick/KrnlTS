@@ -1,15 +1,15 @@
 ---
 name: krnlts-magnetic-loader
-description: Directives for KrnlMagneticLoader auto-discovery, subapp execution modes (in-process vs worker), manifest aggregation, and boot order invariants.
+description: Directives for KrnlMagneticLoader auto-discovery, manifest aggregation, and boot order invariants.
 ---
 
-# KRNLTS MAGNETIC LOADER & SUBAPP ENGINE
+# KRNLTS MAGNETIC LOADER
 
 ## 1. AUTOMATIC FILESYSTEM DISCOVERY (`KrnlMagneticLoader`)
 ```typescript
-import { KrnlMagneticLoader } from "@dinilmusick/krnlts";
+import { KrnlMagneticLoader } from "@ultrst-armada/krnl";
 
-// Discovers shared src/functionalities/, protocol_adapters/, and subapps/ for flat entities
+// Discovers shared src/functionalities/ and protocol_adapters/ for flat entities
 await KrnlMagneticLoader.loadAll(entity, import.meta.url);
 ```
 
@@ -23,16 +23,6 @@ RULE: ALL manual addLocal() calls with uiSpec MUST occur BEFORE KrnlMagneticLoad
 WHY: loadAll() triggers frontend generation. Any late addLocal() calls are invisible to UI.
 ```
 
----
-
-## 2. SUBAPP EXECUTION MODES (`krnl.json`)
-Subapps configured in `krnl.json` can run in two distinct execution modes:
-1. **`in-process` (Local Mode)**:
-   - Runs directly in the host Node.js event loop.
-   - Ideal for low-latency, tightly coupled services.
-2. **`worker` (Worker Thread Mode)**:
-   - Spawns in an isolated Node.js worker thread (`K_LIB_Krnl_SubApp_Worker_Host.js`).
-   - Fault-isolated: errors in the subapp do not crash the host entity.
 
 ---
 

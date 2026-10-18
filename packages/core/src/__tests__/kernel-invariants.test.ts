@@ -205,4 +205,122 @@ describe('KrnlTS kernel invariants', () => {
     expect(() => createServiceDefinition(definition({ capabilities: [{ id: 'c', name: 'c', protocols: 'bad' as any }] }))).toThrow(/protocols must be an array/);
     expect(() => createServiceDefinition(definition({ dependencies: [{ serviceId: '' }] }))).toThrow(/dependency.serviceId/);
   });
+
+  describe('ServiceRegistry duplicate registration semantics', () => {
+    it('allows idempotent re-registration with same ID and same version, preserving registeredAt', async () => {
+      const registry = new ServiceRegistry();
+      const def1 = definition({ version: '1.0.0', name: 'Initial Name' });
+      registry.register(def1, [{ protocol: 'http', address: '127.0.0.1', port: 3000, capabilities: ['query'] }]);
+
+      const record1 = registry.get('test.service');
+      expect(record1).toBeDefined();
+      expect(record1!.definition.name).toBe('Initial Name');
+      expect(record1!.endpoints).toHaveLength(1);
+      const initialTimestamp = record1!.registeredAt;
+
+      // Small delay to verify timestamp preservation
+      await new Promise((r) => setTimeout(r, 10));
+
+      const def1Updated = definition({ version: '1.0.0', name: 'Updated Name' });
+      registry.register(def1Updated, [
+        { protocol: 'http', address: '127.0.0.1', port: 3000, capabilities: ['query'] },
+        { protocol: 'ws', address: '127.0.0.1', port: 3001, capabilities: ['stream'] },
+      ]);
+
+      const record2 = registry.get('test.service');
+      expect(record2!.definition.name).toBe('Updated Name');
+      expect(record2!.endpoints).toHaveLength(2);
+      expect(record2!.registeredAt).toBe(initialTimestamp); // Preserved!
+    });
+
+    it('refuses re-registration with same ID and different version deterministically', () => {
+      const registry = new ServiceRegistry();
+      const def1 = definition({ version: '1.0.0' });
+      registry.register(def1);
+
+      const def2 = definition({ version: '2.0.0' });
+      expect(() => registry.register(def2)).toThrow(
+        "[ServiceRegistry] Service 'test.service' is already registered at version '1.0.0'; refusing replacement with '2.0.0'."
+      );
+
+      // Verify original remains intact
+      expect(registry.get('test.service')!.definition.version).toBe('1.0.0');
+    });
+
+    it('allows new version registration after explicit unregister', () => {
+      const registry = new ServiceRegistry();
+      registry.register(definition({ version: '1.0.0' }));
+      expect(registry.unregister('test.service')).toBe(true);
+      expect(registry.get('test.service')).toBeUndefined();
+
+      registry.register(definition({ version: '2.0.0' }));
+      expect(registry.get('test.service')!.definition.version).toBe('2.0.0');
+    });
+  });
+
+  describe('Declarative Entity and Application Layer', () => {
+    it('instantiates and configures declarative entities without procedural loops', async () => {
+      const { Entity, KrnlMagneticLoader } = await import('../entities/Entity.js');
+
+      class TestEntity extends Entity {
+        constructor() {
+          super({ id: 'TestEntity', version: '1.2.0', description: 'Test entity actor' });
+        }
+      }
+
+      const entity = new TestEntity();
+      expect(entity.id).toBe('TestEntity');
+      expect(entity.version).toBe('1.2.0');
+
+      const flow = entity
+        .flow('mainFlow')
+        .thenFunctionality('Hello')
+        .thenEntityOrchestration('Billing', 'Process')
+        .register({ visibility: 'public' });
+
+      expect(flow.steps).toHaveLength(2);
+      expect(flow.visibility).toBe('public');
+      expect(entity.getFlow('mainFlow')).toBe(flow);
+
+      entity.addLocal({ id: 'comp-1', uiSpec: { width: 100 } });
+      expect(entity.getLocal('comp-1')?.id).toBe('comp-1');
+
+      const loaded = await KrnlMagneticLoader.loadAll(entity, 'file:///path/to/meta');
+      expect(loaded).toEqual(['TestEntity']);
+
+      await entity.dispose();
+      expect(entity.listFlows()).toHaveLength(0);
+    });
+
+    it('configures defineApp and Protocols correctly', async () => {
+      const { defineApp, Protocols, Entity } = await import('../entities/Entity.js');
+
+      class SubEntity extends Entity {
+        constructor() {
+          super({ id: 'Sub', version: '1.0.0' });
+        }
+      }
+
+      const app = defineApp({
+        name: 'sample-app',
+        version: '1.0.0',
+        protocols: [
+          Protocols.HTTP({ port: 8080, prefix: '/api' }),
+          Protocols.WebSocket({ port: 8081 }),
+          Protocols.MCP({ name: 'mcp-tool' }),
+        ],
+        entities: [SubEntity],
+        frontend: { rootEntity: 'Sub', variant: 0 },
+      });
+
+      expect(app.name).toBe('sample-app');
+      expect(app.protocols).toHaveLength(3);
+      expect(app.protocols![0].protocol).toBe('http');
+      expect(app.protocols![1].protocol).toBe('ws');
+      expect(app.protocols![2].protocol).toBe('mcp');
+      expect(() => defineApp(null as any)).toThrow(/Application definition must be an object/);
+      expect(() => defineApp({ name: '' } as any)).toThrow(/specify a non-empty name/);
+    });
+  });
 });
+

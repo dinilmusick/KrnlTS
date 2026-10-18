@@ -29,7 +29,7 @@ Control Plane manages global user accounts, authentication tokens, and app-scope
 // ══════════════════════════════════════════════════════════════════════════════════════════
 // 1. CONTROL PLANE & USER ACCOUNT AUTHENTICATION (INTERNAL ACCOUNTS ONLY)
 // ══════════════════════════════════════════════════════════════════════════════════════════
-import { LocalSQLiteAccountProvider } from "@dinilmusick/krnlts";
+import { LocalSQLiteAccountProvider } from "@ultrst-armada/krnl";
 
 // 1. Initialize Account Provider (stores ONLY user credentials & workspace configs)
 const accountProvider = new LocalSQLiteAccountProvider("./accounts.sqlite");
@@ -56,7 +56,7 @@ import {
   Workspace,
   WorkspaceFS,
   SyncEngine
-} from "@dinilmusick/krnlts";
+} from "@ultrst-armada/krnl";
 
 // 1. Define Workspace with Primary (Local / iCloud) + Backups (Google Drive / OneDrive / Supabase)
 const workspaceSpec: Workspace = {

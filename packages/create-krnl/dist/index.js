@@ -23,9 +23,12 @@ function getBasePackageJson(projectName2) {
       },
       dependencies: {
         "@ultrst-armada/krnl": "^1.0.0",
-        "@ultrst-armada/krnl-core": "^1.0.0"
+        "@ultrst-armada/krnl-core": "^1.0.0",
+        "react": "^18.3.1"
       },
       devDependencies: {
+        "@types/node": "^22.0.0",
+        "@types/react": "^18.3.1",
         "@ultrst-armada/krnl-cli": "^1.0.0",
         "@ultrst-armada/krnl-validate": "^1.0.0",
         typescript: "^5.7.3",
@@ -208,7 +211,7 @@ function scaffoldFrontend(targetDir2, projectName2) {
   fs2.mkdirSync(path2.join(fEntityDir, "tests"), { recursive: true });
   fs2.mkdirSync(path2.join(fFuncDir, "tests"), { recursive: true });
   fs2.mkdirSync(path2.join(targetDir2, "docs"), { recursive: true });
-  fs2.mkdirSync(path2.join(targetDir2, ".skipo"), { recursive: true });
+  fs2.mkdirSync(path2.join(targetDir2, ".krnl"), { recursive: true });
   fs2.writeFileSync(
     path2.join(fLibDir, "definitions.ts"),
     `export type ButtonVariant = "primary" | "secondary";
@@ -290,7 +293,7 @@ Initialized Krnl symmetric architecture.
 `
   );
   fs2.writeFileSync(
-    path2.join(targetDir2, ".skipo", "agent-state.json"),
+    path2.join(targetDir2, ".krnl", "agent-state.json"),
     JSON.stringify(
       {
         schemaVersion: "1.0.0",

@@ -44,7 +44,7 @@ WORKSPACE BACKEND
 ## 3. Factory Resolution & Connection Testing
 
 ```typescript
-import { WorkspaceBackendFactory } from "@dinilmusick/krnlts";
+import { WorkspaceBackendFactory } from "@ultrst-armada/krnl";
 
 // 1. Instantiate backend
 const backend = WorkspaceBackendFactory.create({

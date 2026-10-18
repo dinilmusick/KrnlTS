@@ -6,7 +6,7 @@ This directory contains **task-specific, token-efficient prompt attachments** fo
 
 ## Universal Coding & Formatting Rules (Mandatory Across All Tasks)
 
-0. **Turn-Counter State Engine & Cadence Trigger**: Every interaction MUST inspect `.skipo/agent-state.json`. If `turnsSinceLastAudit >= 5`, the agent must execute a full routine audit, app debugging, and auto-remediation before resetting `turnsSinceLastAudit = 0`. Otherwise, increment `turnsSinceLastAudit` and proceed.
+0. **Turn-Counter State Engine & Cadence Trigger**: Every interaction MUST inspect `.krnl/agent-state.json`. If `turnsSinceLastAudit >= 5`, the agent must execute a full routine audit, app debugging, and auto-remediation before resetting `turnsSinceLastAudit = 0`. Otherwise, increment `turnsSinceLastAudit` and proceed.
 1. **In-Code Utility Documentation & Flowcharts**: Every function, class, and data structure must have a comprehensive docblock explaining utility, parameters, return values, example usage, and an ASCII/text flow chart.
 2. **Bold Code Section Partitioning**: Use bold demarcation borders (`// ══════════════════════════════════════════════════════════════════════════════════════════`) to clearly divide file sections (imports, schemas, pure logic, impure IO, functionalities, exports).
 3. **Descriptive & Long Naming Conventions**: Use long, expressive, self-documenting names for files, functions, types, and variables (zero cryptic abbreviations).
@@ -18,12 +18,11 @@ This directory contains **task-specific, token-efficient prompt attachments** fo
 
 | Task Type | Prompt File | Key Enforcements |
 | :--- | :--- | :--- |
-| **Turn Counter & Routine Cadence Audit** | [`TASK_ROUTINE_AUDIT_CADENCE.md`](./TASK_ROUTINE_AUDIT_CADENCE.md) | `.skipo/agent-state.json` maintenance, 5-turn cadence trigger, 6-pillar audit, app diagnostics, auto-remediation |
+| **Turn Counter & Routine Cadence Audit** | [`TASK_ROUTINE_AUDIT_CADENCE.md`](./TASK_ROUTINE_AUDIT_CADENCE.md) | `.krnl/agent-state.json` maintenance, 5-turn cadence trigger, 6-pillar audit, app diagnostics, auto-remediation |
 | **Documentation & Formatting Standards** | [`CODE_DOCUMENTATION_AND_FORMATTING_STANDARDS.md`](./CODE_DOCUMENTATION_AND_FORMATTING_STANDARDS.md) | Universal docblock template, ASCII flow chart rules, bold unicode section demarcation, descriptive long names |
 | **New Feature / Capability** | [`TASK_CREATE_FEATURE.md`](./TASK_CREATE_FEATURE.md) | Atomic `krnlLocalFunctionality`, `backend` flag auto-table, L0-L3 layer separation, input/output validation, telemetry |
 | **Refactor & Routine Cleanup** | [`TASK_REFACTOR_CLEANUP.md`](./TASK_REFACTOR_CLEANUP.md) | **Zero logic deletion ($\Delta \text{Logic} = 0$)**, pure/impure extraction, deduplication, max line limits (150 lines/file) |
 | **Backend, DB & Storage** | [`TASK_BACKEND_STORAGE.md`](./TASK_BACKEND_STORAGE.md) | Control Plane vs Data Plane separation, Mode 1/2/3, `context.table` CRUD engine, credential cascading |
-| **Sub-App & Entity Creation** | [`TASK_CREATE_SUBAPP_ENTITY.md`](./TASK_CREATE_SUBAPP_ENTITY.md) | Root vs Child positioning, self-hosting adapters, manifest generation, subapp worker host isolation |
 | **UI Components & Frontend** | [`TASK_UI_COMPONENT_FRONTEND.md`](./TASK_UI_COMPONENT_FRONTEND.md) | Central style authority CSS tokens, reactive `state:changed` listeners, Docks, Force Graphs, React Flow nodes |
 | **APIs & Protocol Adapters** | [`TASK_API_PROTOCOL_ADAPTER.md`](./TASK_API_PROTOCOL_ADAPTER.md) | REST, WebSocket, MCP, ACP unified port adapters, Zod/Protobuf schema guards, port discovery |
 | **Bug Fixing & Verification** | [`TASK_DEBUG_FIX_VERIFY.md`](./TASK_DEBUG_FIX_VERIFY.md) | Invariant verification, regression test scripts, type-safety, contract preservation |

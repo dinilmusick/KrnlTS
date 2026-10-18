@@ -10,7 +10,7 @@ export function scaffoldFrontend(targetDir: string, projectName: string): void {
   fs.mkdirSync(path.join(fEntityDir, 'tests'), { recursive: true });
   fs.mkdirSync(path.join(fFuncDir, 'tests'), { recursive: true });
   fs.mkdirSync(path.join(targetDir, 'docs'), { recursive: true });
-  fs.mkdirSync(path.join(targetDir, '.skipo'), { recursive: true });
+  fs.mkdirSync(path.join(targetDir, '.krnl'), { recursive: true });
 
   // ButtonConcepts
   fs.writeFileSync(
@@ -64,7 +64,7 @@ export function scaffoldFrontend(targetDir: string, projectName: string): void {
     `# ${projectName} - Project History\n\nInitialized Krnl symmetric architecture.\n`
   );
   fs.writeFileSync(
-    path.join(targetDir, '.skipo', 'agent-state.json'),
+    path.join(targetDir, '.krnl', 'agent-state.json'),
     JSON.stringify(
       {
         schemaVersion: '1.0.0',

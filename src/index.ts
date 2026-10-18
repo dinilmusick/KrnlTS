@@ -13,3 +13,4 @@ export * from './state/index.js';
 export * from './events/index.js';
 export * from './lifecycle/index.js';
 export * from './connectivity/index.js';
+export * from './entities/index.js';

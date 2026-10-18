@@ -8,7 +8,7 @@ function checkFileLimits(sf, options) {
   const errors = [];
   const warnings = [];
   const filePath = sf.getFilePath();
-  const sourceText = sf.getText();
+  const sourceText = sf.getFullText();
   const lines = sourceText.split("\n");
   if (lines.length > options.maxFileLineLimit) {
     errors.push({

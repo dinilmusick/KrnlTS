@@ -1,8 +1,8 @@
 # TASK: ROUTINE_AUDIT_AND_CADENCE_DEBUG_PROTOCOL
 $CADENCE := \text{ReadState}(\mathcal{S}) \to \begin{cases} \text{AuditAndRemediate}(\mathcal{C}) \to \text{ResetState}(\mathcal{S}) & \text{if } \text{turns} \ge \text{threshold} \\ \text{IncrementCounter}(\mathcal{S}) \to \text{ExecuteEdit}(\mathcal{C}) & \text{otherwise} \end{cases}
 
-## 1. PERSISTENT TURN-COUNTER ENGINE (`.skipo/agent-state.json`)
-Before executing or proposing any code edits, inspect `.skipo/agent-state.json`:
+## 1. PERSISTENT TURN-COUNTER ENGINE (`.krnl/agent-state.json`)
+Before executing or proposing any code edits, inspect `.krnl/agent-state.json`:
 ```json
 {
   "turnsSinceLastAudit": 0,

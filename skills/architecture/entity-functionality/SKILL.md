@@ -13,7 +13,7 @@ PROJECT_ROOT/
 ├── <app_name>.ts                     → [APP ENTRYPOINT & VARIANT CONFIG] (Replaces krnl.json)
 ├── package.json                      → Derived programmatically from all manifest.json files
 ├── tsconfig.json                     → TypeScript paths pointing to krnl/*
-├── .skipo/
+├── .krnl/
 │   └── agent-state.json              → Step-0 turn counter & audit history
 ├── docs/
 │   └── HISTORY.md                    → Project memory & intent tracking

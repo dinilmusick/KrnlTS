@@ -14,7 +14,7 @@ export function checkFileLimits(
   const errors: ValidationError[] = [];
   const warnings: ValidationError[] = [];
   const filePath = sf.getFilePath();
-  const sourceText = sf.getText();
+  const sourceText = sf.getFullText();
   const lines = sourceText.split('\n');
 
   // 1. File Line Limit

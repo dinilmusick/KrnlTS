@@ -94,23 +94,6 @@ declare const plugin: {
                 FunctionExpression(node: any): void;
             };
         };
-        'no-server-in-subapp': {
-            meta: {
-                type: string;
-                docs: {
-                    description: string;
-                    recommended: boolean;
-                };
-                messages: {
-                    noServer: string;
-                };
-            };
-            create(context: any): {
-                CallExpression?: undefined;
-            } | {
-                CallExpression(node: any): void;
-            };
-        };
         'top-level-purity': {
             meta: {
                 type: string;
@@ -253,23 +236,6 @@ declare const plugin: {
                                 FunctionExpression(node: any): void;
                             };
                         };
-                        'no-server-in-subapp': {
-                            meta: {
-                                type: string;
-                                docs: {
-                                    description: string;
-                                    recommended: boolean;
-                                };
-                                messages: {
-                                    noServer: string;
-                                };
-                            };
-                            create(context: any): {
-                                CallExpression?: undefined;
-                            } | {
-                                CallExpression(node: any): void;
-                            };
-                        };
                         'top-level-purity': {
                             meta: {
                                 type: string;
@@ -325,7 +291,6 @@ declare const plugin: {
                 '@ultrst-armada/krnl/helper-purity': string;
                 '@ultrst-armada/krnl/no-polling': string;
                 '@ultrst-armada/krnl/context-destructuring': string;
-                '@ultrst-armada/krnl/no-server-in-subapp': string;
                 '@ultrst-armada/krnl/top-level-purity': string;
                 '@ultrst-armada/krnl/one-component-per-file': string;
             };

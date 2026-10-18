@@ -11,11 +11,13 @@
     "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "build": "tsup"
+    "build": "tsup",
+    "test": "vitest run"
   },
   "devDependencies": {
     "tsup": "^8.4.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^3.1.0"
   },
   "dependencies": {
     "@ultrst-armada/krnl-core": "workspace:*"

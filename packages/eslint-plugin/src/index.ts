@@ -3,7 +3,6 @@ import { importSuffixRule } from './rules/import-suffix.js';
 import { helperPurityRule } from './rules/helper-purity.js';
 import { noPollingRule } from './rules/no-polling.js';
 import { contextDestructuringRule } from './rules/context-destructuring.js';
-import { noServerInSubappRule } from './rules/no-server-in-subapp.js';
 import { topLevelPurityRule } from './rules/top-level-purity.js';
 import { oneComponentPerFileRule } from './rules/one-component-per-file.js';
 
@@ -13,7 +12,6 @@ const rules = {
   'helper-purity': helperPurityRule,
   'no-polling': noPollingRule,
   'context-destructuring': contextDestructuringRule,
-  'no-server-in-subapp': noServerInSubappRule,
   'top-level-purity': topLevelPurityRule,
   'one-component-per-file': oneComponentPerFileRule,
 };
@@ -35,7 +33,6 @@ const plugin = {
         '@ultrst-armada/krnl/helper-purity': 'error',
         '@ultrst-armada/krnl/no-polling': 'error',
         '@ultrst-armada/krnl/context-destructuring': 'error',
-        '@ultrst-armada/krnl/no-server-in-subapp': 'error',
         '@ultrst-armada/krnl/top-level-purity': 'error',
         '@ultrst-armada/krnl/one-component-per-file': 'error',
       },

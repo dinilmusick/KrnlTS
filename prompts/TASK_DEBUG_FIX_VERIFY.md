@@ -1,8 +1,8 @@
 # TASK: DEBUG_FIX_AND_VERIFY_PROTOCOL
 $DEBUG := \text{ReadState}(\mathcal{S}) \to \text{Diagnose}(\mathcal{E}) \to \text{Patch}(\mathcal{P}) \to \text{Verify}(\mathcal{V}) \to \text{UpdateState}(\mathcal{S}) \quad \text{s.t.} \quad \text{Regressions} = \emptyset
 
-## 0. TURN-COUNTER STATE GUARD (`.skipo/agent-state.json`)
-- Before debugging, inspect `.skipo/agent-state.json`.
+## 0. TURN-COUNTER STATE GUARD (`.krnl/agent-state.json`)
+- Before debugging, inspect `.krnl/agent-state.json`.
 - If debugging is executed as part of a routine cadence audit, verify all 6 pillars and set `status: "PASSED"`, `turnsSinceLastAudit: 0`.
 - If executed for an ad-hoc bugfix, increment `totalTurns` and `turnsSinceLastAudit`.
 

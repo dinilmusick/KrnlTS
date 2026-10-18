@@ -66,7 +66,7 @@ krnl build
 krnl dev
 krnl sync
 krnl watch
-krnl generate <entity|functionality|library|subapp> <Name>
+krnl generate <entity|functionality|library> <Name>
 ```
 
 ## Packages

@@ -28,7 +28,7 @@ import {
   KrnlSystemMagneticLoader,
   KrnlFlowBuilder,
   KrnlSiblingNetwork
-} from "@dinilmusick/krnlts";
+} from "@ultrst-armada/krnl";
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
 // 2. MAGNETIC LOADER BOOTSTRAPPING

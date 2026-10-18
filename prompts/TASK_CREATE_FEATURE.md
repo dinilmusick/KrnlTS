@@ -30,7 +30,7 @@ $$\{ \text{create}, \text{insert}, \text{findOne}, \text{find}, \text{update}, \
 // ══════════════════════════════════════════════════════════════════════════════════════════
 // 1. IMPORTS & EXTERNAL DEPENDENCIES
 // ══════════════════════════════════════════════════════════════════════════════════════════
-import { krnlLocalFunctionality } from "@dinilmusick/krnlts";
+import { krnlLocalFunctionality } from "@ultrst-armada/krnl";
 import { z } from "zod";
 
 // ══════════════════════════════════════════════════════════════════════════════════════════

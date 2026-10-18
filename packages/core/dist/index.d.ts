@@ -295,8 +295,27 @@ interface RegisteredServiceRecord {
     endpoints: EndpointDescriptor[];
     registeredAt: number;
 }
+/**
+ * Central service catalog and capabilities registry.
+ *
+ * Duplicate Registration Semantics:
+ * 1. Same ID + Same Version:
+ *    Idempotent re-registration. Refreshes service definition and active endpoints,
+ *    while preserving the original registration timestamp (`registeredAt`).
+ * 2. Same ID + Different Version:
+ *    Refused with an Error. The catalog enforces a strict 1:1 mapping per service ID.
+ *    To change versions, consumer must explicitly call `unregister(serviceId)` first.
+ */
 declare class ServiceRegistry {
     private readonly services;
+    /**
+     * Registers a service definition and its endpoints into the registry.
+     *
+     * @param definition Validated service definition.
+     * @param endpoints Optional list of active endpoint descriptors.
+     * @throws Error if definition or endpoints fail validation.
+     * @throws Error if service is already registered under the same ID with a different version.
+     */
     register(definition: ServiceDefinition, endpoints?: EndpointDescriptor[]): void;
     unregister(serviceId: string): boolean;
     get(serviceId: string): RegisteredServiceRecord | undefined;
@@ -398,4 +417,97 @@ declare class ProtocolResolver {
     static getSupportedProtocols(definition: ServiceDefinition): ProtocolType[];
 }
 
-export { type Connection, type DependencyContract, type EndpointDescriptor, type EventContract, HttpProtocolAdapter, type IService, KrnlPackageReconciler, type LifecycleContract, LifecycleManager, MemoryTransport, type OperationContext, type OperationContract, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, UdpProtocolAdapter, WebSocketProtocolAdapter, createService, createServiceDefinition, createServiceProxy, validateServiceDefinition };
+/**
+ * @file Entity.ts
+ * @description Canonical declarative Entity actor and application definition for KrnlTS.
+ */
+
+interface EntityDescriptor {
+    id: string;
+    version: string;
+    description?: string;
+    capabilities?: ServiceCapability[];
+}
+interface EntityFlowChain {
+    name: string;
+    steps: Array<{
+        type: 'functionality' | 'entityOrchestration';
+        target: string;
+        orchestration?: string;
+    }>;
+    visibility: 'public' | 'private' | 'internal';
+    thenFunctionality(funcName: string): EntityFlowChain;
+    thenEntityOrchestration(entityName: string, orchName: string): EntityFlowChain;
+    register(options?: {
+        visibility?: 'public' | 'private' | 'internal';
+    }): EntityFlowChain;
+}
+interface LocalComponentDescriptor {
+    id: string;
+    uiSpec?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+}
+/**
+ * Base declarative Entity compositor.
+ * Follows Entity Purity Law: purely declarative orchestrator with no procedural loops.
+ */
+declare class Entity {
+    readonly id: string;
+    readonly version: string;
+    readonly description: string;
+    private readonly flows;
+    private readonly locals;
+    constructor(descriptor: EntityDescriptor);
+    boot(): Promise<void>;
+    init(): Promise<void>;
+    dispose(): Promise<void>;
+    flow(name: string): EntityFlowChain;
+    addLocal(descriptor: LocalComponentDescriptor): this;
+    getFlow(name: string): EntityFlowChain | undefined;
+    listFlows(): EntityFlowChain[];
+    getLocal(id: string): LocalComponentDescriptor | undefined;
+}
+/**
+ * Magnetic loader dynamically resolving and attaching functionality quad-units to an entity.
+ */
+declare class KrnlMagneticLoader {
+    static loadAll(entity: Entity, metaUrl?: string): Promise<string[]>;
+}
+interface AppProtocolConfig {
+    protocol: ProtocolType | string;
+    port?: number;
+    prefix?: string;
+    name?: string;
+    [key: string]: unknown;
+}
+interface AppFrontendConfig {
+    rootEntity: string;
+    variant?: number;
+}
+interface AppDefinition {
+    name: string;
+    version: string;
+    description?: string;
+    protocols?: AppProtocolConfig[];
+    entities?: Array<new () => Entity>;
+    frontend?: AppFrontendConfig;
+}
+declare function defineApp(def: AppDefinition): AppDefinition;
+declare const Protocols: {
+    HTTP: (opts?: {
+        port?: number;
+        prefix?: string;
+    }) => AppProtocolConfig;
+    WebSocket: (opts?: {
+        port?: number;
+    }) => AppProtocolConfig;
+    MCP: (opts?: {
+        name?: string;
+    }) => AppProtocolConfig;
+    UDP: (opts?: {
+        port?: number;
+    }) => AppProtocolConfig;
+    P2P: (opts?: Record<string, unknown>) => AppProtocolConfig;
+};
+
+export { type AppDefinition, type AppFrontendConfig, type AppProtocolConfig, type Connection, type DependencyContract, type EndpointDescriptor, Entity, type EntityDescriptor, type EntityFlowChain, type EventContract, HttpProtocolAdapter, type IService, KrnlMagneticLoader, KrnlPackageReconciler, type LifecycleContract, LifecycleManager, type LocalComponentDescriptor, MemoryTransport, type OperationContext, type OperationContract, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, Protocols, type ReconcileResult, type RegisteredServiceRecord, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, UdpProtocolAdapter, WebSocketProtocolAdapter, createService, createServiceDefinition, createServiceProxy, defineApp, validateServiceDefinition };

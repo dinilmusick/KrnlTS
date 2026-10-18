@@ -183,42 +183,6 @@ function checkParams(node, context) {
   }
 }
 
-// src/rules/no-server-in-subapp.ts
-var noServerInSubappRule = {
-  meta: {
-    type: "problem",
-    docs: {
-      description: "Sub-apps must not instantiate HTTP or WebSocket servers directly; Krnl handles network ingress.",
-      recommended: true
-    },
-    messages: {
-      noServer: "Sub-apps must NEVER start HTTP/WebSocket servers directly ('{{callee}}'). Krnl provides unified network ingress."
-    }
-  },
-  create(context) {
-    const filename = context.filename || context.getFilename?.() || "";
-    const isSubApp = filename.includes("subapps/") || filename.includes("subapp");
-    if (!isSubApp) return {};
-    return {
-      CallExpression(node) {
-        let calleeText = "";
-        if (node.callee.type === "MemberExpression") {
-          const obj = node.callee.object.name || "";
-          const prop = node.callee.property.name || "";
-          calleeText = `${obj}.${prop}`;
-        }
-        if (["http.createServer", "https.createServer", "app.listen", "server.listen"].includes(calleeText)) {
-          context.report({
-            node,
-            messageId: "noServer",
-            data: { callee: calleeText }
-          });
-        }
-      }
-    };
-  }
-};
-
 // src/rules/top-level-purity.ts
 var topLevelPurityRule = {
   meta: {
@@ -382,7 +346,6 @@ var rules = {
   "helper-purity": helperPurityRule,
   "no-polling": noPollingRule,
   "context-destructuring": contextDestructuringRule,
-  "no-server-in-subapp": noServerInSubappRule,
   "top-level-purity": topLevelPurityRule,
   "one-component-per-file": oneComponentPerFileRule
 };
@@ -403,7 +366,6 @@ var plugin = {
         "@ultrst-armada/krnl/helper-purity": "error",
         "@ultrst-armada/krnl/no-polling": "error",
         "@ultrst-armada/krnl/context-destructuring": "error",
-        "@ultrst-armada/krnl/no-server-in-subapp": "error",
         "@ultrst-armada/krnl/top-level-purity": "error",
         "@ultrst-armada/krnl/one-component-per-file": "error"
       }

@@ -31,6 +31,8 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   generateMagneticDeclarations: () => generateMagneticDeclarations,
+  runBuild: () => runBuild,
+  runDev: () => runDev,
   runGenerate: () => runGenerate,
   runValidate: () => runValidate
 });
@@ -51,7 +53,7 @@ function checkFileLimits(sf, options) {
   const errors = [];
   const warnings = [];
   const filePath = sf.getFilePath();
-  const sourceText = sf.getText();
+  const sourceText = sf.getFullText();
   const lines = sourceText.split("\n");
   if (lines.length > options.maxFileLineLimit) {
     errors.push({
@@ -1006,42 +1008,11 @@ describe("${name} UI Concept", () => {
   console.log(`\u2705 Created Backend Concept Library: krnl/backend/libraries/${conceptName}/`);
   console.log(`\u2705 Created Frontend Concept Library: krnl/frontend/libraries/${conceptName}/`);
 }
-function generateSubApp(name, projectRoot) {
-  const { backend } = getPlaneRoots(projectRoot);
-  const subappDir = path9.join(backend, "subapps", name);
-  fs7.mkdirSync(subappDir, { recursive: true });
-  fs7.writeFileSync(
-    path9.join(subappDir, "subapp.json"),
-    JSON.stringify(
-      {
-        name,
-        version: "1.0.0",
-        description: `${name} self-contained sub-app`,
-        registrationEntry: "./register.js"
-      },
-      null,
-      2
-    )
-  );
-  fs7.writeFileSync(
-    path9.join(subappDir, "register.ts"),
-    `export function register(context: any) {
-  context.logger.log("Registering ${name} sub-app");
-  return {
-    name: "${name}",
-    operations: []
-  };
-}
-export default register;
-`
-  );
-  console.log(`\u2705 Created Sub-App: krnl/backend/subapps/${name}/`);
-}
 
 // src/commands/generate.ts
 async function runGenerate(type, name, _parentEntity, projectRoot = process.cwd()) {
   if (!name) {
-    console.error("\u274C Error: Resource name is required. Usage: krnl generate <entity|functionality|library|subapp> <Name>");
+    console.error("\u274C Error: Resource name is required. Usage: krnl generate <entity|functionality|library> <Name>");
     process.exit(1);
   }
   switch (type.toLowerCase()) {
@@ -1054,11 +1025,8 @@ async function runGenerate(type, name, _parentEntity, projectRoot = process.cwd(
     case "library":
       generateLibrary(name, projectRoot);
       break;
-    case "subapp":
-      generateSubApp(name, projectRoot);
-      break;
     default:
-      console.error(`\u274C Unknown resource type "${type}". Valid types: entity, functionality, library, subapp`);
+      console.error(`\u274C Unknown resource type "${type}". Valid types: entity, functionality, library`);
       process.exit(1);
   }
 }
@@ -1177,9 +1145,107 @@ function parseExports(filePath, defaultName) {
   }
   return { named, hasDefault };
 }
+
+// src/commands/build.ts
+var path11 = __toESM(require("path"), 1);
+var fs9 = __toESM(require("fs"), 1);
+var import_child_process = require("child_process");
+async function runBuild(projectRoot = process.cwd(), options = {}) {
+  KrnlPackageReconciler.reconcile(projectRoot, true);
+  if (options.entity) {
+    console.log(`\u{1F3D7}\uFE0F  [Krnl Build] Target entity variant: "${options.entity}"`);
+  } else if (options.all) {
+    console.log(`\u{1F3D7}\uFE0F  [Krnl Build] Combined multi-entity build`);
+  }
+  console.log("\u{1F50D} [Krnl Build] Running AST & layer purity validation...");
+  const valid = await runValidate(projectRoot);
+  if (!valid) {
+    console.error("\u274C [Krnl Build] Build aborted due to validation errors.");
+    return { success: false, error: "Validation failed" };
+  }
+  generateMagneticDeclarations(projectRoot);
+  const tsConfigPath = path11.join(projectRoot, "tsconfig.json");
+  if (fs9.existsSync(tsConfigPath)) {
+    console.log("\u{1F3D7}\uFE0F  [Krnl Build] Compiling TypeScript source files to dist/...");
+    const localTsc = path11.join(projectRoot, "node_modules", ".bin", "tsc");
+    const tscCmd = fs9.existsSync(localTsc) ? localTsc : "tsc";
+    try {
+      (0, import_child_process.execSync)(`${tscCmd} -p tsconfig.json`, { cwd: projectRoot, stdio: "inherit" });
+    } catch (err) {
+      console.error("\u274C [Krnl Build] TypeScript compilation failed.");
+      return { success: false, error: "TypeScript compilation failed" };
+    }
+  } else {
+    console.log("\u2139\uFE0F  [Krnl Build] No tsconfig.json found; skipping TypeScript compiler invocation.");
+  }
+  console.log("\u2705 [Krnl Build] Project validation, declaration generation, and compilation completed successfully.");
+  return { success: true };
+}
+
+// src/commands/dev.ts
+var http = __toESM(require("http"), 1);
+var path12 = __toESM(require("path"), 1);
+var fs10 = __toESM(require("fs"), 1);
+async function runDev(projectRoot = process.cwd(), options = {}) {
+  const port = options.port ?? 8080;
+  KrnlPackageReconciler.reconcile(projectRoot, true);
+  generateMagneticDeclarations(projectRoot);
+  if (options.dryRun) {
+    console.log(`\u26A1 [Krnl Dev] Development environment verified on port ${port} (--dry-run).`);
+    return {
+      port,
+      close: async () => {
+      }
+    };
+  }
+  const server = http.createServer((req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+    if (url.pathname === "/" || url.pathname === "/health") {
+      res.writeHead(200);
+      res.end(JSON.stringify({ status: "ok", service: "krnl-dev", port, uptime: process.uptime() }));
+      return;
+    }
+    if (url.pathname === "/manifest") {
+      const pkgPath = path12.join(projectRoot, "package.json");
+      const pkg = fs10.existsSync(pkgPath) ? JSON.parse(fs10.readFileSync(pkgPath, "utf8")) : {};
+      res.writeHead(200);
+      res.end(JSON.stringify({ name: pkg.name || "krnl-app", version: pkg.version || "1.0.0" }));
+      return;
+    }
+    res.writeHead(404);
+    res.end(JSON.stringify({ error: "Route not found" }));
+  });
+  await new Promise((resolve2, reject) => {
+    server.listen(port, () => resolve2());
+    server.on("error", reject);
+  });
+  console.log(`\u26A1 [Krnl Dev] Development server listening on http://localhost:${port}`);
+  const watcher = fs10.watch(projectRoot, { recursive: true }, (_evt, filename) => {
+    if (filename && (filename.endsWith(".ts") || filename.endsWith(".js")) && !filename.includes("krnl-magnetic.d.ts")) {
+      try {
+        generateMagneticDeclarations(projectRoot);
+      } catch {
+      }
+    }
+    if (filename && filename.endsWith("manifest.json")) {
+      try {
+        KrnlPackageReconciler.reconcile(projectRoot, true);
+      } catch {
+      }
+    }
+  });
+  const close = async () => {
+    watcher.close();
+    await new Promise((resolve2) => server.close(() => resolve2()));
+  };
+  return { server, close, port };
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   generateMagneticDeclarations,
+  runBuild,
+  runDev,
   runGenerate,
   runValidate
 });

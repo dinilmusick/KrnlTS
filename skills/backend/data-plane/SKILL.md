@@ -44,7 +44,7 @@ $$\text{ResolvedConfig} = \begin{cases}
 \end{cases}$$
 
 ```typescript
-import { WorkspaceBackendFactory } from "@dinilmusick/krnlts";
+import { WorkspaceBackendFactory } from "@ultrst-armada/krnl";
 
 // Automatic cascade resolution with safe local SQLite fallback
 const credentials = WorkspaceBackendFactory.resolveCredentialsCascade(

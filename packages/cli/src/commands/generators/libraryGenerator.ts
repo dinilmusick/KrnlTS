@@ -108,37 +108,3 @@ describe("${name} UI Concept", () => {
   console.log(`✅ Created Frontend Concept Library: krnl/frontend/libraries/${conceptName}/`);
 }
 
-export function generateSubApp(name: string, projectRoot: string): void {
-  const { backend } = getPlaneRoots(projectRoot);
-  const subappDir = path.join(backend, 'subapps', name);
-  fs.mkdirSync(subappDir, { recursive: true });
-
-  fs.writeFileSync(
-    path.join(subappDir, 'subapp.json'),
-    JSON.stringify(
-      {
-        name,
-        version: '1.0.0',
-        description: `${name} self-contained sub-app`,
-        registrationEntry: './register.js',
-      },
-      null,
-      2
-    )
-  );
-
-  fs.writeFileSync(
-    path.join(subappDir, 'register.ts'),
-    `export function register(context: any) {
-  context.logger.log("Registering ${name} sub-app");
-  return {
-    name: "${name}",
-    operations: []
-  };
-}
-export default register;
-`
-  );
-
-  console.log(`✅ Created Sub-App: krnl/backend/subapps/${name}/`);
-}

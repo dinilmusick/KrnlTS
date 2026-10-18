@@ -7,7 +7,7 @@ description: Directives for generic Entity<TState, TEvents> runtime execution, c
 
 ## 1. GENERIC ENTITY CLASS (`Entity<TState, TEvents>`)
 ```typescript
-import { Entity } from "@dinilmusick/krnlts";
+import { Entity } from "@ultrst-armada/krnl";
 
 interface OrderState {
   orderId: string;

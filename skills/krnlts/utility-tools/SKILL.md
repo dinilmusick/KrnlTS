@@ -3,7 +3,7 @@ name: krnlts-utility-tools
 description: Directives for KrnlTS utility tools suite including KrnlFS, KrnlEnv, KrnlShell, AsyncKit, ObjectKit, and CacheKit.
 ---
 
-# KRNLTS UTILITY TOOLS SUITE (`@dinilmusick/krnlts`)
+# KRNLTS UTILITY TOOLS SUITE (`@ultrst-armada/krnl`)
 
 Always leverage built-in Krnl-Tools instead of importing ad-hoc npm packages for standard operations:
 
@@ -11,7 +11,7 @@ Always leverage built-in Krnl-Tools instead of importing ad-hoc npm packages for
 
 ## 1. `KrnlFS` (Atomic Filesystem & File Locks)
 ```typescript
-import { KrnlFS } from "@dinilmusick/krnlts";
+import { KrnlFS } from "@ultrst-armada/krnl";
 
 // Safe atomic file read/write
 await KrnlFS.writeJsonAtomic("data.json", { counter: 1 });
@@ -30,7 +30,7 @@ try {
 
 ## 2. `KrnlEnv` (Type-Safe Environment Variables)
 ```typescript
-import { KrnlEnv } from "@dinilmusick/krnlts";
+import { KrnlEnv } from "@ultrst-armada/krnl";
 import { z } from "zod";
 
 const config = KrnlEnv.loadAndValidate({

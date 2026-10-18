@@ -9,7 +9,7 @@ description: Master router and deterministic dispatcher directing the AI agent t
 ```
 ∀ task ∈ Agent_Actions:
   1. Inspect workspace to detect Runtime Extensions:
-     if (has_dependency("@dinilmusick/krnlts") ∨ file_exists("krnl.json") ∨ has_import("@dinilmusick/krnlts")):
+     if (has_dependency("@ultrst-armada/krnl") ∨ file_exists("krnl.json") ∨ has_import("@ultrst-armada/krnl")):
          load_skill("./krnlts/SKILL.md")  # Load KrnlTS Runtime Subsystem Extensions
   2. Classify task intent(s) into Domain(s).
   3. Consult corresponding leaf SKILL.md before proposing or writing code.
@@ -37,8 +37,7 @@ description: Master router and deterministic dispatcher directing the AI agent t
 | `5_turn_audit`, `deduplicate_structs`, `unify_functions`, `remediate_deviations` | [`architecture/deduplication/SKILL.md`](./architecture/deduplication/SKILL.md) | 5-turn periodic audit: KrnlTS quad-unit compliance, deduplication, 4-layer purity, anti-polling audit |
 | `skeleton`, `structural_entity`, `component_composition`, `behavioral_unit` | [`architecture/skeleton-components/SKILL.md`](./architecture/skeleton-components/SKILL.md) | `Entity<TState, TEvents>` Skeletons = Impure Orchestrators (`@role skeleton`), Components = Pure/Atomic (`@role component`) |
 | `file_length`, `line_limit`, `split_file`, `atomic_sizing`, `200_lines`, `top_level_purity`, `one_component_per_file`, `app_tsx_raw_code`, `index_ts_raw_code` | [`architecture/code-limits/SKILL.md`](./architecture/code-limits/SKILL.md) | Top-level File Purity Law (App.tsx/main.ts/index.ts = imports only, zero raw JSX/HTML/logic), One Component Per File, 200 lines/file max (frontend + backend), ≤ 30 lines in helpers before concept delegation, ≤ 20 lines in main before helper delegation |
-| `subapp_engine`, `subapp_authoring`, `drag_and_drop_app`, `engine_wrapper`, `subapp_json` | [`architecture/sub-app-engine/SKILL.md`](./architecture/sub-app-engine/SKILL.md) | 100% drag-and-drop KrnlTS sub-app compatibility, zero-server rule, `subapp.json`, `register.ts`, pure operations |
-| `krnlts`, `krnl_entity`, `magnetic_loader`, `flow_builder`, `krnl_tools`, `krnlts_validate`, `subapp_worker` | [`krnlts/SKILL.md`](./krnlts/SKILL.md) | KrnlTS runtime library extensions (`loadAll`, `Entity<TState, TEvents>`, flows, port gateway, `KrnlFS`, `krnlts-validate`) |
+| `krnlts`, `krnl_entity`, `magnetic_loader`, `flow_builder`, `krnl_tools`, `krnlts_validate` | [`krnlts/SKILL.md`](./krnlts/SKILL.md) | KrnlTS runtime library extensions (`loadAll`, `Entity<TState, TEvents>`, flows, port gateway, `KrnlFS`, `krnlts-validate`) |
 | `create_endpoint`, `expose_api`, `rpc_surface`, `external_trigger_ui_sync` | [`api/SKILL.md`](./api/SKILL.md) | Feature-to-API parity, external calls trigger visible UI state, zero phantom calls |
 | `fetch_data`, `zero_mock`, `real_backend`, `error_state_render`, `ai_provider` | [`data/SKILL.md`](./data/SKILL.md) | Zero fake/mock data, explicit error states, user-specified AI providers only |
 | `configure_db`, `sqlite_wal`, `postgres_supabase_ssl`, `firebase_mongo`, `test_db` | [`database/SKILL.md`](./database/SKILL.md) | Settings modal database tab, multi-engine support, `/api/database/test` latency ping |
@@ -51,7 +50,7 @@ description: Master router and deterministic dispatcher directing the AI agent t
 ```python
 def resolve_and_execute(task_intent: str, modified_domains: list[str]):
     # Step 1: Detect KrnlTS library presence
-    is_krnlts = has_dependency("@dinilmusick/krnlts") or file_exists("krnl.json") or has_import("@dinilmusick/krnlts")
+    is_krnlts = has_dependency("@ultrst-armada/krnl") or file_exists("krnl.json") or has_import("@ultrst-armada/krnl")
 
     # Step 2: Resolve all required leaf skills
     leaf_skills = []

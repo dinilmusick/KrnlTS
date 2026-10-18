@@ -18,7 +18,7 @@ A single HTTP/TCP port serves all communication transports without port prolifer
 // ══════════════════════════════════════════════════════════════════════════════════════════
 // 1. IMPORTS & EXTERNAL DEPENDENCIES
 // ══════════════════════════════════════════════════════════════════════════════════════════
-import { Entity, krnlSystemUnifiedHttpAdapter, KrnlProtocolMCP, krnlLocalFunctionality } from "@dinilmusick/krnlts";
+import { Entity, krnlSystemUnifiedHttpAdapter, KrnlProtocolMCP, krnlLocalFunctionality } from "@ultrst-armada/krnl";
 import { z } from "zod";
 
 // ══════════════════════════════════════════════════════════════════════════════════════════
