@@ -3,11 +3,7 @@
  * @description Concrete service implementation in KrnlTS.
  */
 
-import type {
-  IService,
-  ServiceDefinition,
-  OperationContext,
-} from './ServiceContract.js';
+import type { IService, ServiceDefinition, OperationContext } from './ServiceContract.js';
 import { ServiceStateStore } from '../state/ServiceStateStore.js';
 import { ServiceEventBus } from '../events/ServiceEventBus.js';
 import { LifecycleManager } from '../lifecycle/LifecycleManager.js';
@@ -21,17 +17,17 @@ export class ServiceInstance<
   public readonly version: string;
 
   private stateStore?: ServiceStateStore<TState>;
-  private eventBus: ServiceEventBus<TEvents>;
-  private lifecycle: LifecycleManager;
+  private readonly eventBus: ServiceEventBus<TEvents>;
+  private readonly lifecycle: LifecycleManager;
+  private initialized = false;
 
-  constructor(private definition: ServiceDefinition<TState, TEvents>) {
+  constructor(private readonly definition: ServiceDefinition<TState, TEvents>) {
     this.id = definition.id;
     this.name = definition.name;
     this.version = definition.version;
     this.lifecycle = new LifecycleManager();
     this.eventBus = new ServiceEventBus<TEvents>();
-
-    if (definition.state?.initial) {
+    if (definition.state) {
       this.stateStore = new ServiceStateStore<TState>(definition.state.initial);
     }
   }
@@ -40,26 +36,55 @@ export class ServiceInstance<
     return this.definition;
   }
 
+  getStatus(): ReturnType<LifecycleManager['getStatus']> {
+    return this.lifecycle.getStatus();
+  }
+
   async start(): Promise<void> {
-    this.lifecycle.setStatus('starting');
-    if (this.definition.lifecycle?.onInit) {
-      await this.definition.lifecycle.onInit();
+    const current = this.lifecycle.getStatus();
+    if (current === 'running') return;
+    if (current === 'initializing' || current === 'starting' || current === 'stopping') {
+      throw new Error("[Service:" + this.name + "] Cannot start while status is '" + current + "'.");
     }
-    if (this.definition.lifecycle?.onStart) {
-      await this.definition.lifecycle.onStart();
+
+    if (!this.initialized) {
+      this.lifecycle.transitionTo('initializing');
+      try {
+        await this.definition.lifecycle?.onInit?.();
+        this.initialized = true;
+        this.lifecycle.transitionTo('ready');
+      } catch (error) {
+        this.lifecycle.transitionTo('uninitialized');
+        throw error;
+      }
     }
-    this.lifecycle.setStatus('running');
+
+    this.lifecycle.transitionTo('starting');
+    try {
+      await this.definition.lifecycle?.onStart?.();
+      this.lifecycle.transitionTo('running');
+    } catch (error) {
+      this.lifecycle.transitionTo('ready');
+      throw error;
+    }
   }
 
   async stop(): Promise<void> {
-    this.lifecycle.setStatus('stopping');
-    if (this.definition.lifecycle?.onStop) {
-      await this.definition.lifecycle.onStop();
+    const current = this.lifecycle.getStatus();
+    if (current === 'stopped') return;
+    if (current !== 'running') {
+      throw new Error("[Service:" + this.name + "] Cannot stop while status is '" + current + "'.");
     }
-    if (this.definition.lifecycle?.onDispose) {
-      await this.definition.lifecycle.onDispose();
+
+    this.lifecycle.transitionTo('stopping');
+    try {
+      await this.definition.lifecycle?.onStop?.();
+      await this.definition.lifecycle?.onDispose?.();
+      this.lifecycle.transitionTo('stopped');
+    } catch (error) {
+      this.lifecycle.transitionTo('running');
+      throw error;
     }
-    this.lifecycle.setStatus('stopped');
   }
 
   async call<TIn = unknown, TOut = unknown>(
@@ -70,21 +95,18 @@ export class ServiceInstance<
     this.lifecycle.assertRunning(this.name);
     const operation = this.definition.operations[op];
     if (!operation) {
-      throw new Error(`[Service:${this.name}] Operation '${op}' not found.`);
+      throw new Error("[Service:" + this.name + "] Operation '" + op + "' not found.");
     }
     return (await operation.handler(input, ctx)) as TOut;
   }
 
   getState(): Readonly<TState> {
-    if (!this.stateStore) {
-      return Object.freeze({} as TState);
-    }
-    return this.stateStore.getState();
+    return this.stateStore?.getState() ?? Object.freeze({} as TState);
   }
 
   setState(mutation: Partial<TState>): void {
     if (!this.stateStore) {
-      this.stateStore = new ServiceStateStore<TState>(mutation as TState);
+      this.stateStore = new ServiceStateStore<TState>({ ...(mutation as TState) });
       return;
     }
     this.stateStore.setState(mutation);
