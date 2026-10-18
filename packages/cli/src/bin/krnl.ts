@@ -4,7 +4,7 @@ import * as fs from "fs";
 import { runValidate } from "../commands/validate.js";
 import { runGenerate } from "../commands/generate.js";
 import { generateMagneticDeclarations } from "../commands/watch.js";
-import { KrnlPackageReconciler } from "@dinilmusick/krnl-core";
+import { KrnlPackageReconciler } from "@ultrst-armada/krnl-core";
 
 const args = process.argv.slice(2);
 const command = args[0] || "help";
@@ -16,7 +16,7 @@ function detectAppEntrypoint(projectRoot: string): string | null {
       const full = path.join(projectRoot, f);
       try {
         const text = fs.readFileSync(full, "utf8");
-        if (text.includes("defineApp") || text.includes("@dinilmusick/krnl-core")) {
+        if (text.includes("defineApp") || text.includes("@ultrst-armada/krnl-core")) {
           return f;
         }
       } catch (e) {}
