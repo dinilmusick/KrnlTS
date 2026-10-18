@@ -3,11 +3,8 @@
  * @description Central service catalog and capabilities registry.
  */
 
-import type {
-  ServiceDefinition,
-  EndpointDescriptor,
-  ServiceCapability,
-} from '../services/ServiceContract.js';
+import type { ServiceDefinition, EndpointDescriptor, ServiceCapability } from '../services/ServiceContract.js';
+import { validateServiceDefinition } from '../services/ServiceGenerators.js';
 
 export interface RegisteredServiceRecord {
   definition: ServiceDefinition;
@@ -16,26 +13,45 @@ export interface RegisteredServiceRecord {
 }
 
 export class ServiceRegistry {
-  private services: Map<string, RegisteredServiceRecord> = new Map();
+  private readonly services: Map<string, RegisteredServiceRecord> = new Map();
 
   register(definition: ServiceDefinition, endpoints: EndpointDescriptor[] = []): void {
+    validateServiceDefinition(definition);
+    const existing = this.services.get(definition.id);
+    if (existing && existing.definition.version !== definition.version) {
+      throw new Error(
+        "[ServiceRegistry] Service '" + definition.id + "' is already registered at version '" +
+        existing.definition.version + "'; refusing replacement with '" + definition.version + "'."
+      );
+    }
+
     this.services.set(definition.id, {
       definition,
-      endpoints,
-      registeredAt: Date.now(),
+      endpoints: endpoints.map((endpoint) => ({ ...endpoint, capabilities: [...endpoint.capabilities] })),
+      registeredAt: existing?.registeredAt ?? Date.now(),
     });
   }
 
-  unregister(serviceId: string): void {
-    this.services.delete(serviceId);
+  unregister(serviceId: string): boolean {
+    return this.services.delete(serviceId);
   }
 
   get(serviceId: string): RegisteredServiceRecord | undefined {
-    return this.services.get(serviceId);
+    const record = this.services.get(serviceId);
+    if (!record) return undefined;
+    return {
+      definition: record.definition,
+      endpoints: record.endpoints.map((endpoint) => ({ ...endpoint, capabilities: [...endpoint.capabilities] })),
+      registeredAt: record.registeredAt,
+    };
   }
 
   list(): RegisteredServiceRecord[] {
-    return Array.from(this.services.values());
+    return Array.from(this.services.values()).map((record) => ({
+      definition: record.definition,
+      endpoints: record.endpoints.map((endpoint) => ({ ...endpoint, capabilities: [...endpoint.capabilities] })),
+      registeredAt: record.registeredAt,
+    }));
   }
 
   findByCapability(capabilityName: string): RegisteredServiceRecord[] {
