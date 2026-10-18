@@ -4,6 +4,8 @@
  * Invariant: KrnlTS.Service = Skipo.Service = RemoteService.Contract
  */
 
+export type ServiceStatus = 'uninitialized' | 'initializing' | 'ready' | 'starting' | 'running' | 'stopping' | 'stopped';
+
 export type ProtocolType = 'http' | 'https' | 'ws' | 'wss' | 'udp' | 'p2p' | 'signaling' | 'memory';
 
 export interface OperationContext {
@@ -98,6 +100,7 @@ export interface IService<
   setState(mutation: Partial<TState>): void;
   on<K extends keyof TEvents & string>(event: K, handler: (payload: TEvents[K]) => void): () => void;
   emit<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): void;
+  getStatus(): ServiceStatus;
   start(): Promise<void>;
   stop(): Promise<void>;
   getDefinition(): ServiceDefinition<TState, TEvents>;
