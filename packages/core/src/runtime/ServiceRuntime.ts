@@ -70,6 +70,15 @@ export class ServiceRuntime {
     }
   }
 
+  async disposeAll(): Promise<void> {
+    let firstError: unknown;
+    const services = Array.from(this.instances.values()).reverse();
+    for (const service of services) {
+      try { await service.dispose(); } catch (error) { firstError ??= error; }
+    }
+    if (firstError) throw firstError;
+  }
+
   async stopAll(): Promise<void> {
     let firstError: unknown;
     const services = Array.from(this.instances.values()).reverse();
