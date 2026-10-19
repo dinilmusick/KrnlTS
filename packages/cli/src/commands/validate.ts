@@ -22,6 +22,14 @@ export async function runValidate(projectRoot: string = process.cwd()): Promise<
     return false;
   }
 
+  if (report.promotableAssets && report.promotableAssets.length > 0) {
+    console.log(`📦 [PROMOTABLE ASSETS] Detected ${report.promotableAssets.length} generic library asset(s) eligible for GutTS promotion:`);
+    for (const asset of report.promotableAssets) {
+      console.log(`  ✦ [${asset.scope}:${asset.scopeName}] ${asset.name} (${asset.kind}) -> ${asset.target}`);
+    }
+    console.log('');
+  }
+
   console.log(`✅ [VALIDATION PASSED] ${report.totalFiles} source files verified clean against Krnl paradigms.\n`);
   return true;
 }

@@ -1,12 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Project, SourceFile } from 'ts-morph';
-import { ValidationError, ValidationSummary } from './types.js';
+import { ValidationError, ValidationSummary, PromotableAsset } from './types.js';
 import { checkFileLimits, FileLimitOptions } from './rules/fileLimits.js';
 import { checkComponentRules } from './rules/componentRules.js';
 import { checkOrchestrationRules } from './rules/orchestrationRules.js';
 import { checkTopLevelPurity, checkWorkspaceLayout } from './rules/workspaceRules.js';
 import { checkServiceBoundaries } from './rules/serviceBoundaryRules.js';
+import { checkScopedLibraryRules } from './rules/scopedLibraryRules.js';
 
 export interface KrnlValidatorOptions {
   projectRoot: string;
@@ -42,6 +43,7 @@ export class KrnlValidatorEngine {
     const files = this.collectSourceFiles(this.projectRoot);
     const errors: ValidationError[] = [];
     const warnings: ValidationError[] = [];
+    const promotableAssets: PromotableAsset[] = [];
 
     checkWorkspaceLayout(this.projectRoot, errors);
 
@@ -50,6 +52,9 @@ export class KrnlValidatorEngine {
       const fileReport = this.validateSourceFile(sf);
       errors.push(...fileReport.errors);
       warnings.push(...fileReport.warnings);
+      if (fileReport.promotableAssets) {
+        promotableAssets.push(...fileReport.promotableAssets);
+      }
     }
 
     return {
@@ -57,15 +62,16 @@ export class KrnlValidatorEngine {
       totalFiles: files.length,
       errors,
       warnings,
+      promotableAssets,
     };
   }
 
-  public validateSourceFile(sf: SourceFile): { errors: ValidationError[]; warnings: ValidationError[] } {
+  public validateSourceFile(sf: SourceFile): { errors: ValidationError[]; warnings: ValidationError[]; promotableAssets?: PromotableAsset[] } {
     const filePath = sf.getFilePath();
     const baseName = path.basename(filePath);
 
     if (baseName.includes('_pb.') || baseName.endsWith('.d.ts')) {
-      return { errors: [], warnings: [] };
+      return { errors: [], warnings: [], promotableAssets: [] };
     }
 
     const limits = checkFileLimits(sf, this.limitOptions);
@@ -73,6 +79,7 @@ export class KrnlValidatorEngine {
     const components = checkComponentRules(sf);
     const orchestration = checkOrchestrationRules(sf);
     const boundaries = checkServiceBoundaries(sf);
+    const scopedLibraries = checkScopedLibraryRules(sf);
 
     return {
       errors: [
@@ -81,6 +88,7 @@ export class KrnlValidatorEngine {
         ...components.errors,
         ...orchestration.errors,
         ...boundaries.errors,
+        ...scopedLibraries.errors,
       ],
       warnings: [
         ...limits.warnings,
@@ -88,7 +96,9 @@ export class KrnlValidatorEngine {
         ...components.warnings,
         ...orchestration.warnings,
         ...boundaries.warnings,
+        ...scopedLibraries.warnings,
       ],
+      promotableAssets: scopedLibraries.promotableAssets,
     };
   }
 
