@@ -67,6 +67,17 @@ interface ServiceCapability {
     protocols: ProtocolType[];
     metadata?: Record<string, unknown>;
 }
+interface ServiceNamespace<TLibraries extends Record<string, unknown> = Record<string, unknown>, TFunctionalities extends Record<string, unknown> = Record<string, unknown>, TOrchestrations extends Record<string, unknown> = Record<string, unknown>> {
+    readonly serviceId: string;
+    readonly serviceName: string;
+    readonly version: string;
+    readonly description?: string;
+    readonly libraries: TLibraries;
+    readonly functionalities: TFunctionalities;
+    readonly functionalityOrchestrations: TOrchestrations;
+    readonly capabilities: readonly ServiceCapability[];
+    readonly dependencies: readonly DependencyContract[];
+}
 interface EndpointDescriptor {
     protocol: ProtocolType;
     address: string;
@@ -718,6 +729,9 @@ declare class ServiceFacade<TState extends Record<string, unknown> = Record<stri
     registerOrchestration(name: string, orchestration: FunctionalityOrchestration): this;
     registerLibrary<TLib = unknown>(name: string, library: TLib): this;
     getLibrary<TLib = unknown>(name: string): TLib;
+    get namespace(): ServiceNamespace<TLibraries, Record<string, unknown>, Record<string, FunctionalityOrchestration>>;
+    getNamespace(): ServiceNamespace<TLibraries, Record<string, unknown>, Record<string, FunctionalityOrchestration>>;
+    getServiceFacadeMetadata(): ServiceNamespace<TLibraries, Record<string, unknown>, Record<string, FunctionalityOrchestration>>;
 }
 declare function createServiceFacade<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>, TLibraries extends Record<string, unknown> = Record<string, unknown>>(config: ServiceFacadeConfig<TState, TEvents, TLibraries>): ServiceFacade<TState, TEvents, TLibraries>;
 
@@ -933,4 +947,4 @@ declare class ProtocolResolver {
     static getSupportedProtocols(definition: ServiceDefinition): ProtocolType[];
 }
 
-export { type BackendCommand, type Connection, type DAGValidationResult, type DependencyContract, type EndpointDescriptor, type EventContract, type ExecutionContext, type FunctionalityFlow, type FunctionalityFlowStep, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlPackageReconciler, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createService, createServiceDefinition, createServiceFacade, createServiceProxy, validateOrchestrationDAG, validateServiceDefinition };
+export { type BackendCommand, type Connection, type DAGValidationResult, type DependencyContract, type EndpointDescriptor, type EventContract, type ExecutionContext, type FunctionalityFlow, type FunctionalityFlowStep, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlPackageReconciler, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createService, createServiceDefinition, createServiceFacade, createServiceProxy, validateOrchestrationDAG, validateServiceDefinition };

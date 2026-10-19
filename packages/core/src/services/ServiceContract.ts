@@ -64,6 +64,22 @@ export interface ServiceCapability {
   metadata?: Record<string, unknown>;
 }
 
+export interface ServiceNamespace<
+  TLibraries extends Record<string, unknown> = Record<string, unknown>,
+  TFunctionalities extends Record<string, unknown> = Record<string, unknown>,
+  TOrchestrations extends Record<string, unknown> = Record<string, unknown>
+> {
+  readonly serviceId: string;
+  readonly serviceName: string;
+  readonly version: string;
+  readonly description?: string;
+  readonly libraries: TLibraries;
+  readonly functionalities: TFunctionalities;
+  readonly functionalityOrchestrations: TOrchestrations;
+  readonly capabilities: readonly ServiceCapability[];
+  readonly dependencies: readonly DependencyContract[];
+}
+
 export interface EndpointDescriptor {
   protocol: ProtocolType;
   address: string;

@@ -13,6 +13,7 @@ import type {
   DependencyContract,
   ServiceCapability,
   ServiceStatus,
+  ServiceNamespace,
 } from './ServiceContract.js';
 import { ServiceInstance } from './ServiceInstance.js';
 import { FunctionalityOrchestration } from '../orchestration/FunctionalityOrchestration.js';
@@ -436,6 +437,28 @@ export class ServiceFacade<
       throw new Error(`[ServiceFacade:${this.id}] Library "${name}" not found on service facade.`);
     }
     return lib as TLib;
+  }
+
+  get namespace(): ServiceNamespace<TLibraries, Record<string, unknown>, Record<string, FunctionalityOrchestration>> {
+    return this.getNamespace();
+  }
+
+  getNamespace(): ServiceNamespace<TLibraries, Record<string, unknown>, Record<string, FunctionalityOrchestration>> {
+    return {
+      serviceId: this.id,
+      serviceName: this.name,
+      version: this.version,
+      description: this.description,
+      libraries: { ...this.libraries },
+      functionalities: { ...this.functionalities },
+      functionalityOrchestrations: { ...this.functionalityOrchestrations },
+      capabilities: this.capabilities,
+      dependencies: this.dependencies,
+    };
+  }
+
+  getServiceFacadeMetadata(): ServiceNamespace<TLibraries, Record<string, unknown>, Record<string, FunctionalityOrchestration>> {
+    return this.getNamespace();
   }
 }
 

@@ -2628,6 +2628,25 @@ var ServiceFacade = class {
     }
     return lib;
   }
+  get namespace() {
+    return this.getNamespace();
+  }
+  getNamespace() {
+    return {
+      serviceId: this.id,
+      serviceName: this.name,
+      version: this.version,
+      description: this.description,
+      libraries: { ...this.libraries },
+      functionalities: { ...this.functionalities },
+      functionalityOrchestrations: { ...this.functionalityOrchestrations },
+      capabilities: this.capabilities,
+      dependencies: this.dependencies
+    };
+  }
+  getServiceFacadeMetadata() {
+    return this.getNamespace();
+  }
 };
 function createServiceFacade(config) {
   return new ServiceFacade(config);
