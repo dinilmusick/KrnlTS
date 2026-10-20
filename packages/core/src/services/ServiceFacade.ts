@@ -28,6 +28,13 @@ import {
   OrchestrationContext,
 } from '../orchestration/canonical/model.js';
 
+export interface DefaultFrontendReference {
+  component: string;
+  package?: string;
+  export?: string;
+  relationship?: 'recommended' | 'required';
+}
+
 export interface ServiceFacadeConfig<
   TState extends Record<string, unknown> = Record<string, unknown>,
   TEvents extends Record<string, unknown> = Record<string, unknown>,
@@ -48,6 +55,8 @@ export interface ServiceFacadeConfig<
   capabilities?: ServiceCapability[];
   queueOptions?: KrnlQueueOptions;
   concurrency?: number;
+  /** Canonical FLOKS frontend component recommended for this service. */
+  defaultFrontend?: DefaultFrontendReference;
 }
 
 export type IServiceFacade = ServiceFacade<any, any, any>;
@@ -67,6 +76,7 @@ export class ServiceFacade<
   public readonly libraries: TLibraries;
   public readonly dependencies: readonly DependencyContract[];
   public readonly capabilities: readonly ServiceCapability[];
+  public readonly defaultFrontend?: DefaultFrontendReference;
 
   private readonly instance: IService<TState, TEvents>;
   private readonly queue: KrnlQueue;
@@ -89,6 +99,7 @@ export class ServiceFacade<
     this.libraries = (config.libraries ? { ...config.libraries } : {}) as TLibraries;
     this.dependencies = Object.freeze(config.dependencies ? [...config.dependencies] : []);
     this.capabilities = Object.freeze(config.capabilities ? [...config.capabilities] : []);
+    this.defaultFrontend = config.defaultFrontend ? Object.freeze({ ...config.defaultFrontend }) : undefined;
 
     if (config.instance) {
       this.instance = config.instance;
