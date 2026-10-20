@@ -33,7 +33,9 @@ async function main() {
       const type = args[1];
       const name = args[2];
       const parent = args[3];
-      await runGenerate(type, name, parent, process.cwd());
+      const frontendArg = args.find((arg) => arg.startsWith("--default-frontend="));
+      const frontend = frontendArg ? { component: frontendArg.slice("--default-frontend=".length) } : undefined;
+      await runGenerate(type, name, parent, process.cwd(), { defaultFrontend: frontend });
       break;
     }
     case "watch": {
@@ -106,7 +108,7 @@ Commands:
   watch             Generate ambient TypeScript declarations (krnl-magnetic.d.ts)
   generate          Scaffold services, functionality-orchestrations, functionalities, libraries
                     Examples:
-                      krnl generate service Payment
+                      krnl generate service Payment --default-frontend=PaymentPage
                       krnl generate functionality-orchestration Payment
                       krnl generate functionality ProcessPayment Payment
                       krnl generate library TaxCalculator Payment
