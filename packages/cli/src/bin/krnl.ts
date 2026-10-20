@@ -42,10 +42,7 @@ async function main() {
       const name = args[2];
       const parent = args[3];
       const component = optionValue("--default-frontend");
-      const relationship = optionValue("--default-frontend-relationship") ?? "recommended";
-      if (relationship !== "recommended" && relationship !== "required") {
-        throw new Error('--default-frontend-relationship must be "recommended" or "required".');
-      }
+      const relationship: "recommended" | "required" = optionValue("--default-frontend-relationship") === "required" ? "required" : "recommended";
       const frontend = component ? {
         component,
         package: optionValue("--default-frontend-package"),
