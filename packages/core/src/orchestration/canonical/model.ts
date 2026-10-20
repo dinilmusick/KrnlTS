@@ -106,6 +106,7 @@ export interface OrchestrationDefinition<TInput = unknown, TOutput = unknown> {
   readonly description?: string;
   readonly scope: 'functionality' | 'service';
   readonly dependencies: readonly string[];
+  readonly defaultFrontend?: OrchestrationFrontendReference;
   readonly timeoutMs?: number;
   readonly concurrency?: number;
   readonly steps: readonly StepDefinition[];
