@@ -11,6 +11,14 @@ import { KrnlPackageReconciler } from "@ultrst-armada/krnl-core";
 const args = process.argv.slice(2);
 const command = args[0] || "help";
 
+function optionValue(name: string): string | undefined {
+  const equalsPrefix = `${name}=`;
+  const equalsArg = args.find((arg) => arg.startsWith(equalsPrefix));
+  if (equalsArg) return equalsArg.slice(equalsPrefix.length);
+  const index = args.indexOf(name);
+  return index >= 0 && args[index + 1] && !args[index + 1].startsWith("--") ? args[index + 1] : undefined;
+}
+
 async function main() {
   switch (command) {
     case "sync": {
@@ -33,8 +41,17 @@ async function main() {
       const type = args[1];
       const name = args[2];
       const parent = args[3];
-      const frontendArg = args.find((arg) => arg.startsWith("--default-frontend="));
-      const frontend = frontendArg ? { component: frontendArg.slice("--default-frontend=".length) } : undefined;
+      const component = optionValue("--default-frontend");
+      const relationship = optionValue("--default-frontend-relationship") ?? "recommended";
+      if (relationship !== "recommended" && relationship !== "required") {
+        throw new Error('--default-frontend-relationship must be "recommended" or "required".');
+      }
+      const frontend = component ? {
+        component,
+        package: optionValue("--default-frontend-package"),
+        export: optionValue("--default-frontend-export"),
+        relationship,
+      } : undefined;
       await runGenerate(type, name, parent, process.cwd(), { defaultFrontend: frontend });
       break;
     }
@@ -108,7 +125,8 @@ Commands:
   watch             Generate ambient TypeScript declarations (krnl-magnetic.d.ts)
   generate          Scaffold services, functionality-orchestrations, functionalities, libraries
                     Examples:
-                      krnl generate service Payment --default-frontend=PaymentPage
+                      krnl generate service Payment
+                      krnl generate service Payment --default-frontend=PaymentPage --default-frontend-package=@ultrst-armada/floks/ui --default-frontend-export=PaymentPage --default-frontend-relationship=required
                       krnl generate functionality-orchestration Payment
                       krnl generate functionality ProcessPayment Payment
                       krnl generate library TaxCalculator Payment
