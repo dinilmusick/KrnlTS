@@ -3,7 +3,10 @@ import * as path from 'path';
 import { KrnlPackageReconciler } from '@ultrst-armada/krnl-core';
 import { getPlaneRoots } from './common.js';
 
-export function generateService(name: string, projectRoot: string): void {
+export function generateService(name: string, projectRoot: string, defaultFrontend?: { component: string; package?: string }): void {
+  if (!defaultFrontend?.component) {
+    throw new Error('[krnl generate service] --default-frontend=<FLOKSComponent> is required. A service must declare its canonical frontend component reference.');
+  }
   const { backend } = getPlaneRoots(projectRoot);
   const serviceDir = path.join(backend, 'services', name);
 
