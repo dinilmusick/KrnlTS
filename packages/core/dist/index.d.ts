@@ -1,3 +1,6 @@
+import * as gutts from '@dinilmusick/gutts';
+export { gutts };
+
 /**
  * @file LifecycleManager.ts
  * @description Explicit, deterministic lifecycle state machine for services.

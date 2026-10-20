@@ -814,6 +814,20 @@ async function runValidate(projectRoot = process.cwd()) {
 // ../core/dist/index.js
 import * as fs3 from "fs";
 import * as path4 from "path";
+
+// ../../node_modules/.pnpm/@dinilmusick+gutts@0.1.0/node_modules/@dinilmusick/gutts/dist/json/json-parse.js
+function parseJson(text) {
+  return JSON.parse(text);
+}
+function tryParseJson(text) {
+  try {
+    return parseJson(text);
+  } catch {
+    return void 0;
+  }
+}
+
+// ../core/dist/index.js
 var asyncHooks = globalThis.process?.getBuiltinModule?.("node:async_hooks");
 var KrnlPackageReconciler = class {
   /**
@@ -826,7 +840,7 @@ var KrnlPackageReconciler = class {
     for (const mPath of manifests) {
       try {
         const raw = fs3.readFileSync(mPath, "utf8");
-        const json = JSON.parse(raw);
+        const json = tryParseJson(raw) ?? {};
         if (json.dependencies && typeof json.dependencies === "object") {
           for (const [pkg, ver] of Object.entries(json.dependencies)) {
             if (!aggregatedDeps[pkg]) aggregatedDeps[pkg] = [];

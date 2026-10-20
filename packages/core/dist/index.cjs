@@ -54,6 +54,7 @@ __export(index_exports, {
   createServiceDefinition: () => createServiceDefinition,
   createServiceFacade: () => createServiceFacade,
   createServiceProxy: () => createServiceProxy,
+  gutts: () => gutts,
   validateOrchestrationDAG: () => validateOrchestrationDAG,
   validateServiceDefinition: () => validateServiceDefinition
 });
@@ -3217,6 +3218,7 @@ var ServiceDiscovery = class {
 // src/discovery/KrnlPackageReconciler.ts
 var fs = __toESM(require("fs"), 1);
 var path = __toESM(require("path"), 1);
+var import_gutts = require("@dinilmusick/gutts");
 var KrnlPackageReconciler = class {
   /**
    * Scans all manifest.json files across backend and frontend and reconciles root package.json.
@@ -3228,7 +3230,7 @@ var KrnlPackageReconciler = class {
     for (const mPath of manifests) {
       try {
         const raw = fs.readFileSync(mPath, "utf8");
-        const json = JSON.parse(raw);
+        const json = (0, import_gutts.tryParseJson)(raw) ?? {};
         if (json.dependencies && typeof json.dependencies === "object") {
           for (const [pkg, ver] of Object.entries(json.dependencies)) {
             if (!aggregatedDeps[pkg]) aggregatedDeps[pkg] = [];
@@ -3627,6 +3629,9 @@ var FunctionalityOrchestration = class {
     }
   }
 };
+
+// src/index.ts
+var gutts = __toESM(require("@dinilmusick/gutts"), 1);
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   FunctionalityOrchestration,
@@ -3653,6 +3658,7 @@ var FunctionalityOrchestration = class {
   createServiceDefinition,
   createServiceFacade,
   createServiceProxy,
+  gutts,
   validateOrchestrationDAG,
   validateServiceDefinition
 });

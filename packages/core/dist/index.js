@@ -3156,6 +3156,7 @@ var ServiceDiscovery = class {
 // src/discovery/KrnlPackageReconciler.ts
 import * as fs from "fs";
 import * as path from "path";
+import { tryParseJson } from "@dinilmusick/gutts";
 var KrnlPackageReconciler = class {
   /**
    * Scans all manifest.json files across backend and frontend and reconciles root package.json.
@@ -3167,7 +3168,7 @@ var KrnlPackageReconciler = class {
     for (const mPath of manifests) {
       try {
         const raw = fs.readFileSync(mPath, "utf8");
-        const json = JSON.parse(raw);
+        const json = tryParseJson(raw) ?? {};
         if (json.dependencies && typeof json.dependencies === "object") {
           for (const [pkg, ver] of Object.entries(json.dependencies)) {
             if (!aggregatedDeps[pkg]) aggregatedDeps[pkg] = [];
@@ -3566,6 +3567,9 @@ var FunctionalityOrchestration = class {
     }
   }
 };
+
+// src/index.ts
+import * as gutts from "@dinilmusick/gutts";
 export {
   FunctionalityOrchestration,
   HttpProtocolAdapter,
@@ -3591,6 +3595,7 @@ export {
   createServiceDefinition,
   createServiceFacade,
   createServiceProxy,
+  gutts,
   validateOrchestrationDAG,
   validateServiceDefinition
 };

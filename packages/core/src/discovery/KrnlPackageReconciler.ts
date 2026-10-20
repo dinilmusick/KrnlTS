@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { tryParseJson } from '@dinilmusick/gutts';
 
 export interface ReconcileResult {
   updated: boolean;
@@ -21,7 +22,7 @@ export class KrnlPackageReconciler {
     for (const mPath of manifests) {
       try {
         const raw = fs.readFileSync(mPath, 'utf8');
-        const json = JSON.parse(raw);
+        const json = tryParseJson<any>(raw) ?? {};
         if (json.dependencies && typeof json.dependencies === 'object') {
           for (const [pkg, ver] of Object.entries(json.dependencies)) {
             if (!aggregatedDeps[pkg]) aggregatedDeps[pkg] = [];

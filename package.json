@@ -1,6 +1,6 @@
 {
   "name": "@ultrst-armada/krnl",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": false,
   "description": "KrnlTS backend semantic kernel for authoring, validating, and running modular TypeScript services",
   "type": "module",
@@ -77,5 +77,8 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dinilmusick/KrnlTS.git"
+  },
+  "dependencies": {
+    "@dinilmusick/gutts": "^0.1.0"
   }
 }
