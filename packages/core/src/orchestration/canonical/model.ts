@@ -86,12 +86,21 @@ export interface StepDefinition {
   readonly concurrency?: number;
   readonly nestedOrchestrationId?: string;
   readonly metadata?: Record<string, unknown>;
+  /** Canonical FLOKS frontend component recommended for this orchestration. */
+  readonly defaultFrontend?: OrchestrationFrontendReference;
 }
 
 /**
  * Pure serializable definition of an orchestration workflow (Distributable through Kloks).
  * Zero execution machinery, zero runtime closures.
  */
+export interface OrchestrationFrontendReference {
+  readonly component: string;
+  readonly package?: string;
+  readonly export?: string;
+  readonly relationship?: 'recommended' | 'required';
+}
+
 export interface OrchestrationDefinition<TInput = unknown, TOutput = unknown> {
   readonly id: string;
   readonly name: string;
