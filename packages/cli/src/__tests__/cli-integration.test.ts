@@ -127,12 +127,18 @@ describe('Krnl CLI Real Integration Suite', () => {
   it('scaffolds service correctly via generate command', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'krnl-gen-svc-'));
     try {
-      await runGenerate('service', 'Billing', undefined, tmpDir);
+      await runGenerate('service', 'Billing', undefined, tmpDir, {
+        defaultFrontend: { component: 'BillingPage', package: '@ultrst-armada/floks/ui' },
+      });
       const svcDir = path.join(tmpDir, 'src', 'services', 'Billing');
       expect(fs.existsSync(path.join(svcDir, 'BillingServiceFacade.ts'))).toBe(true);
       expect(fs.existsSync(path.join(svcDir, 'libraries', 'BillingConcepts', 'index.ts'))).toBe(true);
       expect(fs.existsSync(path.join(svcDir, 'libraries', 'BillingConcepts', 'manifest.json'))).toBe(true);
       expect(fs.existsSync(path.join(svcDir, 'tests', 'BillingServiceFacade.test.ts'))).toBe(true);
+      const facade = fs.readFileSync(path.join(svcDir, 'BillingServiceFacade.ts'), 'utf8');
+      expect(facade).toContain('defaultFrontend:');
+      expect(facade).toContain('"component": "BillingPage"');
+      expect(facade).toContain('"package": "@ultrst-armada/floks/ui"');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
