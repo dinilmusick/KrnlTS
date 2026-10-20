@@ -14,7 +14,7 @@ FUNCTIONALITY := discrete callable execution unit belonging strictly to ONE serv
 FUNCTIONALITY_ORCHESTRATION := DAG composition of functionalities belonging strictly to ONE service.
 KLOKS := distribution/library layer for reusable backend services built on KRNLTS.
 SKIPO := application layer consuming KRNLTS + KLOKS; owns cross-service SERVICE_ORCHESTRATION.
-CRUCIBLE := SKIPO application + ecosystem control plane; CRUCIBLE does not redefine KRNLTS semantics.
+KRUSBL := ecosystem promotion/control plane; KRUSBL does not redefine KRNLTS semantics.
 
 ## 2. OWNERSHIP
 
@@ -23,7 +23,7 @@ KRNLTS OWNS:
 - service lifecycle/execution semantics
 - service input/output contracts
 - functionality definitions and within-service functionality orchestrations (FunctionalityOrchestration)
-- single-service queue-mediated execution runtime (BullMQ execution engine + worker boundary)
+- single-service queue-mediated execution runtime (KrnlQ, backed by p-queue + worker boundary)
 - backend validation rules
 - framework-level backend abstractions
 - framework tooling/CLI that directly validates or runs KRNLTS services
@@ -35,7 +35,7 @@ KRNLTS DOES NOT OWN:
 - FLOKS React components
 - SKIPO application composition
 - KRUSBL promotion orchestration
-- CRUCIBLE ecosystem orchestration
+- KRUSBL ecosystem orchestration
 
 ## 3. DEPENDENCY DIRECTION
 
@@ -45,10 +45,10 @@ KLOKS
   ↑
 SKIPO
   ↑
-CRUCIBLE
+KRUSBL
 
 KRNLTS MUST NOT import:
-KLOKS | FLOKS | SKIPO | KRUSBL | CRUCIBLE
+KLOKS | FLOKS | SKIPO | KRUSBL
 
 ## 4. IMPLEMENTATION RULES
 
@@ -87,7 +87,7 @@ Required conceptual packages:
 
 Additional existing packages remain only where they represent KRNLTS framework functionality.
 
-No new package is justified solely to mirror KLOKS/FLOKS/SKIPO/CRUCIBLE.
+No new package is justified solely to mirror KLOKS/FLOKS/SKIPO/KRUSBL.
 
 ## 6. PUBLIC CONTRACT
 
@@ -129,7 +129,7 @@ PASS ⇔
   ∧ tests
   ∧ validation
   ∧ public exports resolve
-  ∧ no KLOKS/FLOKS/SKIPO/KRUSBL/CRUCIBLE ownership leakage
+  ∧ no KLOKS/FLOKS/SKIPO/KRUSBL/KRUSBL ownership leakage
 
 ## 9. CHANGE POLICY
 
