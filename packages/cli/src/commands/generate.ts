@@ -22,7 +22,7 @@ export async function runGenerate(
 
   switch (normalizedType) {
     case 'service':
-      generateService(name, projectRoot);
+      generateService(name, projectRoot, options.defaultFrontend);
       break;
     case 'functionalityorchestration':
     case 'orchestration':
