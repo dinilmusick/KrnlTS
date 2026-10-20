@@ -1,0 +1,85 @@
+name: npm Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Actually publish to npm (leave false to validate only)"
+        required: true
+        type: boolean
+        default: false
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate and publish package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org/
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Inspect package contents
+        run: npm pack --dry-run
+
+      - name: Validate package metadata and version
+        id: package
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          if (p.private) throw new Error('Refusing to publish: package.json has private=true');
+          if (!p.name || !p.version) throw new Error('package.json must define name and version');
+          if (!p.publishConfig || p.publishConfig.registry !== 'https://registry.npmjs.org/') {
+            throw new Error('Expected publishConfig.registry to be https://registry.npmjs.org/');
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `name=${p.name}\nversion=${p.version}\n`);
+          console.log(`Validated ${p.name}@${p.version}`);
+          NODE
+
+      - name: Ensure this version is not already published
+        env:
+          PACKAGE_NAME: ${{ steps.package.outputs.name }}
+          PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+        shell: bash
+        run: |
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "::error::${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm. Bump package.json version before releasing."
+            exit 1
+          fi
+
+      - name: Publish to npm using Trusted Publishing
+        if: github.event_name == 'release' || inputs.publish
+        run: npm publish --access public
