@@ -8,11 +8,20 @@ interface ValidationError {
     message: string;
     severity: 'error' | 'warning';
 }
+interface PromotableAsset {
+    name: string;
+    kind: string;
+    filePath: string;
+    scope: 'service' | 'component' | 'application';
+    scopeName: string;
+    target: 'GutTS';
+}
 interface ValidationSummary {
     valid: boolean;
     totalFiles: number;
     errors: ValidationError[];
     warnings: ValidationError[];
+    promotableAssets?: PromotableAsset[];
 }
 
 interface KrnlValidatorOptions {
@@ -30,8 +39,9 @@ declare class KrnlValidatorEngine {
     validateSourceFile(sf: SourceFile): {
         errors: ValidationError[];
         warnings: ValidationError[];
+        promotableAssets?: PromotableAsset[];
     };
     private collectSourceFiles;
 }
 
-export { KrnlValidatorEngine, type KrnlValidatorOptions, type ValidationError, type ValidationSummary };
+export { KrnlValidatorEngine, type KrnlValidatorOptions, type PromotableAsset, type ValidationError, type ValidationSummary };

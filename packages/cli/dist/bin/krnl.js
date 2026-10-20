@@ -6,13 +6,20 @@ import {
   runDev,
   runGenerate,
   runValidate
-} from "../chunk-JATOFIG7.js";
+} from "../chunk-6SHSECXR.js";
 
 // src/bin/krnl.ts
 import * as path from "path";
 import * as fs from "fs";
 var args = process.argv.slice(2);
 var command = args[0] || "help";
+function optionValue(name) {
+  const equalsPrefix = `${name}=`;
+  const equalsArg = args.find((arg) => arg.startsWith(equalsPrefix));
+  if (equalsArg) return equalsArg.slice(equalsPrefix.length);
+  const index = args.indexOf(name);
+  return index >= 0 && args[index + 1] && !args[index + 1].startsWith("--") ? args[index + 1] : void 0;
+}
 async function main() {
   switch (command) {
     case "sync": {
@@ -35,7 +42,15 @@ async function main() {
       const type = args[1];
       const name = args[2];
       const parent = args[3];
-      await runGenerate(type, name, parent, process.cwd());
+      const component = optionValue("--default-frontend");
+      const relationship = optionValue("--default-frontend-relationship") === "required" ? "required" : "recommended";
+      const frontend = component ? {
+        component,
+        package: optionValue("--default-frontend-package"),
+        export: optionValue("--default-frontend-export"),
+        relationship
+      } : void 0;
+      await runGenerate(type, name, parent, process.cwd(), { defaultFrontend: frontend });
       break;
     }
     case "watch": {
@@ -108,6 +123,7 @@ Commands:
   generate          Scaffold services, functionality-orchestrations, functionalities, libraries
                     Examples:
                       krnl generate service Payment
+                      krnl generate service Payment --default-frontend=PaymentPage --default-frontend-package=@ultrst-armada/floks/ui --default-frontend-export=PaymentPage --default-frontend-relationship=required
                       krnl generate functionality-orchestration Payment
                       krnl generate functionality ProcessPayment Payment
                       krnl generate library TaxCalculator Payment

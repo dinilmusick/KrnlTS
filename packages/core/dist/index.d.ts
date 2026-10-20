@@ -261,6 +261,12 @@ type StepCondition<TContext = OrchestrationContext> = (context: TContext) => boo
  * Pure serializable definition of a step (Distributable through Kloks).
  * Free from arbitrary runtime closures.
  */
+interface OrchestrationFrontendReference {
+    readonly component: string;
+    readonly package?: string;
+    readonly export?: string;
+    readonly relationship?: 'recommended' | 'required';
+}
 interface StepDefinition {
     readonly id: string;
     readonly name: string;
@@ -288,6 +294,7 @@ interface OrchestrationDefinition<TInput = unknown, TOutput = unknown> {
     readonly description?: string;
     readonly scope: 'functionality' | 'service';
     readonly dependencies: readonly string[];
+    readonly defaultFrontend?: OrchestrationFrontendReference;
     readonly timeoutMs?: number;
     readonly concurrency?: number;
     readonly steps: readonly StepDefinition[];
@@ -650,6 +657,12 @@ declare class KrnlQueue {
  * All external invocations strictly route through KrnlQ and worker execution boundary.
  */
 
+interface DefaultFrontendReference {
+    component: string;
+    package?: string;
+    export?: string;
+    relationship?: 'recommended' | 'required';
+}
 interface ServiceFacadeConfig<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>, TLibraries extends Record<string, unknown> = Record<string, unknown>> {
     id: string;
     name?: string;
@@ -666,6 +679,8 @@ interface ServiceFacadeConfig<TState extends Record<string, unknown> = Record<st
     capabilities?: ServiceCapability[];
     queueOptions?: KrnlQueueOptions;
     concurrency?: number;
+    /** Canonical FLOKS frontend component recommended for this service. */
+    defaultFrontend?: DefaultFrontendReference;
 }
 type IServiceFacade = ServiceFacade<any, any, any>;
 declare class ServiceFacade<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>, TLibraries extends Record<string, unknown> = Record<string, unknown>> {
@@ -678,6 +693,7 @@ declare class ServiceFacade<TState extends Record<string, unknown> = Record<stri
     readonly libraries: TLibraries;
     readonly dependencies: readonly DependencyContract[];
     readonly capabilities: readonly ServiceCapability[];
+    readonly defaultFrontend?: DefaultFrontendReference;
     private readonly instance;
     private readonly queue;
     constructor(config: ServiceFacadeConfig<TState, TEvents, TLibraries>);
@@ -947,4 +963,4 @@ declare class ProtocolResolver {
     static getSupportedProtocols(definition: ServiceDefinition): ProtocolType[];
 }
 
-export { type BackendCommand, type Connection, type DAGValidationResult, type DependencyContract, type EndpointDescriptor, type EventContract, type ExecutionContext, type FunctionalityFlow, type FunctionalityFlowStep, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlPackageReconciler, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createService, createServiceDefinition, createServiceFacade, createServiceProxy, validateOrchestrationDAG, validateServiceDefinition };
+export { type BackendCommand, type Connection, type DAGValidationResult, type DefaultFrontendReference, type DependencyContract, type EndpointDescriptor, type EventContract, type ExecutionContext, type FunctionalityFlow, type FunctionalityFlowStep, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlPackageReconciler, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, type OrchestrationFrontendReference, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createService, createServiceDefinition, createServiceFacade, createServiceProxy, validateOrchestrationDAG, validateServiceDefinition };

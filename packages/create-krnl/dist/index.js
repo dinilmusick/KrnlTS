@@ -102,7 +102,7 @@ function scaffoldBackend(targetDir2) {
   fs.writeFileSync(
     path.join(bLibDir, "functions.ts"),
     `import type { AppTransformOptions } from "./definitions.js";
-export function pureTransform<T>(data: T, _options?: AppTransformOptions): T { return data; }
+export function appPureTransform<T>(data: T, _options?: AppTransformOptions): T { return data; }
 `
   );
   fs.writeFileSync(
@@ -118,8 +118,8 @@ export * from "./functions.js";
   fs.writeFileSync(
     path.join(bLibDir, "tests", "AppConcepts.test.ts"),
     `import { describe, it, expect } from "vitest";
-import { pureTransform } from "../functions.js";
-describe("AppConcepts", () => { it("transforms data", () => { expect(pureTransform(42)).toBe(42); }); });
+import { appPureTransform } from "../functions.js";
+describe("AppConcepts", () => { it("transforms data", () => { expect(appPureTransform(42)).toBe(42); }); });
 `
   );
   fs.writeFileSync(
@@ -186,7 +186,7 @@ describe("AppServiceFacade", () => {
     expect(AppServiceFacade.id).toBe("app.service");
     expect(AppServiceFacade.functionalityOrchestrations.App).toBeDefined();
     expect(AppServiceFacade.libraries.AppConcepts).toBeDefined();
-    expect(typeof AppServiceFacade.libraries.AppConcepts.pureTransform).toBe("function");
+    expect(typeof AppServiceFacade.libraries.AppConcepts.appPureTransform).toBe("function");
   });
 });
 `

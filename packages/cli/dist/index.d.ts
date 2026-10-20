@@ -2,7 +2,15 @@ import * as http from 'http';
 
 declare function runValidate(projectRoot?: string): Promise<boolean>;
 
-declare function runGenerate(type: string, name: string, parentService?: string, projectRoot?: string): Promise<void>;
+interface GenerateOptions {
+    defaultFrontend?: {
+        component: string;
+        package?: string;
+        export?: string;
+        relationship?: 'recommended' | 'required';
+    };
+}
+declare function runGenerate(type: string, name: string, parentService?: string, projectRoot?: string, options?: GenerateOptions): Promise<void>;
 
 declare function generateMagneticDeclarations(projectRoot?: string): void;
 
@@ -39,4 +47,4 @@ interface DevServerInstance {
 }
 declare function runDev(projectRoot?: string, options?: DevOptions): Promise<DevServerInstance>;
 
-export { type BuildOptions, type DevOptions, type DevServerInstance, generateMagneticDeclarations, runBuild, runDev, runGenerate, runValidate };
+export { type BuildOptions, type DevOptions, type DevServerInstance, type GenerateOptions, generateMagneticDeclarations, runBuild, runDev, runGenerate, runValidate };

@@ -48,6 +48,7 @@ var import_ts_morph3 = require("ts-morph");
 var fs = __toESM(require("fs"), 1);
 var path2 = __toESM(require("path"), 1);
 var import_ts_morph4 = require("ts-morph");
+var import_ts_morph5 = require("ts-morph");
 function checkFileLimits(sf, options) {
   const errors = [];
   const warnings = [];
@@ -510,6 +511,217 @@ function checkServiceBoundaries(sf) {
   }
   return { errors, warnings };
 }
+var PRIMITIVE_AND_BUILTIN_TYPES = /* @__PURE__ */ new Set([
+  "string",
+  "number",
+  "boolean",
+  "symbol",
+  "bigint",
+  "void",
+  "undefined",
+  "null",
+  "never",
+  "unknown",
+  "any",
+  "object",
+  "Record",
+  "Array",
+  "ReadonlyArray",
+  "Map",
+  "Set",
+  "WeakMap",
+  "WeakSet",
+  "Promise",
+  "Date",
+  "RegExp",
+  "Error",
+  "Uint8Array",
+  "Int8Array",
+  "Uint16Array",
+  "Int16Array",
+  "Uint32Array",
+  "Int32Array",
+  "Float32Array",
+  "Float64Array",
+  "ArrayBuffer",
+  "Buffer",
+  "Iterable",
+  "AsyncIterable",
+  "Iterator",
+  "AsyncIterator",
+  "Partial",
+  "Required",
+  "Readonly",
+  "Pick",
+  "Omit",
+  "Exclude",
+  "Extract",
+  "NonNullable",
+  "Parameters",
+  "ConstructorParameters",
+  "ReturnType",
+  "InstanceType"
+]);
+function detectServiceContext(filePath) {
+  const normalized = filePath.replace(/\\/g, "/");
+  const match = normalized.match(/(?:^|\/)services\/([^/]+)\/libraries\/([^/]+)/);
+  if (match) {
+    return { serviceName: match[1], libraryName: match[2] };
+  }
+  return null;
+}
+function containsIdentifier(name, target) {
+  return name.toLowerCase().includes(target.toLowerCase());
+}
+function isCustomContextualType(typeName, serviceName, localTypes) {
+  if (PRIMITIVE_AND_BUILTIN_TYPES.has(typeName)) return false;
+  if (localTypes.has(typeName)) return true;
+  if (containsIdentifier(typeName, serviceName)) return true;
+  if (/^[A-Z][a-zA-Z0-9]+$/.test(typeName)) return true;
+  return false;
+}
+function hasContextualTypeReference(node, serviceName, localTypes) {
+  const typeRefs = node.getDescendantsOfKind(import_ts_morph5.SyntaxKind.TypeReference);
+  for (const ref of typeRefs) {
+    const text = ref.getTypeName().getText().trim();
+    if (isCustomContextualType(text, serviceName, localTypes)) {
+      return true;
+    }
+  }
+  return false;
+}
+function checkScopedLibraryRules(sf) {
+  const errors = [];
+  const warnings = [];
+  const promotableAssets = [];
+  const filePath = sf.getFilePath().replace(/\\/g, "/");
+  const context = detectServiceContext(filePath);
+  if (!context) {
+    return { errors, warnings, promotableAssets };
+  }
+  const { serviceName, libraryName } = context;
+  const localTypes = /* @__PURE__ */ new Set();
+  sf.getInterfaces().forEach((i) => localTypes.add(i.getName()));
+  sf.getTypeAliases().forEach((t) => localTypes.add(t.getName()));
+  sf.getClasses().forEach((c) => {
+    const n = c.getName();
+    if (n) localTypes.add(n);
+  });
+  sf.getEnums().forEach((e) => localTypes.add(e.getName()));
+  const functions = sf.getFunctions();
+  for (const fn of functions) {
+    const fnName = fn.getName();
+    if (!fnName) continue;
+    const isContextual = hasContextualTypeReference(fn, serviceName, localTypes);
+    const hasServiceName = containsIdentifier(fnName, serviceName);
+    if (isContextual) {
+      if (!hasServiceName) {
+        errors.push({
+          ruleId: "krnl/service-library-asset-naming",
+          filePath,
+          line: fn.getStartLineNumber(),
+          message: `Service library asset '${fnName}' in service '${serviceName}' violates scoped library naming convention. Custom library asset identifiers must contain the owning service name ('${serviceName}'). Expected name containing '${serviceName}' (e.g. '${serviceName.toLowerCase()}${fnName[0].toUpperCase()}${fnName.slice(1)}'), or eliminate contextual custom type dependencies to make it a generic promotable utility.`,
+          severity: "error"
+        });
+      }
+    } else {
+      promotableAssets.push({
+        name: fnName,
+        kind: "function",
+        filePath,
+        scope: "service",
+        scopeName: serviceName,
+        target: "GutTS"
+      });
+    }
+  }
+  for (const stmt of sf.getVariableStatements()) {
+    for (const decl of stmt.getDeclarations()) {
+      const varName = decl.getName();
+      const init = decl.getInitializer();
+      const isFunction = init && (init.getKind() === import_ts_morph5.SyntaxKind.ArrowFunction || init.getKind() === import_ts_morph5.SyntaxKind.FunctionExpression);
+      if (isFunction) {
+        const isContextual = hasContextualTypeReference(decl, serviceName, localTypes);
+        const hasServiceName = containsIdentifier(varName, serviceName);
+        if (isContextual) {
+          if (!hasServiceName) {
+            errors.push({
+              ruleId: "krnl/service-library-asset-naming",
+              filePath,
+              line: decl.getStartLineNumber(),
+              message: `Service library asset '${varName}' in service '${serviceName}' violates scoped library naming convention. Custom library asset identifiers must contain the owning service name ('${serviceName}'). Expected name containing '${serviceName}', or eliminate contextual custom type dependencies to make it a generic promotable utility.`,
+              severity: "error"
+            });
+          }
+        } else {
+          promotableAssets.push({
+            name: varName,
+            kind: "function",
+            filePath,
+            scope: "service",
+            scopeName: serviceName,
+            target: "GutTS"
+          });
+        }
+      } else {
+        const isContextual = hasContextualTypeReference(decl, serviceName, localTypes);
+        const hasServiceName = containsIdentifier(varName, serviceName);
+        if (isContextual && !hasServiceName) {
+          errors.push({
+            ruleId: "krnl/service-library-asset-naming",
+            filePath,
+            line: decl.getStartLineNumber(),
+            message: `Service library asset '${varName}' in service '${serviceName}' violates scoped library naming convention. Custom library asset identifiers must contain the owning service name ('${serviceName}').`,
+            severity: "error"
+          });
+        }
+      }
+    }
+  }
+  for (const iface of sf.getInterfaces()) {
+    const name = iface.getName();
+    const hasServiceName = containsIdentifier(name, serviceName);
+    const hasProps = iface.getProperties().length > 0;
+    if (hasProps && !hasServiceName) {
+      errors.push({
+        ruleId: "krnl/service-library-asset-naming",
+        filePath,
+        line: iface.getStartLineNumber(),
+        message: `Service library interface '${name}' in service '${serviceName}' violates scoped library naming convention. Custom library asset identifiers must contain the owning service name ('${serviceName}'). Expected name like '${serviceName}${name}'.`,
+        severity: "error"
+      });
+    }
+  }
+  for (const t of sf.getTypeAliases()) {
+    const name = t.getName();
+    const hasServiceName = containsIdentifier(name, serviceName);
+    const isContextual = hasContextualTypeReference(t, serviceName, localTypes);
+    if (isContextual && !hasServiceName) {
+      errors.push({
+        ruleId: "krnl/service-library-asset-naming",
+        filePath,
+        line: t.getStartLineNumber(),
+        message: `Service library type alias '${name}' in service '${serviceName}' violates scoped library naming convention. Custom library asset identifiers must contain the owning service name ('${serviceName}'). Expected name like '${serviceName}${name}'.`,
+        severity: "error"
+      });
+    }
+  }
+  for (const cls of sf.getClasses()) {
+    const name = cls.getName();
+    if (!name) continue;
+    const hasServiceName = containsIdentifier(name, serviceName);
+    if (!hasServiceName) {
+      errors.push({
+        ruleId: "krnl/service-library-asset-naming",
+        filePath,
+        line: cls.getStartLineNumber(),
+        message: `Service library class '${name}' in service '${serviceName}' violates scoped library naming convention. Custom library asset identifiers must contain the owning service name ('${serviceName}'). Expected name like '${serviceName}${name}'.`,
+        severity: "error"
+      });
+    }
+  }
+  return { errors, warnings, promotableAssets };
+}
 var KrnlValidatorEngine = class {
   project;
   projectRoot;
@@ -536,46 +748,55 @@ var KrnlValidatorEngine = class {
     const files = this.collectSourceFiles(this.projectRoot);
     const errors = [];
     const warnings = [];
+    const promotableAssets = [];
     checkWorkspaceLayout(this.projectRoot, errors);
     for (const f of files) {
       const sf = this.project.addSourceFileAtPath(f);
       const fileReport = this.validateSourceFile(sf);
       errors.push(...fileReport.errors);
       warnings.push(...fileReport.warnings);
+      if (fileReport.promotableAssets) {
+        promotableAssets.push(...fileReport.promotableAssets);
+      }
     }
     return {
       valid: errors.length === 0,
       totalFiles: files.length,
       errors,
-      warnings
+      warnings,
+      promotableAssets
     };
   }
   validateSourceFile(sf) {
     const filePath = sf.getFilePath();
     const baseName = path3.basename(filePath);
     if (baseName.includes("_pb.") || baseName.endsWith(".d.ts")) {
-      return { errors: [], warnings: [] };
+      return { errors: [], warnings: [], promotableAssets: [] };
     }
     const limits = checkFileLimits(sf, this.limitOptions);
     const purity = checkTopLevelPurity(sf);
     const components = checkComponentRules(sf);
     const orchestration = checkOrchestrationRules(sf);
     const boundaries = checkServiceBoundaries(sf);
+    const scopedLibraries = checkScopedLibraryRules(sf);
     return {
       errors: [
         ...limits.errors,
         ...purity.errors,
         ...components.errors,
         ...orchestration.errors,
-        ...boundaries.errors
+        ...boundaries.errors,
+        ...scopedLibraries.errors
       ],
       warnings: [
         ...limits.warnings,
         ...purity.warnings,
         ...components.warnings,
         ...orchestration.warnings,
-        ...boundaries.warnings
-      ]
+        ...boundaries.warnings,
+        ...scopedLibraries.warnings
+      ],
+      promotableAssets: scopedLibraries.promotableAssets
     };
   }
   collectSourceFiles(dir, collected = []) {
@@ -617,6 +838,13 @@ async function runValidate(projectRoot = process.cwd()) {
 `);
     }
     return false;
+  }
+  if (report.promotableAssets && report.promotableAssets.length > 0) {
+    console.log(`\u{1F4E6} [PROMOTABLE ASSETS] Detected ${report.promotableAssets.length} generic library asset(s) eligible for GutTS promotion:`);
+    for (const asset of report.promotableAssets) {
+      console.log(`  \u2726 [${asset.scope}:${asset.scopeName}] ${asset.name} (${asset.kind}) -> ${asset.target}`);
+    }
+    console.log("");
   }
   console.log(`\u2705 [VALIDATION PASSED] ${report.totalFiles} source files verified clean against Krnl paradigms.
 `);
@@ -1084,7 +1312,14 @@ describe("${name} UI Concept", () => {
 // src/commands/generators/serviceGenerator.ts
 var fs8 = __toESM(require("fs"), 1);
 var path9 = __toESM(require("path"), 1);
-function generateService(name, projectRoot) {
+function generateService(name, projectRoot, defaultFrontend) {
+  const frontendReference = defaultFrontend?.component ? {
+    component: defaultFrontend.component,
+    ...defaultFrontend.package ? { package: defaultFrontend.package } : {},
+    ...defaultFrontend.export ? { export: defaultFrontend.export } : {},
+    relationship: defaultFrontend.relationship ?? "recommended"
+  } : void 0;
+  const frontendConfig = frontendReference ? JSON.stringify(frontendReference, null, 2).replace(/\n/g, "\n  ") : void 0;
   const { backend } = getPlaneRoots(projectRoot);
   const serviceDir = path9.join(backend, "services", name);
   const funcsDir = path9.join(serviceDir, "functionalities");
@@ -1144,6 +1379,8 @@ describe("${conceptName}", () => {
 });
 `
   );
+  const frontendProperty = frontendConfig ? `  defaultFrontend: ${frontendConfig},
+` : "";
   fs8.writeFileSync(
     path9.join(serviceDir, `${name}ServiceFacade.ts`),
     `import { ServiceFacade } from "@ultrst-armada/krnl-core";
@@ -1154,7 +1391,7 @@ export const ${name}ServiceFacade = new ServiceFacade({
   name: "${name}Service",
   version: "1.0.0",
   description: "${name} service facade",
-  libraries: {
+${frontendProperty}  libraries: {
     ${conceptName}: ${name.toLowerCase()}Concepts,
   },
 });
@@ -1181,7 +1418,7 @@ describe("${name}ServiceFacade", () => {
 }
 
 // src/commands/generate.ts
-async function runGenerate(type, name, parentService, projectRoot = process.cwd()) {
+async function runGenerate(type, name, parentService, projectRoot = process.cwd(), options = {}) {
   if (!name) {
     console.error(
       "\u274C Error: Resource name is required. Usage: krnl generate <service|orchestration|functionality|library> <Name> [parentService]"
@@ -1191,7 +1428,7 @@ async function runGenerate(type, name, parentService, projectRoot = process.cwd(
   const normalizedType = type.toLowerCase().replace(/[-_]/g, "");
   switch (normalizedType) {
     case "service":
-      generateService(name, projectRoot);
+      generateService(name, projectRoot, options.defaultFrontend);
       break;
     case "functionalityorchestration":
     case "orchestration":

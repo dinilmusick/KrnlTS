@@ -2287,6 +2287,7 @@ var ServiceFacade = class {
   libraries;
   dependencies;
   capabilities;
+  defaultFrontend;
   instance;
   queue;
   constructor(config) {
@@ -2302,6 +2303,7 @@ var ServiceFacade = class {
     this.libraries = config.libraries ? { ...config.libraries } : {};
     this.dependencies = Object.freeze(config.dependencies ? [...config.dependencies] : []);
     this.capabilities = Object.freeze(config.capabilities ? [...config.capabilities] : []);
+    this.defaultFrontend = config.defaultFrontend ? Object.freeze({ ...config.defaultFrontend }) : void 0;
     if (config.instance) {
       this.instance = config.instance;
     } else if (config.definition) {
@@ -2766,10 +2768,14 @@ var WebSocketProtocolAdapter = class {
     };
   }
   async send(endpoint, envelope) {
-    let WS = globalThis.WebSocket;
-    if (!WS) {
+    let WS;
+    const isNode = Boolean(globalThis.process?.versions?.node);
+    if (isNode) {
       const wsMod = await import("ws").catch(() => null);
-      WS = wsMod?.WebSocket || wsMod?.default?.WebSocket || wsMod;
+      WS = wsMod?.WebSocket || wsMod?.default?.WebSocket || wsMod?.default || wsMod;
+    }
+    if (!WS) {
+      WS = globalThis.WebSocket;
     }
     if (!WS) {
       throw new Error("No WebSocket client implementation available in this environment.");
