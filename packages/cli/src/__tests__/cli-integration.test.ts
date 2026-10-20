@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { execSync } from 'child_process';
-import ts from 'typescript';
+import * as ts from 'typescript';
 import { runValidate } from '../commands/validate.js';
 import { runBuild } from '../commands/build.js';
 import { runDev } from '../commands/dev.js';
