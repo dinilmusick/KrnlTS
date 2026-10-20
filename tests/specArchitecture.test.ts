@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 describe('KrnlTS canonical specification', () => {
-  const spec = readFileSync(new URL('../IMPLEMENTATION-SPEC.md', import.meta.url), 'utf8');
+  const spec = readFileSync(resolve(process.cwd(), '../IMPLEMENTATION-SPEC.md'), 'utf8');
 
   it('describes the implemented KrnlQ runtime rather than BullMQ', () => {
     expect(spec).toContain('KrnlQ');
