@@ -9,8 +9,17 @@ importers:
   .:
     dependencies:
       '@dinilmusick/gutts':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.2
+        version: 0.1.2
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
+      ts-morph:
+        specifier: ^25.0.1
+        version: 25.0.1
+      ws:
+        specifier: ^8.20.0
+        version: 8.20.0
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^9.6.0
@@ -42,9 +51,6 @@ importers:
       vitest:
         specifier: ^3.1.0
         version: 3.2.7(@types/node@25.9.5)
-      ws:
-        specifier: ^8.20.0
-        version: 8.20.0
       zod:
         specifier: 3.24.1
         version: 3.24.1
@@ -185,6 +191,9 @@ packages:
 
   '@dinilmusick/gutts@0.1.0':
     resolution: {integrity: sha512-NoSFoJNNi1yLc7iVKzHqIavvr9nPJ2H31Tvj1GsmXM1lg9pD190RGTkNNMsq95Rcdg2gErnspYKuiH/0OSCa7Q==}
+
+  '@dinilmusick/gutts@0.1.2':
+    resolution: {integrity: sha512-W0ndYbtyOtEP4K0l75h+KJqLJ0vVIc1igbP20AZ63E07Y6KMtLoqxMqucoXUPoAPseOEvFjRWj7aE6+1KrDYgw==}
 
   '@esbuild/aix-ppc64@0.25.12':
     resolution: {integrity: sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA==}
@@ -1594,6 +1603,11 @@ snapshots:
       '@babel/helper-validator-identifier': 7.29.7
 
   '@dinilmusick/gutts@0.1.0':
+    dependencies:
+      lodash-es: 4.18.1
+      validator: 13.15.35
+
+  '@dinilmusick/gutts@0.1.2':
     dependencies:
       lodash-es: 4.18.1
       validator: 13.15.35
