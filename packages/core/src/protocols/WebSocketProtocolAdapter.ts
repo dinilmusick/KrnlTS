@@ -79,10 +79,17 @@ export class WebSocketProtocolAdapter implements ProtocolAdapter {
   }
 
   async send(endpoint: EndpointDescriptor, envelope: ProtocolEnvelope): Promise<ProtocolEnvelope> {
-    let WS = (globalThis as any).WebSocket;
-    if (!WS) {
+    let WS: any;
+    // Node's built-in WebSocket follows the browser EventTarget API and does not
+    // provide ws.on(...). Prefer the ws package in Node; use the global browser
+    // implementation only when running outside Node or when ws is unavailable.
+    const isNode = Boolean((globalThis as any).process?.versions?.node);
+    if (isNode) {
       const wsMod: any = await import('ws').catch(() => null);
-      WS = wsMod?.WebSocket || wsMod?.default?.WebSocket || wsMod;
+      WS = wsMod?.WebSocket || wsMod?.default?.WebSocket || wsMod?.default || wsMod;
+    }
+    if (!WS) {
+      WS = (globalThis as any).WebSocket;
     }
     if (!WS) {
       throw new Error('No WebSocket client implementation available in this environment.');
