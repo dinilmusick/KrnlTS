@@ -3,17 +3,23 @@ import * as path from 'path';
 import { KrnlPackageReconciler } from '@ultrst-armada/krnl-core';
 import { getPlaneRoots } from './common.js';
 
-export function generateService(name: string, projectRoot: string, defaultFrontend?: { component: string; package?: string; export?: string; relationship?: 'recommended' | 'required' }): void {
-  if (!defaultFrontend?.component) {
-    throw new Error('[krnl generate service] --default-frontend=<FLOKSComponent> is required. A service must declare its canonical frontend component reference.');
-  }
-  const frontendReference = {
+export interface ServiceDefaultFrontend {
+  component: string;
+  package?: string;
+  export?: string;
+  relationship?: 'recommended' | 'required';
+}
+
+export function generateService(name: string, projectRoot: string, defaultFrontend?: ServiceDefaultFrontend): void {
+  const frontendReference = defaultFrontend?.component ? {
     component: defaultFrontend.component,
     ...(defaultFrontend.package ? { package: defaultFrontend.package } : {}),
     ...(defaultFrontend.export ? { export: defaultFrontend.export } : {}),
     relationship: defaultFrontend.relationship ?? 'recommended',
-  };
-  const frontendConfig = JSON.stringify(frontendReference, null, 2).replace(/\n/g, '\n  ');
+  } : undefined;
+  const frontendConfig = frontendReference
+    ? JSON.stringify(frontendReference, null, 2).replace(/\n/g, '\n  ')
+    : undefined;
 
   const { backend } = getPlaneRoots(projectRoot);
   const serviceDir = path.join(backend, 'services', name);
@@ -83,6 +89,7 @@ describe("${conceptName}", () => {
 `
   );
 
+  const frontendProperty = frontendConfig ? `  defaultFrontend: ${frontendConfig},\n` : "";
   fs.writeFileSync(
     path.join(serviceDir, `${name}ServiceFacade.ts`),
     `import { ServiceFacade } from "@ultrst-armada/krnl-core";
@@ -93,8 +100,7 @@ export const ${name}ServiceFacade = new ServiceFacade({
   name: "${name}Service",
   version: "1.0.0",
   description: "${name} service facade",
-  defaultFrontend: ${frontendConfig},
-  libraries: {
+${frontendProperty}  libraries: {
     ${conceptName}: ${name.toLowerCase()}Concepts,
   },
 });
