@@ -33,6 +33,9 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org/
 
+      - name: Update npm CLI for OIDC Trusted Publishing
+        run: npm install --global npm@latest
+
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
