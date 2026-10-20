@@ -19,6 +19,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @ultrst-armada/krnl-cli... run build
       - run: pnpm --filter @ultrst-armada/krnl-cli run typecheck
-      - run: pnpm --filter @ultrst-armada/krnl-cli run build
       - run: pnpm --filter @ultrst-armada/krnl-cli run test
