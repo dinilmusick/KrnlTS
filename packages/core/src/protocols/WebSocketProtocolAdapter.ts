@@ -82,7 +82,8 @@ export class WebSocketProtocolAdapter implements ProtocolAdapter {
     let WS = (globalThis as any).WebSocket;
     if (!WS) {
       const wsMod: any = await import('ws').catch(() => null);
-      WS = wsMod?.WebSocket || wsMod?.default?.WebSocket || wsMod;
+      WS = wsMod?.WebSocket || wsMod?.default?.WebSocket || wsMod?.default;
+
     }
     if (!WS) {
       throw new Error('No WebSocket client implementation available in this environment.');
