@@ -20,6 +20,29 @@ describe('frontend linkage contracts', () => {
     });
   });
 
+  it('accepts required and recommended orchestration frontend relationships', () => {
+    const recommended: OrchestrationDefinition = {
+      id: 'recommended.orchestration',
+      name: 'Recommended',
+      version: '1.0.0',
+      scope: 'service',
+      dependencies: [],
+      defaultFrontend: { component: 'RecommendedPage', relationship: 'recommended' },
+      steps: [],
+    };
+    const required: OrchestrationDefinition = {
+      id: 'required.orchestration',
+      name: 'Required',
+      version: '1.0.0',
+      scope: 'service',
+      dependencies: [],
+      defaultFrontend: { component: 'RequiredPage', relationship: 'required' },
+      steps: [],
+    };
+    expect(recommended.defaultFrontend?.relationship).toBe('recommended');
+    expect(required.defaultFrontend?.relationship).toBe('required');
+  });
+
   it('allows service orchestration definitions to declare a default frontend reference', () => {
     const definition: OrchestrationDefinition = {
       id: 'workspace.orchestration',
