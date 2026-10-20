@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { execSync } from 'child_process';
+import ts from 'typescript';
 import { runValidate } from '../commands/validate.js';
 import { runBuild } from '../commands/build.js';
 import { runDev } from '../commands/dev.js';
@@ -139,6 +140,41 @@ describe('Krnl CLI Real Integration Suite', () => {
       expect(facade).toContain('defaultFrontend:');
       expect(facade).toContain('"component": "BillingPage"');
       expect(facade).toContain('"package": "@ultrst-armada/floks/ui"');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('generates optional frontend linkage with all supported fields and valid TypeScript', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'krnl-gen-svc-frontend-'));
+    try {
+      await runGenerate('service', 'Billing', undefined, tmpDir, {
+        defaultFrontend: {
+          component: 'BillingPage',
+          package: '@ultrst-armada/floks/ui',
+          export: 'BillingPage',
+          relationship: 'required',
+        },
+      });
+      const facade = fs.readFileSync(path.join(tmpDir, 'src', 'services', 'Billing', 'BillingServiceFacade.ts'), 'utf8');
+      const result = ts.transpileModule(facade, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } });
+      expect(result.diagnostics).toEqual([]);
+      expect(facade).toContain('"component": "BillingPage"');
+      expect(facade).toContain('"package": "@ultrst-armada/floks/ui"');
+      expect(facade).toContain('"export": "BillingPage"');
+      expect(facade).toContain('"relationship": "required"');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('preserves backward compatibility when a service has no frontend linkage', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'krnl-gen-svc-no-frontend-'));
+    try {
+      await runGenerate('service', 'LegacyBilling', undefined, tmpDir);
+      const facade = fs.readFileSync(path.join(tmpDir, 'src', 'services', 'LegacyBilling', 'LegacyBillingServiceFacade.ts'), 'utf8');
+      expect(facade).not.toContain('defaultFrontend');
+      expect(ts.transpileModule(facade, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).diagnostics).toEqual([]);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
