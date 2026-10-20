@@ -73,5 +73,9 @@
     "ws": "^8.20.0",
     "zod": "3.24.1",
     "zod-to-json-schema": "3.24.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dinilmusick/KrnlTS.git"
   }
 }
