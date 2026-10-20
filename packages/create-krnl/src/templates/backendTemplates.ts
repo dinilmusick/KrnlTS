@@ -22,7 +22,7 @@ export function scaffoldBackend(targetDir: string): void {
   );
   fs.writeFileSync(
     path.join(bLibDir, 'functions.ts'),
-    `import type { AppTransformOptions } from "./definitions.js";\nexport function pureTransform<T>(data: T, _options?: AppTransformOptions): T { return data; }\n`
+    `import type { AppTransformOptions } from "./definitions.js";\nexport function appPureTransform<T>(data: T, _options?: AppTransformOptions): T { return data; }\n`
   );
   fs.writeFileSync(
     path.join(bLibDir, 'index.ts'),
@@ -34,7 +34,7 @@ export function scaffoldBackend(targetDir: string): void {
   );
   fs.writeFileSync(
     path.join(bLibDir, 'tests', 'AppConcepts.test.ts'),
-    `import { describe, it, expect } from "vitest";\nimport { pureTransform } from "../functions.js";\ndescribe("AppConcepts", () => { it("transforms data", () => { expect(pureTransform(42)).toBe(42); }); });\n`
+    `import { describe, it, expect } from "vitest";\nimport { appPureTransform } from "../functions.js";\ndescribe("AppConcepts", () => { it("transforms data", () => { expect(appPureTransform(42)).toBe(42); }); });\n`
   );
 
   // App Functionality Orchestration (Service-Owned)
@@ -94,7 +94,7 @@ export default AppServiceFacade;
   );
   fs.writeFileSync(
     path.join(bServiceDir, 'tests', 'AppServiceFacade.test.ts'),
-    `import { describe, it, expect } from "vitest";\nimport { AppServiceFacade } from "../AppServiceFacade.js";\ndescribe("AppServiceFacade", () => {\n  it("exposes orchestrations and libraries correctly", () => {\n    expect(AppServiceFacade.id).toBe("app.service");\n    expect(AppServiceFacade.functionalityOrchestrations.App).toBeDefined();\n    expect(AppServiceFacade.libraries.AppConcepts).toBeDefined();\n    expect(typeof AppServiceFacade.libraries.AppConcepts.pureTransform).toBe("function");\n  });\n});\n`
+    `import { describe, it, expect } from "vitest";\nimport { AppServiceFacade } from "../AppServiceFacade.js";\ndescribe("AppServiceFacade", () => {\n  it("exposes orchestrations and libraries correctly", () => {\n    expect(AppServiceFacade.id).toBe("app.service");\n    expect(AppServiceFacade.functionalityOrchestrations.App).toBeDefined();\n    expect(AppServiceFacade.libraries.AppConcepts).toBeDefined();\n    expect(typeof AppServiceFacade.libraries.AppConcepts.appPureTransform).toBe("function");\n  });\n});\n`
   );
 
   // Hello Functionality (Service-Owned, without forced runtime state)
