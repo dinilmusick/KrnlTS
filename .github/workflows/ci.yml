@@ -22,3 +22,5 @@ jobs:
       - run: pnpm --filter @ultrst-armada/krnl-cli... run build
       - run: pnpm --filter @ultrst-armada/krnl-cli run typecheck
       - run: pnpm --filter @ultrst-armada/krnl-cli run test
+      - run: pnpm --filter @ultrst-armada/krnl-core run typecheck
+      - run: pnpm --filter @ultrst-armada/krnl-core run test
