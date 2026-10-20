@@ -3,6 +3,7 @@
  * @description WebSocket full-duplex protocol adapter for services (browser + Node safe).
  */
 
+import WebSocket from 'ws';
 import type { ProtocolAdapter, ProtocolCapabilities, ProtocolEnvelope } from './ProtocolAdapter.js';
 import type { EndpointDescriptor, IService } from '../services/ServiceContract.js';
 
@@ -79,13 +80,8 @@ export class WebSocketProtocolAdapter implements ProtocolAdapter {
   }
 
   async send(endpoint: EndpointDescriptor, envelope: ProtocolEnvelope): Promise<ProtocolEnvelope> {
-    let WS = (globalThis as any).WebSocket;
-    if (!WS) {
-      const wsMod: any = await import('ws').catch(() => null);
-      WS = wsMod?.WebSocket || wsMod?.default?.WebSocket || wsMod?.default;
-
-    }
-    if (!WS) {
+    const WS = (globalThis as any).WebSocket || WebSocket;
+    if (typeof WS !== 'function') {
       throw new Error('No WebSocket client implementation available in this environment.');
     }
     return new Promise((resolve, reject) => {
