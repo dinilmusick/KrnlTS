@@ -5,11 +5,21 @@ import { generateFunctionality } from './generators/functionalityGenerator.js';
 import { generateLibrary } from './generators/libraryGenerator.js';
 import { generateService } from './generators/serviceGenerator.js';
 
+export interface GenerateOptions {
+  defaultFrontend?: {
+    component: string;
+    package?: string;
+    export?: string;
+    relationship?: 'recommended' | 'required';
+  };
+}
+
 export async function runGenerate(
   type: string,
   name: string,
   parentService?: string,
-  projectRoot: string = process.cwd()
+  projectRoot: string = process.cwd(),
+  options: GenerateOptions = {}
 ): Promise<void> {
   if (!name) {
     console.error(
