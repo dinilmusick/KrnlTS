@@ -157,3 +157,35 @@ jobs:
       - name: Publish to npm using Trusted Publishing
         if: (github.event_name == 'workflow_run' || github.event_name == 'release' || (github.event_name == 'schedule' && steps.updates.outputs.changed == 'true') || (github.event_name == 'workflow_dispatch' && inputs.publish)) && steps.registry.outputs.exists == 'false'
         run: npm publish --access public
+- name: Notify Skipo after successful upstream publication
+        if: success() && env.SYNC_TOKEN != '' && steps.registry.outputs.exists == 'false' && (github.event_name == 'workflow_run' || github.event_name == 'release' || (github.event_name == 'schedule' && steps.updates.outputs.changed == 'true') || (github.event_name == 'workflow_dispatch' && inputs.publish))
+        env:
+          SYNC_TOKEN: ${{ secrets.ECOSYSTEM_SYNC_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const response = await fetch('https://api.github.com/repos/dinilmusick/Skipo/dispatches', {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer ' + process.env.SYNC_TOKEN,
+              Accept: 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              event_type: 'upstream-package-published',
+              client_payload: {
+                package: pkg.name,
+                version: pkg.version,
+                repository: process.env.GITHUB_REPOSITORY,
+                commit: process.env.GITHUB_SHA,
+              },
+            }),
+          });
+          if (!response.ok) throw new Error('Skipo dispatch failed [' + response.status + ']: ' + await response.text());
+          console.log('Notified Skipo about ' + pkg.name + '@' + pkg.version);
+          NODE
+
