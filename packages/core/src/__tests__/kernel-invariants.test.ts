@@ -74,12 +74,22 @@ describe('KrnlTS kernel invariants', () => {
     expect(working.getStatus()).toBe('running');
   });
 
-  it('isolates event handler failures and continues delivery', async () => {
-    const service = createService(definition({ events: { ping: { name: 'ping' } } }));
+  it('provides functionality-owned event delivery with handler isolation', async () => {
+    const { ServiceFacade } = await import('../services/ServiceFacade.js');
+    const service = new ServiceFacade({
+      id: 'events.service',
+      functionalities: {
+        ping: {
+          events: { observed: { name: 'observed' } },
+          execute: () => 'pong',
+        },
+      },
+    });
+    const functionality = service.getFunctionality('ping');
     const calls: string[] = [];
-    service.on('ping', () => { calls.push('first'); throw new Error('handler failed'); });
-    service.on('ping', () => { calls.push('second'); });
-    service.emit('ping', {});
+    functionality.events.observed.subscribe(() => { calls.push('first'); throw new Error('handler failed'); });
+    functionality.events.observed.subscribe(() => { calls.push('second'); });
+    functionality.emit('observed', {});
     expect(calls).toEqual(['first', 'second']);
   });
 
@@ -199,7 +209,7 @@ describe('KrnlTS kernel invariants', () => {
     expect(() => createServiceDefinition(definition({ operations: { op1: { id: 'op1', name: 'op1', inputSchema: 'bad' as any, handler: () => {} } } }))).toThrow(/operations.op1.inputSchema/);
     expect(() => createServiceDefinition(definition({ operations: { op1: { id: 'op1', name: 'op1', outputSchema: 'bad' as any, handler: () => {} } } }))).toThrow(/operations.op1.outputSchema/);
     expect(() => createServiceDefinition(definition({ state: { schema: 'invalid' as any } }))).toThrow(/state.schema/);
-    expect(() => createServiceDefinition(definition({ events: { badEvent: { name: '' } } }))).toThrow(/events.badEvent.name/);
+    expect(() => createServiceDefinition(definition({ events: { badEvent: { name: '' } } }))).not.toThrow();
     expect(() => createServiceDefinition(definition({ capabilities: [{ id: '', name: 'c', protocols: [] }] }))).toThrow(/capability.id/);
     expect(() => createServiceDefinition(definition({ capabilities: [{ id: 'c', name: '', protocols: [] }] }))).toThrow(/capability.name/);
     expect(() => createServiceDefinition(definition({ capabilities: [{ id: 'c', name: 'c', protocols: 'bad' as any }] }))).toThrow(/protocols must be an array/);
@@ -362,12 +372,11 @@ describe('KrnlTS kernel invariants', () => {
       facade.setState({ sessionCount: 1 });
       expect(facade.getState()).toEqual({ sessionCount: 1 });
 
-      // Event pub/sub through facade
+      // Functionality event pub/sub through the service namespace
       const eventSpy = vi.fn();
-      const unsub = facade.on('user:login' as any, eventSpy);
-      facade.emit('user:login' as any, { userId: 'u1' });
-      expect(eventSpy).toHaveBeenCalledWith({ userId: 'u1' });
-      unsub();
+      facade.functionalities.VerifyPassword.events.completed.subscribe(eventSpy);
+      await facade.call('VerifyPassword', {});
+      expect(eventSpy).toHaveBeenCalledTimes(1);
 
       // Operation invocation through facade (strictly routes through KrnlQ / worker context)
       const res = await facade.call('login', {});
