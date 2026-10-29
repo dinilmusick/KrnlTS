@@ -5,6 +5,7 @@
 
 import { createService, createServiceDefinition } from '../services/ServiceGenerators.js';
 import type { IService } from '../services/ServiceContract.js';
+import { ServiceFacade } from '../services/ServiceFacade.js';
 
 // TEST SERVICE A: Pure local stateless service
 export function createTestServiceA(): IService {
@@ -54,24 +55,22 @@ export function createTestServiceB(): IService<{ count: number }> {
   }));
 }
 
-// TEST SERVICE C: Event-emitting service
-export function createTestServiceC(): IService<any, { reading: { value: number } }> {
-  return createService<any, { reading: { value: number } }>(createServiceDefinition({
+// TEST SERVICE C: Functionality event service facade
+export function createTestServiceC(): ServiceFacade {
+  return new ServiceFacade({
     id: 'test-svc-c',
     name: 'SensorService',
     version: '1.0.0',
-    events: {
-      reading: {
-        name: 'reading',
-        description: 'Sensor data stream',
-      },
-    },
-    operations: {
+    functionalities: {
       ping: {
-        id: 'sensor.ping',
-        name: 'ping',
-        handler: async () => 'pong',
+        events: {
+          reading: {
+            name: 'reading',
+            description: 'Sensor data stream',
+          },
+        },
+        execute: async () => 'pong',
       },
     },
-  }));
+  });
 }
