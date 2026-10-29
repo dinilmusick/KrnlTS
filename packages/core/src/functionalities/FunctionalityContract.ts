@@ -50,11 +50,8 @@ export interface FunctionalityDefinition<
   ) => Promise<TOutput> | TOutput;
 }
 
-export interface FunctionalityEventNamespace<
+export type FunctionalityEventNamespace<
   TEvents extends FunctionalityCustomEvents = FunctionalityCustomEvents
-> {
-  readonly triggered: EventChannel<FunctionalityLifecyclePayload>;
-  readonly completed: EventChannel<FunctionalityLifecyclePayload>;
-  readonly failed: EventChannel<FunctionalityLifecyclePayload>;
-  readonly [event: string]: EventChannel<unknown>;
-}
+> = {
+  readonly [K in keyof FunctionalityEvents<TEvents>]: EventChannel<FunctionalityEvents<TEvents>[K]>;
+};
