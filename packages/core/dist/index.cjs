@@ -30,6 +30,8 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  EventBus: () => EventBus,
+  FunctionalityFacade: () => FunctionalityFacade,
   FunctionalityOrchestration: () => FunctionalityOrchestration,
   HttpProtocolAdapter: () => HttpProtocolAdapter,
   KrnlPackageReconciler: () => KrnlPackageReconciler,
@@ -37,6 +39,7 @@ __export(index_exports, {
   KrnlWorkerPool: () => KrnlWorkerPool,
   LifecycleManager: () => LifecycleManager,
   MemoryTransport: () => MemoryTransport,
+  OrchestrationEventFacade: () => OrchestrationEventFacade,
   P2PProtocolAdapter: () => P2PProtocolAdapter,
   ProtocolResolver: () => ProtocolResolver,
   ServiceDiscovery: () => ServiceDiscovery,
@@ -50,6 +53,7 @@ __export(index_exports, {
   UdpProtocolAdapter: () => UdpProtocolAdapter,
   WebSocketProtocolAdapter: () => WebSocketProtocolAdapter,
   WorkerExecutionBoundary: () => WorkerExecutionBoundary,
+  createEventChannels: () => createEventChannels,
   createService: () => createService,
   createServiceDefinition: () => createServiceDefinition,
   createServiceFacade: () => createServiceFacade,
@@ -85,35 +89,6 @@ var ServiceStateStore = class {
   }
   reset(newState) {
     this.state = { ...newState || {} };
-  }
-};
-
-// src/events/ServiceEventBus.ts
-var ServiceEventBus = class {
-  handlers = /* @__PURE__ */ new Map();
-  on(event, handler) {
-    if (!this.handlers.has(event)) {
-      this.handlers.set(event, /* @__PURE__ */ new Set());
-    }
-    const set = this.handlers.get(event);
-    set.add(handler);
-    return () => {
-      set.delete(handler);
-    };
-  }
-  emit(event, payload) {
-    const set = this.handlers.get(event);
-    if (!set) return;
-    for (const handler of Array.from(set)) {
-      try {
-        handler(payload);
-      } catch (err) {
-        console.error(`[ServiceEventBus] Handler error for '${event}':`, err);
-      }
-    }
-  }
-  clear() {
-    this.handlers.clear();
   }
 };
 
@@ -161,7 +136,6 @@ var ServiceInstance = class {
     this.name = definition.name;
     this.version = definition.version;
     this.lifecycle = new LifecycleManager();
-    this.eventBus = new ServiceEventBus();
     if (definition.state) {
       this.stateStore = new ServiceStateStore(definition.state.initial);
     }
@@ -171,7 +145,6 @@ var ServiceInstance = class {
   name;
   version;
   stateStore;
-  eventBus;
   lifecycle;
   initialized = false;
   disposed = false;
@@ -246,12 +219,6 @@ var ServiceInstance = class {
       return;
     }
     this.stateStore.setState(mutation);
-  }
-  on(event, handler) {
-    return this.eventBus.on(event, handler);
-  }
-  emit(event, payload) {
-    this.eventBus.emit(event, payload);
   }
 };
 
@@ -402,12 +369,6 @@ function validateServiceDefinition(definition) {
       throw new Error("[Service:" + definition.name + "] Operation '" + key + "' must define a handler.");
     }
   }
-  for (const [key, event] of Object.entries(definition.events ?? {})) {
-    if (!event || typeof event !== "object") {
-      throw new Error("[Service:" + definition.name + "] Invalid event '" + key + "'.");
-    }
-    assertNonEmptyString(event.name, "events." + key + ".name");
-  }
   for (const [key, schema] of Object.entries(definition.inputs ?? {})) assertRecord(schema, "inputs." + key);
   for (const [key, schema] of Object.entries(definition.outputs ?? {})) assertRecord(schema, "outputs." + key);
   if (definition.state?.schema !== void 0) assertRecord(definition.state.schema, "state.schema");
@@ -439,6 +400,137 @@ function createServiceProxy(definition, adapter, endpoint) {
   }
   return new ServiceProxy(definition, adapter, endpoint);
 }
+
+// src/events/EventBus.ts
+var EventBus = class {
+  handlers = /* @__PURE__ */ new Map();
+  subscribe(event, handler) {
+    let listeners = this.handlers.get(event);
+    if (!listeners) {
+      listeners = /* @__PURE__ */ new Set();
+      this.handlers.set(event, listeners);
+    }
+    listeners.add(handler);
+    return {
+      unsubscribe: () => {
+        listeners?.delete(handler);
+        if (listeners && listeners.size === 0) this.handlers.delete(event);
+      }
+    };
+  }
+  on(event, handler) {
+    return this.subscribe(event, handler).unsubscribe;
+  }
+  emit(event, payload) {
+    const listeners = this.handlers.get(event);
+    if (!listeners) return;
+    for (const listener of Array.from(listeners)) {
+      try {
+        listener(payload);
+      } catch (error) {
+        console.error(`[EventBus] Handler error for '${event}':`, error);
+      }
+    }
+  }
+  clear() {
+    this.handlers.clear();
+  }
+};
+function createEventChannels(bus, names) {
+  const channels = {};
+  for (const name of names) {
+    channels[name] = {
+      name,
+      subscribe: (handler) => bus.subscribe(name, handler),
+      on: (handler) => bus.on(name, handler)
+    };
+  }
+  return channels;
+}
+
+// src/functionalities/FunctionalityFacade.ts
+var FunctionalityFacade = class {
+  id;
+  name;
+  description;
+  bubbleEvents;
+  definition;
+  eventBus;
+  events;
+  constructor(id, definition, options = {}) {
+    if (!id || typeof id !== "string") {
+      throw new Error("[FunctionalityFacade] Functionality id must be a non-empty string.");
+    }
+    if (!definition || typeof definition.execute !== "function") {
+      throw new Error(`[FunctionalityFacade:${id}] Functionality must define execute().`);
+    }
+    this.id = id;
+    this.name = definition.name || id;
+    this.description = definition.description || "";
+    this.bubbleEvents = options.bubbleEvents ?? definition.bubbleEvents ?? true;
+    this.definition = definition;
+    this.eventBus = new EventBus();
+    for (const reserved of ["triggered", "completed", "failed"]) {
+      if (definition.events && reserved in definition.events) {
+        throw new Error(`[FunctionalityFacade:${id}] Event '${reserved}' is reserved for functionality lifecycle.`);
+      }
+    }
+    const eventNames = [
+      "triggered",
+      "completed",
+      "failed",
+      ...Object.keys(definition.events ?? {})
+    ];
+    this.events = createEventChannels(this.eventBus, eventNames);
+  }
+  getEventDefinitions() {
+    return {
+      triggered: { name: "triggered", description: "Functionality execution started." },
+      completed: { name: "completed", description: "Functionality execution completed successfully." },
+      failed: { name: "failed", description: "Functionality execution failed." },
+      ...this.definition.events ?? {}
+    };
+  }
+  subscribe(event, handler) {
+    return this.eventBus.on(event, handler);
+  }
+  emit(event, payload) {
+    this.eventBus.emit(event, payload);
+  }
+  async execute(input, context) {
+    const lifecycle = {
+      serviceId: context.serviceId,
+      functionalityId: this.id,
+      functionalityName: this.name,
+      correlationId: context.correlationId,
+      timestamp: Date.now(),
+      input
+    };
+    this.emit("triggered", lifecycle);
+    try {
+      const output = await this.definition.execute(input, {
+        ...context,
+        emit: (event, payload) => this.emit(event, payload)
+      });
+      this.emit("completed", {
+        ...lifecycle,
+        timestamp: Date.now(),
+        output
+      });
+      return output;
+    } catch (error) {
+      this.emit("failed", {
+        ...lifecycle,
+        timestamp: Date.now(),
+        error: error?.message || String(error)
+      });
+      throw error;
+    }
+  }
+  clearEventSubscriptions() {
+    this.eventBus.clear();
+  }
+};
 
 // ../../node_modules/.pnpm/p-queue@10.0.0/node_modules/p-queue/dist/lower-bound.js
 function lowerBound(array, value, comparator) {
@@ -2360,7 +2452,10 @@ var ServiceFacade = class {
     this.name = config.name || config.id;
     this.version = config.version || "1.0.0";
     this.description = config.description || "";
-    this.functionalities = config.functionalities ? { ...config.functionalities } : {};
+    this.functionalities = {};
+    for (const [name, functionality] of Object.entries(config.functionalities ?? {})) {
+      this.registerFunctionality(name, functionality);
+    }
     this.functionalityOrchestrations = config.functionalityOrchestrations ? { ...config.functionalityOrchestrations } : config.orchestrations ? { ...config.orchestrations } : {};
     this.libraries = config.libraries ? { ...config.libraries } : {};
     this.dependencies = Object.freeze(config.dependencies ? [...config.dependencies] : []);
@@ -2432,8 +2527,11 @@ var ServiceFacade = class {
     };
     const result = await this.queue.executeCommand(command, async (payload, workerCtx) => {
       WorkerExecutionBoundary.assertWorkerContext(workerCtx);
-      if (this.functionalities[op] && typeof this.functionalities[op].execute === "function") {
-        return await this.functionalities[op].execute(payload, {
+      const functionality = this.functionalities[op];
+      if (functionality) {
+        return await functionality.execute(payload, {
+          serviceId: this.id,
+          functionalityId: functionality.id,
           correlationId: workerCtx.correlationId,
           state: this.instance.getState()
         });
@@ -2469,6 +2567,13 @@ var ServiceFacade = class {
       idempotencyKey: options.idempotencyKey,
       createdAt: Date.now()
     };
+    orch.events.emit("triggered", {
+      serviceId: this.id,
+      orchestrationId: orch.id,
+      orchestrationName: orch.name,
+      correlationId,
+      timestamp: Date.now()
+    });
     const cmdResult = await this.queue.executeCommand(
       command,
       async (payload, workerCtx) => {
@@ -2558,8 +2663,33 @@ var ServiceFacade = class {
         );
       }
     );
-    if (cmdResult.status === "FAILED") {
-      throw new Error(cmdResult.error || `[ServiceFacade:${this.id}] Orchestration failed.`);
+    const orchestrationResult = cmdResult.data;
+    if (cmdResult.status === "COMPLETED" && orchestrationResult) {
+      const lifecycleEvent = orchestrationResult.status === "COMPLETED" ? "completed" : "failed";
+      orch.events.emit(lifecycleEvent, {
+        serviceId: this.id,
+        orchestrationId: orch.id,
+        orchestrationName: orch.name,
+        correlationId,
+        executionId: String(orchestrationResult.executionMetadata.executionId ?? ""),
+        timestamp: Date.now(),
+        status: orchestrationResult.status,
+        output: orchestrationResult.output,
+        error: orchestrationResult.error
+      });
+    } else {
+      orch.events.emit("failed", {
+        serviceId: this.id,
+        orchestrationId: orch.id,
+        orchestrationName: orch.name,
+        correlationId,
+        timestamp: Date.now(),
+        status: cmdResult.status,
+        error: cmdResult.error
+      });
+    }
+    if (cmdResult.status === "FAILED" || orchestrationResult?.status === "FAILED") {
+      throw new Error(orchestrationResult?.error || cmdResult.error || `[ServiceFacade:${this.id}] Orchestration failed.`);
     }
     return cmdResult.data;
   }
@@ -2587,17 +2717,29 @@ var ServiceFacade = class {
   setState(mutation) {
     this.instance.setState(mutation);
   }
-  on(event, handler) {
-    return this.instance.on(event, handler);
+  getFunctionality(name) {
+    const functionality = this.functionalities[name];
+    if (!functionality) {
+      throw new Error(`[ServiceFacade:${this.id}] Functionality "${name}" not found.`);
+    }
+    return functionality;
   }
-  emit(event, payload) {
-    this.instance.emit(event, payload);
-  }
-  registerFunctionality(name, functionality) {
+  registerFunctionality(name, functionality, options = {}) {
     if (!name || typeof name !== "string") {
       throw new Error("[ServiceFacade] Functionality name must be a non-empty string.");
     }
-    this.functionalities[name] = functionality;
+    if (functionality instanceof FunctionalityFacade) {
+      this.functionalities[name] = functionality;
+      return this;
+    }
+    if (!functionality || typeof functionality !== "object" || typeof functionality.execute !== "function") {
+      throw new Error(`[ServiceFacade:${this.id}] Functionality "${name}" must define execute().`);
+    }
+    this.functionalities[name] = new FunctionalityFacade(
+      name,
+      functionality,
+      options
+    );
     return this;
   }
   registerFunctionalityOrchestration(name, orchestration) {
@@ -2635,14 +2777,22 @@ var ServiceFacade = class {
     return this.getNamespace();
   }
   getNamespace() {
+    const bubbledFunctionalities = {};
+    for (const [name, functionality] of Object.entries(this.functionalities)) {
+      if (functionality.bubbleEvents) bubbledFunctionalities[name] = functionality;
+    }
+    const bubbledOrchestrations = {};
+    for (const [name, orchestration] of Object.entries(this.functionalityOrchestrations)) {
+      if (orchestration.bubbleEvents) bubbledOrchestrations[name] = orchestration;
+    }
     return {
       serviceId: this.id,
       serviceName: this.name,
       version: this.version,
       description: this.description,
       libraries: { ...this.libraries },
-      functionalities: { ...this.functionalities },
-      functionalityOrchestrations: { ...this.functionalityOrchestrations },
+      functionalities: bubbledFunctionalities,
+      functionalityOrchestrations: bubbledOrchestrations,
       capabilities: this.capabilities,
       dependencies: this.dependencies
     };
@@ -3339,6 +3489,34 @@ var KrnlPackageReconciler = class {
   }
 };
 
+// src/events/ServiceEventBus.ts
+var ServiceEventBus = class extends EventBus {
+};
+
+// src/events/OrchestrationEventFacade.ts
+var OrchestrationEventFacade = class {
+  eventBus = new EventBus();
+  events;
+  constructor() {
+    this.events = createEventChannels(this.eventBus, ["triggered", "completed", "failed"]);
+  }
+  get triggered() {
+    return this.events.triggered;
+  }
+  get completed() {
+    return this.events.completed;
+  }
+  get failed() {
+    return this.events.failed;
+  }
+  emit(event, payload) {
+    this.eventBus.emit(event, payload);
+  }
+  clear() {
+    this.eventBus.clear();
+  }
+};
+
 // src/connectivity/ProtocolResolver.ts
 var ProtocolResolver = class {
   static selectProtocol(requiredCapabilities, availableEndpoints) {
@@ -3359,6 +3537,8 @@ var FunctionalityOrchestration = class {
   description;
   timeoutMs;
   scope = "functionality";
+  bubbleEvents;
+  events;
   steps = [];
   flows = /* @__PURE__ */ new Map();
   constructor(descriptor) {
@@ -3370,6 +3550,8 @@ var FunctionalityOrchestration = class {
     this.version = descriptor.version || "1.0.0";
     this.description = descriptor.description || "";
     this.timeoutMs = descriptor.timeoutMs;
+    this.bubbleEvents = descriptor.bubbleEvents ?? true;
+    this.events = new OrchestrationEventFacade();
   }
   /**
    * Adds a sequential functionality step to the DAG.
@@ -3530,6 +3712,7 @@ var FunctionalityOrchestration = class {
       description: this.description,
       timeoutMs: this.timeoutMs,
       scope: "functionality",
+      bubbleEvents: this.bubbleEvents,
       dependencies: [],
       steps: this.steps.map((s) => ({
         id: s.id,
@@ -3634,6 +3817,8 @@ var FunctionalityOrchestration = class {
 var gutts = __toESM(require("@dinilmusick/gutts"), 1);
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  EventBus,
+  FunctionalityFacade,
   FunctionalityOrchestration,
   HttpProtocolAdapter,
   KrnlPackageReconciler,
@@ -3641,6 +3826,7 @@ var gutts = __toESM(require("@dinilmusick/gutts"), 1);
   KrnlWorkerPool,
   LifecycleManager,
   MemoryTransport,
+  OrchestrationEventFacade,
   P2PProtocolAdapter,
   ProtocolResolver,
   ServiceDiscovery,
@@ -3654,6 +3840,7 @@ var gutts = __toESM(require("@dinilmusick/gutts"), 1);
   UdpProtocolAdapter,
   WebSocketProtocolAdapter,
   WorkerExecutionBoundary,
+  createEventChannels,
   createService,
   createServiceDefinition,
   createServiceFacade,

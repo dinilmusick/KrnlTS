@@ -6,6 +6,6 @@ export default defineConfig({
   dts: true,
   clean: true,
   target: 'esnext',
-  external: ['ws', 'zod', 'zod-to-json-schema', 'esbuild'],
+  external: ['ws', 'zod', 'zod-to-json-schema', 'esbuild', '@dinilmusick/gutts'],
   noExternal: ['p-queue'],
 });

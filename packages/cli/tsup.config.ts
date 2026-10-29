@@ -9,5 +9,5 @@ export default defineConfig({
     '@ultrst-armada/krnl-validate',
     '@ultrst-armada/krnl-core'
   ],
-  external: ['ts-morph', 'ws', 'esbuild']
+  external: ['ts-morph', 'ws', 'esbuild', '@dinilmusick/gutts', 'zod', 'zod-to-json-schema']
 });

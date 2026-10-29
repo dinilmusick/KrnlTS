@@ -399,8 +399,8 @@ export class ServiceFacade<
       });
     }
 
-    if (cmdResult.status === 'FAILED') {
-      throw new Error(cmdResult.error || `[ServiceFacade:${this.id}] Orchestration failed.`);
+    if (cmdResult.status === 'FAILED' || orchestrationResult?.status === 'FAILED') {
+      throw new Error(orchestrationResult?.error || cmdResult.error || `[ServiceFacade:${this.id}] Orchestration failed.`);
     }
 
     return cmdResult.data as OrchestrationResult<TOut>;

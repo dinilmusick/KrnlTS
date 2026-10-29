@@ -29,21 +29,56 @@ describe.runIf(runRealModels)('KrnlTS -> GutTS model consumer integration', () =
     service.namespace.functionalities.generateText.events.completed.subscribe(completed);
     service.namespace.functionalities.generateText.events.generated.subscribe(generated);
 
-    const output = await service.call('generateText', { prompt: 'Return exactly the word hello.' });
+    const output = await service.call<any, string>('generateText', { prompt: 'Return exactly the word hello.' });
 
     expect(typeof output).toBe('string');
     expect(output.length).toBeGreaterThan(0);
     expect(triggered).toHaveBeenCalledTimes(1);
-    expect(completed).toHaveBeenCalledTimes(1);
+    expect(triggered).toHaveBeenCalledWith(expect.objectContaining({
+      serviceId: 'ai.consumer',
+      functionalityId: 'generateText',
+      input: { prompt: 'Return exactly the word hello.' },
+    }));
     expect(generated).toHaveBeenCalledTimes(1);
+    expect(generated).toHaveBeenCalledWith(expect.objectContaining({ output }));
+    expect(completed).toHaveBeenCalledTimes(1);
+    expect(completed).toHaveBeenCalledWith(expect.objectContaining({
+      serviceId: 'ai.consumer',
+      functionalityId: 'generateText',
+      output,
+    }));
 
     await service.dispose();
+
+    // Verify failed functionality execution emits failed event
+    const failingService = createServiceFacade({
+      id: 'ai.consumer.failing',
+      functionalities: {
+        failingGenerate: {
+          execute: async () => {
+            throw new Error('SmolLM2 failure simulation');
+          },
+        },
+      },
+    });
+    await failingService.start();
+    const failed = vi.fn();
+    failingService.namespace.functionalities.failingGenerate.events.failed.subscribe(failed);
+    await expect(failingService.call('failingGenerate', {})).rejects.toThrow('SmolLM2 failure simulation');
+    expect(failed).toHaveBeenCalledTimes(1);
+    expect(failed).toHaveBeenCalledWith(expect.objectContaining({
+      error: 'SmolLM2 failure simulation',
+    }));
+    await failingService.dispose();
   }, 180_000);
 
   it('uses the other named GutTS models directly from a KrnlTS test consumer', async () => {
     const needle = new Needle3();
     const embedding = await needle.embed('KrnlTS can consume GutTS models like libraries.');
     expect(embedding.length).toBeGreaterThan(0);
+
+    const completion = await needle.complete({ prompt: 'lookup system metrics' });
+    expect(completion).toBeDefined();
 
     const mini = new MiniLM();
     const similarity = await mini.similarity({

@@ -16,9 +16,106 @@ declare class LifecycleManager {
 }
 
 /**
+ * @file EventTypes.ts
+ * @description Canonical event contracts for functionality and orchestration events.
+ */
+type EventHandler<TPayload> = (payload: TPayload) => void;
+interface EventSubscription {
+    readonly unsubscribe: () => void;
+}
+interface EventChannel<TPayload> {
+    readonly name: string;
+    subscribe(handler: EventHandler<TPayload>): EventSubscription;
+    on(handler: EventHandler<TPayload>): () => void;
+}
+interface EventDefinition<TPayload = unknown> {
+    readonly name: string;
+    readonly description?: string;
+    readonly payloadSchema?: Record<string, unknown>;
+    readonly marker?: TPayload;
+}
+interface FunctionalityLifecyclePayload {
+    readonly serviceId: string;
+    readonly functionalityId: string;
+    readonly functionalityName: string;
+    readonly correlationId?: string;
+    readonly timestamp: number;
+    readonly input?: unknown;
+    readonly output?: unknown;
+    readonly error?: string;
+}
+type FunctionalityLifecycleEvent = 'triggered' | 'completed' | 'failed';
+interface OrchestrationLifecyclePayload {
+    readonly serviceId: string;
+    readonly orchestrationId: string;
+    readonly orchestrationName: string;
+    readonly correlationId: string;
+    readonly executionId?: string;
+    readonly timestamp: number;
+    readonly status?: string;
+    readonly output?: unknown;
+    readonly error?: string;
+}
+
+/**
+ * @file FunctionalityContract.ts
+ * @description Canonical functionality contracts and event surface.
+ */
+
+type FunctionalityCustomEvents = Record<string, unknown>;
+type FunctionalityEvents<TEvents extends FunctionalityCustomEvents = {}> = Omit<TEvents, 'triggered' | 'completed' | 'failed'> & {
+    triggered: FunctionalityLifecyclePayload;
+    completed: FunctionalityLifecyclePayload;
+    failed: FunctionalityLifecyclePayload;
+};
+interface FunctionalityExecutionContext<TState = Record<string, unknown>, TEvents extends FunctionalityCustomEvents = {}> {
+    readonly serviceId: string;
+    readonly functionalityId: string;
+    readonly correlationId?: string;
+    readonly state: Readonly<TState>;
+    readonly metadata?: Record<string, unknown>;
+    readonly emit: <K extends keyof FunctionalityEvents<TEvents> & string>(event: K, payload: FunctionalityEvents<TEvents>[K]) => void;
+}
+interface FunctionalityDefinition<TInput = unknown, TOutput = unknown, TState = Record<string, unknown>, TEvents extends FunctionalityCustomEvents = {}> {
+    readonly id?: string;
+    readonly name?: string;
+    readonly description?: string;
+    readonly events?: Record<keyof TEvents & string, EventDefinition<any>>;
+    readonly bubbleEvents?: boolean;
+    readonly execute: (input: TInput, context: FunctionalityExecutionContext<TState, TEvents>) => Promise<TOutput> | TOutput;
+}
+type FunctionalityEventNamespace<TEvents extends FunctionalityCustomEvents = {}> = {
+    readonly [K in keyof FunctionalityEvents<TEvents>]: EventChannel<FunctionalityEvents<TEvents>[K]>;
+};
+
+/**
+ * @file FunctionalityFacade.ts
+ * @description First-class functionality boundary with lifecycle and custom events.
+ */
+
+declare class FunctionalityFacade<TInput = unknown, TOutput = unknown, TState = Record<string, unknown>, TEvents extends Record<string, unknown> = {}> {
+    readonly id: string;
+    readonly name: string;
+    readonly description: string;
+    readonly bubbleEvents: boolean;
+    readonly definition: FunctionalityDefinition<TInput, TOutput, TState, TEvents>;
+    private readonly eventBus;
+    readonly events: FunctionalityEventNamespace<TEvents>;
+    constructor(id: string, definition: FunctionalityDefinition<TInput, TOutput, TState, TEvents>, options?: {
+        bubbleEvents?: boolean;
+    });
+    getEventDefinitions(): Record<string, EventDefinition<any>>;
+    subscribe<K extends keyof FunctionalityEvents<TEvents> & string>(event: K, handler: (payload: FunctionalityEvents<TEvents>[K]) => void): () => void;
+    emit<K extends keyof FunctionalityEvents<TEvents> & string>(event: K, payload: FunctionalityEvents<TEvents>[K]): void;
+    execute(input: TInput, context: Omit<FunctionalityExecutionContext<TState, TEvents>, 'emit'>): Promise<TOutput>;
+    clearEventSubscriptions(): void;
+}
+
+/**
  * @file ServiceContract.ts
  * @description Canonical service contracts for the KrnlTS Service Kernel.
- * Invariant: local and remote services share the same IService contract.
+ * Services are execution and namespace boundaries; application events belong to
+ * functionalities and orchestration lifecycle, never to the service itself.
  */
 
 type ProtocolType = 'http' | 'https' | 'ws' | 'wss' | 'udp' | 'p2p' | 'signaling' | 'memory';
@@ -70,7 +167,7 @@ interface ServiceCapability {
     protocols: ProtocolType[];
     metadata?: Record<string, unknown>;
 }
-interface ServiceNamespace<TLibraries extends Record<string, unknown> = Record<string, unknown>, TFunctionalities extends Record<string, unknown> = Record<string, unknown>, TOrchestrations extends Record<string, unknown> = Record<string, unknown>> {
+interface ServiceNamespace<TLibraries extends Record<string, unknown> = Record<string, unknown>, TFunctionalities extends Record<string, FunctionalityFacade<any, any, any, any>> = Record<string, FunctionalityFacade<any, any, any, any>>, TOrchestrations extends Record<string, unknown> = Record<string, unknown>> {
     readonly serviceId: string;
     readonly serviceName: string;
     readonly version: string;
@@ -89,7 +186,9 @@ interface EndpointDescriptor {
     channel?: string;
     capabilities: string[];
 }
-interface ServiceDefinition<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>> {
+interface ServiceDefinition<TState extends Record<string, unknown> = Record<string, unknown>, 
+/** @deprecated Service-owned events are no longer part of the KrnlTS event model. */
+TLegacyEvents extends Record<string, unknown> = Record<string, unknown>> {
     id: string;
     name: string;
     version: string;
@@ -97,26 +196,25 @@ interface ServiceDefinition<TState extends Record<string, unknown> = Record<stri
     outputs?: Record<string, Record<string, unknown>>;
     operations: Record<string, OperationContract<any, any>>;
     state?: StateContract<TState>;
-    events?: Record<keyof TEvents & string, EventContract<any>>;
     lifecycle?: LifecycleContract;
     dependencies?: DependencyContract[];
     capabilities?: ServiceCapability[];
     protocols?: ProtocolType[];
 }
-interface IService<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>> {
+interface IService<TState extends Record<string, unknown> = Record<string, unknown>, 
+/** @deprecated Service-owned events are no longer part of the KrnlTS event model. */
+TLegacyEvents extends Record<string, unknown> = Record<string, unknown>> {
     readonly id: string;
     readonly name: string;
     readonly version: string;
     call<TIn = unknown, TOut = unknown>(op: string, input?: TIn, ctx?: OperationContext): Promise<TOut>;
     getState(): Readonly<TState>;
     setState(mutation: Partial<TState>): void;
-    on<K extends keyof TEvents & string>(event: K, handler: (payload: TEvents[K]) => void): () => void;
-    emit<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): void;
     getStatus(): ServiceStatus;
     start(): Promise<void>;
     stop(): Promise<void>;
     dispose(): Promise<void>;
-    getDefinition(): ServiceDefinition<TState, TEvents>;
+    getDefinition(): ServiceDefinition<TState, TLegacyEvents>;
 }
 
 /**
@@ -130,7 +228,6 @@ declare class ServiceInstance<TState extends Record<string, unknown> = Record<st
     readonly name: string;
     readonly version: string;
     private stateStore?;
-    private readonly eventBus;
     private readonly lifecycle;
     private initialized;
     private disposed;
@@ -143,8 +240,6 @@ declare class ServiceInstance<TState extends Record<string, unknown> = Record<st
     call<TIn = unknown, TOut = unknown>(op: string, input?: TIn, ctx?: OperationContext): Promise<TOut>;
     getState(): Readonly<TState>;
     setState(mutation: Partial<TState>): void;
-    on<K extends keyof TEvents & string>(event: K, handler: (payload: TEvents[K]) => void): () => void;
-    emit<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): void;
 }
 
 /**
@@ -296,6 +391,7 @@ interface OrchestrationDefinition<TInput = unknown, TOutput = unknown> {
     readonly version: string;
     readonly description?: string;
     readonly scope: 'functionality' | 'service';
+    readonly bubbleEvents?: boolean;
     readonly dependencies: readonly string[];
     readonly defaultFrontend?: OrchestrationFrontendReference;
     readonly timeoutMs?: number;
@@ -334,6 +430,7 @@ interface OrchestrationDescriptor {
     readonly timeoutMs?: number;
     readonly concurrency?: number;
     readonly scope?: 'functionality' | 'service';
+    readonly bubbleEvents?: boolean;
 }
 interface OrchestrationContext {
     readonly correlationId: string;
@@ -386,6 +483,27 @@ interface DAGValidationResult {
  */
 declare function validateOrchestrationDAG(steps: readonly OrchestrationStep[]): DAGValidationResult;
 
+/**
+ * @file OrchestrationEventFacade.ts
+ * @description Default lifecycle event surface for functionality orchestrations.
+ */
+
+interface OrchestrationEventNamespace {
+    readonly triggered: EventChannel<OrchestrationLifecyclePayload>;
+    readonly completed: EventChannel<OrchestrationLifecyclePayload>;
+    readonly failed: EventChannel<OrchestrationLifecyclePayload>;
+}
+declare class OrchestrationEventFacade {
+    private readonly eventBus;
+    readonly events: OrchestrationEventNamespace;
+    constructor();
+    get triggered(): EventChannel<OrchestrationLifecyclePayload>;
+    get completed(): EventChannel<OrchestrationLifecyclePayload>;
+    get failed(): EventChannel<OrchestrationLifecyclePayload>;
+    emit(event: 'triggered' | 'completed' | 'failed', payload: OrchestrationLifecyclePayload): void;
+    clear(): void;
+}
+
 interface FunctionalityFlowStep {
     readonly id: string;
     readonly type: 'functionality' | 'functionalityOrchestration';
@@ -428,6 +546,8 @@ declare class FunctionalityOrchestration {
     readonly description: string;
     readonly timeoutMs?: number;
     readonly scope: 'functionality';
+    readonly bubbleEvents: boolean;
+    readonly events: OrchestrationEventFacade;
     private readonly steps;
     private readonly flows;
     constructor(descriptor: OrchestrationDescriptor);
@@ -691,7 +811,7 @@ declare class ServiceFacade<TState extends Record<string, unknown> = Record<stri
     readonly name: string;
     readonly version: string;
     readonly description: string;
-    readonly functionalities: Record<string, unknown>;
+    readonly functionalities: Record<string, FunctionalityFacade<any, any, any, any>>;
     readonly functionalityOrchestrations: Record<string, FunctionalityOrchestration>;
     readonly libraries: TLibraries;
     readonly dependencies: readonly DependencyContract[];
@@ -740,17 +860,18 @@ declare class ServiceFacade<TState extends Record<string, unknown> = Record<stri
     }): Promise<any>;
     getState(): Readonly<TState>;
     setState(mutation: Partial<TState>): void;
-    on<K extends keyof TEvents & string>(event: K, handler: (payload: TEvents[K]) => void): () => void;
-    emit<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): void;
-    registerFunctionality(name: string, functionality: unknown): this;
+    getFunctionality(name: string): FunctionalityFacade<any, any, any, any>;
+    registerFunctionality(name: string, functionality: unknown, options?: {
+        bubbleEvents?: boolean;
+    }): this;
     registerFunctionalityOrchestration(name: string, orchestration: FunctionalityOrchestration): this;
     /** @deprecated Use registerFunctionalityOrchestration */
     registerOrchestration(name: string, orchestration: FunctionalityOrchestration): this;
     registerLibrary<TLib = unknown>(name: string, library: TLib): this;
     getLibrary<TLib = unknown>(name: string): TLib;
-    get namespace(): ServiceNamespace<TLibraries, Record<string, unknown>, Record<string, FunctionalityOrchestration>>;
-    getNamespace(): ServiceNamespace<TLibraries, Record<string, unknown>, Record<string, FunctionalityOrchestration>>;
-    getServiceFacadeMetadata(): ServiceNamespace<TLibraries, Record<string, unknown>, Record<string, FunctionalityOrchestration>>;
+    get namespace(): ServiceNamespace<TLibraries, Record<string, FunctionalityFacade<any, any, any, any>>, Record<string, FunctionalityOrchestration>>;
+    getNamespace(): ServiceNamespace<TLibraries, Record<string, FunctionalityFacade<any, any, any, any>>, Record<string, FunctionalityOrchestration>>;
+    getServiceFacadeMetadata(): ServiceNamespace<TLibraries, Record<string, FunctionalityFacade<any, any, any, any>>, Record<string, FunctionalityOrchestration>>;
 }
 declare function createServiceFacade<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>, TLibraries extends Record<string, unknown> = Record<string, unknown>>(config: ServiceFacadeConfig<TState, TEvents, TLibraries>): ServiceFacade<TState, TEvents, TLibraries>;
 
@@ -946,14 +1067,30 @@ declare class ServiceStateStore<TState extends Record<string, unknown> = Record<
 }
 
 /**
- * @file ServiceEventBus.ts
- * @description In-memory strongly-typed event bus for services.
+ * @file EventBus.ts
+ * @description Generic in-process event bus used by functionality and orchestration event surfaces.
  */
-declare class ServiceEventBus<TEvents extends Record<string, unknown> = Record<string, unknown>> {
-    private handlers;
-    on<K extends keyof TEvents & string>(event: K, handler: (payload: TEvents[K]) => void): () => void;
+
+declare class EventBus<TEvents extends Record<string, unknown> = Record<string, unknown>> {
+    private readonly handlers;
+    subscribe<K extends keyof TEvents & string>(event: K, handler: EventHandler<TEvents[K]>): EventSubscription;
+    on<K extends keyof TEvents & string>(event: K, handler: EventHandler<TEvents[K]>): () => void;
     emit<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): void;
     clear(): void;
+}
+declare function createEventChannels<TEvents extends Record<string, unknown>>(bus: EventBus<TEvents>, names: readonly (keyof TEvents & string)[]): {
+    [K in keyof TEvents]: EventChannel<TEvents[K]>;
+};
+
+/**
+ * @file ServiceEventBus.ts
+ * @description Backward-compatible generic event bus.
+ *
+ * KrnlTS no longer defines service-owned application events. First-class
+ * application events are owned by functionalities and orchestration lifecycle.
+ */
+
+declare class ServiceEventBus<TEvents extends Record<string, unknown> = Record<string, unknown>> extends EventBus<TEvents> {
 }
 
 /**
@@ -966,4 +1103,4 @@ declare class ProtocolResolver {
     static getSupportedProtocols(definition: ServiceDefinition): ProtocolType[];
 }
 
-export { type BackendCommand, type Connection, type DAGValidationResult, type DefaultFrontendReference, type DependencyContract, type EndpointDescriptor, type EventContract, type ExecutionContext, type FunctionalityFlow, type FunctionalityFlowStep, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlPackageReconciler, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, type OrchestrationFrontendReference, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createService, createServiceDefinition, createServiceFacade, createServiceProxy, validateOrchestrationDAG, validateServiceDefinition };
+export { type BackendCommand, type Connection, type DAGValidationResult, type DefaultFrontendReference, type DependencyContract, type EndpointDescriptor, EventBus, type EventChannel, type EventContract, type EventDefinition, type EventHandler, type EventSubscription, type ExecutionContext, type FunctionalityCustomEvents, type FunctionalityDefinition, type FunctionalityEventNamespace, type FunctionalityEvents, type FunctionalityExecutionContext, FunctionalityFacade, type FunctionalityFlow, type FunctionalityFlowStep, type FunctionalityLifecycleEvent, type FunctionalityLifecyclePayload, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlPackageReconciler, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, OrchestrationEventFacade, type OrchestrationEventNamespace, type OrchestrationFrontendReference, type OrchestrationLifecyclePayload, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createEventChannels, createService, createServiceDefinition, createServiceFacade, createServiceProxy, validateOrchestrationDAG, validateServiceDefinition };

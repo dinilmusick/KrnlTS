@@ -814,20 +814,8 @@ async function runValidate(projectRoot = process.cwd()) {
 // ../core/dist/index.js
 import * as fs3 from "fs";
 import * as path4 from "path";
-
-// ../../node_modules/.pnpm/@dinilmusick+gutts@0.1.0/node_modules/@dinilmusick/gutts/dist/json/json-parse.js
-function parseJson(text) {
-  return JSON.parse(text);
-}
-function tryParseJson(text) {
-  try {
-    return parseJson(text);
-  } catch {
-    return void 0;
-  }
-}
-
-// ../core/dist/index.js
+import { tryParseJson } from "@dinilmusick/gutts";
+import * as gutts from "@dinilmusick/gutts";
 var asyncHooks = globalThis.process?.getBuiltinModule?.("node:async_hooks");
 var KrnlPackageReconciler = class {
   /**

@@ -23,7 +23,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@dinilmusick/gutts": "^0.1.0",
+    "@dinilmusick/gutts": "^1.0.0",
     "esbuild": "^0.25.0",
     "p-queue": "^10.0.0",
     "protobufjs": "^8.7.1",
