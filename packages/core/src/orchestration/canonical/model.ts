@@ -105,6 +105,7 @@ export interface OrchestrationDefinition<TInput = unknown, TOutput = unknown> {
   readonly version: string;
   readonly description?: string;
   readonly scope: 'functionality' | 'service';
+  readonly bubbleEvents?: boolean;
   readonly dependencies: readonly string[];
   readonly defaultFrontend?: OrchestrationFrontendReference;
   readonly timeoutMs?: number;
