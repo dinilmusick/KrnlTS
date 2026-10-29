@@ -49,13 +49,6 @@ export function validateServiceDefinition<
     }
   }
 
-  for (const [key, event] of Object.entries(definition.events ?? {})) {
-    if (!event || typeof event !== 'object') {
-      throw new Error("[Service:" + definition.name + "] Invalid event '" + key + "'.");
-    }
-    assertNonEmptyString(event.name, "events." + key + ".name");
-  }
-
   for (const [key, schema] of Object.entries(definition.inputs ?? {})) assertRecord(schema, 'inputs.' + key);
   for (const [key, schema] of Object.entries(definition.outputs ?? {})) assertRecord(schema, 'outputs.' + key);
   if (definition.state?.schema !== undefined) assertRecord(definition.state.schema, 'state.schema');

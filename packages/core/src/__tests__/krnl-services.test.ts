@@ -35,16 +35,20 @@ describe('KrnlTS Canonical Service Kernel (Services A-H)', () => {
     await svcB.stop();
   });
 
-  it('TEST SERVICE C: Event emission', async () => {
+  it('TEST SERVICE C: Functionality-owned event emission', async () => {
     const svcC = createTestServiceC();
     await svcC.start();
-    let received = 0;
-    const unsub = svcC.on('reading', (payload) => {
-      received = payload.value;
+    const received: any[] = [];
+    const unsub = svcC.namespace.functionalities.ping.events.reading.subscribe((payload) => {
+      received.push(payload);
     });
-    svcC.emit('reading', { value: 100 });
-    expect(received).toBe(100);
-    unsub();
+
+    const result = await svcC.call('ping');
+    svcC.namespace.functionalities.ping.emit('reading', { value: 100 });
+
+    expect(result).toBe('pong');
+    expect(received).toEqual([{ value: 100 }]);
+    unsub.unsubscribe();
     await svcC.stop();
   });
 

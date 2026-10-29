@@ -4,6 +4,7 @@
  */
 
 export * from './services/index.js';
+export * from './functionalities/index.js';
 export * from './protocols/index.js';
 export * from './transports/index.js';
 export * from './runtime/index.js';

@@ -1,10 +1,12 @@
 /**
  * @file ServiceContract.ts
  * @description Canonical service contracts for the KrnlTS Service Kernel.
- * Invariant: local and remote services share the same IService contract.
+ * Services are execution and namespace boundaries; application events belong to
+ * functionalities and orchestration lifecycle, never to the service itself.
  */
 
 import type { ServiceStatus } from '../lifecycle/LifecycleManager.js';
+import type { FunctionalityFacade } from '../functionalities/FunctionalityFacade.js';
 export type { ServiceStatus };
 
 export type ProtocolType = 'http' | 'https' | 'ws' | 'wss' | 'udp' | 'p2p' | 'signaling' | 'memory';
@@ -66,7 +68,7 @@ export interface ServiceCapability {
 
 export interface ServiceNamespace<
   TLibraries extends Record<string, unknown> = Record<string, unknown>,
-  TFunctionalities extends Record<string, unknown> = Record<string, unknown>,
+  TFunctionalities extends Record<string, FunctionalityFacade<any, any, any, any>> = Record<string, FunctionalityFacade<any, any, any, any>>,
   TOrchestrations extends Record<string, unknown> = Record<string, unknown>
 > {
   readonly serviceId: string;
@@ -91,7 +93,8 @@ export interface EndpointDescriptor {
 
 export interface ServiceDefinition<
   TState extends Record<string, unknown> = Record<string, unknown>,
-  TEvents extends Record<string, unknown> = Record<string, unknown>
+  /** @deprecated Service-owned events are no longer part of the KrnlTS event model. */
+  TLegacyEvents extends Record<string, unknown> = Record<string, unknown>
 > {
   id: string;
   name: string;
@@ -100,7 +103,6 @@ export interface ServiceDefinition<
   outputs?: Record<string, Record<string, unknown>>;
   operations: Record<string, OperationContract<any, any>>;
   state?: StateContract<TState>;
-  events?: Record<keyof TEvents & string, EventContract<any>>;
   lifecycle?: LifecycleContract;
   dependencies?: DependencyContract[];
   capabilities?: ServiceCapability[];
@@ -109,7 +111,8 @@ export interface ServiceDefinition<
 
 export interface IService<
   TState extends Record<string, unknown> = Record<string, unknown>,
-  TEvents extends Record<string, unknown> = Record<string, unknown>
+  /** @deprecated Service-owned events are no longer part of the KrnlTS event model. */
+  TLegacyEvents extends Record<string, unknown> = Record<string, unknown>
 > {
   readonly id: string;
   readonly name: string;
@@ -117,11 +120,9 @@ export interface IService<
   call<TIn = unknown, TOut = unknown>(op: string, input?: TIn, ctx?: OperationContext): Promise<TOut>;
   getState(): Readonly<TState>;
   setState(mutation: Partial<TState>): void;
-  on<K extends keyof TEvents & string>(event: K, handler: (payload: TEvents[K]) => void): () => void;
-  emit<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): void;
   getStatus(): ServiceStatus;
   start(): Promise<void>;
   stop(): Promise<void>;
   dispose(): Promise<void>;
-  getDefinition(): ServiceDefinition<TState, TEvents>;
+  getDefinition(): ServiceDefinition<TState, TLegacyEvents>;
 }

@@ -5,6 +5,7 @@
  * Conforms to L1 (Plane Isolation) & Invariant: A service never orchestrates independent services.
  */
 
+import { OrchestrationEventFacade } from '../events/OrchestrationEventFacade.js';
 import {
   OrchestrationStep,
   OrchestrationDescriptor,
@@ -64,6 +65,9 @@ export class FunctionalityOrchestration {
   public readonly description: string;
   public readonly timeoutMs?: number;
   public readonly scope: 'functionality' = 'functionality';
+  public readonly bubbleEvents: boolean;
+  public readonly events: OrchestrationEventFacade;
+
 
   private readonly steps: OrchestrationStep[] = [];
   private readonly flows: Map<string, FunctionalityFlow> = new Map();
@@ -77,6 +81,8 @@ export class FunctionalityOrchestration {
     this.version = descriptor.version || '1.0.0';
     this.description = descriptor.description || '';
     this.timeoutMs = descriptor.timeoutMs;
+    this.bubbleEvents = descriptor.bubbleEvents ?? true;
+    this.events = new OrchestrationEventFacade();
   }
 
   /**
@@ -280,6 +286,7 @@ export class FunctionalityOrchestration {
       description: this.description,
       timeoutMs: this.timeoutMs,
       scope: 'functionality',
+      bubbleEvents: this.bubbleEvents,
       dependencies: [],
       steps: this.steps.map((s) => ({
         id: s.id,
