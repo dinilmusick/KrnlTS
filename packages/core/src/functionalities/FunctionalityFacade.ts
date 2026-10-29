@@ -100,7 +100,7 @@ export class FunctionalityFacade<
       input,
     };
 
-    this.emit('triggered', lifecycle);
+    this.emit('triggered', lifecycle as FunctionalityEvents<TEvents>['triggered']);
 
     try {
       const output = await this.definition.execute(input, {
@@ -112,7 +112,7 @@ export class FunctionalityFacade<
         ...lifecycle,
         timestamp: Date.now(),
         output,
-      });
+      } as FunctionalityEvents<TEvents>['completed']);
 
       return output;
     } catch (error: any) {
@@ -120,7 +120,7 @@ export class FunctionalityFacade<
         ...lifecycle,
         timestamp: Date.now(),
         error: error?.message || String(error),
-      });
+      } as FunctionalityEvents<TEvents>['failed']);
       throw error;
     }
   }
