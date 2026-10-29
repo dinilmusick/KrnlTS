@@ -17,6 +17,8 @@ import type {
 } from './ServiceContract.js';
 import { ServiceInstance } from './ServiceInstance.js';
 import { FunctionalityOrchestration } from '../orchestration/FunctionalityOrchestration.js';
+import { FunctionalityFacade } from '../functionalities/FunctionalityFacade.js';
+import type { FunctionalityDefinition } from '../functionalities/FunctionalityContract.js';
 import { KrnlQueue, KrnlQueueOptions } from '../orchestration/canonical/KrnlQ.js';
 import {
   BackendCommand,
@@ -71,7 +73,7 @@ export class ServiceFacade<
   public readonly version: string;
   public readonly description: string;
 
-  public readonly functionalities: Record<string, unknown>;
+  public readonly functionalities: Record<string, FunctionalityFacade<any, any, any, any>>;
   public readonly functionalityOrchestrations: Record<string, FunctionalityOrchestration>;
   public readonly libraries: TLibraries;
   public readonly dependencies: readonly DependencyContract[];
@@ -90,7 +92,10 @@ export class ServiceFacade<
     this.version = config.version || '1.0.0';
     this.description = config.description || '';
 
-    this.functionalities = config.functionalities ? { ...config.functionalities } : {};
+    this.functionalities = {};
+    for (const [name, functionality] of Object.entries(config.functionalities ?? {})) {
+      this.registerFunctionality(name, functionality);
+    }
     this.functionalityOrchestrations = config.functionalityOrchestrations
       ? { ...config.functionalityOrchestrations }
       : config.orchestrations
@@ -186,15 +191,47 @@ export class ServiceFacade<
       // Execute inside KrnlWorker context
       WorkerExecutionBoundary.assertWorkerContext(workerCtx);
 
-      // 1. Check direct functionality implementation
-      if (this.functionalities[op] && typeof (this.functionalities[op] as any).execute === 'function') {
-        return await (this.functionalities[op] as any).execute(payload, {
+      const functionality = this.functionalities[op];
+
+      if (functionality) {
+        const basePayload = {
+          serviceId: this.id,
+          functionalityId: functionality.id,
+          functionalityName: functionality.name,
           correlationId: workerCtx.correlationId,
-          state: this.instance.getState(),
-        });
+          timestamp: Date.now(),
+          input: payload,
+        };
+
+        functionality.emit('triggered', basePayload);
+
+        try {
+          const output = await functionality.execute(payload, {
+            serviceId: this.id,
+            functionalityId: functionality.id,
+            correlationId: workerCtx.correlationId,
+            state: this.instance.getState(),
+          });
+
+          functionality.emit('completed', {
+            ...basePayload,
+            timestamp: Date.now(),
+            output,
+          });
+
+          return output;
+        } catch (error: any) {
+          functionality.emit('failed', {
+            ...basePayload,
+            timestamp: Date.now(),
+            error: error?.message || String(error),
+          });
+          throw error;
+        }
       }
 
-      // 2. Fall back to service definition operation handler
+      // Fall back to a low-level service operation. Low-level service operations
+      // are intentionally not exposed as functionality-owned events.
       return await this.instance.call<TIn, TOut>(op, payload, {
         correlationId: workerCtx.correlationId,
         idempotencyKey: command.idempotencyKey,
@@ -399,19 +436,37 @@ export class ServiceFacade<
     this.instance.setState(mutation);
   }
 
-  on<K extends keyof TEvents & string>(event: K, handler: (payload: TEvents[K]) => void): () => void {
-    return this.instance.on(event, handler);
+  getFunctionality(name: string): FunctionalityFacade<any, any, any, any> {
+    const functionality = this.functionalities[name];
+    if (!functionality) {
+      throw new Error(`[ServiceFacade:${this.id}] Functionality "${name}" not found.`);
+    }
+    return functionality;
   }
 
-  emit<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): void {
-    this.instance.emit(event, payload);
-  }
-
-  registerFunctionality(name: string, functionality: unknown): this {
+  registerFunctionality(
+    name: string,
+    functionality: unknown,
+    options: { bubbleEvents?: boolean } = {}
+  ): this {
     if (!name || typeof name !== 'string') {
       throw new Error('[ServiceFacade] Functionality name must be a non-empty string.');
     }
-    this.functionalities[name] = functionality;
+
+    if (functionality instanceof FunctionalityFacade) {
+      this.functionalities[name] = functionality;
+      return this;
+    }
+
+    if (!functionality || typeof functionality !== 'object' || typeof (functionality as any).execute !== 'function') {
+      throw new Error(`[ServiceFacade:${this.id}] Functionality "${name}" must define execute().`);
+    }
+
+    this.functionalities[name] = new FunctionalityFacade(
+      name,
+      functionality as FunctionalityDefinition<any, any, any, any>,
+      options
+    );
     return this;
   }
 
@@ -454,21 +509,39 @@ export class ServiceFacade<
     return this.getNamespace();
   }
 
-  getNamespace(): ServiceNamespace<TLibraries, Record<string, unknown>, Record<string, FunctionalityOrchestration>> {
+  getNamespace(): ServiceNamespace<
+    TLibraries,
+    Record<string, FunctionalityFacade<any, any, any, any>>,
+    Record<string, FunctionalityOrchestration>
+  > {
+    const bubbledFunctionalities: Record<string, FunctionalityFacade<any, any, any, any>> = {};
+    for (const [name, functionality] of Object.entries(this.functionalities)) {
+      if (functionality.bubbleEvents) bubbledFunctionalities[name] = functionality;
+    }
+
+    const bubbledOrchestrations: Record<string, FunctionalityOrchestration> = {};
+    for (const [name, orchestration] of Object.entries(this.functionalityOrchestrations)) {
+      if (orchestration.bubbleEvents) bubbledOrchestrations[name] = orchestration;
+    }
+
     return {
       serviceId: this.id,
       serviceName: this.name,
       version: this.version,
       description: this.description,
       libraries: { ...this.libraries },
-      functionalities: { ...this.functionalities },
-      functionalityOrchestrations: { ...this.functionalityOrchestrations },
+      functionalities: bubbledFunctionalities,
+      functionalityOrchestrations: bubbledOrchestrations,
       capabilities: this.capabilities,
       dependencies: this.dependencies,
     };
   }
 
-  getServiceFacadeMetadata(): ServiceNamespace<TLibraries, Record<string, unknown>, Record<string, FunctionalityOrchestration>> {
+  getServiceFacadeMetadata(): ServiceNamespace<
+    TLibraries,
+    Record<string, FunctionalityFacade<any, any, any, any>>,
+    Record<string, FunctionalityOrchestration>
+  > {
     return this.getNamespace();
   }
 }
