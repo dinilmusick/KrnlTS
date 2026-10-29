@@ -25,6 +25,10 @@ export class OrchestrationEventFacade {
     this.events = createEventChannels(this.eventBus, ['triggered', 'completed', 'failed']);
   }
 
+  get triggered(): EventChannel<OrchestrationLifecyclePayload> { return this.events.triggered; }
+  get completed(): EventChannel<OrchestrationLifecyclePayload> { return this.events.completed; }
+  get failed(): EventChannel<OrchestrationLifecyclePayload> { return this.events.failed; }
+
   emit(
     event: 'triggered' | 'completed' | 'failed',
     payload: OrchestrationLifecyclePayload
