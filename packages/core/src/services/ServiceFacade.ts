@@ -279,6 +279,14 @@ export class ServiceFacade<
       createdAt: Date.now(),
     };
 
+    orch.events.emit('triggered', {
+      serviceId: this.id,
+      orchestrationId: orch.id,
+      orchestrationName: orch.name,
+      correlationId,
+      timestamp: Date.now(),
+    });
+
     const cmdResult = await this.queue.executeCommand<TIn, OrchestrationResult<TOut>>(
       command,
       async (payload, workerCtx) => {
@@ -391,6 +399,33 @@ export class ServiceFacade<
         );
       }
     );
+
+    const orchestrationResult = cmdResult.data as OrchestrationResult<TOut> | undefined;
+
+    if (cmdResult.status === 'COMPLETED' && orchestrationResult) {
+      const lifecycleEvent = orchestrationResult.status === 'COMPLETED' ? 'completed' : 'failed';
+      orch.events.emit(lifecycleEvent, {
+        serviceId: this.id,
+        orchestrationId: orch.id,
+        orchestrationName: orch.name,
+        correlationId,
+        executionId: String(orchestrationResult.executionMetadata.executionId ?? ''),
+        timestamp: Date.now(),
+        status: orchestrationResult.status,
+        output: orchestrationResult.output,
+        error: orchestrationResult.error,
+      });
+    } else {
+      orch.events.emit('failed', {
+        serviceId: this.id,
+        orchestrationId: orch.id,
+        orchestrationName: orch.name,
+        correlationId,
+        timestamp: Date.now(),
+        status: cmdResult.status,
+        error: cmdResult.error,
+      });
+    }
 
     if (cmdResult.status === 'FAILED') {
       throw new Error(cmdResult.error || `[ServiceFacade:${this.id}] Orchestration failed.`);
@@ -505,7 +540,7 @@ export class ServiceFacade<
     return lib as TLib;
   }
 
-  get namespace(): ServiceNamespace<TLibraries, Record<string, unknown>, Record<string, FunctionalityOrchestration>> {
+  get namespace(): ServiceNamespace<TLibraries, Record<string, FunctionalityFacade<any, any, any, any>>, Record<string, FunctionalityOrchestration>> {
     return this.getNamespace();
   }
 
