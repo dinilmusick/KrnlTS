@@ -5,7 +5,6 @@
 
 import type { IService, ServiceDefinition, OperationContext } from './ServiceContract.js';
 import { ServiceStateStore } from '../state/ServiceStateStore.js';
-import { ServiceEventBus } from '../events/ServiceEventBus.js';
 import { LifecycleManager } from '../lifecycle/LifecycleManager.js';
 
 export class ServiceInstance<
@@ -17,7 +16,6 @@ export class ServiceInstance<
   public readonly version: string;
 
   private stateStore?: ServiceStateStore<TState>;
-  private readonly eventBus: ServiceEventBus<TEvents>;
   private readonly lifecycle: LifecycleManager;
   private initialized = false;
   private disposed = false;
@@ -27,7 +25,6 @@ export class ServiceInstance<
     this.name = definition.name;
     this.version = definition.version;
     this.lifecycle = new LifecycleManager();
-    this.eventBus = new ServiceEventBus<TEvents>();
     if (definition.state) {
       this.stateStore = new ServiceStateStore<TState>(definition.state.initial);
     }
@@ -120,11 +117,4 @@ export class ServiceInstance<
     this.stateStore.setState(mutation);
   }
 
-  on<K extends keyof TEvents & string>(event: K, handler: (payload: TEvents[K]) => void): () => void {
-    return this.eventBus.on(event, handler);
-  }
-
-  emit<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): void {
-    this.eventBus.emit(event, payload);
-  }
 }
