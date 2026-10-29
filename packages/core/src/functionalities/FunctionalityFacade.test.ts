@@ -26,13 +26,6 @@ describe('FunctionalityFacade events', () => {
     functionality.events.completed.subscribe(completed);
     functionality.events.userCreated.subscribe(custom);
 
-    functionality.emit('triggered', {
-      serviceId: 'users',
-      functionalityId: 'createUser',
-      functionalityName: 'createUser',
-      timestamp: 1,
-    });
-
     await functionality.execute(
       { id: 'u1' },
       {
@@ -42,15 +35,6 @@ describe('FunctionalityFacade events', () => {
         state: {},
       }
     );
-
-    functionality.emit('completed', {
-      serviceId: 'users',
-      functionalityId: 'createUser',
-      functionalityName: 'createUser',
-      correlationId: 'c1',
-      timestamp: 2,
-      output: { ok: true },
-    });
 
     expect(triggered).toHaveBeenCalledTimes(1);
     expect(custom).toHaveBeenCalledWith({ userId: 'u1' });
