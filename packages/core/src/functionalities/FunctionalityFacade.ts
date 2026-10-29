@@ -19,7 +19,7 @@ export class FunctionalityFacade<
   TInput = unknown,
   TOutput = unknown,
   TState = Record<string, unknown>,
-  TEvents extends Record<string, unknown> = Record<string, unknown>
+  TEvents extends Record<string, unknown> = {}
 > {
   public readonly id: string;
   public readonly name: string;
