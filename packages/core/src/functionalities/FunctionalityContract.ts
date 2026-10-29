@@ -11,7 +11,7 @@ import type {
 
 export type FunctionalityCustomEvents = Record<string, unknown>;
 
-export type FunctionalityEvents<TEvents extends FunctionalityCustomEvents = FunctionalityCustomEvents> =
+export type FunctionalityEvents<TEvents extends FunctionalityCustomEvents = {}> =
   Omit<TEvents, 'triggered' | 'completed' | 'failed'> & {
     triggered: FunctionalityLifecyclePayload;
     completed: FunctionalityLifecyclePayload;
