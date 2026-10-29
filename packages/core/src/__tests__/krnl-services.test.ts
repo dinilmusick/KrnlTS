@@ -48,7 +48,7 @@ describe('KrnlTS Canonical Service Kernel (Services A-H)', () => {
 
     expect(result).toBe('pong');
     expect(received).toEqual([{ value: 100 }]);
-    unsub();
+    unsub.unsubscribe();
     await svcC.stop();
   });
 
