@@ -91,10 +91,38 @@ export class FunctionalityFacade<
     input: TInput,
     context: Omit<FunctionalityExecutionContext<TState, TEvents>, 'emit'>
   ): Promise<TOutput> {
-    return await this.definition.execute(input, {
-      ...context,
-      emit: (event, payload) => this.emit(event, payload),
-    });
+    const lifecycle = {
+      serviceId: context.serviceId,
+      functionalityId: this.id,
+      functionalityName: this.name,
+      correlationId: context.correlationId,
+      timestamp: Date.now(),
+      input,
+    };
+
+    this.emit('triggered', lifecycle);
+
+    try {
+      const output = await this.definition.execute(input, {
+        ...context,
+        emit: (event, payload) => this.emit(event, payload),
+      });
+
+      this.emit('completed', {
+        ...lifecycle,
+        timestamp: Date.now(),
+        output,
+      });
+
+      return output;
+    } catch (error: any) {
+      this.emit('failed', {
+        ...lifecycle,
+        timestamp: Date.now(),
+        error: error?.message || String(error),
+      });
+      throw error;
+    }
   }
 
   clearEventSubscriptions(): void {
