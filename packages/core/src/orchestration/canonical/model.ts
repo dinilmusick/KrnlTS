@@ -145,6 +145,7 @@ export interface OrchestrationDescriptor {
   readonly timeoutMs?: number;
   readonly concurrency?: number;
   readonly scope?: 'functionality' | 'service';
+  readonly bubbleEvents?: boolean;
 }
 
 export interface OrchestrationContext {
