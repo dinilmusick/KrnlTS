@@ -20,7 +20,7 @@ export type FunctionalityEvents<TEvents extends FunctionalityCustomEvents = {}> 
 
 export interface FunctionalityExecutionContext<
   TState = Record<string, unknown>,
-  TEvents extends FunctionalityCustomEvents = FunctionalityCustomEvents
+  TEvents extends FunctionalityCustomEvents = {}
 > {
   readonly serviceId: string;
   readonly functionalityId: string;
@@ -37,7 +37,7 @@ export interface FunctionalityDefinition<
   TInput = unknown,
   TOutput = unknown,
   TState = Record<string, unknown>,
-  TEvents extends FunctionalityCustomEvents = FunctionalityCustomEvents
+  TEvents extends FunctionalityCustomEvents = {}
 > {
   readonly id?: string;
   readonly name?: string;
@@ -51,7 +51,7 @@ export interface FunctionalityDefinition<
 }
 
 export type FunctionalityEventNamespace<
-  TEvents extends FunctionalityCustomEvents = FunctionalityCustomEvents
+  TEvents extends FunctionalityCustomEvents = {}
 > = {
   readonly [K in keyof FunctionalityEvents<TEvents>]: EventChannel<FunctionalityEvents<TEvents>[K]>;
 };
