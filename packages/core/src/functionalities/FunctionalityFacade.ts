@@ -48,6 +48,12 @@ export class FunctionalityFacade<
     this.definition = definition;
     this.eventBus = new EventBus<FunctionalityEvents<TEvents>>();
 
+    for (const reserved of ['triggered', 'completed', 'failed']) {
+      if (definition.events && reserved in definition.events) {
+        throw new Error(`[FunctionalityFacade:${id}] Event '${reserved}' is reserved for functionality lifecycle.`);
+      }
+    }
+
     const eventNames = [
       'triggered',
       'completed',
