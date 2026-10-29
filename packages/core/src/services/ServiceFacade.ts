@@ -194,40 +194,12 @@ export class ServiceFacade<
       const functionality = this.functionalities[op];
 
       if (functionality) {
-        const basePayload = {
+        return await functionality.execute(payload, {
           serviceId: this.id,
           functionalityId: functionality.id,
-          functionalityName: functionality.name,
           correlationId: workerCtx.correlationId,
-          timestamp: Date.now(),
-          input: payload,
-        };
-
-        functionality.emit('triggered', basePayload);
-
-        try {
-          const output = await functionality.execute(payload, {
-            serviceId: this.id,
-            functionalityId: functionality.id,
-            correlationId: workerCtx.correlationId,
-            state: this.instance.getState(),
-          });
-
-          functionality.emit('completed', {
-            ...basePayload,
-            timestamp: Date.now(),
-            output,
-          });
-
-          return output;
-        } catch (error: any) {
-          functionality.emit('failed', {
-            ...basePayload,
-            timestamp: Date.now(),
-            error: error?.message || String(error),
-          });
-          throw error;
-        }
+          state: this.instance.getState(),
+        });
       }
 
       // Fall back to a low-level service operation. Low-level service operations
