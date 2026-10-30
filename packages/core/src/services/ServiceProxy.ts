@@ -9,6 +9,7 @@
 import type { IService, ServiceDefinition, OperationContext, EndpointDescriptor } from './ServiceContract.js';
 import type { ProtocolAdapter, ProtocolEnvelope } from '../protocols/ProtocolAdapter.js';
 import { LifecycleManager } from '../lifecycle/LifecycleManager.js';
+import { TelemetryController } from '../telemetry/TelemetryController.js';
 
 export class ServiceProxy<
   TState extends Record<string, unknown> = Record<string, unknown>,
@@ -17,6 +18,7 @@ export class ServiceProxy<
   public readonly id: string;
   public readonly name: string;
   public readonly version: string;
+  public readonly telemetry: TelemetryController;
 
   private stateCache: TState;
   private readonly eventHandlers: Map<string, Set<(payload: any) => void>> = new Map();
@@ -40,6 +42,7 @@ export class ServiceProxy<
     this.id = definition.id;
     this.name = definition.name;
     this.version = definition.version;
+    this.telemetry = new TelemetryController(this.id);
     this.stateCache = { ...(definition.state?.initial ?? {}) } as TState;
   }
 
@@ -107,11 +110,23 @@ export class ServiceProxy<
       timestamp: Date.now(),
     };
 
-    const response = await this.adapter.send(this.endpoint, envelope);
-    if (response.error) {
-      throw new Error("[ServiceProxy:" + this.name + "] Remote error: " + response.error);
+    const parentSpanId = typeof ctx.metadata?.__krnlTelemetryParentSpanId === 'string'
+      ? ctx.metadata.__krnlTelemetryParentSpanId
+      : undefined;
+    const handle = this.telemetry.begin(op, 'service', ctx.correlationId, parentSpanId);
+    try {
+      const response = await this.adapter.send(this.endpoint, envelope);
+      if (response.error) {
+        const error = new Error("[ServiceProxy:" + this.name + "] Remote error: " + response.error);
+        handle.end(error);
+        throw error;
+      }
+      handle.end();
+      return response.payload as TOut;
+    } catch (error) {
+      handle.end(error);
+      throw error;
     }
-    return response.payload as TOut;
   }
 
   getState(): Readonly<TState> {
