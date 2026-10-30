@@ -1,0 +1,124 @@
+import { describe, expect, it } from 'vitest';
+import { createServiceFacade } from '../services/ServiceFacade.js';
+import { FunctionalityOrchestration } from '../orchestration/FunctionalityOrchestration.js';
+
+describe('KrnlTS native telemetry', () => {
+  it('is off by default and exposes a zero-overhead no-op boundary', async () => {
+    const service = createServiceFacade({
+      id: 'telemetry-off',
+      functionalities: {
+        ping: { name: 'ping', execute: () => 'pong' },
+      },
+    });
+
+    await expect(service.call('ping')).resolves.toBe('pong');
+    expect(service.telemetry.status().enabled).toBe(false);
+    expect(service.telemetry.snapshot().totals.invocationCount).toBe(0);
+  });
+
+  it('records standard service and functionality invocation metrics', async () => {
+    const service = createServiceFacade({
+      id: 'telemetry-standard',
+      functionalities: {
+        ping: { name: 'ping', execute: () => 'pong' },
+      },
+    });
+
+    service.telemetry.enable();
+    await expect(service.call('ping')).resolves.toBe('pong');
+
+    const snapshot = service.telemetry.snapshot();
+    expect(snapshot.totals.invocationCount).toBe(2);
+    expect(snapshot.totals.successCount).toBe(2);
+    expect(snapshot.targets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ target: 'ping', kind: 'service', count: 1 }),
+        expect.objectContaining({ target: 'ping', kind: 'functionality', count: 1 }),
+      ]),
+    );
+  });
+
+  it('records failures and preserves correlation IDs', async () => {
+    const service = createServiceFacade({
+      id: 'telemetry-errors',
+      functionalities: {
+        explode: {
+          execute: () => {
+            throw new Error('boom');
+          },
+        },
+      },
+    });
+
+    service.telemetry.enable();
+    await expect(service.call('explode', undefined, { correlationId: 'corr-test' }))
+      .rejects.toThrow('boom');
+
+    const failed = service.telemetry.snapshot().recentInvocations.filter((item) => item.status === 'failed');
+    expect(failed.length).toBeGreaterThanOrEqual(1);
+    expect(failed.every((item) => item.correlationId === 'corr-test')).toBe(true);
+    expect(failed[0]?.error?.message).toBe('boom');
+  });
+
+  it('records nested orchestration -> service -> functionality traces', async () => {
+    const orchestration = new FunctionalityOrchestration({
+      id: 'pipeline',
+      name: 'pipeline',
+      version: '1.0.0',
+      scope: 'functionality',
+      dependencies: [],
+      steps: [
+        { id: 'first', name: 'first', type: 'task', target: 'first' },
+        { id: 'second', name: 'second', type: 'task', target: 'second', dependsOn: ['first'] },
+      ],
+    });
+
+    const service = createServiceFacade({
+      id: 'telemetry-orchestration',
+      functionalities: {
+        first: { execute: () => ({ value: 1 }) },
+        second: { execute: (input: any) => ({ value: input.value + 1 }) },
+      },
+      functionalityOrchestrations: { pipeline: orchestration },
+    });
+
+    service.telemetry.enable('detailed');
+    const result = await service.orchestrate('pipeline', { value: 0 }, { correlationId: 'corr-orch' });
+
+    expect(result.status).toBe('COMPLETED');
+
+    const recent = service.telemetry.snapshot().recentInvocations;
+    const root = recent.find((item) => item.kind === 'orchestration');
+    const children = recent.filter((item) => item.kind === 'service');
+
+    expect(root).toBeDefined();
+    expect(children.length).toBeGreaterThanOrEqual(2);
+    expect(children.every((item) => item.parentSpanId === root?.spanId)).toBe(true);
+    expect(new Set(recent.map((item) => item.traceId)).size).toBe(1);
+    expect(recent.every((item) => item.resources)).toBe(true);
+  });
+
+  it('supports mode changes, reset, bounded retention, and percentiles', async () => {
+    const service = createServiceFacade({
+      id: 'telemetry-controls',
+      functionalities: {
+        ping: { execute: () => 'pong' },
+      },
+    });
+
+    service.telemetry.setMode('standard');
+    await service.call('ping');
+    service.telemetry.setMode('detailed');
+    await service.call('ping');
+
+    const snapshot = service.telemetry.snapshot();
+    expect(snapshot.totals.durationMs.p50).toBeGreaterThanOrEqual(0);
+    expect(snapshot.totals.durationMs.p95).toBeGreaterThanOrEqual(snapshot.totals.durationMs.p50);
+
+    service.telemetry.reset();
+    expect(service.telemetry.snapshot().totals.invocationCount).toBe(0);
+
+    service.telemetry.disable();
+    expect(service.telemetry.status().mode).toBe('off');
+  });
+});
