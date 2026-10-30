@@ -7,6 +7,7 @@
 
 import type { ServiceStatus } from '../lifecycle/LifecycleManager.js';
 import type { FunctionalityFacade } from '../functionalities/FunctionalityFacade.js';
+import type { TelemetryController } from '../telemetry/TelemetryController.js';
 export type { ServiceStatus };
 
 export type ProtocolType = 'http' | 'https' | 'ws' | 'wss' | 'udp' | 'p2p' | 'signaling' | 'memory';
@@ -117,6 +118,7 @@ export interface IService<
   readonly id: string;
   readonly name: string;
   readonly version: string;
+  readonly telemetry: TelemetryController;
   call<TIn = unknown, TOut = unknown>(op: string, input?: TIn, ctx?: OperationContext): Promise<TOut>;
   getState(): Readonly<TState>;
   setState(mutation: Partial<TState>): void;
