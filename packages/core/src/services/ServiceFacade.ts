@@ -258,7 +258,6 @@ export class ServiceFacade<
       timeoutMs?: number;
       metadata?: Record<string, unknown>;
       abortSignal?: AbortSignal;
-      metadata?: Record<string, unknown>;
     } = {}
   ): Promise<OrchestrationResult<TOut>> {
     const orch = this.functionalityOrchestrations[orchestrationName];
@@ -269,13 +268,19 @@ export class ServiceFacade<
     }
 
     const correlationId = options.correlationId || `corr_${Math.random().toString(36).substring(2, 11)}`;
-    const telemetryHandle = this.telemetry.begin(
-      orchestrationName,
-      'orchestration',
+    const serviceTelemetryHandle = this.telemetry.begin(
+      `orchestrate:${orchestrationName}`,
+      'service',
       correlationId,
       typeof options.metadata?.__krnlTelemetryParentSpanId === 'string'
         ? options.metadata.__krnlTelemetryParentSpanId
         : undefined,
+    );
+    const telemetryHandle = this.telemetry.begin(
+      orchestrationName,
+      'orchestration',
+      correlationId,
+      serviceTelemetryHandle.spanId,
     );
     const commandId = `cmd_orch_${this.id}_${orchestrationName}_${Date.now()}`;
 
@@ -442,10 +447,12 @@ export class ServiceFacade<
     if (cmdResult.status === 'FAILED' || orchestrationResult?.status === 'FAILED') {
       const error = new Error(orchestrationResult?.error || cmdResult.error || `[ServiceFacade:${this.id}] Orchestration failed.`);
       telemetryHandle.end(error);
+      serviceTelemetryHandle.end(error);
       throw error;
     }
 
     telemetryHandle.end();
+    serviceTelemetryHandle.end();
     return cmdResult.data as OrchestrationResult<TOut>;
   }
 
