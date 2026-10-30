@@ -151,7 +151,6 @@ export class TelemetryController {
   snapshot(): TelemetrySnapshot {
     const invocations = this.samples.slice();
     const durations = invocations.map((item) => item.durationMs);
-    const successCount = invocations.filter((item) => item.status === 'completed').length;
     const targetMap = new Map<string, TelemetryInvocation[]>();
 
     for (const invocation of invocations) {
