@@ -16,6 +16,30 @@ describe('KrnlTS native telemetry', () => {
     expect(service.telemetry.snapshot().totals.invocationCount).toBe(0);
   });
 
+  it('exposes telemetry on services created through createService', async () => {
+    const { createService, createServiceDefinition } = await import('../services/ServiceGenerators.js');
+    const instance = createService(createServiceDefinition({
+      id: 'telemetry-generated',
+      name: 'GeneratedTelemetryService',
+      version: '1.0.0',
+      operations: {
+        ping: {
+          id: 'GeneratedTelemetryService.ping',
+          name: 'ping',
+          handler: async () => 'pong',
+        },
+      },
+    }));
+
+    instance.telemetry.enable();
+    await instance.start();
+    await expect(instance.call('ping')).resolves.toBe('pong');
+
+    const snapshot = instance.telemetry.snapshot();
+    expect(snapshot.totals.invocationCount).toBe(1);
+    expect(snapshot.targets[0]).toMatchObject({ target: 'ping', kind: 'service', count: 1 });
+  });
+
   it('records standard service and functionality invocation metrics', async () => {
     const service = createServiceFacade({
       id: 'telemetry-standard',
