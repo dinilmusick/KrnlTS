@@ -95,6 +95,25 @@ describe('KrnlTS native telemetry', () => {
     expect(recent.every((item) => item.resources)).toBe(true);
   });
 
+  it('provides profiling mode with runtime resource attribution', async () => {
+    const service = createServiceFacade({
+      id: 'telemetry-profile',
+      functionalities: {
+        work: { execute: async () => new Promise((resolve) => setTimeout(() => resolve('done'), 2)) },
+      },
+    });
+
+    service.telemetry.setMode('profile');
+    await service.call('work');
+
+    const invocation = service.telemetry.snapshot().recentInvocations
+      .find((item) => item.kind === 'functionality');
+
+    expect(invocation?.resources?.start).toBeDefined();
+    expect(invocation?.resources?.end).toBeDefined();
+    expect(invocation?.resources?.delta).toBeDefined();
+  });
+
   it('supports mode changes, reset, bounded retention, and percentiles', async () => {
     const service = createServiceFacade({
       id: 'telemetry-controls',
