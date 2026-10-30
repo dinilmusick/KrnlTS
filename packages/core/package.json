@@ -1,6 +1,6 @@
 {
   "name": "@ultrst-armada/krnl-core",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Core runtime engine, Service facades, Protocols, Transports, and Execution flows for Krnl backend services",
   "type": "module",
   "main": "dist/index.js",
