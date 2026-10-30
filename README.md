@@ -61,6 +61,21 @@ A stopped service may be restarted. Invalid lifecycle transitions fail determini
 
 Proxy lifecycle is local client lifecycle. Proxy state is a local cache and proxy events are local subscriptions unless a transport explicitly implements synchronization.
 
+## Native Telemetry
+
+Every `ServiceFacade` includes a framework-owned telemetry controller. Services do not implement telemetry APIs individually.
+
+```ts
+service.telemetry.enable();
+service.telemetry.setMode('standard' | 'detailed' | 'profile' | 'off');
+service.telemetry.status();
+service.telemetry.snapshot();
+service.telemetry.reset();
+service.telemetry.functionalities();
+service.telemetry.functionality('operationName');
+```
+
+Telemetry is disabled by default. Standard mode records invocation timing, counts, success/error state, correlation IDs, and bounded recent traces. Detailed and profile modes additionally capture capability-detected runtime resource samples such as CPU, memory, and event-loop utilization. Service calls, functionality execution, and functionality orchestrations are instrumented automatically and correlated into trace/span hierarchies. No service-specific telemetry code is required.
 ## Validation
 
 KrnlTS has two complementary validation layers:
