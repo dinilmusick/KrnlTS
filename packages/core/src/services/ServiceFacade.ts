@@ -18,6 +18,7 @@ import type {
 import { ServiceInstance } from './ServiceInstance.js';
 import { FunctionalityOrchestration } from '../orchestration/FunctionalityOrchestration.js';
 import { FunctionalityFacade } from '../functionalities/FunctionalityFacade.js';
+import { TelemetryController } from '../telemetry/TelemetryController.js';
 import type { FunctionalityDefinition } from '../functionalities/FunctionalityContract.js';
 import { KrnlQueue, KrnlQueueOptions } from '../orchestration/canonical/KrnlQ.js';
 import {
@@ -82,6 +83,7 @@ export class ServiceFacade<
 
   private readonly instance: IService<TState, TEvents>;
   private readonly queue: KrnlQueue;
+  public readonly telemetry: TelemetryController;
 
   constructor(config: ServiceFacadeConfig<TState, TEvents, TLibraries>) {
     if (!config || !config.id || typeof config.id !== 'string') {
@@ -91,6 +93,7 @@ export class ServiceFacade<
     this.name = config.name || config.id;
     this.version = config.version || '1.0.0';
     this.description = config.description || '';
+    this.telemetry = new TelemetryController(this.id);
 
     this.functionalities = {};
     for (const [name, functionality] of Object.entries(config.functionalities ?? {})) {
@@ -176,6 +179,10 @@ export class ServiceFacade<
     ctx?: OperationContext
   ): Promise<TOut> {
     const correlationId = ctx?.correlationId || `corr_${Math.random().toString(36).substring(2, 11)}`;
+    const telemetryParent = typeof ctx?.metadata?.__krnlTelemetryParentSpanId === 'string'
+      ? ctx.metadata.__krnlTelemetryParentSpanId
+      : undefined;
+    const telemetryHandle = this.telemetry.begin(op, 'service', correlationId, telemetryParent);
     const commandId = `cmd_${this.id}_${op}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
     const command: BackendCommand<TIn> = {
@@ -187,20 +194,34 @@ export class ServiceFacade<
       createdAt: Date.now(),
     };
 
-    const result = await this.queue.executeCommand<TIn, TOut>(command, async (payload, workerCtx) => {
-      // Execute inside KrnlWorker context
-      WorkerExecutionBoundary.assertWorkerContext(workerCtx);
+    try {
+      const result = await this.queue.executeCommand<TIn, TOut>(command, async (payload, workerCtx) => {
+        // Execute inside KrnlWorker context
+        WorkerExecutionBoundary.assertWorkerContext(workerCtx);
 
-      const functionality = this.functionalities[op];
+        const functionality = this.functionalities[op];
 
-      if (functionality) {
-        return await functionality.execute(payload, {
-          serviceId: this.id,
-          functionalityId: functionality.id,
-          correlationId: workerCtx.correlationId,
-          state: this.instance.getState(),
-        });
-      }
+        if (functionality) {
+          const functionalityTelemetry = this.telemetry.begin(
+            functionality.name,
+            'functionality',
+            workerCtx.correlationId,
+            telemetryHandle.spanId
+          );
+          try {
+            return await functionality.execute(payload, {
+              serviceId: this.id,
+              functionalityId: functionality.id,
+              correlationId: workerCtx.correlationId,
+              state: this.instance.getState(),
+            });
+          } catch (error) {
+            functionalityTelemetry.end(error);
+            throw error;
+          } finally {
+            functionalityTelemetry.end();
+          }
+        }
 
       // Fall back to a low-level service operation. Low-level service operations
       // are intentionally not exposed as functionality-owned events.
@@ -210,11 +231,18 @@ export class ServiceFacade<
       });
     });
 
-    if (result.status === 'FAILED') {
-      throw new Error(result.error || `[ServiceFacade:${this.id}] Operation '${op}' execution failed.`);
-    }
+      if (result.status === 'FAILED') {
+        const error = new Error(result.error || `[ServiceFacade:${this.id}] Operation '${op}' execution failed.`);
+        telemetryHandle.end(error);
+        throw error;
+      }
 
-    return result.data as TOut;
+      telemetryHandle.end();
+      return result.data as TOut;
+    } catch (error) {
+      telemetryHandle.end(error);
+      throw error;
+    }
   }
 
   /**
@@ -230,6 +258,7 @@ export class ServiceFacade<
       timeoutMs?: number;
       metadata?: Record<string, unknown>;
       abortSignal?: AbortSignal;
+      metadata?: Record<string, unknown>;
     } = {}
   ): Promise<OrchestrationResult<TOut>> {
     const orch = this.functionalityOrchestrations[orchestrationName];
@@ -240,6 +269,14 @@ export class ServiceFacade<
     }
 
     const correlationId = options.correlationId || `corr_${Math.random().toString(36).substring(2, 11)}`;
+    const telemetryHandle = this.telemetry.begin(
+      orchestrationName,
+      'orchestration',
+      correlationId,
+      typeof options.metadata?.__krnlTelemetryParentSpanId === 'string'
+        ? options.metadata.__krnlTelemetryParentSpanId
+        : undefined,
+    );
     const commandId = `cmd_orch_${this.id}_${orchestrationName}_${Date.now()}`;
 
     const command: BackendCommand<TIn> = {
@@ -302,6 +339,7 @@ export class ServiceFacade<
               handler: async (compCtx: OrchestrationContext) => {
                 await this.call(s.compensation!.target!, compCtx.results[s.id], {
                   correlationId: compCtx.correlationId,
+                  metadata: { __krnlTelemetryParentSpanId: telemetryHandle.spanId },
                 });
               },
             };
@@ -323,6 +361,7 @@ export class ServiceFacade<
                 }
                 return await this.call(s.target!, stepPayload, {
                   correlationId: stepCtx.correlationId,
+                  metadata: { __krnlTelemetryParentSpanId: telemetryHandle.spanId },
                 });
               },
             };
@@ -349,6 +388,7 @@ export class ServiceFacade<
             correlationId: childCtx.correlationId,
             timeoutMs: childOrch.timeoutMs,
             abortSignal: options.abortSignal,
+            metadata: { __krnlTelemetryParentSpanId: telemetryHandle.spanId },
           });
           if (nestedResult.status !== 'COMPLETED') {
             throw new Error(nestedResult.error || `Nested orchestration "${childOrchId}" failed.`);
@@ -400,9 +440,12 @@ export class ServiceFacade<
     }
 
     if (cmdResult.status === 'FAILED' || orchestrationResult?.status === 'FAILED') {
-      throw new Error(orchestrationResult?.error || cmdResult.error || `[ServiceFacade:${this.id}] Orchestration failed.`);
+      const error = new Error(orchestrationResult?.error || cmdResult.error || `[ServiceFacade:${this.id}] Orchestration failed.`);
+      telemetryHandle.end(error);
+      throw error;
     }
 
+    telemetryHandle.end();
     return cmdResult.data as OrchestrationResult<TOut>;
   }
 
