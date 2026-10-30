@@ -65,13 +65,8 @@ describe('KrnlTS native telemetry', () => {
       id: 'pipeline',
       name: 'pipeline',
       version: '1.0.0',
-      scope: 'functionality',
-      dependencies: [],
-      steps: [
-        { id: 'first', name: 'first', type: 'task', target: 'first' },
-        { id: 'second', name: 'second', type: 'task', target: 'second', dependsOn: ['first'] },
-      ],
     });
+    orchestration.thenFunctionality('first').thenFunctionality('second');
 
     const service = createServiceFacade({
       id: 'telemetry-orchestration',
