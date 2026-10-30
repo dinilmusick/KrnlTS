@@ -56,6 +56,9 @@ export class TelemetryController {
   private readonly maxRecentInvocations: number;
   private readonly samples: TelemetryInvocation[] = [];
   private readonly active = new Map<string, ActiveInvocation>();
+  private totalInvocationCount = 0;
+  private totalSuccessCount = 0;
+  private totalErrorCount = 0;
   private lastInvocationAt?: number;
 
   constructor(private readonly serviceId: string, options: TelemetryOptions = {}) {
@@ -87,7 +90,7 @@ export class TelemetryController {
       enabled: this.mode !== 'off',
       mode: this.mode,
       serviceId: this.serviceId,
-      invocationCount: this.samples.length,
+      invocationCount: this.totalInvocationCount,
       activeInvocations: this.active.size,
       lastInvocationAt: this.lastInvocationAt,
     };
@@ -139,6 +142,9 @@ export class TelemetryController {
   reset(): void {
     this.samples.length = 0;
     this.active.clear();
+    this.totalInvocationCount = 0;
+    this.totalSuccessCount = 0;
+    this.totalErrorCount = 0;
     this.lastInvocationAt = undefined;
   }
 
@@ -171,9 +177,9 @@ export class TelemetryController {
       capturedAt: Date.now(),
       status: this.status(),
       totals: {
-        invocationCount: invocations.length,
-        successCount,
-        errorCount: invocations.length - successCount,
+        invocationCount: this.totalInvocationCount,
+        successCount: this.totalSuccessCount,
+        errorCount: this.totalErrorCount,
         durationMs: percentiles(durations),
       },
       targets,
@@ -228,6 +234,9 @@ export class TelemetryController {
     };
 
     this.samples.push(invocation);
+    this.totalInvocationCount += 1;
+    if (invocation.status === 'completed') this.totalSuccessCount += 1;
+    else this.totalErrorCount += 1;
     if (this.samples.length > this.maxSamples) this.samples.splice(0, this.samples.length - this.maxSamples);
     this.lastInvocationAt = Date.now();
   }
