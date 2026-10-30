@@ -84,10 +84,12 @@ describe('KrnlTS native telemetry', () => {
 
     const recent = service.telemetry.snapshot().recentInvocations;
     const root = recent.find((item) => item.kind === 'orchestration');
-    const children = recent.filter((item) => item.kind === 'service');
+    const children = recent.filter(
+      (item) => item.kind === 'service' && ['first', 'second'].includes(item.target),
+    );
 
     expect(root).toBeDefined();
-    expect(children.length).toBeGreaterThanOrEqual(2);
+    expect(children.length).toBe(2);
     expect(children.every((item) => item.parentSpanId === root?.spanId)).toBe(true);
     expect(new Set(recent.map((item) => item.traceId)).size).toBe(1);
     expect(recent.every((item) => item.resources)).toBe(true);
