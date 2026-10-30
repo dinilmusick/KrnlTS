@@ -93,7 +93,6 @@ export class ServiceFacade<
     this.name = config.name || config.id;
     this.version = config.version || '1.0.0';
     this.description = config.description || '';
-    this.telemetry = new TelemetryController(this.id);
 
     this.functionalities = {};
     for (const [name, functionality] of Object.entries(config.functionalities ?? {})) {
@@ -121,6 +120,8 @@ export class ServiceFacade<
         operations: {},
       });
     }
+
+    this.telemetry = this.instance.telemetry;
 
     this.queue = new KrnlQueue({
       queueName: `krnl_queue_${this.id}`,
@@ -228,6 +229,7 @@ export class ServiceFacade<
       return await this.instance.call<TIn, TOut>(op, payload, {
         correlationId: workerCtx.correlationId,
         idempotencyKey: command.idempotencyKey,
+        metadata: { __krnlTelemetryInternal: true },
       });
     });
 
