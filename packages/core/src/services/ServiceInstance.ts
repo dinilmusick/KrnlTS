@@ -6,6 +6,7 @@
 import type { IService, ServiceDefinition, OperationContext } from './ServiceContract.js';
 import { ServiceStateStore } from '../state/ServiceStateStore.js';
 import { LifecycleManager } from '../lifecycle/LifecycleManager.js';
+import { TelemetryController } from '../telemetry/TelemetryController.js';
 
 export class ServiceInstance<
   TState extends Record<string, unknown> = Record<string, unknown>,
@@ -14,6 +15,7 @@ export class ServiceInstance<
   public readonly id: string;
   public readonly name: string;
   public readonly version: string;
+  public readonly telemetry: TelemetryController;
 
   private stateStore?: ServiceStateStore<TState>;
   private readonly lifecycle: LifecycleManager;
@@ -24,6 +26,7 @@ export class ServiceInstance<
     this.id = definition.id;
     this.name = definition.name;
     this.version = definition.version;
+    this.telemetry = new TelemetryController(this.id);
     this.lifecycle = new LifecycleManager();
     if (definition.state) {
       this.stateStore = new ServiceStateStore<TState>(definition.state.initial);
@@ -102,7 +105,22 @@ export class ServiceInstance<
     if (!operation) {
       throw new Error("[Service:" + this.name + "] Operation '" + op + "' not found.");
     }
-    return (await operation.handler(input, ctx)) as TOut;
+    if (ctx.metadata?.__krnlTelemetryInternal === true) {
+      return (await operation.handler(input, ctx)) as TOut;
+    }
+
+    const parentSpanId = typeof ctx.metadata?.__krnlTelemetryParentSpanId === 'string'
+      ? ctx.metadata.__krnlTelemetryParentSpanId
+      : undefined;
+    const handle = this.telemetry.begin(op, 'service', ctx.correlationId, parentSpanId);
+    try {
+      const output = await operation.handler(input, ctx);
+      handle.end();
+      return output as TOut;
+    } catch (error) {
+      handle.end(error);
+      throw error;
+    }
   }
 
   getState(): Readonly<TState> {
