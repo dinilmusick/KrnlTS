@@ -50,6 +50,7 @@ __export(index_exports, {
   ServiceRegistry: () => ServiceRegistry,
   ServiceRuntime: () => ServiceRuntime,
   ServiceStateStore: () => ServiceStateStore,
+  TelemetryController: () => TelemetryController,
   UdpProtocolAdapter: () => UdpProtocolAdapter,
   WebSocketProtocolAdapter: () => WebSocketProtocolAdapter,
   WorkerExecutionBoundary: () => WorkerExecutionBoundary,
@@ -58,7 +59,10 @@ __export(index_exports, {
   createServiceDefinition: () => createServiceDefinition,
   createServiceFacade: () => createServiceFacade,
   createServiceProxy: () => createServiceProxy,
+  deltaResources: () => deltaResources,
   gutts: () => gutts,
+  sampleResources: () => sampleResources,
+  telemetryNow: () => telemetryNow,
   validateOrchestrationDAG: () => validateOrchestrationDAG,
   validateServiceDefinition: () => validateServiceDefinition
 });
@@ -128,6 +132,227 @@ var LifecycleManager = class {
   }
 };
 
+// src/telemetry/TelemetryController.ts
+var import_node_crypto = require("crypto");
+
+// src/telemetry/TelemetryResources.ts
+var runtimeProcess = typeof globalThis !== "undefined" ? globalThis.process : void 0;
+var runtimePerformance = typeof globalThis !== "undefined" ? globalThis.performance : void 0;
+function telemetryNow() {
+  return runtimePerformance?.now ? runtimePerformance.now() : Date.now();
+}
+function sampleResources() {
+  const memory = runtimeProcess?.memoryUsage?.();
+  const cpu = runtimeProcess?.cpuUsage?.();
+  const eventLoop = runtimePerformance?.eventLoopUtilization?.();
+  return {
+    cpuUserMicros: cpu?.user,
+    cpuSystemMicros: cpu?.system,
+    heapUsedBytes: memory?.heapUsed,
+    heapTotalBytes: memory?.heapTotal,
+    rssBytes: memory?.rss,
+    externalBytes: memory?.external,
+    arrayBuffersBytes: memory?.arrayBuffers,
+    eventLoopUtilization: eventLoop?.utilization,
+    scope: memory || cpu || eventLoop ? "process" : "runtime"
+  };
+}
+function deltaResources(start, end) {
+  const delta = (a, b) => a === void 0 || b === void 0 ? void 0 : b - a;
+  return {
+    cpuUserMicros: delta(start.cpuUserMicros, end.cpuUserMicros),
+    cpuSystemMicros: delta(start.cpuSystemMicros, end.cpuSystemMicros),
+    heapUsedBytes: delta(start.heapUsedBytes, end.heapUsedBytes),
+    heapTotalBytes: delta(start.heapTotalBytes, end.heapTotalBytes),
+    rssBytes: delta(start.rssBytes, end.rssBytes),
+    externalBytes: delta(start.externalBytes, end.externalBytes),
+    arrayBuffersBytes: delta(start.arrayBuffersBytes, end.arrayBuffersBytes),
+    eventLoopUtilization: delta(start.eventLoopUtilization, end.eventLoopUtilization),
+    scope: start.scope
+  };
+}
+
+// src/telemetry/TelemetryController.ts
+var id = (prefix) => `${prefix}_${(0, import_node_crypto.randomUUID)()}`;
+function percentiles(values) {
+  if (!values.length) return { min: 0, mean: 0, p50: 0, p90: 0, p95: 0, p99: 0, max: 0 };
+  const sorted = [...values].sort((a, b) => a - b);
+  const pick = (p) => sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * p))];
+  return {
+    min: sorted[0],
+    mean: sorted.reduce((sum, value) => sum + value, 0) / sorted.length,
+    p50: pick(0.5),
+    p90: pick(0.9),
+    p95: pick(0.95),
+    p99: pick(0.99),
+    max: sorted[sorted.length - 1]
+  };
+}
+var TelemetryController = class {
+  constructor(serviceId, options = {}) {
+    this.serviceId = serviceId;
+    this.mode = options.mode ?? "off";
+    this.maxSamples = Math.max(1, options.maxSamples ?? 2048);
+    this.maxRecentInvocations = Math.max(1, options.maxRecentInvocations ?? 100);
+  }
+  serviceId;
+  mode;
+  maxSamples;
+  maxRecentInvocations;
+  samples = [];
+  active = /* @__PURE__ */ new Map();
+  totalInvocationCount = 0;
+  totalSuccessCount = 0;
+  totalErrorCount = 0;
+  lastInvocationAt;
+  enable(mode = "standard") {
+    this.mode = mode;
+  }
+  disable() {
+    this.mode = "off";
+    this.active.clear();
+  }
+  setMode(mode) {
+    this.mode = mode;
+    if (mode === "off") this.active.clear();
+  }
+  getMode() {
+    return this.mode;
+  }
+  status() {
+    return {
+      enabled: this.mode !== "off",
+      mode: this.mode,
+      serviceId: this.serviceId,
+      invocationCount: this.totalInvocationCount,
+      activeInvocations: this.active.size,
+      lastInvocationAt: this.lastInvocationAt
+    };
+  }
+  begin(target, kind, correlationId, parentSpanId) {
+    if (this.mode === "off") {
+      return {
+        invocationId: "",
+        traceId: "",
+        spanId: "",
+        parentSpanId,
+        end: () => void 0
+      };
+    }
+    const invocationId = id("inv");
+    const spanId = id("span");
+    const traceId = parentSpanId ? this.findTraceId(parentSpanId) ?? id("trace") : id("trace");
+    const active = {
+      invocationId,
+      traceId,
+      spanId,
+      parentSpanId,
+      serviceId: this.serviceId,
+      target,
+      kind,
+      correlationId,
+      startedAt: telemetryNow(),
+      resourcesStart: this.mode === "standard" ? void 0 : sampleResources()
+    };
+    this.active.set(invocationId, active);
+    return {
+      invocationId,
+      traceId,
+      spanId,
+      parentSpanId,
+      end: (error) => this.finish(active, error)
+    };
+  }
+  reset() {
+    this.samples.length = 0;
+    this.active.clear();
+    this.totalInvocationCount = 0;
+    this.totalSuccessCount = 0;
+    this.totalErrorCount = 0;
+    this.lastInvocationAt = void 0;
+  }
+  snapshot() {
+    const invocations = this.samples.slice();
+    const durations = invocations.map((item) => item.durationMs);
+    const targetMap = /* @__PURE__ */ new Map();
+    for (const invocation of invocations) {
+      const key = `${invocation.kind}:${invocation.target}`;
+      const group = targetMap.get(key) ?? [];
+      group.push(invocation);
+      targetMap.set(key, group);
+    }
+    const targets = [...targetMap.values()].map((group) => ({
+      target: group[0].target,
+      kind: group[0].kind,
+      count: group.length,
+      successCount: group.filter((item) => item.status === "completed").length,
+      errorCount: group.filter((item) => item.status === "failed").length,
+      durationMs: percentiles(group.map((item) => item.durationMs)),
+      lastInvocationAt: group[group.length - 1]?.completedAt
+    }));
+    return {
+      serviceId: this.serviceId,
+      mode: this.mode,
+      capturedAt: Date.now(),
+      status: this.status(),
+      totals: {
+        invocationCount: this.totalInvocationCount,
+        successCount: this.totalSuccessCount,
+        errorCount: this.totalErrorCount,
+        durationMs: percentiles(durations)
+      },
+      targets,
+      activeInvocations: this.active.size,
+      recentInvocations: invocations.slice(-this.maxRecentInvocations)
+    };
+  }
+  functionality(name) {
+    return this.snapshot().targets.find((target) => target.kind === "functionality" && target.target === name);
+  }
+  functionalities() {
+    return this.snapshot().targets.filter((target) => target.kind === "functionality");
+  }
+  findTraceId(parentSpanId) {
+    for (let index = this.samples.length - 1; index >= 0; index -= 1) {
+      if (this.samples[index].spanId === parentSpanId) return this.samples[index].traceId;
+    }
+    for (const active of this.active.values()) {
+      if (active.spanId === parentSpanId) return active.traceId;
+    }
+    return void 0;
+  }
+  finish(active, error) {
+    if (!this.active.delete(active.invocationId)) return;
+    const completedAt = telemetryNow();
+    const resourcesEnd = this.mode === "standard" ? void 0 : sampleResources();
+    const invocation = {
+      invocationId: active.invocationId,
+      traceId: active.traceId,
+      spanId: active.spanId,
+      parentSpanId: active.parentSpanId,
+      serviceId: active.serviceId,
+      target: active.target,
+      kind: active.kind,
+      correlationId: active.correlationId,
+      startedAt: active.startedAt,
+      completedAt,
+      durationMs: Math.max(0, completedAt - active.startedAt),
+      status: error === void 0 ? "completed" : "failed",
+      error: error === void 0 ? void 0 : {
+        name: error instanceof Error ? error.name : "Error",
+        message: error instanceof Error ? error.message : String(error)
+      },
+      resources: active.resourcesStart && resourcesEnd ? { start: active.resourcesStart, end: resourcesEnd, delta: deltaResources(active.resourcesStart, resourcesEnd) } : void 0
+    };
+    this.samples.push(invocation);
+    this.totalInvocationCount += 1;
+    if (invocation.status === "completed") this.totalSuccessCount += 1;
+    else this.totalErrorCount += 1;
+    if (this.samples.length > this.maxSamples) this.samples.splice(0, this.samples.length - this.maxSamples);
+    this.lastInvocationAt = Date.now();
+  }
+};
+
 // src/services/ServiceInstance.ts
 var ServiceInstance = class {
   constructor(definition) {
@@ -135,6 +360,7 @@ var ServiceInstance = class {
     this.id = definition.id;
     this.name = definition.name;
     this.version = definition.version;
+    this.telemetry = new TelemetryController(this.id);
     this.lifecycle = new LifecycleManager();
     if (definition.state) {
       this.stateStore = new ServiceStateStore(definition.state.initial);
@@ -144,6 +370,7 @@ var ServiceInstance = class {
   id;
   name;
   version;
+  telemetry;
   stateStore;
   lifecycle;
   initialized = false;
@@ -208,7 +435,19 @@ var ServiceInstance = class {
     if (!operation) {
       throw new Error("[Service:" + this.name + "] Operation '" + op + "' not found.");
     }
-    return await operation.handler(input, ctx);
+    if (ctx.metadata?.__krnlTelemetryInternal === true) {
+      return await operation.handler(input, ctx);
+    }
+    const parentSpanId = typeof ctx.metadata?.__krnlTelemetryParentSpanId === "string" ? ctx.metadata.__krnlTelemetryParentSpanId : void 0;
+    const handle = this.telemetry.begin(op, "service", ctx.correlationId, parentSpanId);
+    try {
+      const output = await operation.handler(input, ctx);
+      handle.end();
+      return output;
+    } catch (error) {
+      handle.end(error);
+      throw error;
+    }
   }
   getState() {
     return this.stateStore?.getState() ?? Object.freeze({});
@@ -240,6 +479,7 @@ var ServiceProxy = class {
     this.id = definition.id;
     this.name = definition.name;
     this.version = definition.version;
+    this.telemetry = new TelemetryController(this.id);
     this.stateCache = { ...definition.state?.initial ?? {} };
   }
   definition;
@@ -248,6 +488,7 @@ var ServiceProxy = class {
   id;
   name;
   version;
+  telemetry;
   stateCache;
   eventHandlers = /* @__PURE__ */ new Map();
   lifecycle = new LifecycleManager();
@@ -305,11 +546,21 @@ var ServiceProxy = class {
       payload: input,
       timestamp: Date.now()
     };
-    const response = await this.adapter.send(this.endpoint, envelope);
-    if (response.error) {
-      throw new Error("[ServiceProxy:" + this.name + "] Remote error: " + response.error);
+    const parentSpanId = typeof ctx.metadata?.__krnlTelemetryParentSpanId === "string" ? ctx.metadata.__krnlTelemetryParentSpanId : void 0;
+    const handle = this.telemetry.begin(op, "service", ctx.correlationId, parentSpanId);
+    try {
+      const response = await this.adapter.send(this.endpoint, envelope);
+      if (response.error) {
+        const error = new Error("[ServiceProxy:" + this.name + "] Remote error: " + response.error);
+        handle.end(error);
+        throw error;
+      }
+      handle.end();
+      return response.payload;
+    } catch (error) {
+      handle.end(error);
+      throw error;
     }
-    return response.payload;
   }
   getState() {
     return Object.freeze({ ...this.stateCache });
@@ -457,22 +708,22 @@ var FunctionalityFacade = class {
   definition;
   eventBus;
   events;
-  constructor(id, definition, options = {}) {
-    if (!id || typeof id !== "string") {
+  constructor(id2, definition, options = {}) {
+    if (!id2 || typeof id2 !== "string") {
       throw new Error("[FunctionalityFacade] Functionality id must be a non-empty string.");
     }
     if (!definition || typeof definition.execute !== "function") {
-      throw new Error(`[FunctionalityFacade:${id}] Functionality must define execute().`);
+      throw new Error(`[FunctionalityFacade:${id2}] Functionality must define execute().`);
     }
-    this.id = id;
-    this.name = definition.name || id;
+    this.id = id2;
+    this.name = definition.name || id2;
     this.description = definition.description || "";
     this.bubbleEvents = options.bubbleEvents ?? definition.bubbleEvents ?? true;
     this.definition = definition;
     this.eventBus = new EventBus();
     for (const reserved of ["triggered", "completed", "failed"]) {
       if (definition.events && reserved in definition.events) {
-        throw new Error(`[FunctionalityFacade:${id}] Event '${reserved}' is reserved for functionality lifecycle.`);
+        throw new Error(`[FunctionalityFacade:${id2}] Event '${reserved}' is reserved for functionality lifecycle.`);
       }
     }
     const eventNames = [
@@ -586,11 +837,11 @@ var PriorityQueue = class {
     return item.run;
   }
   enqueue(run, options) {
-    const { priority = 0, id } = options ?? {};
+    const { priority = 0, id: id2 } = options ?? {};
     const { size } = this;
     const element = {
       priority,
-      id,
+      id: id2,
       run
     };
     if (size === 0) {
@@ -607,16 +858,16 @@ var PriorityQueue = class {
     const index = lowerBound(this.#queue, element, (a, b) => a.priority === b.priority ? 0 : b.priority - a.priority);
     this.#queue.splice(index, 0, element);
   }
-  setPriority(id, priority) {
-    const index = this.#findIndex((element) => element.id === id);
+  setPriority(id2, priority) {
+    const index = this.#findIndex((element) => element.id === id2);
     if (index === -1) {
-      throw new ReferenceError(`No promise function with the id "${id}" exists in the queue.`);
+      throw new ReferenceError(`No promise function with the id "${id2}" exists in the queue.`);
     }
     if (this.#queue[index].priority === priority) {
       return;
     }
     const [item] = this.#queue.splice(index, 1);
-    this.enqueue(item.run, { priority, id });
+    this.enqueue(item.run, { priority, id: id2 });
   }
   remove(idOrRun) {
     const index = this.#findIndex((element) => (typeof idOrRun === "string" ? element.id : element.run) === idOrRun);
@@ -1032,17 +1283,17 @@ var PQueue = class extends EventTarget {
     }
   }
   async #add(function_, options, waitingTask) {
-    const id = options.id ?? (this.#idAssigner++).toString();
+    const id2 = options.id ?? (this.#idAssigner++).toString();
     options = {
       timeout: this.#timeout,
       ...options,
-      id
+      id: id2
     };
     validateTimeout(options.timeout);
     if (options.priority !== void 0 && (typeof options.priority !== "number" || Number.isNaN(options.priority))) {
       throw new TypeError(`Expected \`priority\` to be a number, got \`${String(options.priority)}\` (${typeof options.priority})`);
     }
-    waitingTask.id = id;
+    waitingTask.id = id2;
     waitingTask.priority = options.priority ?? 0;
     return new Promise((resolve, reject) => {
       if (options.signal?.aborted) {
@@ -1059,7 +1310,7 @@ var PQueue = class extends EventTarget {
         }
         this.#pending++;
         const runningTask = {
-          id,
+          id: id2,
           priority: waitingTask.priority,
           startTime: Date.now(),
           timeout: options.timeout
@@ -1126,7 +1377,7 @@ var PQueue = class extends EventTarget {
           if (this.#queue instanceof PriorityQueue) {
             this.#queue.remove(run);
           } else {
-            this.#queue.remove(id);
+            this.#queue.remove(id2);
           }
           reject(signal.reason);
           this.#processQueue();
@@ -1202,18 +1453,18 @@ var PQueue = class extends EventTarget {
       // '🦀' runs last
       ```
       */
-  setPriority(id, priority) {
+  setPriority(id2, priority) {
     if (typeof priority !== "number" || !Number.isFinite(priority)) {
       throw new TypeError(`Expected \`priority\` to be a finite number, got \`${priority}\` (${typeof priority})`);
     }
     for (const waitingTask of this.#waitingTasks) {
-      if (waitingTask.id === id) {
-        this.#queue.setPriority(id, priority);
+      if (waitingTask.id === id2) {
+        this.#queue.setPriority(id2, priority);
         waitingTask.priority = priority;
         return;
       }
     }
-    throw new ReferenceError(`No promise function with the id "${id}" exists in the queue.`);
+    throw new ReferenceError(`No promise function with the id "${id2}" exists in the queue.`);
   }
   /**
       Adds a sync or async task to the queue.
@@ -1556,7 +1807,7 @@ var TimeoutError = class extends DOMException {
 };
 
 // src/orchestration/canonical/KrnlQ.ts
-var import_node_crypto = require("crypto");
+var import_node_crypto2 = require("crypto");
 
 // src/orchestration/canonical/model.ts
 function validateOrchestrationDAG(steps) {
@@ -1623,8 +1874,8 @@ function validateOrchestrationDAG(steps) {
     }
   }
   const queue = [];
-  for (const [id, deg] of inDegree.entries()) {
-    if (deg === 0) queue.push(id);
+  for (const [id2, deg] of inDegree.entries()) {
+    if (deg === 0) queue.push(id2);
   }
   const order = [];
   while (queue.length > 0) {
@@ -1760,7 +2011,7 @@ var KrnlWorkerPool = class {
 // src/orchestration/canonical/KrnlQ.ts
 function generateSecureId(prefix) {
   try {
-    return `${prefix}_${(0, import_node_crypto.randomUUID)()}`;
+    return `${prefix}_${(0, import_node_crypto2.randomUUID)()}`;
   } catch {
     return `${prefix}_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
   }
@@ -1828,9 +2079,9 @@ var KrnlQueue = class {
     if (this.jobs.size <= this.maxRetainedJobs) return;
     const excess = this.jobs.size - this.maxRetainedJobs;
     let pruned = 0;
-    for (const [id, record] of this.jobs.entries()) {
+    for (const [id2, record] of this.jobs.entries()) {
       if (record.status === "completed" || record.status === "failed" || record.status === "cancelled") {
-        this.jobs.delete(id);
+        this.jobs.delete(id2);
         pruned++;
         if (pruned >= excess) break;
       }
@@ -2444,6 +2695,7 @@ var ServiceFacade = class {
   defaultFrontend;
   instance;
   queue;
+  telemetry;
   constructor(config) {
     if (!config || !config.id || typeof config.id !== "string") {
       throw new Error("[ServiceFacade] ServiceFacade requires a valid id.");
@@ -2473,6 +2725,7 @@ var ServiceFacade = class {
         operations: {}
       });
     }
+    this.telemetry = this.instance.telemetry;
     this.queue = new KrnlQueue({
       queueName: `krnl_queue_${this.id}`,
       concurrency: config.concurrency ?? config.queueOptions?.concurrency ?? 10,
@@ -2516,6 +2769,8 @@ var ServiceFacade = class {
    */
   async call(op, input, ctx) {
     const correlationId = ctx?.correlationId || `corr_${Math.random().toString(36).substring(2, 11)}`;
+    const telemetryParent = typeof ctx?.metadata?.__krnlTelemetryParentSpanId === "string" ? ctx.metadata.__krnlTelemetryParentSpanId : void 0;
+    const telemetryHandle = this.telemetry.begin(op, "service", correlationId, telemetryParent);
     const commandId = `cmd_${this.id}_${op}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const command = {
       id: commandId,
@@ -2525,26 +2780,48 @@ var ServiceFacade = class {
       idempotencyKey: ctx?.idempotencyKey,
       createdAt: Date.now()
     };
-    const result = await this.queue.executeCommand(command, async (payload, workerCtx) => {
-      WorkerExecutionBoundary.assertWorkerContext(workerCtx);
-      const functionality = this.functionalities[op];
-      if (functionality) {
-        return await functionality.execute(payload, {
-          serviceId: this.id,
-          functionalityId: functionality.id,
+    try {
+      const result = await this.queue.executeCommand(command, async (payload, workerCtx) => {
+        WorkerExecutionBoundary.assertWorkerContext(workerCtx);
+        const functionality = this.functionalities[op];
+        if (functionality) {
+          const functionalityTelemetry = this.telemetry.begin(
+            functionality.name,
+            "functionality",
+            workerCtx.correlationId,
+            telemetryHandle.spanId
+          );
+          try {
+            return await functionality.execute(payload, {
+              serviceId: this.id,
+              functionalityId: functionality.id,
+              correlationId: workerCtx.correlationId,
+              state: this.instance.getState()
+            });
+          } catch (error) {
+            functionalityTelemetry.end(error);
+            throw error;
+          } finally {
+            functionalityTelemetry.end();
+          }
+        }
+        return await this.instance.call(op, payload, {
           correlationId: workerCtx.correlationId,
-          state: this.instance.getState()
+          idempotencyKey: command.idempotencyKey,
+          metadata: { __krnlTelemetryInternal: true }
         });
-      }
-      return await this.instance.call(op, payload, {
-        correlationId: workerCtx.correlationId,
-        idempotencyKey: command.idempotencyKey
       });
-    });
-    if (result.status === "FAILED") {
-      throw new Error(result.error || `[ServiceFacade:${this.id}] Operation '${op}' execution failed.`);
+      if (result.status === "FAILED") {
+        const error = new Error(result.error || `[ServiceFacade:${this.id}] Operation '${op}' execution failed.`);
+        telemetryHandle.end(error);
+        throw error;
+      }
+      telemetryHandle.end();
+      return result.data;
+    } catch (error) {
+      telemetryHandle.end(error);
+      throw error;
     }
-    return result.data;
   }
   /**
    * External caller callable boundary for functionality orchestration execution.
@@ -2558,6 +2835,18 @@ var ServiceFacade = class {
       );
     }
     const correlationId = options.correlationId || `corr_${Math.random().toString(36).substring(2, 11)}`;
+    const serviceTelemetryHandle = this.telemetry.begin(
+      `orchestrate:${orchestrationName}`,
+      "service",
+      correlationId,
+      typeof options.metadata?.__krnlTelemetryParentSpanId === "string" ? options.metadata.__krnlTelemetryParentSpanId : void 0
+    );
+    const telemetryHandle = this.telemetry.begin(
+      orchestrationName,
+      "orchestration",
+      correlationId,
+      serviceTelemetryHandle.spanId
+    );
     const commandId = `cmd_orch_${this.id}_${orchestrationName}_${Date.now()}`;
     const command = {
       id: commandId,
@@ -2605,7 +2894,8 @@ var ServiceFacade = class {
               ...s.compensation,
               handler: async (compCtx) => {
                 await this.call(s.compensation.target, compCtx.results[s.id], {
-                  correlationId: compCtx.correlationId
+                  correlationId: compCtx.correlationId,
+                  metadata: { __krnlTelemetryParentSpanId: telemetryHandle.spanId }
                 });
               }
             };
@@ -2621,7 +2911,8 @@ var ServiceFacade = class {
                   stepPayload.input = stepCtx.results.input;
                 }
                 return await this.call(s.target, stepPayload, {
-                  correlationId: stepCtx.correlationId
+                  correlationId: stepCtx.correlationId,
+                  metadata: { __krnlTelemetryParentSpanId: telemetryHandle.spanId }
                 });
               }
             };
@@ -2641,7 +2932,8 @@ var ServiceFacade = class {
           const nestedResult = await this.orchestrate(childOrchId, childInput, {
             correlationId: childCtx.correlationId,
             timeoutMs: childOrch.timeoutMs,
-            abortSignal: options.abortSignal
+            abortSignal: options.abortSignal,
+            metadata: { __krnlTelemetryParentSpanId: telemetryHandle.spanId }
           });
           if (nestedResult.status !== "COMPLETED") {
             throw new Error(nestedResult.error || `Nested orchestration "${childOrchId}" failed.`);
@@ -2689,8 +2981,13 @@ var ServiceFacade = class {
       });
     }
     if (cmdResult.status === "FAILED" || orchestrationResult?.status === "FAILED") {
-      throw new Error(orchestrationResult?.error || cmdResult.error || `[ServiceFacade:${this.id}] Orchestration failed.`);
+      const error = new Error(orchestrationResult?.error || cmdResult.error || `[ServiceFacade:${this.id}] Orchestration failed.`);
+      telemetryHandle.end(error);
+      serviceTelemetryHandle.end(error);
+      throw error;
     }
+    telemetryHandle.end();
+    serviceTelemetryHandle.end();
     return cmdResult.data;
   }
   /**
@@ -3349,9 +3646,9 @@ var ServiceRuntime = class {
 // src/discovery/ServiceDiscovery.ts
 var ServiceDiscovery = class {
   peers = /* @__PURE__ */ new Map();
-  registerPeer(id, name, endpoints) {
-    this.peers.set(id, {
-      id,
+  registerPeer(id2, name, endpoints) {
+    this.peers.set(id2, {
+      id: id2,
       name,
       endpoints,
       lastSeen: Date.now()
@@ -3360,8 +3657,8 @@ var ServiceDiscovery = class {
   getPeers() {
     return Array.from(this.peers.values());
   }
-  findPeer(id) {
-    return this.peers.get(id);
+  findPeer(id2) {
+    return this.peers.get(id2);
   }
 };
 
@@ -3837,6 +4134,7 @@ var gutts = __toESM(require("@dinilmusick/gutts"), 1);
   ServiceRegistry,
   ServiceRuntime,
   ServiceStateStore,
+  TelemetryController,
   UdpProtocolAdapter,
   WebSocketProtocolAdapter,
   WorkerExecutionBoundary,
@@ -3845,7 +4143,10 @@ var gutts = __toESM(require("@dinilmusick/gutts"), 1);
   createServiceDefinition,
   createServiceFacade,
   createServiceProxy,
+  deltaResources,
   gutts,
+  sampleResources,
+  telemetryNow,
   validateOrchestrationDAG,
   validateServiceDefinition
 });

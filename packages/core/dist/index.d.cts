@@ -112,6 +112,151 @@ declare class FunctionalityFacade<TInput = unknown, TOutput = unknown, TState = 
 }
 
 /**
+ * @file TelemetryTypes.ts
+ * @description Framework-native service invocation telemetry contracts.
+ */
+type TelemetryMode = 'off' | 'standard' | 'detailed' | 'profile';
+type TelemetryStatus = {
+    enabled: boolean;
+    mode: TelemetryMode;
+    serviceId: string;
+    invocationCount: number;
+    activeInvocations: number;
+    lastInvocationAt?: number;
+};
+interface TelemetryResourceSample {
+    cpuUserMicros?: number;
+    cpuSystemMicros?: number;
+    heapUsedBytes?: number;
+    heapTotalBytes?: number;
+    rssBytes?: number;
+    externalBytes?: number;
+    arrayBuffersBytes?: number;
+    eventLoopUtilization?: number;
+    scope: 'process' | 'runtime';
+}
+interface TelemetryInvocation {
+    invocationId: string;
+    traceId: string;
+    spanId: string;
+    parentSpanId?: string;
+    serviceId: string;
+    target: string;
+    kind: 'service' | 'functionality' | 'orchestration';
+    correlationId?: string;
+    startedAt: number;
+    completedAt: number;
+    durationMs: number;
+    status: 'completed' | 'failed';
+    error?: {
+        name: string;
+        message: string;
+    };
+    resources?: {
+        start: TelemetryResourceSample;
+        end: TelemetryResourceSample;
+        delta: TelemetryResourceSample;
+    };
+}
+interface TelemetryPercentiles {
+    min: number;
+    mean: number;
+    p50: number;
+    p90: number;
+    p95: number;
+    p99: number;
+    max: number;
+}
+interface TelemetryTargetStats {
+    target: string;
+    kind: TelemetryInvocation['kind'];
+    count: number;
+    successCount: number;
+    errorCount: number;
+    durationMs: TelemetryPercentiles;
+    lastInvocationAt?: number;
+}
+interface TelemetrySnapshot {
+    serviceId: string;
+    mode: TelemetryMode;
+    capturedAt: number;
+    status: TelemetryStatus;
+    totals: {
+        invocationCount: number;
+        successCount: number;
+        errorCount: number;
+        durationMs: TelemetryPercentiles;
+    };
+    targets: TelemetryTargetStats[];
+    activeInvocations: number;
+    recentInvocations: TelemetryInvocation[];
+}
+interface TelemetryOptions {
+    mode?: TelemetryMode;
+    maxSamples?: number;
+    maxRecentInvocations?: number;
+}
+interface TelemetryHandle {
+    readonly invocationId: string;
+    readonly traceId: string;
+    readonly spanId: string;
+    readonly parentSpanId?: string;
+    end(error?: unknown): void;
+}
+
+/**
+ * @file TelemetryResources.ts
+ * @description Capability-detected runtime resource sampling.
+ */
+
+declare function telemetryNow(): number;
+declare function sampleResources(): TelemetryResourceSample;
+declare function deltaResources(start: TelemetryResourceSample, end: TelemetryResourceSample): TelemetryResourceSample;
+
+/**
+ * @file TelemetryController.ts
+ * @description Per-service telemetry recorder and public control surface.
+ */
+
+type ActiveInvocation = {
+    invocationId: string;
+    traceId: string;
+    spanId: string;
+    parentSpanId?: string;
+    serviceId: string;
+    target: string;
+    kind: TelemetryInvocation['kind'];
+    correlationId?: string;
+    startedAt: number;
+    resourcesStart?: ReturnType<typeof sampleResources>;
+};
+declare class TelemetryController {
+    private readonly serviceId;
+    private mode;
+    private readonly maxSamples;
+    private readonly maxRecentInvocations;
+    private readonly samples;
+    private readonly active;
+    private totalInvocationCount;
+    private totalSuccessCount;
+    private totalErrorCount;
+    private lastInvocationAt?;
+    constructor(serviceId: string, options?: TelemetryOptions);
+    enable(mode?: Exclude<TelemetryMode, 'off'>): void;
+    disable(): void;
+    setMode(mode: TelemetryMode): void;
+    getMode(): TelemetryMode;
+    status(): TelemetryStatus;
+    begin(target: string, kind: ActiveInvocation['kind'], correlationId?: string, parentSpanId?: string): TelemetryHandle;
+    reset(): void;
+    snapshot(): TelemetrySnapshot;
+    functionality(name: string): TelemetryTargetStats | undefined;
+    functionalities(): TelemetryTargetStats[];
+    private findTraceId;
+    private finish;
+}
+
+/**
  * @file ServiceContract.ts
  * @description Canonical service contracts for the KrnlTS Service Kernel.
  * Services are execution and namespace boundaries; application events belong to
@@ -207,6 +352,7 @@ TLegacyEvents extends Record<string, unknown> = Record<string, unknown>> {
     readonly id: string;
     readonly name: string;
     readonly version: string;
+    readonly telemetry: TelemetryController;
     call<TIn = unknown, TOut = unknown>(op: string, input?: TIn, ctx?: OperationContext): Promise<TOut>;
     getState(): Readonly<TState>;
     setState(mutation: Partial<TState>): void;
@@ -227,6 +373,7 @@ declare class ServiceInstance<TState extends Record<string, unknown> = Record<st
     readonly id: string;
     readonly name: string;
     readonly version: string;
+    readonly telemetry: TelemetryController;
     private stateStore?;
     private readonly lifecycle;
     private initialized;
@@ -297,6 +444,7 @@ declare class ServiceProxy<TState extends Record<string, unknown> = Record<strin
     readonly id: string;
     readonly name: string;
     readonly version: string;
+    readonly telemetry: TelemetryController;
     private stateCache;
     private readonly eventHandlers;
     private readonly lifecycle;
@@ -819,6 +967,7 @@ declare class ServiceFacade<TState extends Record<string, unknown> = Record<stri
     readonly defaultFrontend?: DefaultFrontendReference;
     private readonly instance;
     private readonly queue;
+    readonly telemetry: TelemetryController;
     constructor(config: ServiceFacadeConfig<TState, TEvents, TLibraries>);
     get orchestrations(): Record<string, FunctionalityOrchestration>;
     getInstance(): IService<TState, TEvents>;
@@ -1103,4 +1252,4 @@ declare class ProtocolResolver {
     static getSupportedProtocols(definition: ServiceDefinition): ProtocolType[];
 }
 
-export { type BackendCommand, type Connection, type DAGValidationResult, type DefaultFrontendReference, type DependencyContract, type EndpointDescriptor, EventBus, type EventChannel, type EventContract, type EventDefinition, type EventHandler, type EventSubscription, type ExecutionContext, type FunctionalityCustomEvents, type FunctionalityDefinition, type FunctionalityEventNamespace, type FunctionalityEvents, type FunctionalityExecutionContext, FunctionalityFacade, type FunctionalityFlow, type FunctionalityFlowStep, type FunctionalityLifecycleEvent, type FunctionalityLifecyclePayload, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlPackageReconciler, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, OrchestrationEventFacade, type OrchestrationEventNamespace, type OrchestrationFrontendReference, type OrchestrationLifecyclePayload, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createEventChannels, createService, createServiceDefinition, createServiceFacade, createServiceProxy, validateOrchestrationDAG, validateServiceDefinition };
+export { type BackendCommand, type Connection, type DAGValidationResult, type DefaultFrontendReference, type DependencyContract, type EndpointDescriptor, EventBus, type EventChannel, type EventContract, type EventDefinition, type EventHandler, type EventSubscription, type ExecutionContext, type FunctionalityCustomEvents, type FunctionalityDefinition, type FunctionalityEventNamespace, type FunctionalityEvents, type FunctionalityExecutionContext, FunctionalityFacade, type FunctionalityFlow, type FunctionalityFlowStep, type FunctionalityLifecycleEvent, type FunctionalityLifecyclePayload, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlPackageReconciler, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, OrchestrationEventFacade, type OrchestrationEventNamespace, type OrchestrationFrontendReference, type OrchestrationLifecyclePayload, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, TelemetryController, type TelemetryHandle, type TelemetryInvocation, type TelemetryMode, type TelemetryOptions, type TelemetryPercentiles, type TelemetryResourceSample, type TelemetrySnapshot, type TelemetryStatus, type TelemetryTargetStats, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createEventChannels, createService, createServiceDefinition, createServiceFacade, createServiceProxy, deltaResources, sampleResources, telemetryNow, validateOrchestrationDAG, validateServiceDefinition };

@@ -816,6 +816,8 @@ import * as fs3 from "fs";
 import * as path4 from "path";
 import { tryParseJson } from "@dinilmusick/gutts";
 import * as gutts from "@dinilmusick/gutts";
+var runtimeProcess = typeof globalThis !== "undefined" ? globalThis.process : void 0;
+var runtimePerformance = typeof globalThis !== "undefined" ? globalThis.performance : void 0;
 var asyncHooks = globalThis.process?.getBuiltinModule?.("node:async_hooks");
 var KrnlPackageReconciler = class {
   /**

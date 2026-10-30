@@ -921,6 +921,8 @@ var fs5 = __toESM(require("fs"), 1);
 var path6 = __toESM(require("path"), 1);
 var import_gutts = require("@dinilmusick/gutts");
 var gutts = __toESM(require("@dinilmusick/gutts"), 1);
+var runtimeProcess = typeof globalThis !== "undefined" ? globalThis.process : void 0;
+var runtimePerformance = typeof globalThis !== "undefined" ? globalThis.performance : void 0;
 var asyncHooks = globalThis.process?.getBuiltinModule?.("node:async_hooks");
 var KrnlPackageReconciler = class {
   /**
