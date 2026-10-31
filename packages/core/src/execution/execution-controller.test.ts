@@ -6,7 +6,7 @@ describe("DefaultExecutionController", () => {
   it("routes work to a registered provider", async () => {
     const provider: ExecutionProvider = {
       id: "local",
-      execute: vi.fn(async () => ({executionId: "exec-1", status: "succeeded", exitCode: 0, stdout: "ok", stderr: "", artifactIds: []})),
+      execute: vi.fn(async () => ({executionId: "exec-1", status: "succeeded" as const, exitCode: 0, stdout: "ok", stderr: "", artifactIds: []})),
       cancel: vi.fn(async () => undefined),
     };
     const controller = new DefaultExecutionController();
