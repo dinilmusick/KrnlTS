@@ -4042,7 +4042,30 @@ var FunctionalityOrchestration = class {
 
 // src/index.ts
 import * as gutts from "@dinilmusick/gutts";
+
+// src/execution/execution-controller.ts
+var DefaultExecutionController = class {
+  providers = /* @__PURE__ */ new Map();
+  executions = /* @__PURE__ */ new Map();
+  register(provider) {
+    this.providers.set(provider.id, provider);
+  }
+  async execute(request, providerId) {
+    const provider = providerId ? this.providers.get(providerId) : this.providers.values().next().value;
+    if (!provider) throw new Error("No execution provider is registered.");
+    const result = await provider.execute(request);
+    this.executions.set(result.executionId, provider);
+    return result;
+  }
+  async cancel(executionId) {
+    const provider = this.executions.get(executionId);
+    if (!provider) throw new Error(`Unknown execution: ${executionId}`);
+    await provider.cancel(executionId);
+    this.executions.delete(executionId);
+  }
+};
 export {
+  DefaultExecutionController,
   EventBus,
   FunctionalityFacade,
   FunctionalityOrchestration,
