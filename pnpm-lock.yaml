@@ -12,8 +12,8 @@ importers:
   .:
     dependencies:
       '@dinilmusick/gutts':
-        specifier: ^1.0.0
-        version: 1.0.0(@types/node@25.9.5)
+        specifier: ^1.4.0
+        version: 1.4.0(@types/node@25.9.5)
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -196,8 +196,8 @@ packages:
     resolution: {integrity: sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA==}
     engines: {node: '>=6.9.0'}
 
-  '@dinilmusick/gutts@1.0.0':
-    resolution: {integrity: sha512-wY/mU18HiWQgBBome79gXzQ8EYgNSFm8qgekzK1AIZur/3d6KHMHI0KgJIR3ZE5udWcAltV+PZNNf3ucrHX5Lg==}
+  '@dinilmusick/gutts@1.4.0':
+    resolution: {}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
@@ -1898,7 +1898,7 @@ snapshots:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
 
-  '@dinilmusick/gutts@1.0.0(@types/node@25.9.5)':
+  '@dinilmusick/gutts@1.4.0(@types/node@25.9.5)':
     dependencies:
       '@huggingface/transformers': 4.3.2(@types/node@25.9.5)
       cactus-needle: 0.3.0
