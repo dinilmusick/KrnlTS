@@ -1,6 +1,6 @@
 {
   "name": "@ultrst-armada/krnl",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "private": false,
   "description": "KrnlTS backend semantic kernel for authoring, validating, and running modular TypeScript services",
   "type": "module",

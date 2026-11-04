@@ -1,3 +1,4 @@
+import { LuthSession, LuthSessionResult, LuthUser } from '@dinilmusick/gutts';
 import * as gutts from '@dinilmusick/gutts';
 export { gutts };
 
@@ -1294,24 +1295,9 @@ declare class DefaultExecutionController implements ExecutionController {
 }
 
 type CanonicalAuthProvider = 'email' | 'google';
-interface CanonicalAuthUser {
-    id: string;
-    name: string;
-    email: string;
-    image?: string | null;
-    emailVerified?: boolean;
-}
-interface CanonicalAuthSession {
-    id: string;
-    userId: string;
-    expiresAt: string;
-}
-interface CanonicalAuthSessionResult {
-    authenticated: boolean;
-    user?: CanonicalAuthUser;
-    session?: CanonicalAuthSession;
-    error?: string;
-}
+type CanonicalAuthUser = LuthUser;
+type CanonicalAuthSession = LuthSession;
+type CanonicalAuthSessionResult = LuthSessionResult;
 interface CanonicalAuthRegistration {
     ecosystemId: string;
     applicationId: string;
