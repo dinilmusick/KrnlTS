@@ -92,8 +92,8 @@ importers:
   packages/core:
     dependencies:
       '@dinilmusick/gutts':
-        specifier: ^1.0.0
-        version: 1.0.0(@types/node@25.9.5)
+        specifier: ^1.4.0
+        version: 1.4.0(@types/node@25.9.5)
       esbuild:
         specifier: ^0.25.0
         version: 0.25.12
