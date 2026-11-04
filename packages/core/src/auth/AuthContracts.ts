@@ -2,7 +2,7 @@ import type {
   LuthSession,
   LuthSessionResult,
   LuthUser,
-} from '@dinilmusick/gutts/auth';
+} from '@dinilmusick/gutts';
 
 export type CanonicalAuthProvider = 'email' | 'google';
 
