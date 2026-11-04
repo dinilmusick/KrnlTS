@@ -94,7 +94,8 @@
       "better-sqlite3",
       "esbuild",
       "onnxruntime-node",
-      "protobufjs"
+      "protobufjs",
+      "@dinilmusick/gutts"
     ]
   }
 }
