@@ -1,25 +1,14 @@
+import type {
+  LuthSession,
+  LuthSessionResult,
+  LuthUser,
+} from '@dinilmusick/gutts';
+
 export type CanonicalAuthProvider = 'email' | 'google';
 
-export interface CanonicalAuthUser {
-  id: string;
-  name: string;
-  email: string;
-  image?: string | null;
-  emailVerified?: boolean;
-}
-
-export interface CanonicalAuthSession {
-  id: string;
-  userId: string;
-  expiresAt: string;
-}
-
-export interface CanonicalAuthSessionResult {
-  authenticated: boolean;
-  user?: CanonicalAuthUser;
-  session?: CanonicalAuthSession;
-  error?: string;
-}
+export type CanonicalAuthUser = LuthUser;
+export type CanonicalAuthSession = LuthSession;
+export type CanonicalAuthSessionResult = LuthSessionResult;
 
 export interface CanonicalAuthRegistration {
   ecosystemId: string;
