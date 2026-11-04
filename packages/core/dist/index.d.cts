@@ -1293,4 +1293,42 @@ declare class DefaultExecutionController implements ExecutionController {
     cancel(executionId: string): Promise<void>;
 }
 
-export { type BackendCommand, type Connection, type DAGValidationResult, DefaultExecutionController, type DefaultFrontendReference, type DependencyContract, type EndpointDescriptor, EventBus, type EventChannel, type EventContract, type EventDefinition, type EventHandler, type EventSubscription, type ExecutionContext, type ExecutionController, type ExecutionProvider, type ExecutionRequest, type ExecutionResult, type ExecutionStatus, type FunctionalityCustomEvents, type FunctionalityDefinition, type FunctionalityEventNamespace, type FunctionalityEvents, type FunctionalityExecutionContext, FunctionalityFacade, type FunctionalityFlow, type FunctionalityFlowStep, type FunctionalityLifecycleEvent, type FunctionalityLifecyclePayload, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlPackageReconciler, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, OrchestrationEventFacade, type OrchestrationEventNamespace, type OrchestrationFrontendReference, type OrchestrationLifecyclePayload, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, TelemetryController, type TelemetryHandle, type TelemetryInvocation, type TelemetryMode, type TelemetryOptions, type TelemetryPercentiles, type TelemetryResourceSample, type TelemetrySnapshot, type TelemetryStatus, type TelemetryTargetStats, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createEventChannels, createService, createServiceDefinition, createServiceFacade, createServiceProxy, deltaResources, sampleResources, telemetryNow, validateOrchestrationDAG, validateServiceDefinition };
+type CanonicalAuthProvider = 'email' | 'google';
+interface CanonicalAuthUser {
+    id: string;
+    name: string;
+    email: string;
+    image?: string | null;
+    emailVerified?: boolean;
+}
+interface CanonicalAuthSession {
+    id: string;
+    userId: string;
+    expiresAt: string;
+}
+interface CanonicalAuthSessionResult {
+    authenticated: boolean;
+    user?: CanonicalAuthUser;
+    session?: CanonicalAuthSession;
+    error?: string;
+}
+interface CanonicalAuthRegistration {
+    ecosystemId: string;
+    applicationId: string;
+    origin: string;
+    environment: 'production' | 'staging' | 'preview' | 'development';
+}
+interface CanonicalAuthServiceContract {
+    serviceId: string;
+    operations: readonly [
+        'status',
+        'getSession',
+        'signInWithEmail',
+        'signUpWithEmail',
+        'signInWithGoogle',
+        'signOut'
+    ];
+    providers: readonly CanonicalAuthProvider[];
+}
+
+export { type BackendCommand, type CanonicalAuthProvider, type CanonicalAuthRegistration, type CanonicalAuthServiceContract, type CanonicalAuthSession, type CanonicalAuthSessionResult, type CanonicalAuthUser, type Connection, type DAGValidationResult, DefaultExecutionController, type DefaultFrontendReference, type DependencyContract, type EndpointDescriptor, EventBus, type EventChannel, type EventContract, type EventDefinition, type EventHandler, type EventSubscription, type ExecutionContext, type ExecutionController, type ExecutionProvider, type ExecutionRequest, type ExecutionResult, type ExecutionStatus, type FunctionalityCustomEvents, type FunctionalityDefinition, type FunctionalityEventNamespace, type FunctionalityEvents, type FunctionalityExecutionContext, FunctionalityFacade, type FunctionalityFlow, type FunctionalityFlowStep, type FunctionalityLifecycleEvent, type FunctionalityLifecyclePayload, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlPackageReconciler, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, OrchestrationEventFacade, type OrchestrationEventNamespace, type OrchestrationFrontendReference, type OrchestrationLifecyclePayload, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, TelemetryController, type TelemetryHandle, type TelemetryInvocation, type TelemetryMode, type TelemetryOptions, type TelemetryPercentiles, type TelemetryResourceSample, type TelemetrySnapshot, type TelemetryStatus, type TelemetryTargetStats, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createEventChannels, createService, createServiceDefinition, createServiceFacade, createServiceProxy, deltaResources, sampleResources, telemetryNow, validateOrchestrationDAG, validateServiceDefinition };
