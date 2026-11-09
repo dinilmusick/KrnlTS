@@ -70,7 +70,7 @@ try {
   const publicSpecifiers = Object.keys(packedManifest.exports || {}).filter((key) => !key.includes("*") && !/\.(css|json)$/.test(key)).map((key) => packedManifest.name + (key === "." ? "" : key.slice(1)));
   const resolveProgram = "for (const specifier of " + JSON.stringify(publicSpecifiers) + ") await import.meta.resolve(specifier);";
   run("node", ["--input-type=module", "-e", resolveProgram], consumer);
-  const rootTypeSmoke = "import * as rootSurface from " + JSON.stringify(packedManifest.name) + "; void rootSurface;\\n";
+  const rootTypeSmoke = "import * as rootSurface from " + JSON.stringify(packedManifest.name) + "; void rootSurface;\n";
   await writeFile(path.join(consumer, "consumer-smoke.ts"), rootTypeSmoke);
   run(path.join(consumer, "node_modules", ".bin", "tsc"), ["--noEmit", "--module", "NodeNext", "--moduleResolution", "NodeNext", "--target", "ES2022", "--resolveJsonModule", "--esModuleInterop", "consumer-smoke.ts"], consumer);
   const typedConsumer = path.join(temp, "consumer-with-optional-peers");
@@ -78,7 +78,7 @@ try {
   await writeFile(path.join(typedConsumer, "package.json"), JSON.stringify({ private: true, type: "module" }, null, 2));
   const optionalPeerSpecs = Object.entries(packedManifest.peerDependenciesMeta || {}).filter(([name, meta]) => meta?.optional && packedManifest.peerDependencies?.[name]).map(([name]) => name + "@" + packedManifest.peerDependencies[name]);
   run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--no-save", tarball, "typescript@5.9.3", ...optionalPeerSpecs], typedConsumer);
-  const allPublicTypeSmoke = publicSpecifiers.map((specifier, index) => "import * as surface" + index + " from " + JSON.stringify(specifier) + "; void surface" + index + ";").join("\\n") + "\\n";
+  const allPublicTypeSmoke = publicSpecifiers.map((specifier, index) => "import * as surface" + index + " from " + JSON.stringify(specifier) + "; void surface" + index + ";").join("\n") + "\n";
   await writeFile(path.join(typedConsumer, "consumer-smoke.ts"), allPublicTypeSmoke);
   run(path.join(typedConsumer, "node_modules", ".bin", "tsc"), ["--noEmit", "--module", "NodeNext", "--moduleResolution", "NodeNext", "--target", "ES2022", "--resolveJsonModule", "--esModuleInterop", "consumer-smoke.ts"], typedConsumer);
   const rootImport = `import(${JSON.stringify(packedManifest.name)}).then(() => console.log("root import ok"))`;
