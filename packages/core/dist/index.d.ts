@@ -1,6 +1,6 @@
-import { LuthSession, LuthSessionResult, LuthUser } from '@dinilmusick/gutts';
 import * as gutts from '@dinilmusick/gutts';
 export { gutts };
+import { LuthSession, LuthSessionResult, LuthUser } from '@dinilmusick/gutts/auth';
 
 /**
  * @file LifecycleManager.ts
