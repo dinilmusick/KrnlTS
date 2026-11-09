@@ -46,7 +46,7 @@ try {
   ].filter(Boolean);
   for (const target of new Set(targets)) {
     if (target.includes("*")) {
-      const prefix = target.slice(0, target.indexOf("*")).replace(/\\/$/, "");
+      const prefix = target.slice(0, target.indexOf("*"));
       if (prefix && !(await exists(path.join(packageRoot, prefix)))) {
         throw new Error(`Export wildcard has no packaged directory: ${target}`);
       }
