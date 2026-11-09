@@ -9,6 +9,9 @@ if (!manifest.name || manifest.private) {
   console.log("Package is private or unnamed; tarball verification is not applicable.");
   process.exit(0);
 }
+const registryLatest = spawnSync("npm", ["view", manifest.name, "version"], { encoding: "utf8" });
+const registryExact = spawnSync("npm", ["view", `${manifest.name}@${manifest.version}`, "version"], { encoding: "utf8" });
+console.log(`npm registry: latest=${registryLatest.status === 0 ? registryLatest.stdout.trim() : "unavailable"}; current main version ${manifest.version}=${registryExact.status === 0 ? "published" : "not found"}`);
 const temp = await mkdtemp(path.join(tmpdir(), "package-integrity-"));
 const run = (command, args, cwd = root) => {
   const result = spawnSync(command, args, { cwd, encoding: "utf8", stdio: "pipe" });
