@@ -29,7 +29,7 @@ try {
   execFileSync(process.execPath, [importProbe], {cwd: consumer, stdio: "pipe"});
 
   const resolveProbe = path.join(consumer, "resolve.mjs");
-  const publicKeys = Object.keys(exportsMap).filter((key) => key !== "./gutts.manifest.json");
+  const publicKeys = Object.keys(exportsMap).filter((key) => key !== "./gutts.manifest.json" && !key.endsWith("/*"));
   const specs = publicKeys.map((key) => key === "." ? pkg.name : pkg.name + key.slice(1));
   fs.writeFileSync(resolveProbe, specs.map((spec) => "console.log(import.meta.resolve(" + JSON.stringify(spec) + "));").join("\n") + "\n");
   execFileSync(process.execPath, [resolveProbe], {cwd: consumer, stdio: "pipe"});
