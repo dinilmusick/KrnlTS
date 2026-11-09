@@ -44,7 +44,8 @@
     "validate": "node packages/cli/dist/bin/krnl.js validate",
     "dev": "node packages/cli/dist/bin/krnl.js dev",
     "watch": "node packages/cli/dist/bin/krnl.js watch",
-    "typecheck": "pnpm -r run typecheck"
+    "typecheck": "pnpm -r run typecheck",
+    "boundary": "node scripts/architecture-boundary.mjs"
   },
   "keywords": [
     "krnl",
