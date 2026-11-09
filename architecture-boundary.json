@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "levels": {
+    "@dinilmusick/gutts": 0,
+    "@ultrst-armada/krnl": 1,
+    "@ultrst-armada/frnlts": 1,
+    "@ultrst-armada/kloks": 2,
+    "@ultrst-armada/floks": 2,
+    "skipo": 3
+  },
+  "ecosystem": {
+    "@dinilmusick/gutts": {
+      "level": 0,
+      "allowedDirect": []
+    },
+    "@ultrst-armada/krnl": {
+      "level": 1,
+      "allowedDirect": [
+        "@dinilmusick/gutts"
+      ]
+    },
+    "@ultrst-armada/frnlts": {
+      "level": 1,
+      "allowedDirect": [
+        "@dinilmusick/gutts"
+      ]
+    },
+    "@ultrst-armada/kloks": {
+      "level": 2,
+      "allowedDirect": [
+        "@dinilmusick/gutts",
+        "@ultrst-armada/krnl"
+      ]
+    },
+    "@ultrst-armada/floks": {
+      "level": 2,
+      "allowedDirect": [
+        "@dinilmusick/gutts",
+        "@ultrst-armada/frnlts"
+      ]
+    },
+    "skipo": {
+      "level": 3,
+      "allowedDirect": [
+        "@dinilmusick/gutts",
+        "@ultrst-armada/krnl",
+        "@ultrst-armada/frnlts",
+        "@ultrst-armada/kloks",
+        "@ultrst-armada/floks"
+      ]
+    }
+  }
+}
