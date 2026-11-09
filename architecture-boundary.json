@@ -12,7 +12,8 @@
     "@dinilmusick/gutts": {
       "level": 0,
       "allowedDirect": [],
-      "requiredDirect": []
+      "requiredDirect": [],
+      "requiredKinds": {}
     },
     "@ultrst-armada/krnl": {
       "level": 1,
@@ -21,7 +22,10 @@
       ],
       "requiredDirect": [
         "@dinilmusick/gutts"
-      ]
+      ],
+      "requiredKinds": {
+        "@dinilmusick/gutts": "runtime"
+      }
     },
     "@ultrst-armada/frnlts": {
       "level": 1,
@@ -30,7 +34,10 @@
       ],
       "requiredDirect": [
         "@dinilmusick/gutts"
-      ]
+      ],
+      "requiredKinds": {
+        "@dinilmusick/gutts": "runtime"
+      }
     },
     "@ultrst-armada/kloks": {
       "level": 2,
@@ -41,7 +48,8 @@
       "requiredDirect": [
         "@dinilmusick/gutts",
         "@ultrst-armada/krnl"
-      ]
+      ],
+      "requiredKinds": {}
     },
     "@ultrst-armada/floks": {
       "level": 2,
@@ -52,7 +60,8 @@
       "requiredDirect": [
         "@dinilmusick/gutts",
         "@ultrst-armada/frnlts"
-      ]
+      ],
+      "requiredKinds": {}
     },
     "skipo": {
       "level": 3,
@@ -69,7 +78,8 @@
         "@ultrst-armada/frnlts",
         "@ultrst-armada/kloks",
         "@ultrst-armada/floks"
-      ]
+      ],
+      "requiredKinds": {}
     }
   },
   "exportExceptions": []
