@@ -68,9 +68,10 @@ try {
   await writeFile(path.join(consumer, "package.json"), JSON.stringify({ private: true, type: "module" }, null, 2));
   run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--no-save", tarball, "typescript@5.9.3"], consumer);
   const publicSpecifiers = Object.keys(packedManifest.exports || {}).filter((key) => !key.includes("*") && !/\.(css|json)$/.test(key)).map((key) => packedManifest.name + (key === "." ? "" : key.slice(1)));
-  const resolveProgram = \`for (const specifier of \${JSON.stringify(publicSpecifiers)}) await import.meta.resolve(specifier);\`;
+  const resolveProgram = "for (const specifier of " + JSON.stringify(publicSpecifiers) + ") await import.meta.resolve(specifier);";
   run("node", ["--input-type=module", "-e", resolveProgram], consumer);
-  await writeFile(path.join(consumer, "consumer-smoke.ts"), \`import * as packageSurface from \${JSON.stringify(packedManifest.name)};\nvoid packageSurface;\n\`);
+  const consumerTypeSmoke = "import * as packageSurface from " + JSON.stringify(packedManifest.name) + ";\nvoid packageSurface;\n";
+  await writeFile(path.join(consumer, "consumer-smoke.ts"), consumerTypeSmoke);
   run(path.join(consumer, "node_modules", ".bin", "tsc"), ["--noEmit", "--module", "NodeNext", "--moduleResolution", "NodeNext", "--target", "ES2022", "consumer-smoke.ts"], consumer);
   const rootImport = `import(${JSON.stringify(packedManifest.name)}).then(() => console.log("root import ok"))`;
   run("node", ["--input-type=module", "-e", rootImport], consumer);
