@@ -24,11 +24,11 @@ try {
   execFileSync("npm", ["init", "-y"], {cwd: consumer, stdio: "ignore"});
   execFileSync("npm", ["install", path.join(packDir, tarball)], {cwd: consumer, stdio: "pipe"});
 
-  const importProbe = path.join(temp, "probe.mjs");
+  const importProbe = path.join(consumer, "probe.mjs");
   fs.writeFileSync(importProbe, "await import(" + JSON.stringify(pkg.name) + ");\n");
   execFileSync(process.execPath, [importProbe], {cwd: consumer, stdio: "pipe"});
 
-  const resolveProbe = path.join(temp, "resolve.mjs");
+  const resolveProbe = path.join(consumer, "resolve.mjs");
   const publicKeys = Object.keys(exportsMap).filter((key) => key !== "./gutts.manifest.json");
   const specs = publicKeys.map((key) => key === "." ? pkg.name : pkg.name + key.slice(1));
   fs.writeFileSync(resolveProbe, specs.map((spec) => "console.log(import.meta.resolve(" + JSON.stringify(spec) + "));").join("\n") + "\n");
