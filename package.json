@@ -82,7 +82,7 @@
     "url": "git+https://github.com/dinilmusick/KrnlTS.git"
   },
   "dependencies": {
-    "@dinilmusick/gutts": "git+https://github.com/dinilmusick/GutTS.git#2ccc70f0026e77ef85717c6fb8696c23a6779499",
+    "@dinilmusick/gutts": "^2.0.2",
     "esbuild": "^0.28.2",
     "ts-morph": "^25.0.1",
     "ws": "^8.20.0"
