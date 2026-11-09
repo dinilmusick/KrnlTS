@@ -41,4 +41,4 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
       - name: Pack, clean-install, and verify public package surface
-        run: pnpm run verify:package-integrity
+        run: node scripts/verify-package-integrity.mjs
