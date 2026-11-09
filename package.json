@@ -44,7 +44,10 @@
     "validate": "node packages/cli/dist/bin/krnl.js validate",
     "dev": "node packages/cli/dist/bin/krnl.js dev",
     "watch": "node packages/cli/dist/bin/krnl.js watch",
-    "typecheck": "pnpm -r run typecheck"
+    "typecheck": "pnpm -r run typecheck",
+    "boundary": "node scripts/architecture-boundary.mjs",
+    "boundary:clean-room": "node scripts/clean-room-boundary.mjs",
+    "boundary:relative": "node scripts/relative-package-boundary.mjs"
   },
   "keywords": [
     "krnl",
@@ -79,7 +82,7 @@
     "url": "git+https://github.com/dinilmusick/KrnlTS.git"
   },
   "dependencies": {
-    "@dinilmusick/gutts": "git+https://github.com/dinilmusick/GutTS.git#2ccc70f0026e77ef85717c6fb8696c23a6779499",
+    "@dinilmusick/gutts": "^2.0.2",
     "esbuild": "^0.28.2",
     "ts-morph": "^25.0.1",
     "ws": "^8.20.0"
