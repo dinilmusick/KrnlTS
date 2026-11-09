@@ -25,7 +25,9 @@ const collectTargets = (value, output = []) => {
   return output;
 };
 try {
-  const packed = JSON.parse(run("npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", temp]));
+  const packOutput = run("npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", temp]);
+  const jsonStart = packOutput.lastIndexOf("\n[");
+  const packed = JSON.parse(packOutput.slice(jsonStart >= 0 ? jsonStart + 1 : 0));
   if (!packed[0]?.filename) throw new Error("npm pack did not produce a tarball.");
   const tarball = path.join(temp, packed[0].filename);
   const extracted = path.join(temp, "unpacked");
