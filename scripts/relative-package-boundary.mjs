@@ -30,6 +30,8 @@ function packageRoot(file) {
 const failures = [];
 for (const sourceRoot of sourceRoots) {
   for (const file of walk(sourceRoot)) {
+    const relativeFile = path.relative(root, file).replaceAll(path.sep, "/");
+    if (/(^|\/)(?:__tests__|tests|fixtures)(?:\/|$)/.test(relativeFile)) continue;
     const source = fs.readFileSync(file, "utf8");
     for (const match of source.matchAll(importPattern)) {
       const specifier = match[1];
