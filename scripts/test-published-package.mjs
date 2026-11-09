@@ -47,6 +47,14 @@ try {
     return value.import ?? value.default ?? value.node ?? null;
   }
 
+  const optionalPeers = Object.entries(publishedManifest.peerDependenciesMeta ?? {})
+    .filter(([, metadata]) => metadata?.optional)
+    .map(([name]) => {
+      const range = publishedManifest.peerDependencies?.[name];
+      return range ? `${name}@${range}` : null;
+    })
+    .filter(Boolean);
+  let optionalPeersInstalled = false;
   const imported = [];
   for (const [key, value] of Object.entries(publishedManifest.exports)) {
     const allTargets = collectTargets(value);
@@ -58,11 +66,20 @@ try {
     if (!js || !/\.(?:mjs|cjs|js)$/.test(js)) continue;
     const specifier = packageName + (key === '.' ? '' : key.slice(1));
     const code = `await import(${JSON.stringify(specifier)}); console.log('imported ${specifier}')`;
-    execFileSync(process.execPath, ['--input-type=module', '-e', code], { cwd: consumerDir, stdio: 'inherit' });
+    try {
+      execFileSync(process.execPath, ['--input-type=module', '-e', code], { cwd: consumerDir, stdio: 'inherit' });
+    } catch (error) {
+      if (!optionalPeers.length || optionalPeersInstalled) throw error;
+      console.log('Installing declared optional peer providers before testing provider-specific exports.');
+      execFileSync('npm', ['install', '--prefix', consumerDir, '--ignore-scripts', '--no-audit', '--no-fund', ...optionalPeers],
+        { stdio: 'inherit' });
+      optionalPeersInstalled = true;
+      execFileSync(process.execPath, ['--input-type=module', '-e', code], { cwd: consumerDir, stdio: 'inherit' });
+    }
     imported.push(specifier);
   }
   assert.ok(imported.length > 0, 'at least one published JavaScript entry point must be imported');
-  console.log(JSON.stringify({ package: packageName, version, publishedTarball: packed[0].filename, imported }, null, 2));
+  console.log(JSON.stringify({ package: packageName, version, publishedTarball: packed[0].filename, optionalPeersInstalled, imported }, null, 2));
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
