@@ -46,7 +46,8 @@
     "watch": "node packages/cli/dist/bin/krnl.js watch",
     "typecheck": "pnpm -r run typecheck",
     "boundary": "node scripts/architecture-boundary.mjs",
-    "boundary:clean-room": "node scripts/clean-room-boundary.mjs"
+    "boundary:clean-room": "node scripts/clean-room-boundary.mjs",
+    "boundary:relative": "node scripts/relative-package-boundary.mjs"
   },
   "keywords": [
     "krnl",
