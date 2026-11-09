@@ -79,6 +79,9 @@ try {
     const packageJsonResolution = `import.meta.resolve(${JSON.stringify(packedManifest.name + "/package.json")})`;
     const result = spawnSync("node", ["--input-type=module", "-e", packageJsonResolution], { cwd: consumer, encoding: "utf8" });
     if (result.status === 0) throw new Error("Package unexpectedly exposes package.json through its public export map.");
+    const internalResolution = `import.meta.resolve(${JSON.stringify(packedManifest.name + "/src/index.js")})`;
+    const internalResult = spawnSync("node", ["--input-type=module", "-e", internalResolution], { cwd: consumer, encoding: "utf8" });
+    if (internalResult.status === 0) throw new Error("Package unexpectedly exposes an internal source path through its public export map.");
   }
   console.log(`Verified ${packedManifest.name}@${packedManifest.version}: tarball files, export targets, declarations, clean install, root import, and private package metadata.`);
 } finally {
