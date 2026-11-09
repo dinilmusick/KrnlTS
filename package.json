@@ -101,5 +101,8 @@
       "protobufjs",
       "@dinilmusick/gutts"
     ]
+  },
+  "peerDependencies": {
+    "@types/node": ">=20.0.0"
   }
 }
