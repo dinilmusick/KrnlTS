@@ -10,8 +10,8 @@ function walk(dir) {
   const result = [];
   for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
     const file = path.join(dir, entry.name);
-    if (entry.isDirectory()) result.push(...walk(file));
-    else if (extensions.includes(path.extname(entry.name))) result.push(file);
+    if (entry.isDirectory()) { if (["dist","node_modules",".git"].includes(entry.name)) continue; result.push(...walk(file)); }
+    else if (extensions.includes(path.extname(entry.name)) && !/(^|\/)(__tests__|test|tests)(\/|$)/.test(path.relative(root,file)) && !/\.(test|spec)\.[^.]+$/.test(entry.name)) result.push(file);
   }
   return result;
 }
