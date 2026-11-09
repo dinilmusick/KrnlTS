@@ -20,3 +20,9 @@ jobs:
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm run build
       - run: pnpm run boundary
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-boundary-report
+          path: .boundary-report.json
+          if-no-files-found: warn
