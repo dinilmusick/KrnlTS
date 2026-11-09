@@ -11,11 +11,15 @@
   "ecosystem": {
     "@dinilmusick/gutts": {
       "level": 0,
-      "allowedDirect": []
+      "allowedDirect": [],
+      "requiredDirect": []
     },
     "@ultrst-armada/krnl": {
       "level": 1,
       "allowedDirect": [
+        "@dinilmusick/gutts"
+      ],
+      "requiredDirect": [
         "@dinilmusick/gutts"
       ]
     },
@@ -23,11 +27,18 @@
       "level": 1,
       "allowedDirect": [
         "@dinilmusick/gutts"
+      ],
+      "requiredDirect": [
+        "@dinilmusick/gutts"
       ]
     },
     "@ultrst-armada/kloks": {
       "level": 2,
       "allowedDirect": [
+        "@dinilmusick/gutts",
+        "@ultrst-armada/krnl"
+      ],
+      "requiredDirect": [
         "@dinilmusick/gutts",
         "@ultrst-armada/krnl"
       ]
@@ -37,11 +48,22 @@
       "allowedDirect": [
         "@dinilmusick/gutts",
         "@ultrst-armada/frnlts"
+      ],
+      "requiredDirect": [
+        "@dinilmusick/gutts",
+        "@ultrst-armada/frnlts"
       ]
     },
     "skipo": {
       "level": 3,
       "allowedDirect": [
+        "@dinilmusick/gutts",
+        "@ultrst-armada/krnl",
+        "@ultrst-armada/frnlts",
+        "@ultrst-armada/kloks",
+        "@ultrst-armada/floks"
+      ],
+      "requiredDirect": [
         "@dinilmusick/gutts",
         "@ultrst-armada/krnl",
         "@ultrst-armada/frnlts",
