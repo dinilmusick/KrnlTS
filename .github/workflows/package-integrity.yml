@@ -1,0 +1,42 @@
+name: Package integrity
+on:
+  pull_request:
+    paths:
+      - 'package.json'
+      - '**/package.json'
+      - 'pnpm-lock.yaml'
+      - 'package-lock.json'
+      - 'scripts/verify-package-integrity.mjs'
+      - '.github/workflows/package-integrity.yml'
+      - 'scaffolds/**'
+      - 'tests/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-integrity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install from frozen lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm run build
+      - name: Test
+        run: pnpm run test
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Pack, clean-install, and verify public package surface\n        run: pnpm run verify:package-integrity\n
