@@ -26,14 +26,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: architecture-boundary-report
-          path: .boundary-report.json
+          path: |
+            .boundary-report.json
+            .relative-boundary-report.json
           if-no-files-found: warn
       - if: failure()
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const report = fs.existsSync('.boundary-report.json') ? fs.readFileSync('.boundary-report.json', 'utf8') : 'boundary report missing';
+            const report = (fs.existsSync('.boundary-report.json') ? fs.readFileSync('.boundary-report.json','utf8') : 'boundary report missing') + '\\n' + (fs.existsSync('.relative-boundary-report.json') ? fs.readFileSync('.relative-boundary-report.json','utf8') : 'relative boundary report missing');
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
