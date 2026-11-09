@@ -44,6 +44,8 @@ for (const sourceRoot of sourceRoots) {
   }
 }
 
+fs.writeFileSync(path.join(root,'.relative-boundary-report.json'),JSON.stringify({failures},null,2));
+
 if (failures.length) {
   console.error("RELATIVE PACKAGE BOUNDARY FAILED (" + failures.length + ")");
   for (const failure of failures) console.error("- " + failure);
