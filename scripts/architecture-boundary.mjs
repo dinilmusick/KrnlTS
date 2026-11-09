@@ -7,7 +7,7 @@ const root=process.cwd(); const policy=JSON.parse(fs.readFileSync(path.join(root
 const fail=[]; const note=[]; const ecosystem=policy.ecosystem; const own=pkg.name; const rule=ecosystem[own];
 if(!rule) fail.push('Package '+own+' has no architecture policy entry.');
 if(rule && rule.level!==policy.levels[own]) fail.push('Policy level mismatch for '+own+'.');
-const allDeps={...pkg.dependencies,...pkg.optionalDependencies,...pkg.peerDependencies,...pkg.devDependencies}; const actual=Object.keys(allDeps).filter(n=>ecosystem[n]&&n!==own).sort(); const allowed=new Set(rule?.allowedDirect||[]); const required=new Set(rule?.requiredDirect||rule?.allowedDirect||[]); const expected=[...required].sort();
+const runtimeDeps={...pkg.dependencies,...pkg.optionalDependencies}; const allDeps={...pkg.dependencies,...pkg.optionalDependencies,...pkg.peerDependencies,...pkg.devDependencies}; const actual=Object.keys(allDeps).filter(n=>ecosystem[n]&&n!==own).sort(); const allowed=new Set(rule?.allowedDirect||[]); const required=new Set(rule?.requiredDirect||rule?.allowedDirect||[]); const expected=[...required].sort(); for(const dep of expected) if(!Object.prototype.hasOwnProperty.call(runtimeDeps,dep)) fail.push("Canonical ecosystem edge must be a runtime dependency: "+own+" -> "+dep);
 for(const dep of actual) { if(!allowed.has(dep)) fail.push('Forbidden direct dependency: '+own+' -> '+dep); if(ecosystem[dep].level>=rule.level) fail.push('Layer inversion: '+own+'(L'+rule.level+') -> '+dep+'(L'+ecosystem[dep].level+')'); }
 for(const dep of expected) if(!actual.includes(dep)) fail.push('Missing canonical dependency edge: '+own+' -> '+dep);
 console.log('Architecture diff: expected ['+expected.join(', ')+']; actual ['+actual.join(', ')+'];');
