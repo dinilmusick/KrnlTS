@@ -12,7 +12,7 @@ importers:
   .:
     dependencies:
       '@dinilmusick/gutts':
-        specifier: ^2.0.2
+        specifier: ^2.0.3
         version: 2.0.3(@huggingface/transformers@4.3.2(@types/node@25.9.5))(cactus-needle@0.3.0)
       esbuild:
         specifier: ^0.28.2
@@ -92,8 +92,8 @@ importers:
   packages/core:
     dependencies:
       '@dinilmusick/gutts':
-        specifier: ^1.4.0
-        version: 1.4.1(@types/node@25.9.5)
+        specifier: ^2.0.3
+        version: 2.0.3(@huggingface/transformers@4.3.2(@types/node@25.9.5))(cactus-needle@0.3.0)
       esbuild:
         specifier: ^0.25.0
         version: 0.25.12
