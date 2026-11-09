@@ -31,7 +31,7 @@ try {
   const packOutput = run("npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", temp]);
   const jsonStart = packOutput.lastIndexOf("\n[");
   const packed = JSON.parse(packOutput.slice(jsonStart >= 0 ? jsonStart + 1 : 0));
-  const forbiddenFiles = (packed[0]?.files || []).map((file) => file.path).filter((file) => /(^|\\/)(node_modules|\\.github|coverage|__tests__|tests?)(\\/|$)|\\.(test|spec)\\.[cm]?[jt]sx?$|(^|\\/)\\.env(?:\\.|$)/.test(file));
+  const forbiddenFiles = (packed[0]?.files || []).map((file) => file.path).filter((file) => /(^|\/)(node_modules|\.github|coverage|__tests__|tests?)(\/|$)|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)\.env(?:\.|$)/.test(file));
   if (forbiddenFiles.length) throw new Error(`Development-only files included in tarball: ${forbiddenFiles.join(", ")}`);
   if (!packed[0]?.filename) throw new Error("npm pack did not produce a tarball.");
   const tarball = path.join(temp, packed[0].filename);
@@ -67,10 +67,10 @@ try {
   await import("node:fs/promises").then(({ mkdir }) => mkdir(consumer));
   await writeFile(path.join(consumer, "package.json"), JSON.stringify({ private: true, type: "module" }, null, 2));
   run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--no-save", tarball, "typescript@5.9.3"], consumer);
-  const publicSpecifiers = Object.keys(packedManifest.exports || {}).filter((key) => !key.includes("*") && !/\\.(css|json)$/.test(key)).map((key) => packedManifest.name + (key === "." ? "" : key.slice(1)));
-  const resolveProgram = `for (const specifier of ${"${JSON.stringify(publicSpecifiers)}"}) await import.meta.resolve(specifier);`;
+  const publicSpecifiers = Object.keys(packedManifest.exports || {}).filter((key) => !key.includes("*") && !/\.(css|json)$/.test(key)).map((key) => packedManifest.name + (key === "." ? "" : key.slice(1)));
+  const resolveProgram = \`for (const specifier of \${JSON.stringify(publicSpecifiers)}) await import.meta.resolve(specifier);\`;
   run("node", ["--input-type=module", "-e", resolveProgram], consumer);
-  await writeFile(path.join(consumer, "consumer-smoke.ts"), `import * as packageSurface from ${"${JSON.stringify(packedManifest.name)}"};\\nvoid packageSurface;\\n`);
+  await writeFile(path.join(consumer, "consumer-smoke.ts"), \`import * as packageSurface from \${JSON.stringify(packedManifest.name)};\nvoid packageSurface;\n\`);
   run(path.join(consumer, "node_modules", ".bin", "tsc"), ["--noEmit", "--module", "NodeNext", "--moduleResolution", "NodeNext", "--target", "ES2022", "consumer-smoke.ts"], consumer);
   const rootImport = `import(${JSON.stringify(packedManifest.name)}).then(() => console.log("root import ok"))`;
   run("node", ["--input-type=module", "-e", rootImport], consumer);
