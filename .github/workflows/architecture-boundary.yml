@@ -5,7 +5,7 @@ on:
     branches: [main]
 permissions:
   contents: read
-  jobs:
+jobs:
   boundary:
     runs-on: ubuntu-latest
     steps:
