@@ -6,44 +6,21 @@
  */
 
 import { OrchestrationEventFacade } from '../events/OrchestrationEventFacade.js';
-import {
+import type {
   OrchestrationStep,
   OrchestrationDescriptor,
   StepRetryPolicy,
-  StepTimeoutPolicy,
-  StepCompensation,
   StepCondition,
   OrchestrationContext,
 } from './canonical/model.js';
-
-export interface FunctionalityFlowStep {
-  readonly id: string;
-  readonly type: 'functionality' | 'functionalityOrchestration';
-  readonly target: string;
-  readonly flow?: string;
-  readonly dependsOn?: readonly string[];
-  readonly retryPolicy?: StepRetryPolicy;
-  readonly timeoutPolicy?: StepTimeoutPolicy;
-}
-
-export interface FunctionalityFlow {
-  readonly name: string;
-  readonly steps: FunctionalityFlowStep[];
-  visibility: 'public' | 'private' | 'internal';
-  thenFunctionality(
-    funcName: string,
-    options?: {
-      retry?: StepRetryPolicy;
-      timeoutMs?: number;
-      dependsOn?: string[];
-    }
-  ): FunctionalityFlow;
-  thenFunctionalityOrchestration(
-    childOrchestrationName: string,
-    flowName?: string
-  ): FunctionalityFlow;
-  register(options?: { visibility?: 'public' | 'private' | 'internal' }): FunctionalityFlow;
-}
+import { createFunctionalityFlow, type FunctionalityFlow } from './FunctionalityFlow.js';
+import {
+  addParallelFunctionalitySteps,
+  addBranchFunctionalitySteps,
+  addFanOutFunctionalityStep,
+  assertFunctionalityServiceBoundary,
+} from './FunctionalityOrchestrationSteps.js';
+import { createFunctionalityOrchestrationDefinition } from './FunctionalityOrchestrationDefinition.js';
 
 export interface FunctionalityStepOptions {
   id?: string;
@@ -128,50 +105,11 @@ export class FunctionalityOrchestration {
   /**
    * Adds parallel functionality steps to the DAG.
    */
-  parallel(
-    name: string,
-    functionalityNames: readonly string[],
-    options: { dependsOn?: string[] } = {}
-  ): this {
-    if (!name || typeof name !== 'string') {
-      throw new Error('[FunctionalityOrchestration] Parallel group name must be a non-empty string.');
-    }
-    if (!functionalityNames || functionalityNames.length === 0) {
-      throw new Error('[FunctionalityOrchestration] Parallel step requires at least one functionality.');
-    }
-
-    const previousStep = this.steps.length > 0 ? this.steps[this.steps.length - 1].id : undefined;
-    const baseDependsOn = options.dependsOn || (previousStep ? [previousStep] : []);
-
-    const parallelStepIds: string[] = [];
-    for (const funcName of functionalityNames) {
-      this.assertServiceBoundary(funcName);
-      const stepId = `${name}_${funcName}`;
-      parallelStepIds.push(stepId);
-      this.steps.push({
-        id: stepId,
-        name: funcName,
-        type: 'task',
-        target: funcName,
-        dependsOn: baseDependsOn,
-      });
-    }
-
-    // Join node
-    const joinId = `${name}_join`;
-    this.steps.push({
-      id: joinId,
-      name: `${name} Join`,
-      type: 'fanIn',
-      dependsOn: parallelStepIds,
-    });
-
+  parallel(name: string, functionalityNames: readonly string[], options: { dependsOn?: string[] } = {}): this {
+    addParallelFunctionalitySteps(this.steps, name, functionalityNames, options.dependsOn, (target) => this.assertServiceBoundary(target));
     return this;
   }
 
-  /**
-   * Adds conditional branching to the DAG.
-   */
   branch(
     name: string,
     condition: StepCondition,
@@ -179,201 +117,38 @@ export class FunctionalityOrchestration {
     elseFunc?: string,
     options: { dependsOn?: string[] } = {}
   ): this {
-    this.assertServiceBoundary(thenFunc);
-    if (elseFunc) this.assertServiceBoundary(elseFunc);
-
-    const previousStep = this.steps.length > 0 ? this.steps[this.steps.length - 1].id : undefined;
-    const baseDependsOn = options.dependsOn || (previousStep ? [previousStep] : []);
-
-    const thenStepId = `${name}_then_${thenFunc}`;
-    this.steps.push({
-      id: thenStepId,
-      name: thenFunc,
-      type: 'task',
-      target: thenFunc,
-      condition,
-      dependsOn: baseDependsOn,
-    });
-
-    let joinDeps = [thenStepId];
-    if (elseFunc) {
-      const elseStepId = `${name}_else_${elseFunc}`;
-      this.steps.push({
-        id: elseStepId,
-        name: elseFunc,
-        type: 'task',
-        target: elseFunc,
-        condition: async (ctx) => !(await condition(ctx)),
-        dependsOn: baseDependsOn,
-      });
-      joinDeps.push(elseStepId);
-    }
-
-    const joinId = `${name}_join`;
-    this.steps.push({
-      id: joinId,
-      name: `${name} Join`,
-      type: 'fanIn',
-      dependsOn: joinDeps,
-    });
-
+    addBranchFunctionalitySteps(this.steps, name, condition, thenFunc, elseFunc, options.dependsOn, (target) => this.assertServiceBoundary(target));
     return this;
   }
 
-  /**
-   * Adds fan-out step processing items through a functionality.
-   */
   fanOut(
     name: string,
     funcName: string,
     getItems: (ctx: OrchestrationContext) => unknown[] | Promise<unknown[]>,
     options: { dependsOn?: string[]; concurrency?: number } = {}
   ): this {
-    this.assertServiceBoundary(funcName);
-    const previousStep = this.steps.length > 0 ? this.steps[this.steps.length - 1].id : undefined;
-    const dependsOn = options.dependsOn || (previousStep ? [previousStep] : []);
-
-    this.steps.push({
-      id: name,
-      name,
-      type: 'fanOut',
-      target: funcName,
-      getItems,
-      concurrency: options.concurrency ?? 5,
-      dependsOn,
-    });
+    addFanOutFunctionalityStep(this.steps, name, funcName, getItems, options, (target) => this.assertServiceBoundary(target));
     return this;
   }
 
-  /**
-   * Nested orchestration: Invokes a child FunctionalityOrchestration within the same service boundary.
-   */
-  thenFunctionalityOrchestration(
-    childOrchId: string,
-    options: FunctionalityStepOptions = {}
-  ): this {
-    if (!childOrchId || typeof childOrchId !== 'string') {
-      throw new Error('[FunctionalityOrchestration] Child orchestration id must be a non-empty string.');
-    }
-    const stepId = options.id || `nested_${childOrchId}_${this.steps.length + 1}`;
-    const previousStep = this.steps.length > 0 ? this.steps[this.steps.length - 1].id : undefined;
-    const dependsOn = options.dependsOn || (previousStep ? [previousStep] : []);
-
-    this.steps.push({
-      id: stepId,
-      name: childOrchId,
-      type: 'nested',
-      nestedOrchestrationId: childOrchId,
-      dependsOn,
-      retryPolicy: options.retry,
-      timeoutPolicy: options.timeoutMs ? { timeoutMs: options.timeoutMs } : undefined,
-    });
-    return this;
-  }
-
-  getSteps(): readonly OrchestrationStep[] {
-    return Object.freeze([...this.steps]);
-  }
-
-  /**
-   * Converts this FunctionalityOrchestration to a pure serializable OrchestrationDefinition.
-   */
   toDefinition(): import('./canonical/model.js').OrchestrationDefinition {
-    return {
+    return createFunctionalityOrchestrationDefinition({
       id: this.id,
       name: this.name,
       version: this.version,
       description: this.description,
       timeoutMs: this.timeoutMs,
-      scope: 'functionality',
       bubbleEvents: this.bubbleEvents,
-      dependencies: [],
-      steps: this.steps.map((s) => ({
-        id: s.id,
-        name: s.name,
-        type: s.type,
-        target: s.target,
-        dependsOn: s.dependsOn ? [...s.dependsOn] : undefined,
-        retryPolicy: s.retryPolicy ? { ...s.retryPolicy } : undefined,
-        timeoutPolicy: s.timeoutPolicy ? { ...s.timeoutPolicy } : undefined,
-        compensationTarget: s.compensation?.target ?? s.compensation?.name,
-        compensationOperation: s.compensation?.operation ?? s.compensation?.name,
-        nestedOrchestrationId: s.nestedOrchestrationId,
-        concurrency: s.concurrency,
-      })),
-    };
+    }, this.steps);
   }
 
-  /**
-   * Named flow builder interface.
-   */
   flow(name: string): FunctionalityFlow {
-    if (!name || typeof name !== 'string' || name.trim() === '') {
-      throw new Error('[FunctionalityOrchestration] Flow name must be a non-empty string.');
-    }
-
-    const steps: FunctionalityFlowStep[] = [];
-    const self = this;
-
-    const flowInstance: FunctionalityFlow = {
-      name,
-      steps,
-      visibility: 'internal',
-      thenFunctionality(funcName: any, options?: { retry?: StepRetryPolicy; timeoutMs?: number; dependsOn?: string[] }): FunctionalityFlow {
-        if (!funcName) {
-          throw new Error('[FunctionalityFlow] Functionality name must be a non-empty string.');
-        }
-        if (typeof funcName !== 'string') {
-          if (
-            typeof funcName === 'object' &&
-            ('call' in funcName || 'getStatus' in funcName || 'definition' in funcName || 'instance' in funcName || 'id' in funcName)
-          ) {
-            throw new Error(
-              '[FunctionalityOrchestration] Invariant Violation: FunctionalityOrchestration only composes functionalities within the service, not independent services.'
-            );
-          }
-          throw new Error('[FunctionalityFlow] Functionality name must be a non-empty string.');
-        }
-        self.assertServiceBoundary(funcName);
-        const stepId = `${name}_${funcName}_${steps.length + 1}`;
-        steps.push({
-          id: stepId,
-          type: 'functionality',
-          target: funcName,
-          dependsOn: options?.dependsOn,
-          retryPolicy: options?.retry,
-          timeoutPolicy: options?.timeoutMs ? { timeoutMs: options?.timeoutMs } : undefined,
-        });
-        self.thenFunctionality(funcName, {
-          id: stepId,
-          retry: options?.retry,
-          timeoutMs: options?.timeoutMs,
-          dependsOn: options?.dependsOn,
-        });
-        return flowInstance;
-      },
-      thenFunctionalityOrchestration(childName: string, flowName?: string): FunctionalityFlow {
-        if (!childName || typeof childName !== 'string') {
-          throw new Error('[FunctionalityFlow] Orchestration name must be a non-empty string.');
-        }
-        const stepId = `${name}_orch_${childName}_${steps.length + 1}`;
-        steps.push({
-          id: stepId,
-          type: 'functionalityOrchestration',
-          target: childName,
-          flow: flowName,
-        });
-        self.thenFunctionalityOrchestration(childName, { id: stepId });
-        return flowInstance;
-      },
-      register(options?: { visibility?: 'public' | 'private' | 'internal' }): FunctionalityFlow {
-        if (options?.visibility) flowInstance.visibility = options.visibility;
-        return flowInstance;
-      },
-    };
-
-    this.flows.set(name, flowInstance);
-    return flowInstance;
+    return createFunctionalityFlow(name, {
+      assertServiceBoundary: (target) => this.assertServiceBoundary(target),
+      thenFunctionality: (funcName, options) => this.thenFunctionality(funcName, options),
+      thenFunctionalityOrchestration: (childName, options) => this.thenFunctionalityOrchestration(childName, options),
+      register: (flow) => this.flows.set(name, flow),
+    });
   }
 
   getFlow(name: string): FunctionalityFlow | undefined {
@@ -390,17 +165,7 @@ export class FunctionalityOrchestration {
   }
 
   private assertServiceBoundary(target: string): void {
-    // Law L1: FunctionalityOrchestration MUST NOT orchestrate independent services.
-    if (
-      target.endsWith('ServiceFacade') ||
-      target.startsWith('service.') ||
-      target.includes('Service.') ||
-      (target.endsWith('Service') && !target.includes('Functionality') && !target.includes('Atom')) ||
-      (target.startsWith('Service') && !target.includes('Functionality') && !target.includes('Atom'))
-    ) {
-      throw new Error(
-        `[FunctionalityOrchestration] Plane Isolation Invariant Violation: Invariant Violation: FunctionalityOrchestration only composes functionalities within the service, not independent services. External Service composition is forbidden. Target "${target}" is not an internal functionality.`
-      );
-    }
+    assertFunctionalityServiceBoundary(target);
   }
+
 }
