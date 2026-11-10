@@ -36,8 +36,8 @@ module.exports = __toCommonJS(index_exports);
 
 // src/KrnlValidatorEngine.ts
 var fs2 = __toESM(require("fs"), 1);
-var path3 = __toESM(require("path"), 1);
-var import_ts_morph5 = require("ts-morph");
+var path4 = __toESM(require("path"), 1);
+var import_ts_morph6 = require("ts-morph");
 
 // src/rules/fileLimits.ts
 function checkFileLimits(sf, options) {
@@ -312,6 +312,9 @@ function checkOrchestrationRules(sf) {
 
 // src/rules/workspaceRules.ts
 var fs = __toESM(require("fs"), 1);
+var path3 = __toESM(require("path"), 1);
+
+// src/rules/topLevelPurityRules.ts
 var path2 = __toESM(require("path"), 1);
 var import_ts_morph3 = require("ts-morph");
 function checkTopLevelPurity(sf) {
@@ -377,25 +380,27 @@ function checkTopLevelPurity(sf) {
   }
   return { errors, warnings };
 }
+
+// src/rules/workspaceRules.ts
 function checkWorkspaceLayout(projectRoot, errors) {
-  const krnlDir = path2.join(projectRoot, "krnl");
-  const srcDir = path2.join(projectRoot, "src");
+  const krnlDir = path3.join(projectRoot, "krnl");
+  const srcDir = path3.join(projectRoot, "src");
   const targetDir = fs.existsSync(krnlDir) ? krnlDir : fs.existsSync(srcDir) ? srcDir : null;
   if (!targetDir) return;
-  const backendDir = path2.join(targetDir, "backend");
-  const frontendDir = path2.join(targetDir, "frontend");
+  const backendDir = path3.join(targetDir, "backend");
+  const frontendDir = path3.join(targetDir, "frontend");
   if (fs.existsSync(backendDir)) {
-    const bServices = path2.join(backendDir, "services");
+    const bServices = path3.join(backendDir, "services");
     if (fs.existsSync(bServices)) {
       for (const sEntry of fs.readdirSync(bServices, { withFileTypes: true })) {
         if (!sEntry.isDirectory()) continue;
-        const sDir = path2.join(bServices, sEntry.name);
-        const sLibs = path2.join(sDir, "libraries");
+        const sDir = path3.join(bServices, sEntry.name);
+        const sLibs = path3.join(sDir, "libraries");
         if (fs.existsSync(sLibs)) {
           for (const entry of fs.readdirSync(sLibs, { withFileTypes: true })) {
             if (!entry.isDirectory()) continue;
-            const libPath = path2.join(sLibs, entry.name);
-            if (!fs.existsSync(path2.join(libPath, "manifest.json"))) {
+            const libPath = path3.join(sLibs, entry.name);
+            if (!fs.existsSync(path3.join(libPath, "manifest.json"))) {
               errors.push({
                 ruleId: "krnl/concept-manifest-required",
                 filePath: libPath,
@@ -405,12 +410,12 @@ function checkWorkspaceLayout(projectRoot, errors) {
             }
           }
         }
-        const sFuncs = path2.join(sDir, "functionalities");
+        const sFuncs = path3.join(sDir, "functionalities");
         if (fs.existsSync(sFuncs)) {
           for (const entry of fs.readdirSync(sFuncs, { withFileTypes: true })) {
             if (!entry.isDirectory()) continue;
-            const funcPath = path2.join(sFuncs, entry.name);
-            if (!fs.existsSync(path2.join(funcPath, "manifest.json"))) {
+            const funcPath = path3.join(sFuncs, entry.name);
+            if (!fs.existsSync(path3.join(funcPath, "manifest.json"))) {
               errors.push({
                 ruleId: "krnl/functionality-manifest-required",
                 filePath: funcPath,
@@ -422,12 +427,12 @@ function checkWorkspaceLayout(projectRoot, errors) {
         }
       }
     }
-    const bLibs = path2.join(backendDir, "libraries");
+    const bLibs = path3.join(backendDir, "libraries");
     if (fs.existsSync(bLibs)) {
       for (const entry of fs.readdirSync(bLibs, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        const libPath = path2.join(bLibs, entry.name);
-        if (!fs.existsSync(path2.join(libPath, "manifest.json"))) {
+        const libPath = path3.join(bLibs, entry.name);
+        if (!fs.existsSync(path3.join(libPath, "manifest.json"))) {
           errors.push({
             ruleId: "krnl/concept-manifest-required",
             filePath: libPath,
@@ -437,12 +442,12 @@ function checkWorkspaceLayout(projectRoot, errors) {
         }
       }
     }
-    const bFuncs = path2.join(backendDir, "functionalities");
+    const bFuncs = path3.join(backendDir, "functionalities");
     if (fs.existsSync(bFuncs)) {
       for (const entry of fs.readdirSync(bFuncs, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        const funcPath = path2.join(bFuncs, entry.name);
-        if (!fs.existsSync(path2.join(funcPath, "manifest.json"))) {
+        const funcPath = path3.join(bFuncs, entry.name);
+        if (!fs.existsSync(path3.join(funcPath, "manifest.json"))) {
           errors.push({
             ruleId: "krnl/functionality-manifest-required",
             filePath: funcPath,
@@ -454,12 +459,12 @@ function checkWorkspaceLayout(projectRoot, errors) {
     }
   }
   if (fs.existsSync(frontendDir)) {
-    const fLibs = path2.join(frontendDir, "libraries");
+    const fLibs = path3.join(frontendDir, "libraries");
     if (fs.existsSync(fLibs)) {
       for (const entry of fs.readdirSync(fLibs, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        const libPath = path2.join(fLibs, entry.name);
-        if (!fs.existsSync(path2.join(libPath, "manifest.json"))) {
+        const libPath = path3.join(fLibs, entry.name);
+        if (!fs.existsSync(path3.join(libPath, "manifest.json"))) {
           errors.push({
             ruleId: "krnl/frontend-concept-manifest-required",
             filePath: libPath,
@@ -469,12 +474,12 @@ function checkWorkspaceLayout(projectRoot, errors) {
         }
       }
     }
-    const fFuncs = path2.join(frontendDir, "functionalities");
+    const fFuncs = path3.join(frontendDir, "functionalities");
     if (fs.existsSync(fFuncs)) {
       for (const entry of fs.readdirSync(fFuncs, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
-        const funcPath = path2.join(fFuncs, entry.name);
-        if (!fs.existsSync(path2.join(funcPath, "manifest.json"))) {
+        const funcPath = path3.join(fFuncs, entry.name);
+        if (!fs.existsSync(path3.join(funcPath, "manifest.json"))) {
           errors.push({
             ruleId: "krnl/frontend-functionality-manifest-required",
             filePath: funcPath,
@@ -518,6 +523,9 @@ function checkServiceBoundaries(sf) {
 }
 
 // src/rules/scopedLibraryRules.ts
+var import_ts_morph5 = require("ts-morph");
+
+// src/rules/scopedLibraryTypeHelpers.ts
 var import_ts_morph4 = require("ts-morph");
 var PRIMITIVE_AND_BUILTIN_TYPES = /* @__PURE__ */ new Set([
   "string",
@@ -570,14 +578,6 @@ var PRIMITIVE_AND_BUILTIN_TYPES = /* @__PURE__ */ new Set([
   "ReturnType",
   "InstanceType"
 ]);
-function detectServiceContext(filePath) {
-  const normalized = filePath.replace(/\\/g, "/");
-  const match = normalized.match(/(?:^|\/)services\/([^/]+)\/libraries\/([^/]+)/);
-  if (match) {
-    return { serviceName: match[1], libraryName: match[2] };
-  }
-  return null;
-}
 function containsIdentifier(name, target) {
   return name.toLowerCase().includes(target.toLowerCase());
 }
@@ -597,6 +597,16 @@ function hasContextualTypeReference(node, serviceName, localTypes) {
     }
   }
   return false;
+}
+
+// src/rules/scopedLibraryRules.ts
+function detectServiceContext(filePath) {
+  const normalized = filePath.replace(/\\/g, "/");
+  const match = normalized.match(/(?:^|\/)services\/([^/]+)\/libraries\/([^/]+)/);
+  if (match) {
+    return { serviceName: match[1], libraryName: match[2] };
+  }
+  return null;
 }
 function checkScopedLibraryRules(sf) {
   const errors = [];
@@ -647,7 +657,7 @@ function checkScopedLibraryRules(sf) {
     for (const decl of stmt.getDeclarations()) {
       const varName = decl.getName();
       const init = decl.getInitializer();
-      const isFunction = init && (init.getKind() === import_ts_morph4.SyntaxKind.ArrowFunction || init.getKind() === import_ts_morph4.SyntaxKind.FunctionExpression);
+      const isFunction = init && (init.getKind() === import_ts_morph5.SyntaxKind.ArrowFunction || init.getKind() === import_ts_morph5.SyntaxKind.FunctionExpression);
       if (isFunction) {
         const isContextual = hasContextualTypeReference(decl, serviceName, localTypes);
         const hasServiceName = containsIdentifier(varName, serviceName);
@@ -738,17 +748,17 @@ var KrnlValidatorEngine = class {
   limitOptions;
   constructor(optionsOrRoot) {
     const options = typeof optionsOrRoot === "string" ? { projectRoot: optionsOrRoot } : optionsOrRoot;
-    this.projectRoot = path3.resolve(options.projectRoot || process.cwd());
+    this.projectRoot = path4.resolve(options.projectRoot || process.cwd());
     this.limitOptions = {
       maxFileLineLimit: options.maxFileLineLimit ?? 200,
       maxMainLogicLimit: options.maxMainLogicLimit ?? 20,
       maxHelperLineLimit: options.maxHelperLineLimit ?? 30
     };
-    const tsConfigPath = path3.join(this.projectRoot, "tsconfig.json");
+    const tsConfigPath = path4.join(this.projectRoot, "tsconfig.json");
     if (fs2.existsSync(tsConfigPath)) {
-      this.project = new import_ts_morph5.Project({ tsConfigFilePath: tsConfigPath, skipAddingFilesFromTsConfig: true });
+      this.project = new import_ts_morph6.Project({ tsConfigFilePath: tsConfigPath, skipAddingFilesFromTsConfig: true });
     } else {
-      this.project = new import_ts_morph5.Project({ compilerOptions: {
+      this.project = new import_ts_morph6.Project({ compilerOptions: {
         target: 99
         /* ESNext */
       } });
@@ -779,7 +789,7 @@ var KrnlValidatorEngine = class {
   }
   validateSourceFile(sf) {
     const filePath = sf.getFilePath();
-    const baseName = path3.basename(filePath);
+    const baseName = path4.basename(filePath);
     if (baseName.includes("_pb.") || baseName.endsWith(".d.ts")) {
       return { errors: [], warnings: [], promotableAssets: [] };
     }
@@ -814,7 +824,7 @@ var KrnlValidatorEngine = class {
     const entries = fs2.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.name === "node_modules" || entry.name === "dist" || entry.name === ".git") continue;
-      const full = path3.join(dir, entry.name);
+      const full = path4.join(dir, entry.name);
       if (entry.isDirectory()) {
         this.collectSourceFiles(full, collected);
       } else if (entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".js") || entry.name.endsWith(".tsx") || entry.name.endsWith(".jsx"))) {

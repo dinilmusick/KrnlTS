@@ -6,7 +6,7 @@ import {
   runDev,
   runGenerate,
   runValidate
-} from "../chunk-OOVZPIMX.js";
+} from "../chunk-FKQ5QRQF.js";
 
 // src/bin/krnl.ts
 import * as path from "path";

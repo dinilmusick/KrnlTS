@@ -214,11 +214,6 @@ declare function telemetryNow(): number;
 declare function sampleResources(): TelemetryResourceSample;
 declare function deltaResources(start: TelemetryResourceSample, end: TelemetryResourceSample): TelemetryResourceSample;
 
-/**
- * @file TelemetryController.ts
- * @description Per-service telemetry recorder and public control surface.
- */
-
 type ActiveInvocation = {
     invocationId: string;
     traceId: string;
@@ -231,6 +226,12 @@ type ActiveInvocation = {
     startedAt: number;
     resourcesStart?: ReturnType<typeof sampleResources>;
 };
+
+/**
+ * @file TelemetryController.ts
+ * @description Per-service telemetry recorder and public control surface.
+ */
+
 declare class TelemetryController {
     private readonly serviceId;
     private mode;
@@ -615,21 +616,12 @@ interface OrchestrationResult<T = unknown> {
     readonly completedAt: number;
     readonly executionMetadata: Record<string, unknown>;
 }
+
 interface DAGValidationResult {
     readonly valid: boolean;
     readonly order: readonly string[];
     readonly errors: readonly string[];
 }
-/**
- * Validates DAG structure & semantic policies:
- * - Duplicate step IDs
- * - Missing dependencies
- * - Cycles / circular dependencies (topological sort via Kahn's algorithm)
- * - Negative or invalid timeouts
- * - Invalid retry policies (attempts < 1, negative backoff)
- * - Empty step targets
- * - Concurrency bounds
- */
 declare function validateOrchestrationDAG(steps: readonly OrchestrationStep[]): DAGValidationResult;
 
 /**
