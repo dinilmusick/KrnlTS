@@ -45,7 +45,6 @@ export class FunctionalityOrchestration {
   public readonly bubbleEvents: boolean;
   public readonly events: OrchestrationEventFacade;
 
-
   private readonly steps: OrchestrationStep[] = [];
   private readonly flows: Map<string, FunctionalityFlow> = new Map();
 
@@ -61,7 +60,6 @@ export class FunctionalityOrchestration {
     this.bubbleEvents = descriptor.bubbleEvents ?? true;
     this.events = new OrchestrationEventFacade();
   }
-
   /**
    * Adds a sequential functionality step to the DAG.
    */
