@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { TelemetryInvocation } from './TelemetryTypes.js';
-import { sampleResources } from './TelemetryResources.js';
+import type { sampleResources } from './TelemetryResources.js';
 
 type ActiveInvocation = {
   invocationId: string;
