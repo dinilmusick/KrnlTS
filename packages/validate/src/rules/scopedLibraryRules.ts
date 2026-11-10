@@ -1,14 +1,7 @@
 import * as path from 'path';
-import { SourceFile, SyntaxKind, FunctionDeclaration, VariableDeclaration, ClassDeclaration, InterfaceDeclaration, TypeAliasDeclaration, EnumDeclaration, Node } from 'ts-morph';
+import { SourceFile, SyntaxKind } from 'ts-morph';
 import { ValidationError, PromotableAsset } from '../types.js';
-
-const PRIMITIVE_AND_BUILTIN_TYPES = new Set([
-  'string', 'number', 'boolean', 'symbol', 'bigint', 'void', 'undefined', 'null', 'never', 'unknown', 'any', 'object',
-  'Record', 'Array', 'ReadonlyArray', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Promise', 'Date', 'RegExp', 'Error',
-  'Uint8Array', 'Int8Array', 'Uint16Array', 'Int16Array', 'Uint32Array', 'Int32Array', 'Float32Array', 'Float64Array',
-  'ArrayBuffer', 'Buffer', 'Iterable', 'AsyncIterable', 'Iterator', 'AsyncIterator', 'Partial', 'Required', 'Readonly',
-  'Pick', 'Omit', 'Exclude', 'Extract', 'NonNullable', 'Parameters', 'ConstructorParameters', 'ReturnType', 'InstanceType'
-]);
+import { containsIdentifier, hasContextualTypeReference } from './scopedLibraryTypeHelpers.js';
 
 export interface ScopedLibraryRuleResult {
   errors: ValidationError[];
