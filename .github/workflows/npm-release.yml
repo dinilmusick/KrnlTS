@@ -77,14 +77,13 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Refresh lockfile after upstream dependency changes
+        if: github.event_name == 'schedule' && steps.updates.outputs.changed == 'true'
+        run: pnpm install --lockfile-only --no-frozen-lockfile
+
       - name: Install dependencies
         if: github.event_name != 'schedule' || steps.updates.outputs.changed == 'true'
-        run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            pnpm install --no-frozen-lockfile
-          else
-            pnpm install --frozen-lockfile
-          fi
+        run: pnpm install --frozen-lockfile
 
       - name: Build
         if: github.event_name != 'schedule' || steps.updates.outputs.changed == 'true'
