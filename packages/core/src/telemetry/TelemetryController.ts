@@ -17,6 +17,7 @@ import type {
   TelemetryOptions,
   TelemetrySnapshot,
   TelemetryStatus,
+  TelemetryTargetStats,
 } from './TelemetryTypes.js';
 
 
@@ -85,7 +86,7 @@ export class TelemetryController {
 
     const invocationId = createTelemetryId('inv');
     const spanId = createTelemetryId('span');
-    const traceId = parentSpanId ? this.findTraceId(parentSpanId) ?? createTelemetryId('trace') : id('trace');
+    const traceId = parentSpanId ? this.findTraceId(parentSpanId) ?? createTelemetryId('trace') : createTelemetryId('trace');
     const active: ActiveInvocation = {
       invocationId,
       traceId,
