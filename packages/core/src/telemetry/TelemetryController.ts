@@ -4,6 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { buildTelemetrySnapshot } from './TelemetrySnapshotBuilder.js';
 import {
   deltaResources,
   sampleResources,
@@ -14,10 +15,8 @@ import type {
   TelemetryInvocation,
   TelemetryMode,
   TelemetryOptions,
-  TelemetryPercentiles,
   TelemetrySnapshot,
   TelemetryStatus,
-  TelemetryTargetStats,
 } from './TelemetryTypes.js';
 
 type ActiveInvocation = {
@@ -34,21 +33,6 @@ type ActiveInvocation = {
 };
 
 const id = (prefix: string) => `${prefix}_${randomUUID()}`;
-
-function percentiles(values: readonly number[]): TelemetryPercentiles {
-  if (!values.length) return { min: 0, mean: 0, p50: 0, p90: 0, p95: 0, p99: 0, max: 0 };
-  const sorted = [...values].sort((a, b) => a - b);
-  const pick = (p: number) => sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * p))];
-  return {
-    min: sorted[0],
-    mean: sorted.reduce((sum, value) => sum + value, 0) / sorted.length,
-    p50: pick(0.5),
-    p90: pick(0.9),
-    p95: pick(0.95),
-    p99: pick(0.99),
-    max: sorted[sorted.length - 1],
-  };
-}
 
 export class TelemetryController {
   private mode: TelemetryMode;
@@ -149,42 +133,17 @@ export class TelemetryController {
   }
 
   snapshot(): TelemetrySnapshot {
-    const invocations = this.samples.slice();
-    const durations = invocations.map((item) => item.durationMs);
-    const targetMap = new Map<string, TelemetryInvocation[]>();
-
-    for (const invocation of invocations) {
-      const key = `${invocation.kind}:${invocation.target}`;
-      const group = targetMap.get(key) ?? [];
-      group.push(invocation);
-      targetMap.set(key, group);
-    }
-
-    const targets: TelemetryTargetStats[] = [...targetMap.values()].map((group) => ({
-      target: group[0].target,
-      kind: group[0].kind,
-      count: group.length,
-      successCount: group.filter((item) => item.status === 'completed').length,
-      errorCount: group.filter((item) => item.status === 'failed').length,
-      durationMs: percentiles(group.map((item) => item.durationMs)),
-      lastInvocationAt: group[group.length - 1]?.completedAt,
-    }));
-
-    return {
+    return buildTelemetrySnapshot({
       serviceId: this.serviceId,
       mode: this.mode,
-      capturedAt: Date.now(),
+      invocations: this.samples,
       status: this.status(),
-      totals: {
-        invocationCount: this.totalInvocationCount,
-        successCount: this.totalSuccessCount,
-        errorCount: this.totalErrorCount,
-        durationMs: percentiles(durations),
-      },
-      targets,
+      totalInvocationCount: this.totalInvocationCount,
+      totalSuccessCount: this.totalSuccessCount,
+      totalErrorCount: this.totalErrorCount,
       activeInvocations: this.active.size,
-      recentInvocations: invocations.slice(-this.maxRecentInvocations),
-    };
+      maxRecentInvocations: this.maxRecentInvocations,
+    });
   }
 
   functionality(name: string): TelemetryTargetStats | undefined {
