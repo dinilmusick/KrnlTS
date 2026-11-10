@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { TelemetryInvocation } from './TelemetryTypes.js';
 import type { sampleResources } from './TelemetryResources.js';
 
-type ActiveInvocation = {
+export type ActiveInvocation = {
   invocationId: string;
   traceId: string;
   spanId: string;
