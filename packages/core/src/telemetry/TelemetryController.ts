@@ -3,7 +3,7 @@
  * @description Per-service telemetry recorder and public control surface.
  */
 
-import { randomUUID } from 'node:crypto';
+import { ActiveInvocation, createTelemetryId } from './TelemetryInternals.js';
 import { buildTelemetrySnapshot } from './TelemetrySnapshotBuilder.js';
 import {
   deltaResources,
@@ -19,20 +19,7 @@ import type {
   TelemetryStatus,
 } from './TelemetryTypes.js';
 
-type ActiveInvocation = {
-  invocationId: string;
-  traceId: string;
-  spanId: string;
-  parentSpanId?: string;
-  serviceId: string;
-  target: string;
-  kind: TelemetryInvocation['kind'];
-  correlationId?: string;
-  startedAt: number;
-  resourcesStart?: ReturnType<typeof sampleResources>;
-};
 
-const id = (prefix: string) => `${prefix}_${randomUUID()}`;
 
 export class TelemetryController {
   private mode: TelemetryMode;
@@ -96,9 +83,9 @@ export class TelemetryController {
       };
     }
 
-    const invocationId = id('inv');
-    const spanId = id('span');
-    const traceId = parentSpanId ? this.findTraceId(parentSpanId) ?? id('trace') : id('trace');
+    const invocationId = createTelemetryId('inv');
+    const spanId = createTelemetryId('span');
+    const traceId = parentSpanId ? this.findTraceId(parentSpanId) ?? createTelemetryId('trace') : id('trace');
     const active: ActiveInvocation = {
       invocationId,
       traceId,
