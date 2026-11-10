@@ -8,4 +8,26 @@ const PRIMITIVE_AND_BUILTIN_TYPES = new Set([
   'Pick', 'Omit', 'Exclude', 'Extract', 'NonNullable', 'Parameters', 'ConstructorParameters', 'ReturnType', 'InstanceType'
 ]);
 
+export function containsIdentifier(name: string, target: string): boolean {
+  return name.toLowerCase().includes(target.toLowerCase());
+}
 
+export function isCustomContextualType(typeName: string, serviceName: string, localTypes: Set<string>): boolean {
+  if (PRIMITIVE_AND_BUILTIN_TYPES.has(typeName)) return false;
+  if (localTypes.has(typeName)) return true;
+  if (containsIdentifier(typeName, serviceName)) return true;
+  // If not a recognized primitive/standard utility and not a single letter generic parameter (T, U, K, V)
+  if (/^[A-Z][a-zA-Z0-9]+$/.test(typeName)) return true;
+  return false;
+}
+
+export function hasContextualTypeReference(node: Node, serviceName: string, localTypes: Set<string>): boolean {
+  const typeRefs = node.getDescendantsOfKind(SyntaxKind.TypeReference);
+  for (const ref of typeRefs) {
+    const text = ref.getTypeName().getText().trim();
+    if (isCustomContextualType(text, serviceName, localTypes)) {
+      return true;
+    }
+  }
+  return false;
+}
