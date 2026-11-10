@@ -3,7 +3,7 @@
  * @description Per-service telemetry recorder and public control surface.
  */
 
-import { ActiveInvocation, createTelemetryId } from './TelemetryInternals.js';
+import { createTelemetryId, type ActiveInvocation } from './TelemetryInternals.js';
 import { buildTelemetrySnapshot } from './TelemetrySnapshotBuilder.js';
 import {
   deltaResources,
