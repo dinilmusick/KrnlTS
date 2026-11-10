@@ -41,7 +41,7 @@
   "scripts": {
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
-    "validate": "node packages/cli/dist/bin/krnl.js validate",
+    "validate": "node packages/cli/dist/bin/krnl.js validate fixtures/validator-clean-room",
     "dev": "node packages/cli/dist/bin/krnl.js dev",
     "watch": "node packages/cli/dist/bin/krnl.js watch",
     "typecheck": "pnpm -r run typecheck",
