@@ -1,4 +1,4 @@
-import type { StepRetryPolicy } from './canonical/model.js';
+import type { StepRetryPolicy, StepTimeoutPolicy } from './canonical/model.js';
 
 export interface FunctionalityFlowStep {
   readonly id: string;
