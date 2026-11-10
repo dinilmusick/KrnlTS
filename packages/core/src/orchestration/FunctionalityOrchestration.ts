@@ -131,6 +131,36 @@ export class FunctionalityOrchestration {
     return this;
   }
 
+  /**
+   * Adds a nested orchestration step within the same service boundary.
+   */
+  thenFunctionalityOrchestration(
+    childOrchId: string,
+    options: FunctionalityStepOptions = {}
+  ): this {
+    if (!childOrchId || typeof childOrchId !== 'string') {
+      throw new Error('[FunctionalityOrchestration] Child orchestration id must be a non-empty string.');
+    }
+    const stepId = options.id || `nested_${childOrchId}_${this.steps.length + 1}`;
+    const previousStep = this.steps.length > 0 ? this.steps[this.steps.length - 1].id : undefined;
+    const dependsOn = options.dependsOn || (previousStep ? [previousStep] : []);
+
+    this.steps.push({
+      id: stepId,
+      name: childOrchId,
+      type: 'nested',
+      nestedOrchestrationId: childOrchId,
+      dependsOn,
+      retryPolicy: options.retry,
+      timeoutPolicy: options.timeoutMs ? { timeoutMs: options.timeoutMs } : undefined,
+    });
+    return this;
+  }
+
+  getSteps(): readonly OrchestrationStep[] {
+    return Object.freeze([...this.steps]);
+  }
+
   toDefinition(): import('./canonical/model.js').OrchestrationDefinition {
     return createFunctionalityOrchestrationDefinition({
       id: this.id,
