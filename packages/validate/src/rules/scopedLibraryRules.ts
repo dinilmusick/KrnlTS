@@ -18,30 +18,6 @@ export function detectServiceContext(filePath: string): { serviceName: string; l
   return null;
 }
 
-function containsIdentifier(name: string, target: string): boolean {
-  return name.toLowerCase().includes(target.toLowerCase());
-}
-
-function isCustomContextualType(typeName: string, serviceName: string, localTypes: Set<string>): boolean {
-  if (PRIMITIVE_AND_BUILTIN_TYPES.has(typeName)) return false;
-  if (localTypes.has(typeName)) return true;
-  if (containsIdentifier(typeName, serviceName)) return true;
-  // If not a recognized primitive/standard utility and not a single letter generic parameter (T, U, K, V)
-  if (/^[A-Z][a-zA-Z0-9]+$/.test(typeName)) return true;
-  return false;
-}
-
-function hasContextualTypeReference(node: Node, serviceName: string, localTypes: Set<string>): boolean {
-  const typeRefs = node.getDescendantsOfKind(SyntaxKind.TypeReference);
-  for (const ref of typeRefs) {
-    const text = ref.getTypeName().getText().trim();
-    if (isCustomContextualType(text, serviceName, localTypes)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 export function checkScopedLibraryRules(sf: SourceFile): ScopedLibraryRuleResult {
   const errors: ValidationError[] = [];
   const warnings: ValidationError[] = [];
