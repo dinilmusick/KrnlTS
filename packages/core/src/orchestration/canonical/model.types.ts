@@ -186,11 +186,6 @@ export interface OrchestrationResult<T = unknown> {
   readonly executionMetadata: Record<string, unknown>;
 }
 
-export interface DAGValidationResult {
-  readonly valid: boolean;
-  readonly order: readonly string[];
-  readonly errors: readonly string[];
-}
 
 /**
  * Validates DAG structure & semantic policies:
