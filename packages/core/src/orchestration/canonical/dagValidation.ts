@@ -1,4 +1,11 @@
-import type { OrchestrationStep, DAGValidationResult } from './model.types.js';
+import type { OrchestrationStep } from './model.types.js';
+
+export interface DAGValidationResult {
+  readonly valid: boolean;
+  readonly order: readonly string[];
+  readonly errors: readonly string[];
+}
+
 
 export function validateOrchestrationDAG(steps: readonly OrchestrationStep[]): DAGValidationResult {
   const errors: string[] = [];
