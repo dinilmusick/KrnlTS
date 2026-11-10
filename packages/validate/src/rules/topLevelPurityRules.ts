@@ -2,9 +2,6 @@ import * as path from 'path';
 import { SourceFile, SyntaxKind } from 'ts-morph';
 import { ValidationError } from '../types.js';
 
-import { SourceFile, SyntaxKind } from 'ts-morph';
-import { ValidationError } from '../types.js';
-
 export function checkTopLevelPurity(
   sf: SourceFile
 ): { errors: ValidationError[]; warnings: ValidationError[] } {
