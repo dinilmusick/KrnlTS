@@ -6,11 +6,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = process.cwd();
 const entry = path.join(root, 'packages/core/dist/index.js');
-assert.ok(fs.existsSync(entry), \`Portable kernel build is missing: \${entry}\`);
+assert.ok(fs.existsSync(entry), 'Portable kernel build is missing: ' + entry);
 
 const builtins = new Set([
   ...builtinModules,
-  ...builtinModules.map((name) => \`node:\${name}\`),
+  ...builtinModules.map((name) => 'node:' + name),
 ]);
 const nodeOnlyPackages = new Set([
   'ws',
@@ -39,7 +39,7 @@ while (pending.length) {
     const specifier = match[1];
     const builtinName = specifier.startsWith('node:') ? specifier.slice(5) : specifier;
     assert.ok(!builtins.has(specifier) && !builtins.has(builtinName),
-      \`Portable kernel closure imports Node builtin "\${specifier}" from \${path.relative(root, file)}\`);
+      'Portable kernel closure imports Node builtin "' + specifier + '" from ' + path.relative(root, file));
 
     if (specifier.startsWith('.') || specifier.startsWith('/')) {
       const target = path.resolve(path.dirname(file), specifier);
@@ -49,13 +49,13 @@ while (pending.length) {
 
     const name = packageName(specifier);
     assert.ok(!nodeOnlyPackages.has(name),
-      \`Portable kernel closure imports Node-only package "\${name}" from \${path.relative(root, file)}\`);
+      'Portable kernel closure imports Node-only package "' + name + '" from ' + path.relative(root, file));
 
     let resolved;
     try {
       resolved = import.meta.resolve(specifier, pathToFileURL(file).href);
     } catch (error) {
-      assert.fail(\`Unable to resolve portable dependency "\${specifier}" from \${file}: \${error.message}\`);
+      assert.fail('Unable to resolve portable dependency "' + specifier + '" from ' + file + ': ' + error.message);
     }
     if (resolved.startsWith('file:')) {
       const target = fileURLToPath(resolved);

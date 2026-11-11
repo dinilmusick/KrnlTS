@@ -29,6 +29,12 @@
       "import": "./packages/cli/dist/index.js",
       "require": "./packages/cli/dist/index.cjs",
       "default": "./packages/cli/dist/index.js"
+    },
+    "./node": {
+      "types": "./packages/core/dist/node.d.ts",
+      "import": "./packages/core/dist/node.js",
+      "require": "./packages/core/dist/node.cjs",
+      "default": "./packages/core/dist/node.js"
     }
   },
   "bin": {

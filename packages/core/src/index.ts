@@ -5,11 +5,12 @@
 
 export * from './services/index.js';
 export * from './functionalities/index.js';
-export * from './protocols/index.js';
+export * from './protocols/ProtocolAdapter.js';
+export * from './protocols/P2PProtocolAdapter.js';
 export * from './transports/index.js';
 export * from './runtime/index.js';
 export * from './registry/index.js';
-export * from './discovery/index.js';
+export * from './discovery/ServiceDiscovery.js';
 export * from './state/index.js';
 export * from './events/index.js';
 export * from './lifecycle/index.js';
