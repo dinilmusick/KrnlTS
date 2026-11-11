@@ -6,7 +6,7 @@
 import * as http from 'http';
 import * as path from 'path';
 import * as fs from 'fs';
-import { KrnlPackageReconciler } from '@ultrst-armada/krnl-core';
+import { KrnlPackageReconciler } from '@ultrst-armada/krnl-core/node';
 import { generateMagneticDeclarations } from './watch.js';
 
 export interface DevOptions {

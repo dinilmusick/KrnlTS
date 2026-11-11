@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
-import { KrnlPackageReconciler } from '@ultrst-armada/krnl-core';
+import { KrnlPackageReconciler } from '@ultrst-armada/krnl-core/node';
 import { runValidate } from './validate.js';
 import { generateMagneticDeclarations } from './watch.js';
 
