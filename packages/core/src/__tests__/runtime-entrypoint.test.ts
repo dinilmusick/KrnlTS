@@ -4,10 +4,10 @@ describe("KrnlTS runtime entrypoints", () => {
   it("keeps Node transports and filesystem tooling out of the default kernel entrypoint", async () => {
     const core = await import("../../dist/index.js");
     expect(core.P2PProtocolAdapter).toBeTypeOf("function");
-    expect(core.UdpProtocolAdapter).toBeUndefined();
-    expect(core.HttpProtocolAdapter).toBeUndefined();
-    expect(core.WebSocketProtocolAdapter).toBeUndefined();
-    expect(core.KrnlPackageReconciler).toBeUndefined();
+    expect("UdpProtocolAdapter" in core).toBe(false);
+    expect("HttpProtocolAdapter" in core).toBe(false);
+    expect("WebSocketProtocolAdapter" in core).toBe(false);
+    expect("KrnlPackageReconciler" in core).toBe(false);
   });
 
   it("exposes Node transports and filesystem tooling through the explicit Node entrypoint", async () => {
