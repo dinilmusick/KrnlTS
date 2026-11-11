@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { builtinModules } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = process.cwd();
 const entry = path.join(root, 'packages/core/dist/index.js');
@@ -29,6 +28,74 @@ function packageName(specifier) {
   return specifier.split('/')[0];
 }
 
+function selectImportTarget(value) {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    for (const candidate of value) {
+      const selected = selectImportTarget(candidate);
+      if (selected) return selected;
+    }
+    return null;
+  }
+  if (!value || typeof value !== 'object') return null;
+  for (const condition of ['import', 'node', 'default']) {
+    if (condition in value) {
+      const selected = selectImportTarget(value[condition]);
+      if (selected) return selected;
+    }
+  }
+  return null;
+}
+
+function resolvePackageImport(specifier, importer) {
+  const name = packageName(specifier);
+  const subpath = specifier.slice(name.length).replace(/^\//, '');
+  let directory = path.dirname(importer);
+
+  while (true) {
+    const packageDirectory = path.join(directory, 'node_modules', name);
+    const packageJsonPath = path.join(packageDirectory, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+      let target = null;
+      const exportsField = packageJson.exports;
+
+      if (exportsField !== undefined) {
+        if (typeof exportsField === 'string' || Array.isArray(exportsField)) {
+          if (!subpath) target = selectImportTarget(exportsField);
+        } else if (exportsField && typeof exportsField === 'object') {
+          const key = subpath ? './' + subpath : '.';
+          const entry = Object.prototype.hasOwnProperty.call(exportsField, key)
+            ? exportsField[key]
+            : (!subpath && !Object.keys(exportsField).some((item) => item.startsWith('.')) ? exportsField : null);
+          target = selectImportTarget(entry);
+        }
+      }
+
+      if (!target) {
+        target = subpath || packageJson.module || packageJson.main || 'index.js';
+      }
+      const resolved = path.resolve(packageDirectory, target);
+      const candidates = [
+        resolved,
+        resolved + '.js',
+        resolved + '.mjs',
+        resolved + '.cjs',
+        path.join(resolved, 'index.js'),
+      ];
+      const found = candidates.find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
+      if (found) return fs.realpathSync(found);
+      throw new Error('Resolved package target does not exist: ' + specifier + ' -> ' + resolved);
+    }
+
+    const parent = path.dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+
+  throw new Error('Unable to resolve package "' + specifier + '" from ' + importer);
+}
+
 while (pending.length) {
   const file = path.resolve(pending.pop());
   if (visited.has(file) || !fs.existsSync(file)) continue;
@@ -53,14 +120,11 @@ while (pending.length) {
 
     let resolved;
     try {
-      resolved = import.meta.resolve(specifier, pathToFileURL(file).href);
+      resolved = resolvePackageImport(specifier, file);
     } catch (error) {
       assert.fail('Unable to resolve portable dependency "' + specifier + '" from ' + file + ': ' + error.message);
     }
-    if (resolved.startsWith('file:')) {
-      const target = fileURLToPath(resolved);
-      if (/\.(?:js|mjs|cjs)$/.test(target) && fs.existsSync(target)) pending.push(target);
-    }
+    if (/\.(?:js|mjs|cjs)$/.test(resolved) && fs.existsSync(resolved)) pending.push(resolved);
   }
 }
 
