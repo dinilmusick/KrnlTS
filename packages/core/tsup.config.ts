@@ -5,6 +5,7 @@ export default defineConfig({
   format: ['esm', 'cjs'],
   dts: true,
   clean: true,
+  splitting: false,
   target: 'esnext',
   external: ['ws', 'zod', 'zod-to-json-schema', 'esbuild', '@dinilmusick/gutts'],
   noExternal: ['p-queue'],
