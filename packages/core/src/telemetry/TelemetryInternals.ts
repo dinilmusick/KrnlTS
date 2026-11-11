@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import type { TelemetryInvocation } from './TelemetryTypes.js';
 import type { sampleResources } from './TelemetryResources.js';
 
@@ -15,4 +14,12 @@ export type ActiveInvocation = {
   resourcesStart?: ReturnType<typeof sampleResources>;
 };
 
-export const createTelemetryId = (prefix: string) => `${prefix}_${randomUUID()}`;
+function createRuntimeId(): string {
+  const cryptoApi = globalThis.crypto;
+  if (typeof cryptoApi?.randomUUID === 'function') {
+    return cryptoApi.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+export const createTelemetryId = (prefix: string) => `${prefix}_${createRuntimeId()}`;
