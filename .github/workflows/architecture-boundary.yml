@@ -20,6 +20,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
       - run: pnpm run test:public-exports
+      - run: pnpm run test:portable-closure
       - run: pnpm run test:published
       - run: pnpm run boundary
       - run: pnpm run boundary:relative
