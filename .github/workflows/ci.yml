@@ -20,6 +20,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @ultrst-armada/krnl-cli... run build
+      - run: pnpm run test:portable-closure
+      - run: pnpm run test:public-exports
       - run: pnpm --filter @ultrst-armada/krnl-cli run typecheck
       - run: pnpm --filter @ultrst-armada/krnl-cli run test
       - run: pnpm --filter @ultrst-armada/krnl-core run typecheck

@@ -85,6 +85,18 @@ KrnlTS has two complementary validation layers:
 
 Both are part of the framework contract and require regression coverage.
 
+## Runtime entrypoints
+
+The default `@ultrst-armada/krnl` entrypoint is runtime-neutral. It exposes service/kernel contracts, execution, lifecycle, registry, state, events, telemetry, in-memory transport and the P2P adapter without loading Node networking or filesystem modules.
+
+Node-specific transports and filesystem tooling are explicit:
+
+```ts
+import { HttpProtocolAdapter, WebSocketProtocolAdapter, UdpProtocolAdapter, KrnlPackageReconciler } from '@ultrst-armada/krnl/node';
+```
+
+The Node entrypoint also re-exports the default kernel API. Browser and Worker integrations should import the package root and provide platform-specific I/O adapters rather than importing `/node`.
+
 ## CLI
 
 The `@ultrst-armada/krnl-cli` package exposes:

@@ -6,7 +6,6 @@
  */
 
 import PQueue from 'p-queue';
-import { randomUUID } from 'node:crypto';
 import {
   OrchestrationStep,
   OrchestrationDescriptor,
@@ -77,11 +76,11 @@ interface InternalJobRecord<TOutput = unknown> {
 }
 
 function generateSecureId(prefix: string): string {
-  try {
-    return `${prefix}_${randomUUID()}`;
-  } catch {
-    return `${prefix}_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+  const cryptoApi = globalThis.crypto;
+  if (typeof cryptoApi?.randomUUID === 'function') {
+    return `${prefix}_${cryptoApi.randomUUID()}`;
   }
+  return `${prefix}_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
 }
 
 export class KrnlQueue {
@@ -297,7 +296,7 @@ export class KrnlQueue {
               jobDef.options?.correlationId,
               jobDef.options?.metadata,
               async (workerCtx) => {
-                let timer: NodeJS.Timeout | undefined;
+                let timer: ReturnType<typeof setTimeout> | undefined;
                 try {
                   const workPromise = jobDef.handler(jobDef.payload, workerCtx);
                   if (timeoutMs && timeoutMs > 0) {
@@ -521,7 +520,7 @@ export class KrnlQueue {
       },
       handler: async () => {
         const timeoutMs = options.timeoutMs || descriptor.timeoutMs;
-        let timeoutTimer: NodeJS.Timeout | undefined;
+        let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
         let isWorkflowTimeout = false;
         if (timeoutMs && timeoutMs > 0) {
           timeoutTimer = setTimeout(() => {
@@ -716,7 +715,7 @@ export class KrnlQueue {
 
       try {
         let stepOutput: any;
-        let stepTimer: NodeJS.Timeout | undefined;
+        let stepTimer: ReturnType<typeof setTimeout> | undefined;
         stepCancelled = false;
 
         const runPromise = (async () => {

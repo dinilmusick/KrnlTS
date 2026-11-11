@@ -2,18 +2,19 @@
 
 | Environment | Surface | Status | Evidence / limitation |
 |---|---|---|---|
-| Browser | No browser-specific export | Unsupported | Core protocols include Node `dgram` and `http` adapters; the root entry re-exports protocol modules. |
-| Node.js | `@ultrst-armada/krnl` | Intended primary runtime | Core protocol adapters use Node networking APIs. Import and representative service/protocol execution must remain covered by Node CI. |
-| Cloudflare Workers | No Worker-specific export | Unsupported / unverified | Node networking adapters are not Worker-compatible. A future Worker surface must exclude them transitively. |
-| Build-time tooling | `@ultrst-armada/krnl/cli`, validation package | Node.js tooling | CLI and validation tooling are separate from the service runtime contract. |
-| TypeScript consumers | root, `/validate`, `/cli` | Declared; consumer verification required | Compile imports from each supported public export in a clean consumer. |
+| Browser / Web Workers | `@ultrst-armada/krnl` default export | Runtime-neutral kernel contract | The emitted default import closure is checked for Node built-ins and Node-only adapters. Platform I/O is supplied by explicit adapters. |
+| Node.js | `@ultrst-armada/krnl/node` | Supported adapters | Exposes HTTP, WebSocket and UDP transports plus filesystem-based package reconciliation. |
+| Node.js | `@ultrst-armada/krnl` default export | Supported | Service execution, in-memory transport, P2P adapter, contracts, lifecycle and telemetry do not statically load Node transports. |
+| Cloudflare Workers | `@ultrst-armada/krnl` default export | Portable closure; runtime validation required | The kernel entrypoint excludes Node networking and filesystem adapters. Platform integration still depends on available Web APIs and the consuming service's dependencies. |
+| Build-time tooling | `@ultrst-armada/krnl/cli`, `@ultrst-armada/krnl/validate` | Node.js tooling | CLI and validation tooling remain explicit Node-only surfaces. |
+| TypeScript consumers | root, `/node`, `/validate`, `/cli` | Declared; consumer verification required | Each supported public export resolves to built JavaScript and declarations. |
 
-## Boundary findings
+## Boundary contract
 
-The core package's `src/index.ts` re-exports `./protocols/index.js`. The UDP adapter imports Node `dgram`; the HTTP adapter imports Node `http`. Consequently, the root export must be treated as Node-targeted. Do not describe the current root as browser or Cloudflare Worker compatible.
+The default core entrypoint must not statically or transitively import Node built-ins or Node-only transport/tooling packages. HTTP, WebSocket and UDP server adapters, and filesystem-based package reconciliation are exported only from the explicit `/node` entrypoint. The CLI remains a separate Node-only package surface and imports Node tooling through `@ultrst-armada/krnl-core/node`.
 
-Preserve the existing root API for compatibility. If a browser or Worker surface is introduced, make it a separate explicit entry with a transitive dependency closure that excludes Node protocol adapters. Do not solve this by relying on tree-shaking of an unsafe root entry.
+The default entrypoint retains the runtime-neutral service, functionality, orchestration, registry, state, event, lifecycle, in-memory transport, P2P, telemetry, execution and contract APIs. The Node entrypoint re-exports the default API as well as Node adapters.
 
 ## Verification gates
 
-Node CI must import the built public root and execute representative service behavior. Any future browser/Worker entry must be imported in its actual target runtime, not merely typechecked. CLI/build-time tools are Node-only and must not leak into runtime entry points.
+CI builds both core entrypoints, traverses the emitted default entrypoint's transitive ESM import closure, and rejects Node built-ins and known Node-only packages. Public export tests import both the default and Node entrypoints. Existing CLI integration tests remain the regression gate for command behavior, arguments, exit status and output.

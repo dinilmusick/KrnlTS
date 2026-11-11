@@ -16,7 +16,6 @@ export * from './lifecycle/index.js';
 export * from './connectivity/index.js';
 export * from './orchestration/index.js';
 export * from './telemetry/index.js';
-export * as gutts from '@dinilmusick/gutts';
 export * from './execution/index.js';
 
 export * from './auth/AuthContracts.js';

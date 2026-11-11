@@ -6,7 +6,7 @@ import { runGenerate } from "../commands/generate.js";
 import { generateMagneticDeclarations } from "../commands/watch.js";
 import { runBuild } from "../commands/build.js";
 import { runDev } from "../commands/dev.js";
-import { KrnlPackageReconciler } from "@ultrst-armada/krnl-core";
+import { KrnlPackageReconciler } from "@ultrst-armada/krnl-core/node";
 
 const args = process.argv.slice(2);
 const command = args[0] || "help";

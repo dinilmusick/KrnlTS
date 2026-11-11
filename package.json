@@ -49,7 +49,8 @@
     "boundary:clean-room": "node scripts/clean-room-boundary.mjs",
     "boundary:relative": "node scripts/relative-package-boundary.mjs",
     "test:public-exports": "node scripts/test-public-exports.mjs",
-    "test:published": "node scripts/test-published-package.mjs"
+    "test:published": "node scripts/test-published-package.mjs",
+    "test:portable-closure": "node scripts/test-portable-closure.mjs"
   },
   "keywords": [
     "krnl",
