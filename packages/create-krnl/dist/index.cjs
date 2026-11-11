@@ -26,7 +26,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // src/index.ts
 var fs3 = __toESM(require("fs"), 1);
 var path3 = __toESM(require("path"), 1);
-var import_krnl_core = require("@ultrst-armada/krnl-core");
+var import_node = require("@ultrst-armada/krnl-core/node");
 
 // src/templates/configTemplates.ts
 function getBasePackageJson(projectName2) {
@@ -390,7 +390,7 @@ fs3.writeFileSync(path3.join(targetDir, "tsconfig.json"), getTsConfig(projectNam
 fs3.writeFileSync(path3.join(targetDir, `${projectName}.ts`), getAppEntrypoint(projectName));
 scaffoldBackend(targetDir);
 scaffoldFrontend(targetDir, projectName);
-import_krnl_core.KrnlPackageReconciler.reconcile(targetDir, true);
+import_node.KrnlPackageReconciler.reconcile(targetDir, true);
 console.log(`
 \u{1F389} Project successfully scaffolded at: ${targetDir}`);
 console.log(`

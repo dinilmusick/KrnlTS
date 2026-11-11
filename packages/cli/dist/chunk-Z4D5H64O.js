@@ -813,7 +813,7 @@ async function runValidate(projectRoot = process.cwd()) {
   return true;
 }
 
-// ../core/dist/index.js
+// ../core/dist/node.js
 import * as fs3 from "fs";
 import * as path5 from "path";
 import { tryParseJson } from "@dinilmusick/gutts";

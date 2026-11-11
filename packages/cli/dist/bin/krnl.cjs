@@ -918,7 +918,7 @@ describe('${name}FunctionalityOrchestration', () => {
 var fs6 = __toESM(require("fs"), 1);
 var path8 = __toESM(require("path"), 1);
 
-// ../core/dist/index.js
+// ../core/dist/node.js
 var fs5 = __toESM(require("fs"), 1);
 var path7 = __toESM(require("path"), 1);
 var import_gutts = require("@dinilmusick/gutts");

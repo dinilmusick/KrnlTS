@@ -4,7 +4,7 @@ import {
   runDev,
   runGenerate,
   runValidate
-} from "./chunk-FKQ5QRQF.js";
+} from "./chunk-Z4D5H64O.js";
 export {
   generateMagneticDeclarations,
   runBuild,

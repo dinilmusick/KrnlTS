@@ -3,7 +3,7 @@
 // src/index.ts
 import * as fs3 from "fs";
 import * as path3 from "path";
-import { KrnlPackageReconciler } from "@ultrst-armada/krnl-core";
+import { KrnlPackageReconciler } from "@ultrst-armada/krnl-core/node";
 
 // src/templates/configTemplates.ts
 function getBasePackageJson(projectName2) {

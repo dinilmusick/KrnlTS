@@ -1,5 +1,3 @@
-import * as gutts from '@dinilmusick/gutts';
-export { gutts };
 import { LuthSession, LuthSessionResult, LuthUser } from '@dinilmusick/gutts/auth';
 
 /**
@@ -1007,53 +1005,6 @@ declare class ServiceFacade<TState extends Record<string, unknown> = Record<stri
 declare function createServiceFacade<TState extends Record<string, unknown> = Record<string, unknown>, TEvents extends Record<string, unknown> = Record<string, unknown>, TLibraries extends Record<string, unknown> = Record<string, unknown>>(config: ServiceFacadeConfig<TState, TEvents, TLibraries>): ServiceFacade<TState, TEvents, TLibraries>;
 
 /**
- * @file HttpProtocolAdapter.ts
- * @description HTTP/HTTPS adapter for service exposition and remote consumption.
- */
-
-declare class HttpProtocolAdapter implements ProtocolAdapter {
-    readonly protocol: "http";
-    readonly capabilities: ProtocolCapabilities;
-    private server?;
-    private listeningPort?;
-    listen(port: number, host?: string): Promise<EndpointDescriptor>;
-    expose(service: IService, port?: number): Promise<EndpointDescriptor>;
-    send(endpoint: EndpointDescriptor, envelope: ProtocolEnvelope): Promise<ProtocolEnvelope>;
-    stop(): Promise<void>;
-}
-
-/**
- * @file WebSocketProtocolAdapter.ts
- * @description WebSocket full-duplex protocol adapter for services (browser + Node safe).
- */
-
-declare class WebSocketProtocolAdapter implements ProtocolAdapter {
-    readonly protocol: "ws";
-    readonly capabilities: ProtocolCapabilities;
-    private server?;
-    private wss?;
-    private port?;
-    expose(service: IService, port?: number): Promise<EndpointDescriptor>;
-    send(endpoint: EndpointDescriptor, envelope: ProtocolEnvelope): Promise<ProtocolEnvelope>;
-    stop(): Promise<void>;
-}
-
-/**
- * @file UdpProtocolAdapter.ts
- * @description UDP datagram adapter for services and beacon messaging.
- */
-
-declare class UdpProtocolAdapter implements ProtocolAdapter {
-    readonly protocol: "udp";
-    readonly capabilities: ProtocolCapabilities;
-    private socket?;
-    private port?;
-    expose(service: IService, port?: number): Promise<EndpointDescriptor>;
-    send(endpoint: EndpointDescriptor, envelope: ProtocolEnvelope): Promise<ProtocolEnvelope>;
-    stop(): Promise<void>;
-}
-
-/**
  * @file P2PProtocolAdapter.ts
  * @description Signaling & P2P virtual routing protocol adapter.
  */
@@ -1159,28 +1110,6 @@ declare class ServiceDiscovery {
     registerPeer(id: string, name: string, endpoints: EndpointDescriptor[]): void;
     getPeers(): PeerRecord[];
     findPeer(id: string): PeerRecord | undefined;
-}
-
-interface ReconcileResult {
-    updated: boolean;
-    totalManifests: number;
-    addedDependencies: Record<string, string>;
-    addedDevDependencies: Record<string, string>;
-    conflicts: Array<{
-        package: string;
-        versions: string[];
-    }>;
-}
-declare class KrnlPackageReconciler {
-    /**
-     * Scans all manifest.json files across backend and frontend and reconciles root package.json.
-     */
-    static reconcile(projectRoot?: string, writeChanges?: boolean): ReconcileResult;
-    /**
-     * Discovers all manifest.json files in krnl/ (or src/)
-     */
-    static findManifests(projectRoot: string): string[];
-    private static scanRecursive;
 }
 
 /**
@@ -1298,4 +1227,4 @@ interface CanonicalAuthServiceContract {
     providers: readonly CanonicalAuthProvider[];
 }
 
-export { type BackendCommand, type CanonicalAuthProvider, type CanonicalAuthRegistration, type CanonicalAuthServiceContract, type CanonicalAuthSession, type CanonicalAuthSessionResult, type CanonicalAuthUser, type Connection, type DAGValidationResult, DefaultExecutionController, type DefaultFrontendReference, type DependencyContract, type EndpointDescriptor, EventBus, type EventChannel, type EventContract, type EventDefinition, type EventHandler, type EventSubscription, type ExecutionContext, type ExecutionController, type ExecutionProvider, type ExecutionRequest, type ExecutionResult, type ExecutionStatus, type FunctionalityCustomEvents, type FunctionalityDefinition, type FunctionalityEventNamespace, type FunctionalityEvents, type FunctionalityExecutionContext, FunctionalityFacade, type FunctionalityLifecycleEvent, type FunctionalityLifecyclePayload, FunctionalityOrchestration, type FunctionalityStepOptions, HttpProtocolAdapter, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlPackageReconciler, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, OrchestrationEventFacade, type OrchestrationEventNamespace, type OrchestrationFrontendReference, type OrchestrationLifecyclePayload, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type ReconcileResult, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, TelemetryController, type TelemetryHandle, type TelemetryInvocation, type TelemetryMode, type TelemetryOptions, type TelemetryPercentiles, type TelemetryResourceSample, type TelemetrySnapshot, type TelemetryStatus, type TelemetryTargetStats, UdpProtocolAdapter, WebSocketProtocolAdapter, WorkerExecutionBoundary, createEventChannels, createService, createServiceDefinition, createServiceFacade, createServiceProxy, deltaResources, sampleResources, telemetryNow, validateOrchestrationDAG, validateServiceDefinition };
+export { type BackendCommand, type CanonicalAuthProvider, type CanonicalAuthRegistration, type CanonicalAuthServiceContract, type CanonicalAuthSession, type CanonicalAuthSessionResult, type CanonicalAuthUser, type Connection, type DAGValidationResult, DefaultExecutionController, type DefaultFrontendReference, type DependencyContract, type EndpointDescriptor, EventBus, type EventChannel, type EventContract, type EventDefinition, type EventHandler, type EventSubscription, type ExecutionContext, type ExecutionController, type ExecutionProvider, type ExecutionRequest, type ExecutionResult, type ExecutionStatus, type FunctionalityCustomEvents, type FunctionalityDefinition, type FunctionalityEventNamespace, type FunctionalityEvents, type FunctionalityExecutionContext, FunctionalityFacade, type FunctionalityLifecycleEvent, type FunctionalityLifecyclePayload, FunctionalityOrchestration, type FunctionalityStepOptions, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, OrchestrationEventFacade, type OrchestrationEventNamespace, type OrchestrationFrontendReference, type OrchestrationLifecyclePayload, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, TelemetryController, type TelemetryHandle, type TelemetryInvocation, type TelemetryMode, type TelemetryOptions, type TelemetryPercentiles, type TelemetryResourceSample, type TelemetrySnapshot, type TelemetryStatus, type TelemetryTargetStats, WorkerExecutionBoundary, createEventChannels, createService, createServiceDefinition, createServiceFacade, createServiceProxy, deltaResources, sampleResources, telemetryNow, validateOrchestrationDAG, validateServiceDefinition };

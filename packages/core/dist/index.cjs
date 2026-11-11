@@ -1,9 +1,7 @@
 "use strict";
-var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -17,14 +15,6 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
@@ -34,8 +24,6 @@ __export(index_exports, {
   EventBus: () => EventBus,
   FunctionalityFacade: () => FunctionalityFacade,
   FunctionalityOrchestration: () => FunctionalityOrchestration,
-  HttpProtocolAdapter: () => HttpProtocolAdapter,
-  KrnlPackageReconciler: () => KrnlPackageReconciler,
   KrnlQueue: () => KrnlQueue,
   KrnlWorkerPool: () => KrnlWorkerPool,
   LifecycleManager: () => LifecycleManager,
@@ -52,8 +40,6 @@ __export(index_exports, {
   ServiceRuntime: () => ServiceRuntime,
   ServiceStateStore: () => ServiceStateStore,
   TelemetryController: () => TelemetryController,
-  UdpProtocolAdapter: () => UdpProtocolAdapter,
-  WebSocketProtocolAdapter: () => WebSocketProtocolAdapter,
   WorkerExecutionBoundary: () => WorkerExecutionBoundary,
   createEventChannels: () => createEventChannels,
   createService: () => createService,
@@ -61,7 +47,6 @@ __export(index_exports, {
   createServiceFacade: () => createServiceFacade,
   createServiceProxy: () => createServiceProxy,
   deltaResources: () => deltaResources,
-  gutts: () => gutts,
   sampleResources: () => sampleResources,
   telemetryNow: () => telemetryNow,
   validateOrchestrationDAG: () => validateOrchestrationDAG,
@@ -134,8 +119,14 @@ var LifecycleManager = class {
 };
 
 // src/telemetry/TelemetryInternals.ts
-var import_node_crypto = require("crypto");
-var createTelemetryId = (prefix) => `${prefix}_${(0, import_node_crypto.randomUUID)()}`;
+function createRuntimeId() {
+  const cryptoApi = globalThis.crypto;
+  if (typeof cryptoApi?.randomUUID === "function") {
+    return cryptoApi.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+var createTelemetryId = (prefix) => `${prefix}_${createRuntimeId()}`;
 
 // src/telemetry/TelemetrySnapshotBuilder.ts
 function percentiles(values) {
@@ -1822,9 +1813,6 @@ var TimeoutError = class extends DOMException {
   }
 };
 
-// src/orchestration/canonical/KrnlQ.ts
-var import_node_crypto2 = require("crypto");
-
 // src/orchestration/canonical/dagValidation.ts
 function validateOrchestrationDAG(steps) {
   const errors = [];
@@ -2026,11 +2014,11 @@ var KrnlWorkerPool = class {
 
 // src/orchestration/canonical/KrnlQ.ts
 function generateSecureId(prefix) {
-  try {
-    return `${prefix}_${(0, import_node_crypto2.randomUUID)()}`;
-  } catch {
-    return `${prefix}_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
+  const cryptoApi = globalThis.crypto;
+  if (typeof cryptoApi?.randomUUID === "function") {
+    return `${prefix}_${cryptoApi.randomUUID()}`;
   }
+  return `${prefix}_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
 }
 var KrnlQueue = class {
   queueName;
@@ -3118,312 +3106,6 @@ function createServiceFacade(config) {
   return new ServiceFacade(config);
 }
 
-// src/protocols/HttpProtocolAdapter.ts
-var import_http = __toESM(require("http"), 1);
-var HttpProtocolAdapter = class {
-  protocol = "http";
-  capabilities = {
-    requestResponse: true,
-    streaming: true,
-    pubSub: false,
-    datagram: false,
-    peerToPeer: false,
-    signaling: false,
-    discovery: false
-  };
-  server;
-  listeningPort;
-  async listen(port, host = "127.0.0.1") {
-    this.server = import_http.default.createServer();
-    await new Promise((resolve, reject) => {
-      this.server.listen(port, host, () => {
-        const addr = this.server.address();
-        this.listeningPort = addr.port;
-        resolve();
-      });
-      this.server.on("error", reject);
-    });
-    return {
-      protocol: "http",
-      address: host,
-      port: this.listeningPort,
-      capabilities: ["requestResponse", "streaming"]
-    };
-  }
-  async expose(service, port = 0) {
-    this.server = import_http.default.createServer(async (req, res) => {
-      res.setHeader("Content-Type", "application/json");
-      const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
-      if (url.pathname === "/manifest") {
-        res.writeHead(200);
-        res.end(JSON.stringify(service.getDefinition()));
-        return;
-      }
-      if (url.pathname === "/health") {
-        res.writeHead(200);
-        res.end(JSON.stringify({ status: "ok", service: service.name }));
-        return;
-      }
-      if (url.pathname.startsWith("/call/")) {
-        const op = url.pathname.slice("/call/".length);
-        let body = "";
-        req.on("data", (c) => body += c);
-        req.on("end", async () => {
-          try {
-            const parsed = body ? JSON.parse(body) : {};
-            const result = await service.call(op, parsed);
-            res.writeHead(200);
-            res.end(JSON.stringify({ status: "success", payload: result }));
-          } catch (err) {
-            res.writeHead(500);
-            res.end(JSON.stringify({ status: "error", error: err.message || String(err) }));
-          }
-        });
-        return;
-      }
-      res.writeHead(404);
-      res.end(JSON.stringify({ error: "Route not found" }));
-    });
-    await new Promise((resolve, reject) => {
-      this.server.listen(port, "127.0.0.1", () => {
-        const addr = this.server.address();
-        this.listeningPort = addr.port;
-        resolve();
-      });
-      this.server.on("error", reject);
-    });
-    return {
-      protocol: "http",
-      address: "127.0.0.1",
-      port: this.listeningPort,
-      capabilities: ["requestResponse", "streaming"]
-    };
-  }
-  async send(endpoint, envelope) {
-    const url = `http://${endpoint.address}:${endpoint.port}/call/${envelope.operation}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(envelope.payload || {})
-    });
-    const json = await res.json();
-    return {
-      id: `res-${Date.now()}`,
-      type: "response",
-      correlationId: envelope.id,
-      payload: json.payload,
-      error: json.error,
-      timestamp: Date.now()
-    };
-  }
-  async stop() {
-    if (this.server) {
-      await new Promise((resolve) => this.server.close(() => resolve()));
-      this.server = void 0;
-    }
-  }
-};
-
-// src/protocols/WebSocketProtocolAdapter.ts
-var WebSocketProtocolAdapter = class {
-  protocol = "ws";
-  capabilities = {
-    requestResponse: true,
-    streaming: true,
-    pubSub: true,
-    datagram: false,
-    peerToPeer: false,
-    signaling: false,
-    discovery: false
-  };
-  server;
-  wss;
-  port;
-  async expose(service, port = 0) {
-    const httpMod = await import("http");
-    const http2 = httpMod.default || httpMod;
-    const wsMod = await import("ws").catch(() => null);
-    if (!wsMod) {
-      throw new Error('WebSocketProtocolAdapter.expose requires "ws" package in Node.js environment.');
-    }
-    const WebSocketServer = wsMod.WebSocketServer || wsMod.default?.WebSocketServer || wsMod.Server;
-    this.server = http2.createServer();
-    this.wss = new WebSocketServer({ server: this.server });
-    this.wss.on("connection", (ws) => {
-      ws.on("message", async (raw) => {
-        try {
-          const envelope = JSON.parse(raw.toString());
-          if (envelope.type === "request" && envelope.operation) {
-            try {
-              const res = await service.call(envelope.operation, envelope.payload);
-              ws.send(JSON.stringify({
-                id: `res-${Date.now()}`,
-                type: "response",
-                correlationId: envelope.id,
-                payload: res,
-                timestamp: Date.now()
-              }));
-            } catch (err) {
-              ws.send(JSON.stringify({
-                id: `res-${Date.now()}`,
-                type: "response",
-                correlationId: envelope.id,
-                error: err.message || String(err),
-                timestamp: Date.now()
-              }));
-            }
-          }
-        } catch (_) {
-        }
-      });
-    });
-    await new Promise((resolve, reject) => {
-      this.server.listen(port, "127.0.0.1", () => {
-        const addr = this.server.address();
-        this.port = addr.port;
-        resolve();
-      });
-      this.server.on("error", reject);
-    });
-    return {
-      protocol: "ws",
-      address: "127.0.0.1",
-      port: this.port,
-      capabilities: ["requestResponse", "pubSub", "streaming"]
-    };
-  }
-  async send(endpoint, envelope) {
-    let WS;
-    const isNode = Boolean(globalThis.process?.versions?.node);
-    if (isNode) {
-      const wsMod = await import("ws").catch(() => null);
-      WS = wsMod?.WebSocket || wsMod?.default?.WebSocket || wsMod?.default || wsMod;
-    }
-    if (!WS) {
-      WS = globalThis.WebSocket;
-    }
-    if (!WS) {
-      throw new Error("No WebSocket client implementation available in this environment.");
-    }
-    return new Promise((resolve, reject) => {
-      const ws = new WS(`ws://${endpoint.address}:${endpoint.port}`);
-      ws.on("open", () => {
-        ws.send(JSON.stringify(envelope));
-      });
-      ws.on("message", (data) => {
-        try {
-          const res = JSON.parse(data.toString());
-          ws.close();
-          resolve(res);
-        } catch (e) {
-          ws.close();
-          reject(e);
-        }
-      });
-      ws.on("error", (err) => {
-        reject(err);
-      });
-    });
-  }
-  async stop() {
-    if (this.wss) {
-      await new Promise((r) => this.wss.close(() => r()));
-      this.wss = void 0;
-    }
-    if (this.server) {
-      await new Promise((r) => this.server.close(() => r()));
-      this.server = void 0;
-    }
-  }
-};
-
-// src/protocols/UdpProtocolAdapter.ts
-var import_dgram = __toESM(require("dgram"), 1);
-var UdpProtocolAdapter = class {
-  protocol = "udp";
-  capabilities = {
-    requestResponse: true,
-    streaming: false,
-    pubSub: false,
-    datagram: true,
-    peerToPeer: false,
-    signaling: false,
-    discovery: true
-  };
-  socket;
-  port;
-  async expose(service, port = 0) {
-    this.socket = import_dgram.default.createSocket("udp4");
-    this.socket.on("message", async (msg, rinfo) => {
-      try {
-        const envelope = JSON.parse(msg.toString());
-        if (envelope.type === "request" && envelope.operation) {
-          try {
-            const res = await service.call(envelope.operation, envelope.payload);
-            const resp = JSON.stringify({
-              id: `res-${Date.now()}`,
-              type: "response",
-              correlationId: envelope.id,
-              payload: res,
-              timestamp: Date.now()
-            });
-            this.socket.send(resp, rinfo.port, rinfo.address);
-          } catch (err) {
-            const resp = JSON.stringify({
-              id: `res-${Date.now()}`,
-              type: "response",
-              correlationId: envelope.id,
-              error: err.message || String(err),
-              timestamp: Date.now()
-            });
-            this.socket.send(resp, rinfo.port, rinfo.address);
-          }
-        }
-      } catch (_) {
-      }
-    });
-    await new Promise((resolve) => {
-      this.socket.bind(port, "127.0.0.1", () => {
-        this.port = this.socket.address().port;
-        resolve();
-      });
-    });
-    return {
-      protocol: "udp",
-      address: "127.0.0.1",
-      port: this.port,
-      capabilities: ["datagram", "requestResponse"]
-    };
-  }
-  async send(endpoint, envelope) {
-    return new Promise((resolve, reject) => {
-      const client = import_dgram.default.createSocket("udp4");
-      const payload = Buffer.from(JSON.stringify(envelope));
-      client.on("message", (msg) => {
-        try {
-          const res = JSON.parse(msg.toString());
-          client.close();
-          resolve(res);
-        } catch (e) {
-          client.close();
-          reject(e);
-        }
-      });
-      client.on("error", (err) => {
-        client.close();
-        reject(err);
-      });
-      client.send(payload, endpoint.port, endpoint.address);
-    });
-  }
-  async stop() {
-    if (this.socket) {
-      await new Promise((r) => this.socket.close(() => r()));
-      this.socket = void 0;
-    }
-  }
-};
-
 // src/protocols/P2PProtocolAdapter.ts
 var P2PProtocolAdapter = class _P2PProtocolAdapter {
   protocol = "p2p";
@@ -3675,130 +3357,6 @@ var ServiceDiscovery = class {
   }
   findPeer(id) {
     return this.peers.get(id);
-  }
-};
-
-// src/discovery/KrnlPackageReconciler.ts
-var fs = __toESM(require("fs"), 1);
-var path = __toESM(require("path"), 1);
-var import_gutts = require("@dinilmusick/gutts");
-var KrnlPackageReconciler = class {
-  /**
-   * Scans all manifest.json files across backend and frontend and reconciles root package.json.
-   */
-  static reconcile(projectRoot = process.cwd(), writeChanges = true) {
-    const manifests = this.findManifests(projectRoot);
-    const aggregatedDeps = {};
-    const aggregatedDevDeps = {};
-    for (const mPath of manifests) {
-      try {
-        const raw = fs.readFileSync(mPath, "utf8");
-        const json = (0, import_gutts.tryParseJson)(raw) ?? {};
-        if (json.dependencies && typeof json.dependencies === "object") {
-          for (const [pkg, ver] of Object.entries(json.dependencies)) {
-            if (!aggregatedDeps[pkg]) aggregatedDeps[pkg] = [];
-            if (!aggregatedDeps[pkg].includes(String(ver))) {
-              aggregatedDeps[pkg].push(String(ver));
-            }
-          }
-        }
-        if (json.devDependencies && typeof json.devDependencies === "object") {
-          for (const [pkg, ver] of Object.entries(json.devDependencies)) {
-            if (!aggregatedDevDeps[pkg]) aggregatedDevDeps[pkg] = [];
-            if (!aggregatedDevDeps[pkg].includes(String(ver))) {
-              aggregatedDevDeps[pkg].push(String(ver));
-            }
-          }
-        }
-      } catch (err) {
-        console.warn(`[KrnlPackageReconciler] Warning: Could not parse ${mPath}:`, err);
-      }
-    }
-    const conflicts = [];
-    const resolvedDeps = {};
-    const resolvedDevDeps = {};
-    for (const [pkg, versions] of Object.entries(aggregatedDeps)) {
-      if (versions.length > 1) {
-        conflicts.push({ package: pkg, versions });
-      }
-      resolvedDeps[pkg] = versions[versions.length - 1];
-    }
-    for (const [pkg, versions] of Object.entries(aggregatedDevDeps)) {
-      if (versions.length > 1 && !conflicts.some((c) => c.package === pkg)) {
-        conflicts.push({ package: pkg, versions });
-      }
-      resolvedDevDeps[pkg] = versions[versions.length - 1];
-    }
-    const pkgJsonPath = path.join(projectRoot, "package.json");
-    let updated = false;
-    if (fs.existsSync(pkgJsonPath)) {
-      const pkgContent = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
-      pkgContent.dependencies = pkgContent.dependencies || {};
-      pkgContent.devDependencies = pkgContent.devDependencies || {};
-      let hasChanges = false;
-      for (const [pkg, ver] of Object.entries(resolvedDeps)) {
-        if (pkgContent.dependencies[pkg] !== ver) {
-          pkgContent.dependencies[pkg] = ver;
-          hasChanges = true;
-        }
-      }
-      for (const [pkg, ver] of Object.entries(resolvedDevDeps)) {
-        if (!pkgContent.dependencies[pkg] && pkgContent.devDependencies[pkg] !== ver) {
-          pkgContent.devDependencies[pkg] = ver;
-          hasChanges = true;
-        }
-      }
-      if (hasChanges && writeChanges) {
-        fs.writeFileSync(pkgJsonPath, JSON.stringify(pkgContent, null, 2) + "\n");
-        updated = true;
-        console.log(`[KrnlPackageReconciler] Reconciled package.json from ${manifests.length} manifest(s).`);
-      }
-    }
-    return {
-      updated,
-      totalManifests: manifests.length,
-      addedDependencies: resolvedDeps,
-      addedDevDependencies: resolvedDevDeps,
-      conflicts
-    };
-  }
-  /**
-   * Discovers all manifest.json files in krnl/ (or src/)
-   */
-  static findManifests(projectRoot) {
-    const searchDirs = [
-      path.join(projectRoot, "krnl", "backend", "services"),
-      path.join(projectRoot, "krnl", "backend", "libraries"),
-      path.join(projectRoot, "krnl", "backend", "functionalities"),
-      path.join(projectRoot, "krnl", "frontend", "libraries"),
-      path.join(projectRoot, "krnl", "frontend", "functionalities"),
-      path.join(projectRoot, "src", "backend", "services"),
-      path.join(projectRoot, "src", "services"),
-      path.join(projectRoot, "src", "functionalities"),
-      path.join(projectRoot, "src", "libraries")
-    ];
-    const found = [];
-    for (const dir of searchDirs) {
-      if (fs.existsSync(dir)) {
-        this.scanRecursive(dir, found);
-      }
-    }
-    return found;
-  }
-  static scanRecursive(dir, found) {
-    try {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (entry.name === "node_modules" || entry.name === "dist" || entry.name === ".git") continue;
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          this.scanRecursive(full, found);
-        } else if (entry.isFile() && entry.name === "manifest.json") {
-          found.push(full);
-        }
-      }
-    } catch {
-    }
   }
 };
 
@@ -4141,9 +3699,6 @@ var FunctionalityOrchestration = class {
   }
 };
 
-// src/index.ts
-var gutts = __toESM(require("@dinilmusick/gutts"), 1);
-
 // src/execution/execution-controller.ts
 var DefaultExecutionController = class {
   providers = /* @__PURE__ */ new Map();
@@ -4171,8 +3726,6 @@ var DefaultExecutionController = class {
   EventBus,
   FunctionalityFacade,
   FunctionalityOrchestration,
-  HttpProtocolAdapter,
-  KrnlPackageReconciler,
   KrnlQueue,
   KrnlWorkerPool,
   LifecycleManager,
@@ -4189,8 +3742,6 @@ var DefaultExecutionController = class {
   ServiceRuntime,
   ServiceStateStore,
   TelemetryController,
-  UdpProtocolAdapter,
-  WebSocketProtocolAdapter,
   WorkerExecutionBoundary,
   createEventChannels,
   createService,
@@ -4198,7 +3749,6 @@ var DefaultExecutionController = class {
   createServiceFacade,
   createServiceProxy,
   deltaResources,
-  gutts,
   sampleResources,
   telemetryNow,
   validateOrchestrationDAG,
