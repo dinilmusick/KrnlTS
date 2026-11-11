@@ -51,6 +51,18 @@ if (pkg.name === '@ultrst-armada/krnl') {
   const core = JSON.parse(fs.readFileSync(path.join(root, 'packages/core/package.json'), 'utf8'));
   assert.equal(core.dependencies?.['@dinilmusick/gutts'], pkg.dependencies?.['@dinilmusick/gutts'],
     'KrnlTS core and root must use the same supported GutTS release range');
+  assert.ok(core.exports?.['./node'], 'Core package must expose explicit Node adapters');
+
+  const portable = await import(pathToFileURL(path.join(root, 'packages/core/dist/index.js')).href);
+  const node = await import(pathToFileURL(path.join(root, 'packages/core/dist/node.js')).href);
+  for (const name of ['HttpProtocolAdapter', 'WebSocketProtocolAdapter', 'UdpProtocolAdapter', 'KrnlPackageReconciler', 'gutts']) {
+    assert.equal(name in portable, false, 'Portable kernel must not export Node-only API: ' + name);
+  }
+  for (const name of ['HttpProtocolAdapter', 'WebSocketProtocolAdapter', 'UdpProtocolAdapter', 'KrnlPackageReconciler']) {
+    assert.equal(typeof node[name], 'function', 'Node entrypoint must export adapter: ' + name);
+  }
+  assert.ok(node.gutts && typeof node.gutts === 'object',
+    'Node compatibility entrypoint must preserve the GutTS namespace export');
 }
 if (pkg.name === '@ultrst-armada/frnlts') {
   assert.equal(pkg.dependencies?.typescript, undefined,
