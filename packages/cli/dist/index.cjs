@@ -769,7 +769,8 @@ var KrnlValidatorEngine = class {
       promotableAssets
     };
   }
-  validateSourceFile(sf) {
+  validateSourceFile(input) {
+    const sf = input;
     const filePath = sf.getFilePath();
     const baseName = path4.basename(filePath);
     if (baseName.includes("_pb.") || baseName.endsWith(".d.ts")) {
