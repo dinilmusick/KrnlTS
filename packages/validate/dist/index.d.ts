@@ -1,5 +1,3 @@
-import { SourceFile } from 'ts-morph';
-
 interface ValidationError {
     ruleId: string;
     filePath: string;
@@ -36,11 +34,7 @@ declare class KrnlValidatorEngine {
     private limitOptions;
     constructor(optionsOrRoot: KrnlValidatorOptions | string);
     validateAll(): ValidationSummary;
-    validateSourceFile(sf: SourceFile): {
-        errors: ValidationError[];
-        warnings: ValidationError[];
-        promotableAssets?: PromotableAsset[];
-    };
+    private validateSourceFile;
     private collectSourceFiles;
 }
 

@@ -66,7 +66,8 @@ export class KrnlValidatorEngine {
     };
   }
 
-  public validateSourceFile(sf: SourceFile): { errors: ValidationError[]; warnings: ValidationError[]; promotableAssets?: PromotableAsset[] } {
+  private validateSourceFile(input: unknown): { errors: ValidationError[]; warnings: ValidationError[]; promotableAssets?: PromotableAsset[] } {
+    const sf = input as SourceFile;
     const filePath = sf.getFilePath();
     const baseName = path.basename(filePath);
 
