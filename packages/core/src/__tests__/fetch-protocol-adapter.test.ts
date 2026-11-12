@@ -90,4 +90,23 @@ describe('FetchProtocolAdapter', () => {
       vi.unstubAllGlobals();
     }
   });
+  it('accepts host and port endpoint descriptors from Node HTTP transports', async () => {
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify({ status: 'success', payload: { echoed: true } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const adapter = new FetchProtocolAdapter();
+      await adapter.send(
+        { protocol: 'http', address: '127.0.0.1', port: 8787, capabilities: [] },
+        { id: 'request-2', type: 'request', operation: 'echo', payload: { ok: true }, timestamp: 2 },
+      );
+      const [url] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+      expect(url.toString()).toBe('http://127.0.0.1:8787/call/echo');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
 });
