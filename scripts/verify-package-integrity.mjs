@@ -78,6 +78,9 @@ try {
   await writeFile(path.join(typedConsumer, "package.json"), JSON.stringify({ private: true, type: "module" }, null, 2));
   const optionalPeerSpecs = Object.entries(packedManifest.peerDependenciesMeta || {}).filter(([name, meta]) => meta?.optional && packedManifest.peerDependencies?.[name]).map(([name]) => name + "@" + packedManifest.peerDependencies[name]);
   run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--no-save", tarball, "typescript@5.9.3", ...optionalPeerSpecs], typedConsumer);
+  // Re-include the tarball and compiler when installing optional declaration peers; npm prunes omitted no-save packages.
+  const declarationPeers = ["typescript@5.9.3", "ts-morph@" + packedManifest.peerDependencies["ts-morph"], "@types/node@25.6.0"].filter((value) => !value.endsWith("undefined"));
+  run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--no-save", tarball, ...declarationPeers], typedConsumer);
   const allPublicTypeSmoke = publicSpecifiers.map((specifier, index) => "import * as surface" + index + " from " + JSON.stringify(specifier) + "; void surface" + index + ";").join("\n") + "\n";
   await writeFile(path.join(typedConsumer, "consumer-smoke.ts"), allPublicTypeSmoke);
   run(path.join(typedConsumer, "node_modules", ".bin", "tsc"), ["--noEmit", "--module", "NodeNext", "--moduleResolution", "NodeNext", "--target", "ES2022", "--resolveJsonModule", "--esModuleInterop", "consumer-smoke.ts"], typedConsumer);
