@@ -21,6 +21,8 @@ jobs:
       - run: pnpm run build
       - run: pnpm run test:public-exports
       - run: pnpm run test:portable-closure
+      - run: pnpm run test:package-artifact
+      - run: pnpm --filter @ultrst-armada/krnl-cli exec esbuild ../core/src/fetch.ts --bundle --platform=browser --format=esm --target=es2022 --external:@dinilmusick/gutts --outfile=/tmp/krnl-fetch-worker.mjs
       - run: pnpm run test:published
       - run: pnpm run boundary
       - run: pnpm run boundary:relative
