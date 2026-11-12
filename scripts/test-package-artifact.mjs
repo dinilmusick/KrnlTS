@@ -40,6 +40,16 @@ try {
   }
   assert.ok(publishedManifest.exports && typeof publishedManifest.exports === 'object',
     'published artifact must contain its explicit exports map');
+  assert.equal(
+    publishedManifest.bin?.krnl,
+    'packages/cli/dist/bin/krnl.js',
+    'published artifact must retain the normalized krnl CLI executable mapping',
+  );
+  assert.ok(
+    fs.existsSync(path.join(unpackedDir, publishedManifest.bin.krnl)),
+    'published krnl CLI executable target must exist in the tarball',
+  );
+
 
   execFileSync('npm', ['install', '--prefix', consumerDir, '--ignore-scripts', '--no-audit', '--no-fund', tarball],
     { stdio: 'inherit' });
@@ -108,6 +118,16 @@ try {
   }
   assert.ok(imported.length > 0, 'at least one published JavaScript entry point must be imported');
   assert.ok(commonJsImported.includes(packageName) && commonJsImported.includes(packageName + '/fetch'), 'root and Fetch CommonJS exports must both import successfully');
+  const cliExecutable = path.join(
+    consumerDir,
+    'node_modules',
+    '.bin',
+    process.platform === 'win32' ? 'krnl.cmd' : 'krnl',
+  );
+  assert.ok(fs.existsSync(cliExecutable), 'npm consumer must receive the krnl CLI executable link');
+  const cliHelp = execFileSync(cliExecutable, ['--help'], { cwd: consumerDir, encoding: 'utf8' });
+  assert.match(cliHelp, /Usage: krnl/, 'installed krnl CLI must execute from the published tarball');
+
   console.log(JSON.stringify({ package: packageName, version, localTarball: packed[0].filename, optionalPeersInstalled, portableEntryPointsImported: portableSpecifiers, imported, commonJsImported }, null, 2));
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
