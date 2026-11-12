@@ -26,6 +26,12 @@ try {
 
   execFileSync('tar', ['-xzf', tarball, '-C', unpackedDir, '--strip-components=1']);
   const publishedManifest = JSON.parse(fs.readFileSync(path.join(unpackedDir, 'package.json'), 'utf8'));
+  const validatorDeclaration = fs.readFileSync(path.join(unpackedDir, 'packages/validate/dist/index.d.ts'), 'utf8');
+  assert.ok(
+    !validatorDeclaration.includes("from 'ts-morph'") && !validatorDeclaration.includes('from "ts-morph"'),
+    'Validator declarations must not expose Node-only ts-morph types',
+  );
+
   assert.equal(publishedManifest.name, packageName);
   assert.equal(publishedManifest.version, version);
   for (const forbidden of ['esbuild', 'ts-morph', 'ws']) {
