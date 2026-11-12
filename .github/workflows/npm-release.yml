@@ -68,7 +68,7 @@ jobs:
               fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + '\n');
               console.log('Added public GutTS dependency at ' + pkg.dependencies[name]);
             }
-            NODE
+          NODE
           fi
           npx --yes npm-check-updates@latest --upgrade --workspaces --filter '@dinilmusick/gutts,@ultrst-armada/krnl,@ultrst-armada/frnlts,@ultrst-armada/kloks,@ultrst-armada/floks'
           if git diff --quiet -- package.json ':(glob)**/package.json'; then
