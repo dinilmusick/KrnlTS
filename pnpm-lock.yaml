@@ -14,6 +14,12 @@ importers:
       '@dinilmusick/gutts':
         specifier: ^2.0.3
         version: 2.0.3(@huggingface/transformers@4.3.2(@types/node@25.9.5))(cactus-needle@0.3.0)
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
+      ts-morph:
+        specifier: ^25.0.1
+        version: 25.0.1
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^9.6.0
