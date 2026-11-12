@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const entry = path.join(root, 'packages/core/dist/index.js');
-assert.ok(fs.existsSync(entry), 'Portable kernel build is missing: ' + entry);
+const entries = ['index.js', 'fetch.js'].map((name) => path.join(root, 'packages/core/dist', name));
+for (const entry of entries) assert.ok(fs.existsSync(entry), 'Portable kernel build is missing: ' + entry);
 
 const builtins = new Set([
   ...builtinModules,
@@ -20,7 +20,7 @@ const nodeOnlyPackages = new Set([
   'ts-morph',
 ]);
 const visited = new Set();
-const pending = [entry];
+const pending = [...entries];
 const importPattern = /(?:\bfrom\s*|\bimport\s*(?:\(\s*)?|\brequire\s*\(\s*)['"]([^'"]+)['"]/g;
 
 function packageName(specifier) {
@@ -128,9 +128,9 @@ while (pending.length) {
   }
 }
 
-assert.ok(visited.has(entry), 'Portable kernel entrypoint must be inspected');
+for (const entry of entries) assert.ok(visited.has(entry), 'Portable kernel entrypoint must be inspected: ' + entry);
 console.log(JSON.stringify({
-  entry: 'packages/core/dist/index.js',
+  entries: entries.map((entry) => path.relative(root, entry)),
   inspectedModules: visited.size,
   result: 'portable import closure verified',
 }, null, 2));

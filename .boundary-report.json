@@ -1,0 +1,12 @@
+{
+  "package": "@ultrst-armada/krnl",
+  "level": 1,
+  "expectedDirect": [
+    "@dinilmusick/gutts"
+  ],
+  "actualDirect": [
+    "@dinilmusick/gutts"
+  ],
+  "failures": [],
+  "notes": []
+}
