@@ -44,7 +44,7 @@
     }
   },
   "bin": {
-    "krnl": "./packages/cli/dist/bin/krnl.js"
+    "krnl": "packages/cli/dist/bin/krnl.js"
   },
   "publishConfig": {
     "access": "public",
