@@ -20,3 +20,4 @@ export * from './telemetry/index.js';
 export * from './execution/index.js';
 
 export * from './auth/AuthContracts.js';
+export * from './protocols/FetchProtocolAdapter.js';

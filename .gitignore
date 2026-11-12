@@ -12,3 +12,5 @@ krnlts-guide/
 krnl-magnetic.d.ts
 scratch/
 /dist/
+.boundary-report.json
+.relative-boundary-report.json

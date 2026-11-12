@@ -32,6 +32,7 @@ var node_exports = {};
 __export(node_exports, {
   DefaultExecutionController: () => DefaultExecutionController,
   EventBus: () => EventBus,
+  FetchProtocolAdapter: () => FetchProtocolAdapter,
   FunctionalityFacade: () => FunctionalityFacade,
   FunctionalityOrchestration: () => FunctionalityOrchestration,
   HttpProtocolAdapter: () => HttpProtocolAdapter,
@@ -2407,12 +2408,12 @@ var KrnlQueue = class {
         const executedComps = [];
         let finalOutput = void 0;
         let orchestrationStatus = "COMPLETED";
-        let errorMessage;
+        let errorMessage2;
         try {
           while (executedSteps.size < steps.length) {
             if (context.isCancelled) {
               orchestrationStatus = "CANCELLED";
-              errorMessage = "Orchestration execution cancelled.";
+              errorMessage2 = "Orchestration execution cancelled.";
               break;
             }
             const readySteps = steps.filter((step) => {
@@ -2450,16 +2451,16 @@ var KrnlQueue = class {
           const wasCancelled = (context.isCancelled || abortController.signal.aborted || err?.name === "AbortError") && !isExplicitStepFailure;
           if (isWorkflowTimeout) {
             orchestrationStatus = "TIMED_OUT";
-            errorMessage = `Orchestration timed out after ${timeoutMs}ms.`;
+            errorMessage2 = `Orchestration timed out after ${timeoutMs}ms.`;
           } else if (isExplicitStepFailure) {
             orchestrationStatus = "FAILED";
-            errorMessage = err?.message || String(err);
+            errorMessage2 = err?.message || String(err);
           } else if (wasCancelled) {
             orchestrationStatus = "CANCELLED";
-            errorMessage = "The operation was aborted";
+            errorMessage2 = "The operation was aborted";
           } else {
             orchestrationStatus = "FAILED";
-            errorMessage = err?.message || String(err);
+            errorMessage2 = err?.message || String(err);
           }
           if (executedComps.length > 0) {
             for (let i = executedComps.length - 1; i >= 0; i--) {
@@ -2480,7 +2481,7 @@ var KrnlQueue = class {
           status: orchestrationStatus,
           output: finalOutput,
           stepResults,
-          error: errorMessage,
+          error: errorMessage2,
           startedAt,
           completedAt: Date.now(),
           executionMetadata: {
@@ -3736,6 +3737,116 @@ var DefaultExecutionController = class {
   }
 };
 
+// src/protocols/FetchProtocolAdapter.ts
+function jsonResponse(body, status = 200, extraHeaders = {}) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8", ...extraHeaders }
+  });
+}
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+var FetchProtocolAdapter = class {
+  protocol = "http";
+  capabilities = {
+    requestResponse: true,
+    streaming: false,
+    pubSub: false,
+    datagram: false,
+    peerToPeer: false,
+    signaling: false,
+    discovery: false
+  };
+  basePath;
+  constructor(options = {}) {
+    const value = options.basePath?.trim() ?? "";
+    this.basePath = value && value !== "/" ? "/" + value.split("/").filter(Boolean).join("/") : "";
+  }
+  /** Create a standard Fetch handler suitable for Workers, Vercel and Cloud Run. */
+  createHandler(service) {
+    return (request) => this.handle(request, service);
+  }
+  /** Route a single standard Fetch Request to the supplied service. */
+  async handle(request, service) {
+    const pathname = new URL(request.url).pathname;
+    if (this.basePath && pathname !== this.basePath && !pathname.startsWith(this.basePath + "/")) {
+      return jsonResponse({ error: "Route not found" }, 404);
+    }
+    const route = this.basePath ? pathname.slice(this.basePath.length) || "/" : pathname;
+    if (route === "/health") {
+      if (request.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405, { allow: "GET" });
+      return jsonResponse({ status: "ok", service: service.name });
+    }
+    if (route === "/manifest") {
+      if (request.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405, { allow: "GET" });
+      return jsonResponse(service.getDefinition());
+    }
+    const callMatch = route.match(/^\/call\/([^/]+)$/);
+    if (!callMatch) return jsonResponse({ error: "Route not found" }, 404);
+    if (request.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405, { allow: "POST" });
+    let operation;
+    try {
+      operation = decodeURIComponent(callMatch[1]);
+    } catch {
+      return jsonResponse({ error: "Invalid operation path encoding" }, 400);
+    }
+    let input = {};
+    const rawBody = await request.text();
+    if (rawBody.trim()) {
+      try {
+        input = JSON.parse(rawBody);
+      } catch {
+        return jsonResponse({ error: "Request body must contain valid JSON" }, 400);
+      }
+    }
+    try {
+      const payload = await service.call(operation, input, {
+        protocol: "http",
+        correlationId: request.headers.get("x-correlation-id") ?? void 0
+      });
+      return jsonResponse({ status: "success", payload });
+    } catch (error) {
+      return jsonResponse({ status: "error", error: errorMessage(error) }, 500);
+    }
+  }
+  /** Send an operation through the standard Fetch API to another handler. */
+  async send(endpoint, envelope) {
+    const url = new URL(endpoint.address);
+    const pathParts = [
+      url.pathname.replace(/^\/+|\/+$/g, ""),
+      (endpoint.path ?? "").replace(/^\/+|\/+$/g, ""),
+      "call",
+      encodeURIComponent(envelope.operation ?? "")
+    ].filter(Boolean);
+    url.pathname = "/" + pathParts.join("/");
+    url.search = "";
+    url.hash = "";
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...envelope.id ? { "x-correlation-id": envelope.id } : {}
+      },
+      body: JSON.stringify(envelope.payload ?? {})
+    });
+    let body = {};
+    try {
+      body = await response.json();
+    } catch {
+      body = {};
+    }
+    return {
+      id: "res-" + Date.now(),
+      type: "response",
+      correlationId: envelope.id,
+      payload: body.payload,
+      error: body.error ?? (response.ok ? void 0 : "HTTP " + response.status),
+      timestamp: Date.now()
+    };
+  }
+};
+
 // src/protocols/HttpProtocolAdapter.ts
 var import_http = __toESM(require("http"), 1);
 var HttpProtocolAdapter = class {
@@ -4172,6 +4283,7 @@ var gutts = __toESM(require("@dinilmusick/gutts"), 1);
 0 && (module.exports = {
   DefaultExecutionController,
   EventBus,
+  FetchProtocolAdapter,
   FunctionalityFacade,
   FunctionalityOrchestration,
   HttpProtocolAdapter,

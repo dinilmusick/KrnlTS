@@ -17,6 +17,12 @@
       "import": "./dist/node.js",
       "require": "./dist/node.cjs",
       "default": "./dist/node.js"
+    },
+    "./fetch": {
+      "types": "./dist/fetch.d.ts",
+      "import": "./dist/fetch.js",
+      "require": "./dist/fetch.cjs",
+      "default": "./dist/fetch.js"
     }
   },
   "publishConfig": {
@@ -30,10 +36,8 @@
   },
   "dependencies": {
     "@dinilmusick/gutts": "^2.0.3",
-    "esbuild": "^0.25.0",
     "p-queue": "^10.0.0",
     "protobufjs": "^8.7.1",
-    "ws": "^8.18.0",
     "zod": "3.24.1",
     "zod-to-json-schema": "3.24.1"
   },
@@ -47,6 +51,15 @@
   },
   "module": "dist/index.js",
   "peerDependencies": {
-    "@types/node": ">=20.0.0"
+    "@types/node": ">=20.0.0",
+    "ws": "^8.18.0"
+  },
+  "peerDependenciesMeta": {
+    "@types/node": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    }
   }
 }

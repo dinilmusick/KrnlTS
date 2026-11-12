@@ -35,6 +35,12 @@
       "import": "./packages/core/dist/node.js",
       "require": "./packages/core/dist/node.cjs",
       "default": "./packages/core/dist/node.js"
+    },
+    "./fetch": {
+      "types": "./packages/core/dist/fetch.d.ts",
+      "import": "./packages/core/dist/fetch.js",
+      "require": "./packages/core/dist/fetch.cjs",
+      "default": "./packages/core/dist/fetch.js"
     }
   },
   "bin": {
@@ -56,7 +62,8 @@
     "boundary:relative": "node scripts/relative-package-boundary.mjs",
     "test:public-exports": "node scripts/test-public-exports.mjs",
     "test:published": "node scripts/test-published-package.mjs",
-    "test:portable-closure": "node scripts/test-portable-closure.mjs"
+    "test:portable-closure": "node scripts/test-portable-closure.mjs",
+    "test:package-artifact": "node scripts/test-package-artifact.mjs"
   },
   "keywords": [
     "krnl",
@@ -91,10 +98,7 @@
     "url": "git+https://github.com/dinilmusick/KrnlTS.git"
   },
   "dependencies": {
-    "@dinilmusick/gutts": "^2.0.3",
-    "esbuild": "^0.28.2",
-    "ts-morph": "^25.0.1",
-    "ws": "^8.20.0"
+    "@dinilmusick/gutts": "^2.0.3"
   },
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
@@ -110,6 +114,23 @@
     ]
   },
   "peerDependencies": {
-    "@types/node": ">=20.0.0"
+    "@types/node": ">=20.0.0",
+    "esbuild": "^0.28.2",
+    "ts-morph": "^25.0.1",
+    "ws": "^8.18.0"
+  },
+  "peerDependenciesMeta": {
+    "@types/node": {
+      "optional": true
+    },
+    "esbuild": {
+      "optional": true
+    },
+    "ts-morph": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    }
   }
 }
