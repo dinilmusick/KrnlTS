@@ -98,7 +98,12 @@ export class FetchProtocolAdapter implements ProtocolAdapter {
 
   /** Send an operation through the standard Fetch API to another handler. */
   async send(endpoint: EndpointDescriptor, envelope: ProtocolEnvelope): Promise<ProtocolEnvelope> {
-    const url = new URL(endpoint.address);
+    const hasScheme = /^[a-z][a-z\d+.-]*:\/\//i.test(endpoint.address);
+    const host = endpoint.address.split(':').length > 2 && !endpoint.address.startsWith('[')
+      ? '[' + endpoint.address + ']'
+      : endpoint.address;
+    const url = new URL(hasScheme ? endpoint.address : 'http://' + host);
+    if (endpoint.port && !url.port) url.port = String(endpoint.port);
     const pathParts = [
       url.pathname.replace(/^\/+|\/+$/g, ''),
       (endpoint.path ?? '').replace(/^\/+|\/+$/g, ''),
