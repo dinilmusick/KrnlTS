@@ -94,13 +94,14 @@ try {
   const commonJsImported = [];
   for (const [key, value] of Object.entries(publishedManifest.exports)) {
     const cjs = typeof value === 'string' ? value : value?.require;
-    if (!cjs || !/\\.(?:cjs|js)$/.test(cjs)) continue;
+    if (!cjs || !/\.(?:cjs|js)$/.test(cjs)) continue;
     const specifier = packageName + (key === '.' ? '' : key.slice(1));
     const code = `require(${JSON.stringify(specifier)}); console.log('required ${specifier}')`;
     execFileSync(process.execPath, ['-e', code], { cwd: consumerDir, stdio: 'inherit' });
     commonJsImported.push(specifier);
   }
   assert.ok(imported.length > 0, 'at least one published JavaScript entry point must be imported');
+  assert.ok(commonJsImported.includes(packageName) && commonJsImported.includes(packageName + '/fetch'), 'root and Fetch CommonJS exports must both import successfully');
   console.log(JSON.stringify({ package: packageName, version, localTarball: packed[0].filename, optionalPeersInstalled, portableEntryPointsImported: portableSpecifiers, imported, commonJsImported }, null, 2));
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
