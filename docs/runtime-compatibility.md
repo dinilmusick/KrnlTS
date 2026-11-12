@@ -28,7 +28,7 @@ The portable handler is intentionally a request adapter, not a server. It does n
 
 ## Optional Node-only peers
 
-The root package keeps its universal production dependency closure small. `esbuild`, `ts-morph`, `ws` and `@types/node` are optional peers for the legacy `/cli`, `/validate` and `/node` surfaces; they are not installed for consumers that use only the root or `/fetch` entrypoints. Prefer the dedicated CLI and validation packages when those tools are needed. The core package also declares `ws` and `@types/node` as optional peers for Node-specific adapters and declarations.
+The root package keeps its universal production dependency closure small. `esbuild`, `ts-morph`, `ws` and `@types/node` are optional peers for the legacy `/cli`, `/validate` and `/node` surfaces and the root `krnl` binary; they are not installed for consumers that use only the root or `/fetch` entrypoints. Prefer the dedicated `@ultrst-armada/krnl-cli` and validation packages when those tools are needed. The core package also declares `ws` and `@types/node` as optional peers for Node-specific adapters and declarations.
 
 ## Fetch handler example
 
