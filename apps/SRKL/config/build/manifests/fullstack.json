@@ -1,0 +1,12 @@
+{
+  "target": "fullstack",
+  "entry": "src/main.tsx",
+  "serverEntry": "src/server/serverless.ts",
+  "include": [
+    "frontend",
+    "backend",
+    "libraries",
+    "frontend-state"
+  ],
+  "exclude": []
+}
