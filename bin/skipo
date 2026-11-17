@@ -1,0 +1,70 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$vendorAutoload = dirname(__DIR__) . '/vendor/autoload.php';
+if (file_exists($vendorAutoload)) {
+    require $vendorAutoload;
+} else {
+    spl_autoload_register(function (string $class) {
+        $prefix = 'SkipoWP\\';
+        if (str_starts_with($class, $prefix)) {
+            $f = dirname(__DIR__) . '/src/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+            if (file_exists($f)) {
+                require_once $f;
+            }
+        }
+    });
+}
+
+if (class_exists(\Symfony\Component\Console\Application::class)) {
+    $app = new \Symfony\Component\Console\Application('SkipoWP', \SkipoWP\Application::VERSION);
+    $app->add(new \SkipoWP\Command\ScaffoldCommand());
+    $app->add(new \SkipoWP\Command\ValidateCommand());
+    $app->run();
+    exit(0);
+}
+
+// Standalone CLI Fallback
+$command = $argv[1] ?? 'help';
+
+switch ($command) {
+    case 'validate':
+        $dir = $argv[2] ?? getcwd();
+        echo "\n🔍 [SkipoWP Validate] Validating layer architecture at: {$dir}\n\n";
+        $validator = new \SkipoWP\Composition\IntegrityValidator();
+        $errors = $validator->validateFileLimits($dir, 200);
+        if (!empty($errors)) {
+            echo "❌ [ERROR] Found " . count($errors) . " file(s) exceeding 200 lines (Skipo Law #6):\n";
+            foreach ($errors as $err) {
+                echo "  - {$err}\n";
+            }
+            exit(1);
+        }
+        echo "✅ [SUCCESS] All PHP files comply with Skipo Law #6 (<= 200 lines).\n\n";
+        exit(0);
+
+    case 'scaffold':
+        $name = $argv[2] ?? 'sample-plugin';
+        echo "⚡ [SkipoWP Scaffold] Scaffolding app: {$name}...\n";
+        $scaffold = new \SkipoWP\Scaffold();
+        $scaffold->generate(getcwd() . '/' . $name, [
+            'name' => $name,
+            'slug' => $name,
+            'type' => 'wordpress-plugin',
+            'features' => ['rest-api', 'admin-settings'],
+        ]);
+        echo "✅ [SUCCESS] Scaffolding complete for {$name}.\n";
+        exit(0);
+
+    case 'help':
+    default:
+        echo "SkipoWP CLI\n";
+        echo "Usage: skipo <command> [arguments]\n\n";
+        echo "Commands:\n";
+        echo "  validate [path]   Validate codebase against Skipo architecture laws\n";
+        echo "  scaffold <name>   Scaffold a new composite WordPress application\n";
+        echo "  help              Show this help message\n";
+        exit(0);
+}

@@ -1,0 +1,49 @@
+{
+  "name": "ultrst-armada/skipowp",
+  "description": "SkipoWP WordPress application composition and scaffolding engine",
+  "type": "library",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "SkipoWP\\": "src/"
+    }
+  },
+  "bin": [
+    "bin/skipo"
+  ],
+  "require": {
+    "php": ">=8.2",
+    "ultrst-armada/gutwp": "^0.1",
+    "ultrst-armada/krnlwp": "^0.1",
+    "ultrst-armada/frnlwp": "^0.1",
+    "ultrst-armada/klokswp": "^0.1",
+    "ultrst-armada/flokswp": "^0.1",
+    "symfony/console": "^7.3",
+    "symfony/filesystem": "^7.3",
+    "symfony/yaml": "^7.3"
+  },
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/dinilmusick/GutWP"
+    },
+    {
+      "type": "vcs",
+      "url": "https://github.com/dinilmusick/KrnlWP"
+    },
+    {
+      "type": "vcs",
+      "url": "https://github.com/dinilmusick/FrnlWP"
+    },
+    {
+      "type": "vcs",
+      "url": "https://github.com/dinilmusick/KloksWP"
+    },
+    {
+      "type": "vcs",
+      "url": "https://github.com/dinilmusick/FloksWP"
+    }
+  ],
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}

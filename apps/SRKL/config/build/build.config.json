@@ -1,5 +1,0 @@
-{
-  "target": "es2022",
-  "bundleFormat": "esm",
-  "rootPreserved": ["index.html", "server.ts", "api/"]
-}

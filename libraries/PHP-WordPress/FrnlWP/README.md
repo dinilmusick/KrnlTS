@@ -1,2 +1,0 @@
-# FrnlWP
-Frnl for WP.
