@@ -1,0 +1,37 @@
+name: Architecture Boundary
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm run test:public-exports
+      - run: pnpm run test:portable-closure
+      - run: pnpm run test:package-artifact
+      - run: pnpm --filter @ultrst-armada/krnl-cli exec esbuild ../core/src/fetch.ts --bundle --platform=browser --format=esm --target=es2022  --outfile=/tmp/krnl-fetch-worker.mjs
+      - run: pnpm run test:published
+      - run: pnpm run boundary
+      - run: pnpm run boundary:relative
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-boundary-report
+          path: |
+            .boundary-report.json
+            .relative-boundary-report.json
+          include-hidden-files: true
+          if-no-files-found: error
