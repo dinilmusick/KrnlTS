@@ -1,0 +1,11 @@
+import {defineApi} from "./define-api.js";
+import type {ApiDefinition} from "./api-types.js";
+
+const string = {type: "string"};
+
+export const urlApis: readonly ApiDefinition[] = [
+  defineApi({id: "gutts.urls.isUrl", name: "isUrl", category: "urls", description: "Checks whether a string can be parsed as a URL by the standard URL constructor.", parameters: [{name: "value", description: "The string to validate.", required: true, schema: string}], output: {type: "boolean"}, semantics: {deterministic: true, pure: true, sideEffects: false}}),
+  defineApi({id: "gutts.urls.joinUrl", name: "joinUrl", category: "urls", description: "Joins a base URL-like string and path segments using single separators.", parameters: [{name: "base", description: "The base URL or path.", required: true, schema: string}, {name: "parts", description: "The path segments to append.", required: true, schema: {type: "array", items: string}}], output: {type: "string"}, semantics: {deterministic: true, pure: true, sideEffects: false}}),
+  defineApi({id: "gutts.urls.getQueryParam", name: "getQueryParam", category: "urls", description: "Reads one query-string parameter from a URL.", parameters: [{name: "url", description: "The URL to inspect.", required: true, schema: string}, {name: "key", description: "The query parameter name.", required: true, schema: string}], output: {type: "string", description: "The value, or null when absent."}, semantics: {deterministic: true, pure: true, sideEffects: false}}),
+  defineApi({id: "gutts.urls.setQueryParam", name: "setQueryParam", category: "urls", description: "Returns a URL with one query-string parameter set to the supplied value.", parameters: [{name: "url", description: "The URL to modify.", required: true, schema: string}, {name: "key", description: "The query parameter name.", required: true, schema: string}, {name: "value", description: "The query parameter value.", required: true, schema: string}], output: {type: "string"}, semantics: {deterministic: true, pure: true, sideEffects: false}, errors: ["Throws when url cannot be parsed as a URL."]}),
+];
