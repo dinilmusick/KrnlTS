@@ -1,0 +1,21 @@
+{
+  "name": "ultrst-armada/flokswp",
+  "description": "FloksWP concrete reusable WordPress and Elementor UI library built on FrnlWP",
+  "type": "wordpress-plugin",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "FloksWP\\": "src/"
+    }
+  },
+  "require": {
+    "php": ">=8.2",
+    "ultrst-armada/frnlwp": "^0.1",
+    "ultrst-armada/klokswp": "^0.1"
+  },
+  "extra": {
+    "branch-alias": {
+      "dev-main": "0.1.x-dev"
+    }
+  }
+}
