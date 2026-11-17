@@ -1,0 +1,76 @@
+@import "tailwindcss";
+@source "../node_modules/@ultrst-armada/floks";
+@import "@xyflow/react/dist/style.css";
+@import "@ultrst-armada/floks/ui/dist/index.css";
+@import "@ultrst-armada/floks/ui/theme/tokens.css";
+
+/* Neo-Brutalist Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--skipo-surface-background, #f1f5f9);
+  border-left: 2px solid var(--skipo-border-color, #334155);
+  border-top: 2px solid var(--skipo-border-color, #334155);
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: var(--skipo-surface-background, #0f172a);
+  border-left: 2px solid var(--skipo-border-color, #475569);
+  border-top: 2px solid var(--skipo-border-color, #475569);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--skipo-surface-elevated, #cbd5e1);
+  border: 2px solid var(--skipo-border-color, #334155);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--skipo-accent, #a5b4fc);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--skipo-surface-elevated, #334155);
+  border: 2px solid var(--skipo-border-color, #94a3b8);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--skipo-accent, #6366f1);
+}
+
+/* Firefox compatibility */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--skipo-surface-elevated, #cbd5e1) var(--skipo-surface-background, #f1f5f9);
+}
+
+.dark * {
+  scrollbar-color: var(--skipo-surface-elevated, #334155) var(--skipo-surface-background, #0f172a);
+}
+
+/* Global Neo-Brutalist Select Styling (Fallback) */
+select {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 700;
+  border-width: 2px !important;
+  border-style: solid !important;
+  border-color: var(--skipo-border-color, #334155) !important;
+  border-radius: 8px !important;
+  box-shadow: 2px 2px 0px 0px var(--skipo-border-color, #0f172a) !important;
+  transition: all 0.15s ease !important;
+}
+
+.dark select {
+  border-color: var(--skipo-border-color, #64748b) !important;
+  box-shadow: 2px 2px 0px 0px var(--skipo-border-color, #000000) !important;
+}
+
+select:focus {
+  outline: none !important;
+  box-shadow: 3px 3px 0px 0px var(--skipo-accent, #06b6d4) !important;
+}
+
