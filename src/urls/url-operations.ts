@@ -1,0 +1,4 @@
+export function isUrl(value:string):boolean{try{new URL(value);return true;}catch{return false;}}
+export function joinUrl(base:string,...parts:string[]):string{const normalizedBase=base.replace(/\/+$/,"");const normalizedParts=parts.map(part=>part.replace(/^\/+|\/+$/g,""));return [normalizedBase,...normalizedParts].filter(Boolean).join("/");}
+export function getQueryParam(url:string|URL,key:string):string|null{return new URL(url).searchParams.get(key);}
+export function setQueryParam(url:string|URL,key:string,value:string):string{const result=new URL(url);result.searchParams.set(key,value);return result.toString();}
