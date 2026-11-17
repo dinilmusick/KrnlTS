@@ -1,0 +1,24 @@
+{
+  "kind": "skipo-application",
+  "schemaVersion": 1,
+  "deploymentTargets": {
+    "fullstack": {
+      "platform": "vercel",
+      "command": "npm run build:fullstack"
+    },
+    "api": {
+      "platform": "cloudflare-workers",
+      "command": "npm run build:api"
+    }
+  },
+  "requiredEnvironment": {
+    "serverOnly": [
+      "SKIPO_DATABASE_URL",
+      "SKIPO_SESSION_SECRET"
+    ],
+    "workerBindings": [
+      "API_ENV",
+      "BUILD_TARGET"
+    ]
+  }
+}
