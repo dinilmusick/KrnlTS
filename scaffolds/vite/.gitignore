@@ -1,0 +1,13 @@
+node_modules/
+/dist/
+.env
+.env.local
+*.cjs
+!scripts/skipo-build.cjs
+*.js.map
+public/assets/aistudio/*
+!public/assets/aistudio/.gitignore
+.DS_Store
+__pycache__/
+*.pyc
+.turbo/

@@ -1,0 +1,9 @@
+{
+  "name": "MyApp",
+  "description": "MyApp — Built on the Skipo Framework. Rename with: python3 Skipo/scripts/rename_app.py \"YourAppName\"",
+  "version": "0.0.0",
+  "framework": "skipo",
+  "runtime": "vite+react+express",
+  "targets": ["vercel", "cloudflare-workers"],
+  "skipo_scaffold": true
+}
