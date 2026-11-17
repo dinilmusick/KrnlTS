@@ -1,4 +1,0 @@
-# AI Studio media directory — files uploaded via AI Studio UI are stored here
-# Contents are gitignored to avoid committing binary assets
-*
-!.gitignore

@@ -1,6 +1,0 @@
-{
-  "kind": "harness",
-  "schemaVersion": 1,
-  "generatedApplicationTargets": ["vercel-fullstack", "cloudflare-workers-api"],
-  "actionProtocol": "scripts/action_runtime.py"
-}
