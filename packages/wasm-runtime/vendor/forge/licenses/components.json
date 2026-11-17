@@ -1,0 +1,814 @@
+{
+  "schema": "wasm-oj-v2/third-party-components",
+  "components": [
+    {
+      "id": "abort-controller",
+      "name": "abort-controller",
+      "version": "3.0.0",
+      "source": {
+        "url": "https://github.com/mysticatea/abort-controller",
+        "revision": "v3.0.0"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "src/runtime/quickjs/stdlib.generated.ts",
+          "sha256": "4b902ce99c656c151cc52e69b5947d51d5c48cd7b646edb34aae41ad458c7c6f"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/quickjs-node-stdlib-LICENSES.txt",
+          "sha256": "38e42dcb48e476e4e836552c814c911eb5464d80b56b970d87aa07b88c7b28f8"
+        }
+      ]
+    },
+    {
+      "id": "android-libcore-scanner",
+      "name": "Android libcore Scanner and Spliterators",
+      "version": "de876a01b29230b877c9f408348c38a90ee724a5",
+      "source": {
+        "url": "https://android.googlesource.com/platform/libcore/",
+        "revision": "de876a01b29230b877c9f408348c38a90ee724a5"
+      },
+      "distributions": [
+        {
+          "kind": "file",
+          "path": "public/toolchains/java-teavm-0.13.1.compile-classlib.bin",
+          "sha256": "738a82b7d7e7ff8d98b07bb076785da7035847a166afb8446fd150c4efce6103"
+        },
+        {
+          "kind": "file",
+          "path": "public/toolchains/java-teavm-0.13.1.runtime-classlib.bin",
+          "sha256": "0ed234b66cdde19cb29e6c2865a3636d792d3cf72f102e73a7b3fdede80b79e6"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/android-libcore-GPL-2.0-with-Classpath-exception.txt",
+          "sha256": "067d8f7f645efe1131a9df13aa80ec2910d4ff898f9b14d337443a4202d56ab6"
+        }
+      ]
+    },
+    {
+      "id": "base64-js",
+      "name": "base64-js",
+      "version": "1.5.1",
+      "source": {
+        "url": "https://github.com/beatgammit/base64-js",
+        "revision": "v1.5.1"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "src/runtime/quickjs/stdlib.generated.ts",
+          "sha256": "4b902ce99c656c151cc52e69b5947d51d5c48cd7b646edb34aae41ad458c7c6f"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/quickjs-node-stdlib-LICENSES.txt",
+          "sha256": "38e42dcb48e476e4e836552c814c911eb5464d80b56b970d87aa07b88c7b28f8"
+        }
+      ]
+    },
+    {
+      "id": "buffer",
+      "name": "buffer",
+      "version": "6.0.3",
+      "source": {
+        "url": "https://github.com/feross/buffer",
+        "revision": "v6.0.3"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "src/runtime/quickjs/stdlib.generated.ts",
+          "sha256": "4b902ce99c656c151cc52e69b5947d51d5c48cd7b646edb34aae41ad458c7c6f"
+        },
+        {
+          "kind": "npm",
+          "package": "buffer@6.0.3",
+          "integrity": "sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA=="
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/quickjs-node-stdlib-LICENSES.txt",
+          "sha256": "38e42dcb48e476e4e836552c814c911eb5464d80b56b970d87aa07b88c7b28f8"
+        }
+      ]
+    },
+    {
+      "id": "clang-yowasp",
+      "name": "YoWASP Clang, LLD, libc++, and LLVM runtime payload",
+      "version": "22.0.0-git20542-10",
+      "source": {
+        "url": "https://github.com/YoWASP/clang",
+        "revision": "944dd7c774954180e621cc8e12984023a7f8bcbe; llvm-project@97196c8eeb1d495fa43bb8af2fb26af5ef5b89fb"
+      },
+      "distributions": [
+        {
+          "kind": "file",
+          "path": "public/toolchains/clang-22.0.0-git20542-10.cc1-pins.json",
+          "sha256": "895eee17c63b1112c84adcc4ddbcb38e0c18e53bff15f50a8689b9b82d87b1ff"
+        },
+        {
+          "kind": "file",
+          "path": "public/toolchains/clang-22.0.0-git20542-10.cpp-debug.pch.gz.bin",
+          "sha256": "a3811351bae3289caf096f2d4bb6d2ee5db84b97e05514e87190d36b65c500cf"
+        },
+        {
+          "kind": "file",
+          "path": "public/toolchains/clang-22.0.0-git20542-10.cpp-release.pch.gz.bin",
+          "sha256": "ef004fc05ec50af697a37f7c9c814bf62e9676d0de162d6ac35305533939f93f"
+        },
+        {
+          "kind": "file",
+          "path": "public/toolchains/clang-22.0.0-git20542-10.libcxx-pch.json",
+          "sha256": "9bbe41d77c786f1c36169369c909268530b05726e1581683f6edd9a2983eebd0"
+        },
+        {
+          "kind": "file",
+          "path": "public/toolchains/clang-22.0.0-git20542-10.manifest.json",
+          "sha256": "6382dcdfb6a2da49032a0e08da3b1fb490eb24432be85c3c12e3e871a5065273"
+        },
+        {
+          "kind": "file",
+          "path": "public/toolchains/clang-22.0.0-git20542-10.webc.gz.bin",
+          "sha256": "7f10d90b8e52b270f04874641a1d0bf9e94e85b4f6c7573a774cebbc6d32552a"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "path": "licenses/LLVM-exception.txt",
+          "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+        }
+      ]
+    },
+    {
+      "id": "cpython",
+      "name": "CPython and bundled standard-library third-party components",
+      "version": "3.14.7",
+      "source": {
+        "url": "https://www.python.org/ftp/python/3.14.7/Python-3.14.7.tar.xz",
+        "revision": "v3.14.7; Expat 2.8.1; HACL* 8ba599b2f6c9701b3dc961db895b0856a2210f76; libmpdec 2.5.1"
+      },
+      "distributions": [
+        {
+          "kind": "file",
+          "path": "public/toolchains/python-3.14.7-wasip1.manifest.json",
+          "sha256": "53a24b258363a8494af164121111a34b49c85fa0e054627fe131feba6f359cd5"
+        },
+        {
+          "kind": "file",
+          "path": "public/toolchains/python-3.14.7-wasip1.webc.gz.bin",
+          "sha256": "10027f0e32c77dfa0ce1c413b6cb27307d6744fe5e18e6da8cea738bd020260c"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/cpython-3.14.7-PSF-2.0.txt",
+          "sha256": "b0e25a78cffb43f4d92de8b61ccfa1f1f98ecbc22330b54b5251e7b6ba010231"
+        },
+        {
+          "path": "licenses/cpython-expat-2.8.1-MIT.txt",
+          "sha256": "31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87"
+        },
+        {
+          "path": "licenses/cpython-hacl-star-8ba599b-MIT.txt",
+          "sha256": "328a079d376d3e1e966317c647906004d38d42b7624531456b90ae1b710ddc0c"
+        },
+        {
+          "path": "licenses/cpython-libmpdec-2.5.1-BSD-2-Clause.txt",
+          "sha256": "669512af7219f58be03a398766d7c9da11a3b3df9d3f05cb74c5ceca25c8da3b"
+        }
+      ]
+    },
+    {
+      "id": "es-module-lexer",
+      "name": "es-module-lexer",
+      "version": "2.3.1",
+      "source": {
+        "url": "https://github.com/guybedford/es-module-lexer",
+        "revision": "2b2e6209bac5c06c6ba457f9730014613e1128fb"
+      },
+      "distributions": [
+        {
+          "kind": "npm",
+          "package": "es-module-lexer@2.3.1",
+          "integrity": "sha512-shc1dbU90Yl/xq1QrC7QRtfcwURZuVRfPhZbDoldJ1cn1gzDvBaBWlv0eFolj5+0znnPJz5TXLxsN77X/12KTA=="
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/es-module-lexer-MIT.txt",
+          "sha256": "8a4b6c44eebfb026d23719a348145a661a555568dbfdc11618ff2d0dd9306b00"
+        }
+      ]
+    },
+    {
+      "id": "event-target-shim",
+      "name": "event-target-shim",
+      "version": "5.0.1",
+      "source": {
+        "url": "https://github.com/mysticatea/event-target-shim",
+        "revision": "v5.0.1"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "src/runtime/quickjs/stdlib.generated.ts",
+          "sha256": "4b902ce99c656c151cc52e69b5947d51d5c48cd7b646edb34aae41ad458c7c6f"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/quickjs-node-stdlib-LICENSES.txt",
+          "sha256": "38e42dcb48e476e4e836552c814c911eb5464d80b56b970d87aa07b88c7b28f8"
+        }
+      ]
+    },
+    {
+      "id": "events",
+      "name": "events",
+      "version": "3.3.0",
+      "source": {
+        "url": "https://github.com/Gozala/events",
+        "revision": "v3.3.0"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "src/runtime/quickjs/stdlib.generated.ts",
+          "sha256": "4b902ce99c656c151cc52e69b5947d51d5c48cd7b646edb34aae41ad458c7c6f"
+        },
+        {
+          "kind": "npm",
+          "package": "events@3.3.0",
+          "integrity": "sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q=="
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/quickjs-node-stdlib-LICENSES.txt",
+          "sha256": "38e42dcb48e476e4e836552c814c911eb5464d80b56b970d87aa07b88c7b28f8"
+        }
+      ]
+    },
+    {
+      "id": "fflate",
+      "name": "fflate",
+      "version": "0.8.3",
+      "source": {
+        "url": "https://github.com/101arrowz/fflate",
+        "revision": "v0.8.3"
+      },
+      "distributions": [
+        {
+          "kind": "npm",
+          "package": "fflate@0.8.3",
+          "integrity": "sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA=="
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/fflate-MIT.txt",
+          "sha256": "766daa9b2ab0ab2698c769f334a6d72c42437b0a7d0d0dfd5c13c64b3120117b"
+        }
+      ]
+    },
+    {
+      "id": "go-compiler-toolchain",
+      "name": "Go compiler, linker, standard library, and WASI runtime",
+      "version": "1.26.5",
+      "source": {
+        "url": "https://go.dev/dl/go1.26.5.src.tar.gz",
+        "revision": "go1.26.5; source archive sha256 495be4bc87176ac567392e5b4116abd98466d33d7b49d41e764ccc6976b2dc42"
+      },
+      "distributions": [
+        {
+          "kind": "file",
+          "path": "public/toolchains/go-1.26.5-wasip1.manifest.json",
+          "sha256": "5d784e9ca640b9525e84b598c0beb97ca110ae908568ca45f6441a441d99a262"
+        },
+        {
+          "kind": "file",
+          "path": "public/toolchains/go-1.26.5-wasip1.stdlib.gz.bin",
+          "sha256": "aeffc384fdc624544f174ba5fc3c22395717fdbc3c4387d677d20855b6be80d8"
+        },
+        {
+          "kind": "file",
+          "path": "public/toolchains/go-1.26.5-wasip1.webc.gz.bin",
+          "sha256": "70a7e359884b09b2e1a622d6ac5cd6e31c334aab519e6dd80dff5e040a9e09e4"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/go-BSD-3-Clause.txt",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+        }
+      ]
+    },
+    {
+      "id": "go-typescript-runtime",
+      "name": "Go standard library and WASI runtime embedded by TypeScript-Go",
+      "version": "1.26.3",
+      "source": {
+        "url": "https://go.googlesource.com/go",
+        "revision": "go1.26.3"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "public/toolchains/typescript-7.0.2.wasm.gz.bin",
+          "sha256": "29c6ee0e46151e2644049ae96162b1b1d46dcb13310e2a928114bb9030c3ea92"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/go-BSD-3-Clause.txt",
+          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+        }
+      ]
+    },
+    {
+      "id": "ieee754",
+      "name": "ieee754",
+      "version": "1.2.1",
+      "source": {
+        "url": "https://github.com/feross/ieee754",
+        "revision": "v1.2.1"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "src/runtime/quickjs/stdlib.generated.ts",
+          "sha256": "4b902ce99c656c151cc52e69b5947d51d5c48cd7b646edb34aae41ad458c7c6f"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/quickjs-node-stdlib-LICENSES.txt",
+          "sha256": "38e42dcb48e476e4e836552c814c911eb5464d80b56b970d87aa07b88c7b28f8"
+        }
+      ]
+    },
+    {
+      "id": "java-teavm",
+      "name": "TeaVM Java WasmGC compiler and WASI class library",
+      "version": "teavm-0.13.1-wasmgc-wasip1",
+      "source": {
+        "url": "https://github.com/konsoletyper/teavm-javac",
+        "revision": "teavm-javac@7e4a44cf521694a4e326e33850dd8aec165eb5c9; teavm@b3a245b7d9034ff35cdfab2def057a3d4f256efb plus WASI compiler patch"
+      },
+      "distributions": [
+        {
+          "kind": "file",
+          "path": "public/toolchains/java-teavm-0.13.1.compile-classlib.bin",
+          "sha256": "738a82b7d7e7ff8d98b07bb076785da7035847a166afb8446fd150c4efce6103"
+        },
+        {
+          "kind": "file",
+          "path": "public/toolchains/java-teavm-0.13.1.compiler.wasm",
+          "sha256": "8c37bce1c6fceeaffeffe93e10834309b67c8b6fb58c6f8a24547afe8be67f5d"
+        },
+        {
+          "kind": "file",
+          "path": "public/toolchains/java-teavm-0.13.1.runtime-classlib.bin",
+          "sha256": "0ed234b66cdde19cb29e6c2865a3636d792d3cf72f102e73a7b3fdede80b79e6"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "path": "licenses/openjdk-21-GPL-2.0-with-Classpath-exception.txt",
+          "sha256": "4b9abebc4338048a7c2dc184e9f800deb349366bdf28eb23c2677a77b4c87726"
+        }
+      ]
+    },
+    {
+      "id": "napi-rs-keyring",
+      "name": "@napi-rs/keyring",
+      "version": "1.3.0",
+      "source": {
+        "url": "https://github.com/Brooooooklyn/keyring-node",
+        "revision": "e46be75c3ba8d5fde6b88a17c6153b87ffe4b946"
+      },
+      "distributions": [
+        {
+          "kind": "npm",
+          "package": "@napi-rs/keyring@1.3.0",
+          "integrity": "sha512-WrOw/bcXm0f9qHkumlT1QlArXSTWqaY9sunsDpOk+yCCorCKMxvWT/a3xko4EYHVdeZoh00yI2TydXn6eyICDA=="
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/napi-rs-keyring-MIT.txt",
+          "sha256": "02965ed67e29f871a53f7a7afa593a0ddc8020f86ccce0faaf1aa59215b5269e"
+        }
+      ]
+    },
+    {
+      "id": "quickjs-ng",
+      "name": "QuickJS-ng",
+      "version": "0.15.1",
+      "source": {
+        "url": "https://github.com/quickjs-ng/quickjs",
+        "revision": "fd0a0210b7be00957751871e7e01b8291268fc29"
+      },
+      "distributions": [
+        {
+          "kind": "file",
+          "path": "public/toolchains/quickjs-0.15.1.wasm.gz.bin",
+          "sha256": "dc6e02e8610269e61b341331661515616451cec929fd534fa96d1c4f47fbcc9a"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/quickjs-ng-MIT.txt",
+          "sha256": "96f73f9d2a16c21a36b418f06073be26e7d6d5e7c1bc99756b21a4f2c74ef171"
+        }
+      ]
+    },
+    {
+      "id": "readable-stream",
+      "name": "readable-stream",
+      "version": "4.7.0",
+      "source": {
+        "url": "https://github.com/nodejs/readable-stream",
+        "revision": "v4.7.0"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "src/runtime/quickjs/stdlib.generated.ts",
+          "sha256": "4b902ce99c656c151cc52e69b5947d51d5c48cd7b646edb34aae41ad458c7c6f"
+        },
+        {
+          "kind": "npm",
+          "package": "readable-stream@4.7.0",
+          "integrity": "sha512-oIGGmcpTLwPga8Bn6/Z75SVaH1z5dUut2ibSyAMVhmUggWpmDn2dapB0n7f8nwaSiRtepAsfJyfXIO5DCVAODg=="
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/quickjs-node-stdlib-LICENSES.txt",
+          "sha256": "38e42dcb48e476e4e836552c814c911eb5464d80b56b970d87aa07b88c7b28f8"
+        }
+      ]
+    },
+    {
+      "id": "runtime-core-dependencies",
+      "name": "WASM-OJ runtime-core locked normal dependency closure",
+      "version": "Cargo.lock-7f3f9bf87c5af285506b632948565f4f9e071fcb16f68a5613c20f30478bb934",
+      "source": {
+        "url": "https://crates.io/",
+        "revision": "7f3f9bf87c5af285506b632948565f4f9e071fcb16f68a5613c20f30478bb934"
+      },
+      "distributions": [
+        {
+          "kind": "file",
+          "path": "licenses/runtime-core-dependencies.html",
+          "sha256": "b5c72c34e4d413d783af7559a86cfb95d2f4dfc20c2f5e966d86668fe681edec"
+        },
+        {
+          "kind": "file",
+          "path": "licenses/runtime-core-dependencies.json",
+          "sha256": "00675a1be3d2d79f789b1ecea139b3bf049d9d89aafe1a5b75c8f3f7ef724d4a"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/runtime-core-dependencies.html",
+          "sha256": "b5c72c34e4d413d783af7559a86cfb95d2f4dfc20c2f5e966d86668fe681edec"
+        },
+        {
+          "path": "licenses/runtime-core-dependencies.json",
+          "sha256": "00675a1be3d2d79f789b1ecea139b3bf049d9d89aafe1a5b75c8f3f7ef724d4a"
+        }
+      ]
+    },
+    {
+      "id": "rust-toolchain",
+      "name": "Rust compiler, standard library, LLVM, GCC runtime, and libloading closure",
+      "version": "1.91.1-dev",
+      "source": {
+        "url": "https://github.com/olimpiadi-informatica/wasm-compilers",
+        "revision": "ae62cab6adf0665377d19ffa39daeaf758290431; rust@ed61e7d7e242494fb7057f2657300d9e77bb4fcb; llvm@87f0227cb60147a26a1eeb4fb06e3b505e9c7261; gcc@ae91b5dd14920ff9671db8ff80c0d763d25f977f"
+      },
+      "distributions": [
+        {
+          "kind": "file",
+          "path": "public/toolchains/rust-1.91.1-dev.manifest.json",
+          "sha256": "d5bbdca994e61888679c5738cb9420649c0854ed0eb5d65468bc67d5d550bce1"
+        },
+        {
+          "kind": "file",
+          "path": "public/toolchains/rust-1.91.1-dev.webc.gz.bin",
+          "sha256": "cfbdadc67be1315e735aa55bdf8a5a0d00171982a023fefcf7ba586127753887"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "path": "licenses/GCC-Runtime-Library-Exception-3.1.txt",
+          "sha256": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74"
+        },
+        {
+          "path": "licenses/GPL-3.0.txt",
+          "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+        },
+        {
+          "path": "licenses/LLVM-exception.txt",
+          "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+        },
+        {
+          "path": "licenses/libloading-ISC.txt",
+          "sha256": "b29f8b01452350c20dd1af16ef83b598fea3053578ccc1c7a0ef40e57be2620f"
+        },
+        {
+          "path": "licenses/rust-COPYRIGHT-library.html",
+          "sha256": "3aa41caccecaeddad6fcf2f36ce14146ab7baae57064b05b12ecc6b52d5e917f"
+        },
+        {
+          "path": "licenses/rust-COPYRIGHT.html",
+          "sha256": "809285e2d199c1ec2af28b0b9eb5aea32c3dd5f7e01ba58b6ae568f82c17bd49"
+        },
+        {
+          "path": "licenses/rust-COPYRIGHT.txt",
+          "sha256": "172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af"
+        },
+        {
+          "path": "licenses/rust-MIT.txt",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "id": "safe-buffer",
+      "name": "safe-buffer",
+      "version": "5.2.1",
+      "source": {
+        "url": "https://github.com/feross/safe-buffer",
+        "revision": "v5.2.1"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "src/runtime/quickjs/stdlib.generated.ts",
+          "sha256": "4b902ce99c656c151cc52e69b5947d51d5c48cd7b646edb34aae41ad458c7c6f"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/quickjs-node-stdlib-LICENSES.txt",
+          "sha256": "38e42dcb48e476e4e836552c814c911eb5464d80b56b970d87aa07b88c7b28f8"
+        }
+      ]
+    },
+    {
+      "id": "string-decoder",
+      "name": "string_decoder",
+      "version": "1.3.0",
+      "source": {
+        "url": "https://github.com/nodejs/string_decoder",
+        "revision": "v1.3.0"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "src/runtime/quickjs/stdlib.generated.ts",
+          "sha256": "4b902ce99c656c151cc52e69b5947d51d5c48cd7b646edb34aae41ad458c7c6f"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/quickjs-node-stdlib-LICENSES.txt",
+          "sha256": "38e42dcb48e476e4e836552c814c911eb5464d80b56b970d87aa07b88c7b28f8"
+        }
+      ]
+    },
+    {
+      "id": "typescript-go",
+      "name": "TypeScript-Go",
+      "version": "7.0.2",
+      "source": {
+        "url": "https://github.com/microsoft/typescript-go",
+        "revision": "2bd066d87f5bafd315be9f40889d0a60b9e58e0b"
+      },
+      "distributions": [
+        {
+          "kind": "file",
+          "path": "public/toolchains/typescript-7.0.2.wasm.gz.bin",
+          "sha256": "29c6ee0e46151e2644049ae96162b1b1d46dcb13310e2a928114bb9030c3ea92"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/Apache-2.0.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "path": "licenses/typescript-go-NOTICE.txt",
+          "sha256": "75b89b45fbbe1abdfe5de8884a22c84f1e8af0a1057373e4634ea7d6e0ef5cc4"
+        }
+      ]
+    },
+    {
+      "id": "wasi-libc-ac020b86",
+      "name": "WASI libc embedded by YoWASP Clang",
+      "version": "ac020b86fd44bafe60aa4fa12f407d16e3731329",
+      "source": {
+        "url": "https://github.com/WebAssembly/wasi-libc",
+        "revision": "ac020b86fd44bafe60aa4fa12f407d16e3731329"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "public/toolchains/clang-22.0.0-git20542-10.webc.gz.bin",
+          "sha256": "7f10d90b8e52b270f04874641a1d0bf9e94e85b4f6c7573a774cebbc6d32552a"
+        },
+        {
+          "kind": "embedded",
+          "container": "public/toolchains/rust-1.91.1-dev.webc.gz.bin",
+          "sha256": "cfbdadc67be1315e735aa55bdf8a5a0d00171982a023fefcf7ba586127753887"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/wasi-libc-ac020b86-LICENSE.txt",
+          "sha256": "2711a8b5a5cdfef0e639f96c1aca12ae23d7d64a02d0507f1bdf14d2b27bbc3a"
+        },
+        {
+          "path": "licenses/wasi-libc-ac020b86-musl-fts-BSD-3-Clause.txt",
+          "sha256": "55af87e4017668f54467a3380e7ebbac5e672d8c763bfe95e6fc882a6fdc4046"
+        },
+        {
+          "path": "licenses/wasi-libc-b9ef79d-Apache-2.0.txt",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "licenses/wasi-libc-b9ef79d-MIT.txt",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        },
+        {
+          "path": "licenses/wasi-libc-b9ef79d-cloudlibc-BSD-2-Clause.txt",
+          "sha256": "c8b789cf5a746611e6300a0cc7750dbf92b61912a709d04e639245f7290656d0"
+        },
+        {
+          "path": "licenses/wasi-libc-b9ef79d-dlmalloc-CC0-NOTICE.txt",
+          "sha256": "5f7892f12d4d3eef88c379564dd1580e99d918e1128cabe1ec2cc3057727b6a2"
+        },
+        {
+          "path": "licenses/wasi-libc-b9ef79d-emmalloc-NOTICE.txt",
+          "sha256": "b33ff4cd6bfb1eb7e600546b5b2c95f25145ef2fecd72d6976a5263996a5594f"
+        },
+        {
+          "path": "licenses/wasi-libc-b9ef79d-musl-MIT.txt",
+          "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+        },
+        {
+          "path": "licenses/wasi-sdk-24.0-Apache-2.0-LLVM-exception.txt",
+          "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5"
+        }
+      ]
+    },
+    {
+      "id": "wasi-libc-b9ef79d",
+      "name": "WASI libc embedded by WASI SDK 24",
+      "version": "b9ef79d7dbd47c6c5bafdae760823467c2f60b70",
+      "source": {
+        "url": "https://github.com/WebAssembly/wasi-libc",
+        "revision": "b9ef79d7dbd47c6c5bafdae760823467c2f60b70"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "public/toolchains/python-3.14.7-wasip1.webc.gz.bin",
+          "sha256": "10027f0e32c77dfa0ce1c413b6cb27307d6744fe5e18e6da8cea738bd020260c"
+        },
+        {
+          "kind": "embedded",
+          "container": "public/toolchains/quickjs-0.15.1.wasm.gz.bin",
+          "sha256": "dc6e02e8610269e61b341331661515616451cec929fd534fa96d1c4f47fbcc9a"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/wasi-libc-b9ef79d-Apache-2.0.txt",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "licenses/wasi-libc-b9ef79d-LICENSE.txt",
+          "sha256": "673f577e363e80e0058bd78214683f045d1d0c63930969a87f01a1d87d7cf1d6"
+        },
+        {
+          "path": "licenses/wasi-libc-b9ef79d-MIT.txt",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        },
+        {
+          "path": "licenses/wasi-libc-b9ef79d-cloudlibc-BSD-2-Clause.txt",
+          "sha256": "c8b789cf5a746611e6300a0cc7750dbf92b61912a709d04e639245f7290656d0"
+        },
+        {
+          "path": "licenses/wasi-libc-b9ef79d-dlmalloc-CC0-NOTICE.txt",
+          "sha256": "5f7892f12d4d3eef88c379564dd1580e99d918e1128cabe1ec2cc3057727b6a2"
+        },
+        {
+          "path": "licenses/wasi-libc-b9ef79d-emmalloc-NOTICE.txt",
+          "sha256": "b33ff4cd6bfb1eb7e600546b5b2c95f25145ef2fecd72d6976a5263996a5594f"
+        },
+        {
+          "path": "licenses/wasi-libc-b9ef79d-musl-MIT.txt",
+          "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+        },
+        {
+          "path": "licenses/wasi-sdk-24.0-Apache-2.0-LLVM-exception.txt",
+          "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5"
+        }
+      ]
+    },
+    {
+      "id": "wasi-sdk-24",
+      "name": "WASI SDK, LLVM compiler-rt, and build toolchain closure",
+      "version": "24.0",
+      "source": {
+        "url": "https://github.com/WebAssembly/wasi-sdk",
+        "revision": "d2bea01edcc46f731156a817f710cdd9fc9c1c19; llvm@26a1d6601d727a96f4301d0d8647b5a42760ae0c; wasi-libc@b9ef79d7dbd47c6c5bafdae760823467c2f60b70"
+      },
+      "distributions": [
+        {
+          "kind": "embedded",
+          "container": "public/toolchains/python-3.14.7-wasip1.webc.gz.bin",
+          "sha256": "10027f0e32c77dfa0ce1c413b6cb27307d6744fe5e18e6da8cea738bd020260c"
+        },
+        {
+          "kind": "embedded",
+          "container": "public/toolchains/quickjs-0.15.1.wasm.gz.bin",
+          "sha256": "dc6e02e8610269e61b341331661515616451cec929fd534fa96d1c4f47fbcc9a"
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/wasi-sdk-24.0-Apache-2.0-LLVM-exception.txt",
+          "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5"
+        },
+        {
+          "path": "licenses/wasi-sdk-24.0-compiler-rt-LICENSE.txt",
+          "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+        }
+      ]
+    },
+    {
+      "id": "wasmer-sdk",
+      "name": "Wasmer JavaScript SDK and locked Rust dependency closure",
+      "version": "0.10.0",
+      "source": {
+        "url": "https://github.com/wasmerio/wasmer-js",
+        "revision": "93b8b738ebd3ee57e118da0f0eb795b97d5b999e"
+      },
+      "distributions": [
+        {
+          "kind": "file",
+          "path": "licenses/wasmer-sdk-dependencies.html",
+          "sha256": "ec4b0175b4d1affb0f97996cb6661ec6fa1c5959dbce637d89b39cf3559b079a"
+        },
+        {
+          "kind": "file",
+          "path": "licenses/wasmer-sdk-dependencies.json",
+          "sha256": "4fb0d9e02e29f98b5c0ec047fa041cce870d98b9fdfecf2c02436a19842d0977"
+        },
+        {
+          "kind": "npm",
+          "package": "@wasmer/sdk@0.10.0",
+          "integrity": "sha512-YQ+s5tGag6P/I8kp9BTH+XhjoS9UFvWiZJvnWEEovClHffhYToKhprWr4UJG7wLP7c/2HQpGkF7ZrjoUvKjdmA=="
+        }
+      ],
+      "licenseFiles": [
+        {
+          "path": "licenses/wasmer-sdk-MIT.txt",
+          "sha256": "76dc7d305458d07478bc62669fe53dbfd3b94b95c5e00fbb45af1f492cbd7284"
+        },
+        {
+          "path": "licenses/wasmer-sdk-dependencies.html",
+          "sha256": "ec4b0175b4d1affb0f97996cb6661ec6fa1c5959dbce637d89b39cf3559b079a"
+        },
+        {
+          "path": "licenses/wasmer-sdk-dependencies.json",
+          "sha256": "4fb0d9e02e29f98b5c0ec047fa041cce870d98b9fdfecf2c02436a19842d0977"
+        }
+      ]
+    }
+  ]
+}

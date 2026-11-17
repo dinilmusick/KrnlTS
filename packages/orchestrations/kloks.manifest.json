@@ -1,0 +1,31 @@
+{
+  "$schema": "https://skipo.dev/schemas/kloks-manifest.v1.json",
+  "package": "@kloks/orchestrations",
+  "version": "1.0.0",
+  "orchestrations": [
+    {
+      "id": "orchestrator-a",
+      "name": "Orchestrator A (Service A -> Service B)",
+      "version": "1.0.0",
+      "package": "@kloks/orchestrations",
+      "export": "OrchestratorADefinition",
+      "targetTypes": ["BackendFacade.orchestrations"]
+    },
+    {
+      "id": "orchestrator-b",
+      "name": "Orchestrator B (Service B -> Service C)",
+      "version": "1.0.0",
+      "package": "@kloks/orchestrations",
+      "export": "OrchestratorBDefinition",
+      "targetTypes": ["BackendFacade.orchestrations"]
+    },
+    {
+      "id": "orchestrator-audio-midi",
+      "name": "Audio-Midi Orchestrator (Midi -> AudioHardware)",
+      "version": "1.0.0",
+      "package": "@kloks/orchestrations",
+      "export": "AudioMidiOrchestratorDefinition",
+      "targetTypes": ["BackendFacade.orchestrations"]
+    }
+  ]
+}

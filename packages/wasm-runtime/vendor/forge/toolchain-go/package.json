@@ -1,0 +1,47 @@
+{
+  "name": "@wasm-oj/toolchain-go",
+  "version": "0.2.0",
+  "description": "Digest-pinned Go compiler and standard-library assets for the WASM-OJ SDK.",
+  "license": "SEE LICENSE IN THIRD_PARTY_NOTICES.md",
+  "author": "JacobLinCool",
+  "keywords": [
+    "wasi",
+    "wasm",
+    "go",
+    "compiler"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./assets/go-1.26.5-wasip1.manifest.json": "./assets/go-1.26.5-wasip1.manifest.json",
+    "./assets/go-1.26.5-wasip1.stdlib.gz.bin": "./assets/go-1.26.5-wasip1.stdlib.gz.bin",
+    "./assets/go-1.26.5-wasip1.webc.gz.bin": "./assets/go-1.26.5-wasip1.webc.gz.bin",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "assets",
+    "licenses",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=24.18.0 <25"
+  },
+  "dependencies": {
+    "@wasm-oj/contracts": "0.2.2"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-library.mjs --package @wasm-oj/toolchain-go"
+  }
+}

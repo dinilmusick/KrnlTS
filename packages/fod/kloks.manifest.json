@@ -1,0 +1,17 @@
+{
+  "$schema":"https://skipo.dev/schemas/kloks-manifest.v1.json",
+  "package":"@kloks/fod",
+  "version":"1.0.0",
+  "services":[
+    {
+      "id":"fod",
+      "name":"FOD Workflow Module",
+      "version":"1.0.0",
+      "description":"Embedded workflow discovery, persistence, validation and execution capability for Skipo applications.",
+      "backend":{"package":"@ultrst-armada/kloks","subpath":"fod","export":"FodServiceFacade","facade":"FodServiceFacade"},
+      "modes":["backend","fullstack"],
+      "targets":{"backend":["BackendFacade.services"],"frontend":["Main.tabs.fod"]},
+      "dependencies":[]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://skipo.dev/schemas/kloks-manifest.v1.json",
+  "package": "@kloks/aiko",
+  "version": "1.0.0",
+  "services": [
+    {
+      "id": "aiko",
+      "name": "Aiko Application Module",
+      "version": "1.0.0",
+      "description": "Embedded Aiko agent runtime, intelligence resolution, and API key synchronization module for Skipo applications.",
+      "backend": {
+        "package": "@ultrst-armada/kloks",
+        "subpath": "aiko",
+        "export": "AikoRuntime",
+        "facade": "AikoRuntime"
+      },
+      "modes": [
+        "backend",
+        "fullstack"
+      ],
+      "targets": {
+        "backend": [
+          "BackendFacade.services"
+        ],
+        "frontend": [
+          "Main.tabs.aiko"
+        ]
+      },
+      "dependencies": []
+    }
+  ]
+}
