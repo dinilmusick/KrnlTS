@@ -1,0 +1,31 @@
+{
+  "name": "@ultrst-armada/frnlts-cli",
+  "version": "0.2.3",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "frnl": "./dist/bin/frnl.js"
+  },
+  "scripts": {
+    "frnl": "node ./dist/bin/frnl.js",
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ultrst-armada/frnlts": "workspace:*",
+    "@ultrst-armada/frnlts-validate": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.1.0",
+    "@types/node": "^22.0.0"
+  }
+}
