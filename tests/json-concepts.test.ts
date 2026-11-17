@@ -1,0 +1,3 @@
+import {describe,expect,it} from "vitest";
+import {isJsonValue,parseJson,stringifyJson,tryParseJson} from "../src/json/json-concepts.js";
+describe("JSON concepts",()=>{it("validates JSON values",()=>{expect(isJsonValue({ok:[1,"x",null]})).toBe(true);expect(isJsonValue(Number.NaN)).toBe(false);});it("parses safely and stringifies",()=>{expect(parseJson('{"ok":true}')).toEqual({ok:true});expect(tryParseJson("bad")).toBeUndefined();expect(stringifyJson({ok:true})).toBe('{"ok":true}');});});
