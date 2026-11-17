@@ -1,0 +1,25 @@
+{
+  "name": "create-krnl",
+  "version": "1.0.1",
+  "description": "Interactive project scaffolder for Krnl backend service projects",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "create-krnl": "dist/index.js"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.1.0"
+  },
+  "dependencies": {
+    "@ultrst-armada/krnl-core": "workspace:*"
+  }
+}
