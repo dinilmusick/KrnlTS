@@ -1,0 +1,50 @@
+{
+  "$schema": "https://skipo.dev/schemas/gutts-manifest.v1.json",
+  "package": "@dinilmusick/gutts",
+  "packageType": "global-utility",
+  "version": "2.1.1",
+  "promotion": {
+    "eligible": true,
+    "scope": "global",
+    "requiresExplicitEvidence": true
+  },
+  "categories": [
+    "browser",
+    "json",
+    "strings",
+    "arrays",
+    "objects",
+    "numbers",
+    "urls",
+    "api",
+    "models",
+    "semantic-input",
+    "engineering",
+    "auth",
+    "server",
+    "storage",
+    "worker"
+  ],
+  "exports": [
+    "@dinilmusick/gutts/browser",
+    "@dinilmusick/gutts/json",
+    "@dinilmusick/gutts/strings",
+    "@dinilmusick/gutts/arrays",
+    "@dinilmusick/gutts/objects",
+    "@dinilmusick/gutts/numbers",
+    "@dinilmusick/gutts/urls",
+    "@dinilmusick/gutts/api",
+    "@dinilmusick/gutts/models",
+    "@dinilmusick/gutts/semantic-input",
+    "@dinilmusick/gutts/engineering",
+    "@dinilmusick/gutts/auth",
+    "@dinilmusick/gutts/storage",
+    "@dinilmusick/gutts/server",
+    "@dinilmusick/gutts/server/auth",
+    "@dinilmusick/gutts/server/models",
+    "@dinilmusick/gutts/server/storage",
+    "@dinilmusick/gutts/worker",
+    "@dinilmusick/gutts/storage/s3",
+    "@dinilmusick/gutts/storage/google-drive"
+  ]
+}

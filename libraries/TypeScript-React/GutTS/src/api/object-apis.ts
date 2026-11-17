@@ -1,0 +1,9 @@
+import {defineApi} from "./define-api.js";
+import type {ApiDefinition} from "./api-types.js";
+
+export const objectApis: readonly ApiDefinition[] = [
+  defineApi({id: "gutts.objects.hasOwn", name: "hasOwn", category: "objects", description: "Checks whether an object contains a requested property.", parameters: [{name: "value", description: "The object to inspect.", required: true, schema: {type: "object"}}, {name: "key", description: "The property key to look for.", required: true, schema: {type: "string"}}], output: {type: "boolean"}, semantics: {deterministic: true, pure: true, sideEffects: false}}),
+  defineApi({id: "gutts.objects.pick", name: "pick", category: "objects", description: "Creates an object containing only requested properties.", parameters: [{name: "value", description: "The source object.", required: true, schema: {type: "object"}}, {name: "keys", description: "The property keys to retain.", required: true, schema: {type: "array", items: {type: "string"}}}], output: {type: "object"}, semantics: {deterministic: true, pure: true, sideEffects: false}}),
+  defineApi({id: "gutts.objects.omit", name: "omit", category: "objects", description: "Creates an object without requested properties.", parameters: [{name: "value", description: "The source object.", required: true, schema: {type: "object"}}, {name: "keys", description: "The property keys to remove.", required: true, schema: {type: "array", items: {type: "string"}}}], output: {type: "object"}, semantics: {deterministic: true, pure: true, sideEffects: false}}),
+  defineApi({id: "gutts.objects.isPlainObject", name: "isPlainObject", category: "objects", description: "Checks whether a value is a plain JavaScript object.", parameters: [{name: "value", description: "The value to classify.", required: true, schema: {}}], output: {type: "boolean"}, semantics: {deterministic: true, pure: true, sideEffects: false}}),
+];
