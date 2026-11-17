@@ -1,0 +1,20 @@
+name = "srkl-engine"
+main = "api/index.js"
+compatibility_date = "2024-10-01"
+compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
+
+[assets]
+directory = "dist"
+binding = "ASSETS"
+run_worker_first = true
+not_found_handling = "single-page-application"
+
+[build]
+command = "npm run build"
+
+# Configure SYSTEM_DATABASE_URL as the mandatory Cloudflare Worker Secret.
+# SYSTEM_DATABASE_URL_2 and SYSTEM_DATABASE_URL_3 are optional secret fallbacks.
+
+[vars]
+APP_URL = "https://srkl-engine.todadjp.workers.dev"
+

@@ -1,0 +1,15 @@
+{
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["**/backend/services/*/*", "**/backend/gateway/**", "**/repositories/**", "**/server/**", "**/remote/**"],
+            "message": "Frontend cannot directly import internal backend service implementations or infrastructure."
+          }
+        ]
+      }
+    ]
+  }
+}

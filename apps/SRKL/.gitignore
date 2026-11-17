@@ -1,0 +1,14 @@
+node_modules/
+/build/
+/dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+*.zip
+
+# Workspace vault folders (ultrst_ canonical and legacy srkl_vault)
+ultrst_srkl_*/
+srkl_vault/
+control_plane/
