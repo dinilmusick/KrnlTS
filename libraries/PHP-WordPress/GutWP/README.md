@@ -1,2 +1,0 @@
-# GutWP
-Gut for WP.
