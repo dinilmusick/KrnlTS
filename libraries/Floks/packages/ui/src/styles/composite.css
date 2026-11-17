@@ -1,0 +1,6 @@
+
+.skipo-icon-btn { width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border: var(--skipo-border); background: var(--skipo-matte-bg); cursor: pointer; border-radius: var(--skipo-radius-sm); }
+.skipo-search-input { position: relative; }
+.skipo-status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.skipo-loading-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+.skipo-empty-state { text-align: center; padding: 3rem; color: var(--skipo-text-muted); }

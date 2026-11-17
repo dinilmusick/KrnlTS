@@ -1,0 +1,46 @@
+name: GutTS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build emitted package
+        run: pnpm run build
+      - name: Typecheck
+        run: pnpm run typecheck
+      - name: Unit tests
+        run: pnpm run test
+      - name: Public export resolution and import tests
+        run: pnpm run test:public-exports
+      - name: Emitted dependency-boundary tests
+        run: pnpm run test:runtime-closures
+      - name: Architecture boundary and clean-room package checks
+        run: pnpm run boundary
+      - name: Packed tarball consumer tests
+        run: pnpm run test:published
+      - name: Browser-target bundle test
+        run: npx --yes esbuild@0.25.0 tests/fixtures/gutts-browser.mjs --bundle --platform=browser --format=esm --outfile=/tmp/gutts-browser-smoke.js
+      - name: Cloudflare Workers runtime smoke test
+        run: pnpm run test:workers
+      - name: Package archive inspection
+        run: npm pack --dry-run
+      - name: Whitespace and patch validation
+        run: git diff --check

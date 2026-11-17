@@ -1,0 +1,6 @@
+/* Canonical Tailwind source registration for Floks consumers.
+   The consuming Skipo app owns the Tailwind runtime/import. */
+@source "../components";
+@source "../frnl";
+@source "../theme";
+@import "../theme/tokens.css";

@@ -1,0 +1,136 @@
+{
+  "name": "@ultrst-armada/krnl",
+  "version": "1.0.27",
+  "private": false,
+  "description": "KrnlTS backend semantic kernel for authoring, validating, and running modular TypeScript services",
+  "type": "module",
+  "main": "./packages/core/dist/index.js",
+  "module": "./packages/core/dist/index.js",
+  "types": "./packages/core/dist/index.d.ts",
+  "files": [
+    "packages/*/dist/**",
+    "packages/*/package.json"
+  ],
+  "exports": {
+    ".": {
+      "types": "./packages/core/dist/index.d.ts",
+      "import": "./packages/core/dist/index.js",
+      "require": "./packages/core/dist/index.cjs",
+      "default": "./packages/core/dist/index.js"
+    },
+    "./validate": {
+      "types": "./packages/validate/dist/index.d.ts",
+      "import": "./packages/validate/dist/index.js",
+      "require": "./packages/validate/dist/index.cjs",
+      "default": "./packages/validate/dist/index.js"
+    },
+    "./cli": {
+      "types": "./packages/cli/dist/index.d.ts",
+      "import": "./packages/cli/dist/index.js",
+      "require": "./packages/cli/dist/index.cjs",
+      "default": "./packages/cli/dist/index.js"
+    },
+    "./node": {
+      "types": "./packages/core/dist/node.d.ts",
+      "import": "./packages/core/dist/node.js",
+      "require": "./packages/core/dist/node.cjs",
+      "default": "./packages/core/dist/node.js"
+    },
+    "./fetch": {
+      "types": "./packages/core/dist/fetch.d.ts",
+      "import": "./packages/core/dist/fetch.js",
+      "require": "./packages/core/dist/fetch.cjs",
+      "default": "./packages/core/dist/fetch.js"
+    }
+  },
+  "bin": {
+    "krnl": "packages/cli/dist/bin/krnl.js"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "validate": "node packages/cli/dist/bin/krnl.js validate fixtures/validator-clean-room",
+    "dev": "node packages/cli/dist/bin/krnl.js dev",
+    "watch": "node packages/cli/dist/bin/krnl.js watch",
+    "typecheck": "pnpm -r run typecheck",
+    "boundary": "node scripts/architecture-boundary.mjs",
+    "boundary:clean-room": "node scripts/clean-room-boundary.mjs",
+    "boundary:relative": "node scripts/relative-package-boundary.mjs",
+    "test:public-exports": "node scripts/test-public-exports.mjs",
+    "test:published": "node scripts/test-published-package.mjs",
+    "test:portable-closure": "node scripts/test-portable-closure.mjs",
+    "test:package-artifact": "node scripts/test-package-artifact.mjs"
+  },
+  "keywords": [
+    "krnl",
+    "service-framework",
+    "backend",
+    "backend-modules",
+    "services",
+    "service-facades",
+    "protocols",
+    "workflows",
+    "ast-purity"
+  ],
+  "author": "Dinil Palackal",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^25.6.0",
+    "@types/react": "^18.3.31",
+    "better-sqlite3": "^13.0.3",
+    "protobufjs": "^8.7.1",
+    "react": "^18.3.1",
+    "tsup": "^8.4.0",
+    "turbo": "^2.4.4",
+    "typescript": "^5.7.3",
+    "vitest": "^3.1.0",
+    "ws": "^8.20.0",
+    "zod": "3.24.1",
+    "zod-to-json-schema": "3.24.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dinilmusick/KrnlTS.git"
+  },
+  "dependencies": {
+    "@dinilmusick/gutts": "^2.1.1"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "overrides": {
+      "onnxruntime-node": "1.20.1"
+    },
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild",
+      "onnxruntime-node",
+      "protobufjs",
+      "@dinilmusick/gutts"
+    ]
+  },
+  "peerDependencies": {
+    "@types/node": ">=20.0.0",
+    "esbuild": "^0.28.2",
+    "ts-morph": "^25.0.1",
+    "ws": "^8.18.0"
+  },
+  "peerDependenciesMeta": {
+    "@types/node": {
+      "optional": true
+    },
+    "esbuild": {
+      "optional": true
+    },
+    "ts-morph": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    }
+  }
+}

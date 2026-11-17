@@ -1,0 +1,34 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import {execFileSync} from 'node:child_process';
+import {createRequire} from 'node:module';
+const root=process.cwd(); const policy=JSON.parse(fs.readFileSync(path.join(root,'architecture-boundary.json'),'utf8')); const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
+const fail=[]; const note=[]; const ecosystem=policy.ecosystem; const own=pkg.name; const rule=ecosystem[own];
+if(!rule) fail.push('Package '+own+' has no architecture policy entry.');
+if(rule && rule.level!==policy.levels[own]) fail.push('Policy level mismatch for '+own+'.');
+const publishedDeps={...pkg.dependencies,...pkg.optionalDependencies,...pkg.peerDependencies}; const runtimeDeps={...pkg.dependencies,...pkg.optionalDependencies}; const allDeps={...pkg.dependencies,...pkg.optionalDependencies,...pkg.peerDependencies,...pkg.devDependencies}; const actual=Object.keys(allDeps).filter(n=>ecosystem[n]&&n!==own).sort(); const allowed=new Set(rule?.allowedDirect||[]); const required=new Set(rule?.requiredDirect||rule?.allowedDirect||[]); const expected=[...required].sort(); for(const dep of expected) if(!Object.prototype.hasOwnProperty.call(publishedDeps,dep)) fail.push("Canonical ecosystem edge must be a published dependency (runtime or peer): "+own+" -> "+dep);
+for(const dep of actual) { if(!allowed.has(dep)) fail.push('Forbidden direct dependency: '+own+' -> '+dep); if(ecosystem[dep].level>=rule.level) fail.push('Layer inversion: '+own+'(L'+rule.level+') -> '+dep+'(L'+ecosystem[dep].level+')'); }
+for(const dep of expected) if(!actual.includes(dep)) fail.push('Missing canonical dependency edge: '+own+' -> '+dep);for(const dep of expected){const kind=rule?.requiredKinds?.[dep]||'published';if(kind==='runtime'&&!Object.prototype.hasOwnProperty.call(runtimeDeps,dep))fail.push('Canonical ecosystem edge must be a runtime dependency: '+own+' -> '+dep);if(kind==='peer'&&!Object.prototype.hasOwnProperty.call(pkg.peerDependencies||{},dep))fail.push('Canonical ecosystem edge must be a peer dependency: '+own+' -> '+dep);}
+console.log('Architecture diff: expected ['+expected.join(', ')+']; actual ['+actual.join(', ')+'];');
+function files(dir,ext=new Set(['.ts','.tsx','.js','.jsx','.mjs','.cjs'])){const out=[];if(!fs.existsSync(dir))return out;for(const e of fs.readdirSync(dir,{withFileTypes:true})){const p=path.join(dir,e.name);if(e.isDirectory())out.push(...files(p,ext));else if(ext.has(path.extname(e.name)))out.push(p)}return out}
+for(const file of files(path.join(root,'src'))){const text=fs.readFileSync(file,'utf8');for(const name of Object.keys(ecosystem)){if(name===own||allowed.has(name))continue;const q=name.replace(/[.*+?^${}()|[\\]\\]/g,'\\$&');const re=new RegExp("(?:from\\s*|import\\s*\\(|export\\s+[^;]*?from\\s*)[\\\"']"+q+"(?:/|[\\\"'])","g");if(re.test(text))fail.push('Forbidden source import in '+path.relative(root,file)+': '+name)}}
+const exp=pkg.exports;
+const exportExceptions=policy.exportExceptions||[];
+if(exp&&typeof exp==='object'){
+  for(const [key,value] of Object.entries(exp)){
+    const targets=[];
+    const walk=v=>{if(typeof v==='string')targets.push(v);else if(v&&typeof v==='object')Object.values(v).forEach(walk)};
+    walk(value);
+    for(const target of targets){
+      const exception=exportExceptions.some(e=>e.key===key&&(!e.target||e.target===target));
+      if(/\/src\/|\/internal\/|\/private\/|__tests__|\/tests\//.test(target)&&!exception)fail.push('Public export leaks internal path: '+key+' -> '+target);
+    }
+    if((key==='./*'||key.endsWith('/*'))&&!exportExceptions.some(e=>e.key===key&&e.allowWildcard))fail.push('Wildcard export is forbidden: '+key);
+  }
+}
+const dist=path.join(root,'dist');if(exp&&fs.existsSync(dist))for(const file of files(dist,new Set(['.d.ts']))){const text=fs.readFileSync(file,'utf8');for(const name of Object.keys(ecosystem)){if(name===own||allowed.has(name))continue;if(text.includes("'"+name)||text.includes('"'+name))fail.push('Forbidden declaration dependency in '+path.relative(root,file)+': '+name)}}
+function flatten(nodes,set=new Set()){for(const n of Array.isArray(nodes)?nodes:[]){if(n?.name)set.add(n.name);if(n?.dependencies)flatten(n.dependencies,set)}return set}
+try{const raw=execFileSync('pnpm',['list','--depth','Infinity','--json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']});const installed=flatten(JSON.parse(raw));for(const name of Object.keys(ecosystem))if(name!==own&&installed.has(name)&&!allowed.has(name))fail.push('Forbidden transitive dependency: '+own+' -> ... -> '+name)}catch(e){fail.push('Could not resolve pnpm dependency graph: '+e.message)}
+async function cleanRoom(){if(!exp)return;const tmp=path.join(root,'.boundary-tmp');fs.mkdirSync(tmp,{recursive:true});try{execFileSync('npm',['pack','--ignore-scripts','--pack-destination',tmp],{stdio:'ignore'});const tar=fs.readdirSync(tmp).find(f=>f.endsWith('.tgz'));if(!tar)throw new Error('npm pack produced no tarball');const dir=fs.mkdtempSync(path.join(os.tmpdir(),'boundary-consumer-'));const packageDir=path.join(dir,'node_modules',...pkg.name.split('/'));fs.mkdirSync(packageDir,{recursive:true});execFileSync('tar',['-xzf',path.join(tmp,tar),'-C',packageDir,'--strip-components=1']);const resolve=spec=>execFileSync(process.execPath,['--input-type=module','-e','import.meta.resolve('+JSON.stringify(spec)+')'],{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']});for(const [key,value] of Object.entries(exp)){const targets=[];const walk=v=>{if(typeof v==='string')targets.push(v);else if(v&&typeof v==='object')Object.values(v).forEach(walk)};walk(value);if(!targets.some(v=>v.endsWith('.js')))continue;const sub=key==='.'?'':key.replace(/^\.\//,'');resolve(pkg.name+(sub?'/'+sub:''))}for(const bad of [pkg.name+'/package.json',pkg.name+'/dist/index.js',pkg.name+'/src/index.ts',pkg.name+'/internal']){let resolved=false;try{resolve(bad);resolved=true}catch{}if(resolved)fail.push('Clean-room forbidden import resolved: '+bad)}fs.rmSync(dir,{recursive:true,force:true})}finally{if(fs.existsSync(tmp))fs.rmSync(tmp,{recursive:true,force:true})}}
+await cleanRoom().catch(e=>fail.push('Clean-room verification failed: '+e.message));fs.writeFileSync(path.join(root,'.boundary-report.json'),JSON.stringify({package:own,level:rule?.level??null,expectedDirect:rule?.requiredDirect||[],actualDirect:actual,failures:fail,notes:note},null,2));if(note.length)console.log(note.join('\n'));if(fail.length){console.error('ARCHITECTURE BOUNDARY FAILED ('+fail.length+')');for(const f of fail)console.error('- '+f);process.exit(1)}console.log('ARCHITECTURE BOUNDARY PASSED: '+own);console.log('Level: '+(rule?.level??'unknown'));console.log('Allowed ecosystem edges: '+((rule?.allowedDirect||[]).join(', ')||'none'));

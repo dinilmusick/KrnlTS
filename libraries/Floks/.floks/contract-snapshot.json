@@ -1,0 +1,237 @@
+{
+  "package": "@ultrst-armada/floks",
+  "version": "1.1.1",
+  "timestamp": 1760430000000,
+  "checksum": "sha256-7069f914",
+  "publicSymbols": [
+    "AppShell",
+    "BaseBadge",
+    "BaseButton",
+    "BaseCard",
+    "BaseInput",
+    "BaseSelect",
+    "BaseToggle",
+    "BottomStrip",
+    "ButtonModel",
+    "ButtonProps",
+    "ComponentThemeContractSchema",
+    "ConfirmDialog",
+    "CredentialField",
+    "DockBar",
+    "FLOKS_CANONICAL_CONTRACT",
+    "FLOKS_COMPONENT_REGISTRY",
+    "FloatingDetailsPanel",
+    "InfiniteCanvas",
+    "LoginModal",
+    "MonacoEditor",
+    "PanelModel",
+    "PanelProps",
+    "SettingsTab",
+    "StatusIndicator",
+    "ThemePackSchema",
+    "ThemeTargetSchema",
+    "TileGrid",
+    "TopToolbar",
+    "UIParent",
+    "VisualParameterSchema",
+    "VisualSlotSchema",
+    "VisualStateSchema",
+    "WorkspaceTilesMenu",
+    "createFloksSnapshot",
+    "diffContractSnapshots",
+    "getComponentContract",
+    "listComponentContracts",
+    "loadThemePack",
+    "validateThemePackAgainstContract"
+  ],
+  "components": {
+    "floks.button": {
+      "componentId": "floks.button",
+      "componentVersion": "1.0.0",
+      "slots": [
+        "container",
+        "icon",
+        "indicator",
+        "label"
+      ],
+      "states": [
+        "active",
+        "disabled",
+        "focus",
+        "hover",
+        "idle"
+      ],
+      "parameters": [
+        "background",
+        "borderColor",
+        "borderRadius",
+        "borderWidth",
+        "fontSize",
+        "padding",
+        "textColor"
+      ],
+      "assets": [
+        "bitmap",
+        "svg"
+      ]
+    },
+    "floks.panel": {
+      "componentId": "floks.panel",
+      "componentVersion": "1.0.0",
+      "slots": [
+        "border-frame",
+        "content",
+        "footer",
+        "header"
+      ],
+      "states": [
+        "collapsed",
+        "default",
+        "expanded",
+        "minimized"
+      ],
+      "parameters": [
+        "background",
+        "borderColor",
+        "borderRadius",
+        "elevation",
+        "padding"
+      ],
+      "assets": [
+        "bitmap",
+        "shader",
+        "svg"
+      ]
+    },
+    "floks.input.slider": {
+      "componentId": "floks.input.slider",
+      "componentVersion": "1.0.0",
+      "slots": [
+        "fill",
+        "thumb",
+        "track",
+        "value-label"
+      ],
+      "states": [
+        "disabled",
+        "dragging",
+        "hover",
+        "idle"
+      ],
+      "parameters": [
+        "fillColor",
+        "height",
+        "thumbColor",
+        "thumbSize",
+        "trackColor"
+      ],
+      "assets": [
+        "bitmap",
+        "svg"
+      ]
+    },
+    "floks.badge": {
+      "componentId": "floks.badge",
+      "componentVersion": "1.0.0",
+      "slots": [
+        "indicator-dot",
+        "pill",
+        "text"
+      ],
+      "states": [
+        "default",
+        "pulse"
+      ],
+      "parameters": [
+        "background",
+        "dotColor",
+        "textColor"
+      ],
+      "assets": [
+        "svg"
+      ]
+    },
+    "floks.socket2d": {
+      "componentId": "floks.socket2d",
+      "componentVersion": "1.0.0",
+      "slots": [
+        "glow",
+        "indicator-dot",
+        "ring"
+      ],
+      "states": [
+        "compatible-hover",
+        "connected",
+        "hover",
+        "idle"
+      ],
+      "parameters": [
+        "color",
+        "glowRadius",
+        "radius"
+      ],
+      "assets": [
+        "svg"
+      ]
+    },
+    "floks.wire2d": {
+      "componentId": "floks.wire2d",
+      "componentVersion": "1.0.0",
+      "slots": [
+        "endpoint",
+        "pulse-particle",
+        "trace"
+      ],
+      "states": [
+        "active",
+        "error",
+        "idle",
+        "selected"
+      ],
+      "parameters": [
+        "opacity",
+        "strokeColor",
+        "strokeWidth"
+      ],
+      "assets": [
+        "particle",
+        "svg"
+      ]
+    },
+    "floks.node2d": {
+      "componentId": "floks.node2d",
+      "componentVersion": "1.0.0",
+      "slots": [
+        "body",
+        "footer",
+        "header",
+        "socket-strip"
+      ],
+      "states": [
+        "bypassed",
+        "idle",
+        "minimized",
+        "running",
+        "selected"
+      ],
+      "parameters": [
+        "bodyColor",
+        "borderColor",
+        "cornerRadius",
+        "headerColor"
+      ],
+      "assets": [
+        "bitmap",
+        "svg"
+      ]
+    }
+  },
+  "errorCodes": [
+    "ERR_CONTRACT_VIOLATION",
+    "ERR_INTERNAL_IMPORT_FORBIDDEN",
+    "ERR_LOCAL_SHIM_DETECTED",
+    "ERR_THEME_TARGET_MISMATCH",
+    "ERR_SLOT_REJECTED",
+    "ERR_UNRECOGNIZED_STATE"
+  ]
+}

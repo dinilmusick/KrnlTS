@@ -1,0 +1,14 @@
+{
+  "$schema": "https://skipo.dev/schemas/floks-manifest.v1.json",
+  "package": "@floks/contracts",
+  "version": "1.0.0",
+  "components": [
+    {
+      "id": "canonical-component-contracts",
+      "name": "Canonical Component Contracts & Snapshot Engine",
+      "export": "FLOKS_CANONICAL_CONTRACT",
+      "subpath": "contracts",
+      "targetTypes": ["App.contracts", "App.governance"]
+    }
+  ]
+}

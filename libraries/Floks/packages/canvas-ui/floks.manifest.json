@@ -1,0 +1,80 @@
+{
+  "$schema": "https://skipo.dev/schemas/floks-manifest.v1.json",
+  "package": "@floks/canvas-ui",
+  "version": "1.1.0",
+  "components": [
+    {
+      "id": "InfiniteCanvas",
+      "name": "InfiniteCanvas",
+      "export": "InfiniteCanvas",
+      "subpath": "canvas",
+      "targetTypes": [
+        "App.main-content"
+      ]
+    },
+    {
+      "id": "DockBar",
+      "name": "DockBar",
+      "export": "DockBar",
+      "subpath": "dock",
+      "targetTypes": [
+        "App.footer",
+        "App.main-content"
+      ]
+    },
+    {
+      "id": "TileGrid",
+      "name": "TileGrid",
+      "export": "TileGrid",
+      "subpath": "tile-menu",
+      "targetTypes": [
+        "App.main-content"
+      ]
+    },
+    {
+      "id": "MonacoEditor",
+      "name": "MonacoEditor",
+      "export": "MonacoEditor",
+      "subpath": "editor",
+      "targetTypes": [
+        "App.main-content"
+      ]
+    },
+    {
+      "id": "FrnlEditableNodeGraph",
+      "name": "FRNL Editable Node Graph",
+      "export": "FrnlEditableNodeGraph",
+      "subpath": "frnl-editable-node-graph",
+      "targetTypes": [
+        "App.main-content"
+      ],
+      "requiredServices": [
+        "node-graph"
+      ]
+    },
+    {
+      "id": "FodModule",
+      "name": "FOD Workflow Module",
+      "export": "FodModule",
+      "subpath": "fod",
+      "targetTypes": [
+        "Main.tabs.fod"
+      ],
+      "requiredServices": [
+        "fod"
+      ]
+    },
+    {
+      "id": "AikoModule",
+      "name": "Aiko Application Module",
+      "export": "AikoModule",
+      "subpath": "aiko",
+      "targetTypes": [
+        "Main.tabs.aiko"
+      ],
+      "requiredServices": [
+        "aiko"
+      ]
+    }
+  ]
+}
