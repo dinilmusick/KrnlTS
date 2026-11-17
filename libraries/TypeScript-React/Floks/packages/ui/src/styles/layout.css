@@ -1,0 +1,58 @@
+.skipo-app-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--skipo-bg);
+  color: var(--skipo-text);
+  font-family: var(--skipo-font);
+}
+
+.skipo-header {
+  border-bottom: var(--skipo-border);
+  padding: 0 1rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--skipo-matte-bg);
+}
+
+.skipo-top-toolbar {
+  height: var(--skipo-top-toolbar-height, 44px);
+  border-bottom: var(--skipo-border);
+  background: var(--skipo-top-toolbar-bg, var(--skipo-matte-bg));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.75rem;
+}
+
+.skipo-bottom-strip {
+  height: var(--skipo-bottom-strip-height, 30px);
+  border-top: var(--skipo-border);
+  background: var(--skipo-bottom-strip-bg, var(--skipo-matte-bg));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.75rem;
+  font-family: var(--skipo-font-mono);
+  font-size: 11px;
+}
+
+.skipo-breadcrumb {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--skipo-text-muted);
+}
+
+@keyframes skipo-pulse-glow {
+  0% { opacity: 0.6; transform: scale(0.98); }
+  50% { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 0.6; transform: scale(0.98); }
+}
+
+.skipo-status-light--pulse {
+  animation: skipo-pulse-glow 1.8s infinite ease-in-out;
+}

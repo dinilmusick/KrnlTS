@@ -1,0 +1,11 @@
+.floks-service-panel{display:flex;flex-direction:column;gap:.75rem;padding:1rem;border:var(--skipo-border);border-radius:var(--skipo-radius,8px);background:var(--skipo-bg,var(--skipo-matte-bg));color:var(--skipo-text);font:inherit}
+.floks-service-panel header,.floks-service-panel li,.floks-clock-controls{display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap}
+.floks-service-panel h3,.floks-service-panel h4{margin:0;font-weight:700}
+.floks-service-panel label{display:flex;flex-direction:column;gap:.25rem;font-size:.85rem}
+.floks-service-panel input{max-width:100%;padding:.4rem;border:var(--skipo-border-input);border-radius:var(--skipo-radius-sm);background:var(--skipo-matte-bg);color:var(--skipo-text)}
+.floks-service-panel ul,.floks-service-panel ol{display:flex;flex-direction:column;gap:.5rem;margin:0;padding-left:1.25rem}
+.floks-clock-position{display:flex;align-items:baseline;gap:1rem;flex-wrap:wrap;padding:1rem;background:var(--skipo-matte-bg);border-radius:var(--skipo-radius-sm)}
+.floks-clock-position strong{font:700 2rem var(--skipo-font-mono)}
+.floks-service-panel [data-state=running]{color:var(--skipo-success)}
+.floks-service-panel [data-state=paused]{color:var(--skipo-warning)}
+.floks-service-panel [data-state=stopped]{color:var(--skipo-text-muted)}
