@@ -1,0 +1,40 @@
+{
+  "$schema": "https://skipo.dev/schemas/gutwp-manifest.v1.json",
+  "name": "GutWP",
+  "package": "ultrst-armada/gutwp",
+  "packageType": "global-utility",
+  "version": "1.3.2",
+  "promotion": {
+    "eligible": true,
+    "scope": "global",
+    "requiresExplicitEvidence": true
+  },
+  "categories": [
+    "json",
+    "strings",
+    "arrays",
+    "objects",
+    "numbers",
+    "urls",
+    "api",
+    "models",
+    "semantic-input",
+    "collections",
+    "validation",
+    "wordpress"
+  ],
+  "exports": [
+    "GutWP\\Json",
+    "GutWP\\Strings",
+    "GutWP\\Arrays",
+    "GutWP\\Objects",
+    "GutWP\\Numbers",
+    "GutWP\\Urls",
+    "GutWP\\Api",
+    "GutWP\\Models",
+    "GutWP\\SemanticInput",
+    "GutWP\\Collections",
+    "GutWP\\Validation",
+    "GutWP\\WordPress"
+  ]
+}
