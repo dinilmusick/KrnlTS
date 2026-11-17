@@ -1,0 +1,132 @@
+name: Upstream Dependency Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dependency-sync.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "architecture/capabilities/registry.json"
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+  repository_dispatch:
+    types: [upstream-package-published]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-dependency-sync-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python test dependencies
+        run: python -m pip install pytest
+      - name: Sync published upstream dependencies
+        id: updates
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e "
+            const fs = require('node:fs');
+            const file = 'package.json';
+            const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+            const name = '@dinilmusick/gutts';
+            pkg.dependencies = pkg.dependencies || {};
+            if (!pkg.dependencies[name] && !pkg.devDependencies?.[name] && !pkg.optionalDependencies?.[name]) {
+              try {
+                const ver = require('node:child_process').execSync('npm view @dinilmusick/gutts version').toString().trim();
+                if (ver) {
+                  pkg.dependencies[name] = '^' + ver;
+                  fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + '\\n');
+                }
+              } catch (error) {
+                console.error('Unable to resolve the published GutTS version:', error.message);
+                process.exitCode = 1;
+              }
+            }
+          "
+          npx --yes npm-check-updates@latest --upgrade --filter '@dinilmusick/gutts,@ultrst-armada/krnl,@ultrst-armada/frnlts,@ultrst-armada/kloks,@ultrst-armada/floks'
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const file = 'architecture/capabilities/registry.json';
+          const source = fs.readFileSync(file, 'utf8');
+          const registry = JSON.parse(source);
+          const published = JSON.parse(fs.readFileSync('package.json', 'utf8')).dependencies;
+          const dependencies = registry.applicationState.dependencies;
+          for (const name of Object.keys(dependencies)) {
+            if (!published[name]) throw new Error(`Missing canonical package range for ${name}`);
+            dependencies[name] = published[name];
+          }
+          for (const capability of Object.values(registry.capabilities)) {
+            for (const name of Object.keys(capability.dependencies ?? {})) {
+              if (Object.hasOwn(dependencies, name)) capability.dependencies[name] = dependencies[name];
+            }
+          }
+          const updated = JSON.stringify(registry, null, 2) + '\n';
+          if (updated !== source) fs.writeFileSync(file, updated);
+          NODE
+          if git diff --quiet -- package.json ':(glob)**/package.json' architecture/capabilities/registry.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install dependencies and refresh lockfile
+        if: steps.updates.outputs.changed == 'true'
+        run: pnpm install --no-frozen-lockfile
+      - name: Build
+        if: steps.updates.outputs.changed == 'true'
+        run: pnpm run build
+      - name: Typecheck
+        if: steps.updates.outputs.changed == 'true'
+        run: pnpm run typecheck
+      - name: Test
+        if: steps.updates.outputs.changed == 'true'
+        run: pnpm run test
+      - name: Verify dependency PR token is configured
+        env:
+          SYNC_TOKEN: ${{ secrets.ECOSYSTEM_SYNC_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${SYNC_TOKEN:-}" ]; then
+            echo "::error::Set the Skipo Actions secret ECOSYSTEM_SYNC_TOKEN to a token with Contents and Pull requests read/write access. The default GITHUB_TOKEN is not permitted to create pull requests in this repository."
+            exit 1
+          fi
+      - name: Open or update dependency PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.ECOSYSTEM_SYNC_TOKEN }}
+          branch: automation/upstream-dependency-sync
+          delete-branch: true
+          commit-message: "chore(deps): sync verified upstream package versions"
+          title: "chore(deps): sync verified upstream package versions"
+          body: |
+            Automated update of published GutTS, KrnlTS, FrnlTS, Kloks, and Floks dependencies.
+
+            Generated from the upstream dependency sync workflow. Package metadata, lockfile,
+            build, typecheck, and tests are validated before this pull request is updated.
+          labels: dependencies, automated
+          signoff: false

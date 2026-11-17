@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"],
+      "@skipo/ui": ["./src/libraries/skipo/ui/index.ts"],
+      "@skipo/ui/*": ["./src/libraries/skipo/ui/*"],
+      "@skipo/ui/theme": ["./src/libraries/skipo/ui/theme/index.ts"],
+      "@skipo/core": ["./src/libraries/skipo/core/index.ts"],
+      "@skipo/core/*": ["./src/libraries/skipo/core/*"],
+      "@skipo/backend": ["./src/libraries/skipo/backend/index.ts"],
+      "@skipo/backend/*": ["./src/libraries/skipo/backend/*"],
+      "@skipo/systems": ["./src/libraries/skipo/systems/index.ts"],
+      "@skipo/systems/*": ["./src/libraries/skipo/systems/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", "dist", "Skipo"]
+}

@@ -1,0 +1,14 @@
+.DS_Store
+*.log
+.gemini/
+*.tmp
+node_modules/
+/dist/
+.turbo/
+__pycache__/
+*.pyc
+
+# Disposable downstream library workspaces
+/.skipo/libraries/
+workspace/
+workspaces/
