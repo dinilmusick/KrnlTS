@@ -1,0 +1,31 @@
+name: KrnlTS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @ultrst-armada/krnl-cli... run build
+      - run: pnpm run test:portable-closure
+      - run: pnpm run test:public-exports
+      - run: pnpm run test:package-artifact
+      - run: pnpm --filter @ultrst-armada/krnl-cli exec esbuild ../core/src/fetch.ts --bundle --platform=browser --format=esm --target=es2022  --outfile=/tmp/krnl-fetch-worker.mjs
+      - run: pnpm --filter @ultrst-armada/krnl-cli run typecheck
+      - run: pnpm --filter @ultrst-armada/krnl-cli run test
+      - run: pnpm --filter @ultrst-armada/krnl-core run typecheck
+      - run: pnpm --filter @ultrst-armada/krnl-core run test
+      - run: pnpm --filter @ultrst-armada/krnl-core exec vitest run src/__tests__/frontend-linkage.test.ts

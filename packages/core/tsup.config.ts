@@ -1,0 +1,12 @@
+import { defineConfig } from 'tsup';
+
+export default defineConfig({
+  entry: ['src/index.ts', 'src/node.ts', 'src/fetch.ts'],
+  format: ['esm', 'cjs'],
+  dts: true,
+  clean: true,
+  splitting: false,
+  target: 'esnext',
+  external: ['ws', 'zod', 'zod-to-json-schema', 'esbuild', '@dinilmusick/gutts'],
+  noExternal: ['p-queue'],
+});

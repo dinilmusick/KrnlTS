@@ -1,0 +1,25 @@
+{
+  "name": "@ultrst-armada/eslint-plugin-krnl",
+  "version": "1.0.2",
+  "description": "ESLint plugin enforcing Krnl backend service purity, 4-layer architecture, and backend standards",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --dts --format esm,cjs --clean"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3"
+  }
+}
