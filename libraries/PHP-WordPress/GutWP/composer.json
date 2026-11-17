@@ -1,0 +1,22 @@
+{
+  "name": "ultrst-armada/gutwp",
+  "description": "GutWP global utilities for WordPress/PHP applications",
+  "type": "library",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "GutWP\\": "src/"
+    }
+  },
+  "require": {
+    "php": ">=8.2",
+    "symfony/string": "^7.3",
+    "symfony/validator": "^7.3",
+    "league/uri": "^7.0"
+  },
+  "extra": {
+    "branch-alias": {
+      "dev-main": "0.1.x-dev"
+    }
+  }
+}
