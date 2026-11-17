@@ -1,0 +1,53 @@
+{
+  "name": "@ultrst-armada/kone",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "skipo": {
+    "deploy": "fullstack"
+  },
+  "scripts": {
+    "dev": "tsx server.ts",
+    "build": "npm run check:canonical-ui && node scripts/verify-build-boundary.cjs && npm run typecheck && node scripts/skipo-build.cjs",
+    "start": "node api/index.js",
+    "preview": "vite preview",
+    "clean": "rm -rf dist api",
+    "lint": "tsc --noEmit",
+    "test:system-env": "node scripts/test-system-database-env.mjs",
+    "validate": "npm run test:system-env && npm run lint && npm test && npm run build",
+    "validate:strict": "npm run validate",
+    "test": "npm run test:system-env && vitest run",
+    "check:canonical-ui": "node scripts/check-canonical-auth-workspace-ui.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1130.0",
+    "@aws-sdk/s3-request-presigner": "^3.1132.0",
+    "@dinilmusick/gutts": "^2.1.1",
+    "@neondatabase/serverless": "^1.1.0",
+    "@tailwindcss/vite": "^4.1.14",
+    "@ultrst-armada/floks": "^2.0.6",
+    "@ultrst-armada/frnlts": "^0.5.23",
+    "@ultrst-armada/kloks": "^2.0.5",
+    "@ultrst-armada/krnl": "^1.0.25",
+    "@vitejs/plugin-react": "^5.0.4",
+    "@xyflow/react": "^12.11.1",
+    "d3-force": "^3.0.0",
+    "dotenv": "^17.2.3",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "tailwindcss": "^4.1.14",
+    "zod": "^3.23.8",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3",
+    "vitest": "^3.2.4"
+  }
+}
