@@ -1,9 +1,0 @@
-{
-  "name": "MyApp",
-  "description": "MyApp — Built on Next.js with Skipo Framework. Rename with: python3 Skipo/scripts/rename_app.py \"YourAppName\"",
-  "version": "0.1.0",
-  "framework": "nextjs",
-  "runtime": "nextjs+react+app-router",
-  "targets": ["vercel", "cloudflare-workers"],
-  "skipo_scaffold": true
-}
