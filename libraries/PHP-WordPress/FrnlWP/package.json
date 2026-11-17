@@ -1,0 +1,6 @@
+{
+  "name":"@ultrst-armada/frnlwp-runtime","private":true,"type":"module",
+  "dependencies":{"zustand":"^5.0.3"},
+  "devDependencies":{"tsup":"^8.4.0","typescript":"^5.7.3"},
+  "scripts":{"build":"tsup assets/runtime.ts --format iife --global-name FrnlWP --out-dir dist --clean","typecheck":"tsc -p tsconfig.json --noEmit"}
+}
