@@ -1,9 +1,0 @@
-{
-  "name": "Kone",
-  "description": "Kone — a Skipo full-stack application for music performance orchestration.",
-  "version": "0.1.0",
-  "framework": "skipo",
-  "runtime": "vite+react+node",
-  "targets": ["cloudflare-workers"],
-  "skipo_scaffold": true
-}
