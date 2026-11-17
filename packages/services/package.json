@@ -1,0 +1,34 @@
+{
+  "name": "@kloks/services",
+  "version": "1.0.0",
+  "description": "Kloks Canonical Services A-D (Pure, Stateful, Event-Emitting, Protocol-Enabled) built on KrnlTS",
+  "type": "module",
+  "private": false,
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "skipoManifest": "./kloks.manifest.json",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean --external @kloks/state-graph --external @kloks/contracts --external ws",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@kloks/contracts": "workspace:*",
+    "@kloks/state-graph": "workspace:*"
+  },
+  "devDependencies": {
+    "@ultrst-armada/krnl": "^1.0.9"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "name": "@kloks/audio-midi",
+  "version": "1.0.0",
+  "description": "Kloks Audio & MIDI Engine Services (AudioHardwareService, MidiService, AudioMidiOrchestrator) built on KrnlTS",
+  "type": "module",
+  "private": false,
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "skipoManifest": "./kloks.manifest.json",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./clock": {
+      "types": "./dist/clock/index.d.ts",
+      "import": "./dist/clock/index.js",
+      "default": "./dist/clock/index.js"
+    },
+    "./midi": {
+      "types": "./dist/midi/index.d.ts",
+      "import": "./dist/midi/index.js",
+      "default": "./dist/midi/index.js"
+    },
+    "./osc": {
+      "types": "./dist/osc/index.d.ts",
+      "import": "./dist/osc/index.js",
+      "default": "./dist/osc/index.js"
+    },
+    "./osc/node": {
+      "types": "./dist/osc/node-udp.d.ts",
+      "import": "./dist/osc/node-udp.js",
+      "default": "./dist/osc/node-udp.js"
+    },
+    "./services": {
+      "types": "./dist/services/index.d.ts",
+      "import": "./dist/services/index.js",
+      "default": "./dist/services/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --external @kloks/state-graph --external ws --external @ultrst-armada/krnl --external node:dgram --clean && tsup src/clock/index.ts --format esm --dts --external @kloks/state-graph --external ws --external @ultrst-armada/krnl --external node:dgram --outDir dist/clock && tsup src/midi/index.ts --format esm --dts --external @kloks/state-graph --external ws --external @ultrst-armada/krnl --external node:dgram --outDir dist/midi && tsup src/osc/index.ts --format esm --dts --external @kloks/state-graph --external ws --external @ultrst-armada/krnl --external node:dgram --outDir dist/osc && tsup src/osc/node-udp.ts --format esm --dts --external @kloks/state-graph --external ws --external @ultrst-armada/krnl --external node:dgram --outDir dist/osc && tsup src/canonical-services.ts --format esm --dts --external @kloks/state-graph --external @ultrst-armada/krnl --outDir dist && tsup src/services/index.ts --format esm --dts --external @kloks/state-graph --external @ultrst-armada/krnl --outDir dist/services",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@kloks/state-graph": "workspace:*"
+  },
+  "devDependencies": {
+    "@ultrst-armada/krnl": "^1.0.9"
+  },
+  "peerDependencies": {
+    "@ultrst-armada/krnl": "^1.0.9"
+  },
+  "peerDependenciesMeta": {
+    "@ultrst-armada/krnl": {
+      "optional": true
+    }
+  }
+}

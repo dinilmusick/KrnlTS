@@ -1,0 +1,14 @@
+{
+  "package": "@ultrst-armada/kloks",
+  "level": 2,
+  "expectedDirect": [
+    "@dinilmusick/gutts",
+    "@ultrst-armada/krnl"
+  ],
+  "actualDirect": [
+    "@dinilmusick/gutts",
+    "@ultrst-armada/krnl"
+  ],
+  "failures": [],
+  "notes": []
+}

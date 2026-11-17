@@ -1,0 +1,203 @@
+{
+  "$schema": "https://skipo.dev/schemas/kloks-manifest.v1.json",
+  "package": "@kloks/services",
+  "packageType": "backend",
+  "version": "1.0.0",
+  "services": [
+    {
+      "id": "kloks.service.auth",
+      "name": "AuthClientService",
+      "version": "1.0.0",
+      "description": "Canonical user and workspace authentication service.",
+      "backend": {
+        "package": "@kloks/services",
+        "export": "AuthClientServiceFacade",
+        "facade": "AuthClientServiceFacade"
+      },
+      "modes": [
+        "client",
+        "backend"
+      ],
+      "targets": {
+        "backend": [
+          "BackendFacade.services"
+        ]
+      },
+      "defaultFrontend": {
+        "component": "AuthPage",
+        "package": "@ultrst-armada/floks/ui",
+        "relationship": "recommended",
+        "requirementMode": "required"
+      }
+    },
+    {
+      "id": "kloks.service.storage",
+      "name": "StorageClientService",
+      "version": "1.0.0",
+      "description": "User storage connections and cluster persistence service.",
+      "backend": {
+        "package": "@kloks/services",
+        "export": "StorageClientServiceFacade",
+        "facade": "StorageClientServiceFacade"
+      },
+      "modes": [
+        "client",
+        "backend"
+      ],
+      "targets": {
+        "backend": [
+          "BackendFacade.services"
+        ]
+      },
+      "defaultFrontend": {
+        "component": "WorkspaceTilesMenu",
+        "package": "@ultrst-armada/floks/ui",
+        "relationship": "recommended",
+        "requirementMode": "optional"
+      }
+    },
+    {
+      "id": "kloks.service.systemDb",
+      "name": "SystemDbClientService",
+      "version": "1.0.0",
+      "description": "System database environment and cluster health monitoring.",
+      "backend": {
+        "package": "@kloks/services",
+        "export": "SystemDbClientServiceFacade",
+        "facade": "SystemDbClientServiceFacade"
+      },
+      "modes": [
+        "client",
+        "backend"
+      ],
+      "targets": {
+        "backend": [
+          "BackendFacade.services"
+        ]
+      }
+    },
+    {
+      "id": "service-a",
+      "name": "Canonical Service A (Pure)",
+      "version": "1.0.0",
+      "description": "Deterministic pure calculation service.",
+      "backend": {
+        "package": "@kloks/services",
+        "export": "ServiceAFacade",
+        "facade": "ServiceAFacade"
+      },
+      "modes": [
+        "backend"
+      ],
+      "targets": {
+        "backend": [
+          "BackendFacade.services"
+        ]
+      }
+    },
+    {
+      "id": "service-b",
+      "name": "Canonical Service B (Stateful)",
+      "version": "1.0.0",
+      "description": "Stateful key-value tracking service.",
+      "backend": {
+        "package": "@kloks/services",
+        "export": "ServiceBFacade",
+        "facade": "ServiceBFacade"
+      },
+      "modes": [
+        "backend"
+      ],
+      "targets": {
+        "backend": [
+          "BackendFacade.services"
+        ]
+      }
+    },
+    {
+      "id": "service-c",
+      "name": "Canonical Service C (Event-Emitting)",
+      "version": "1.0.0",
+      "description": "Reactive event publisher service.",
+      "backend": {
+        "package": "@kloks/services",
+        "export": "ServiceCFacade",
+        "facade": "ServiceCFacade"
+      },
+      "modes": [
+        "backend"
+      ],
+      "targets": {
+        "backend": [
+          "BackendFacade.services"
+        ]
+      }
+    },
+    {
+      "id": "service-d",
+      "name": "Canonical Service D (Protocol-Enabled)",
+      "version": "1.0.0",
+      "description": "Multi-transport HTTP/WS/UDP/P2P protocol service.",
+      "backend": {
+        "package": "@kloks/services",
+        "export": "ServiceDFacade",
+        "facade": "ServiceDFacade"
+      },
+      "modes": [
+        "backend"
+      ],
+      "targets": {
+        "backend": [
+          "BackendFacade.services"
+        ]
+      }
+    },
+    {
+      "id": "kloks.serviceDiscovery",
+      "name": "KLOKS Service Discovery",
+      "version": "1.0.0",
+      "description": "Canonical machine-readable service identity, deterministic duplicate detection, semantic matching and reuse recommendations.",
+      "backend": {
+        "package": "@kloks/services",
+        "export": "KLOKSServiceIndex",
+        "facade": "KLOKSServiceIndex"
+      },
+      "modes": [
+        "backend"
+      ],
+      "targets": {
+        "backend": [
+          "BackendFacade.services"
+        ]
+      }
+    },
+    {
+      "id": "kloks.service.githubAppConnector",
+      "name": "GitHub App Connector",
+      "version": "1.0.0",
+      "description": "Portable GitHub App integration with multiple installations, repository/file/commit/PR operations and asynchronous workflow dispatch/monitoring.",
+      "backend": {
+        "package": "@ultrst-armada/kloks",
+        "export": "GitHubAppConnector",
+        "facade": "GitHubAppConnector"
+      },
+      "modes": [
+        "backend"
+      ],
+      "targets": {
+        "backend": [
+          "BackendFacade.services"
+        ]
+      },
+      "capabilities": [
+        "github-app",
+        "repositories",
+        "files",
+        "commits",
+        "pull-requests",
+        "workflow-dispatch",
+        "workflow-monitoring"
+      ]
+    }
+  ]
+}
