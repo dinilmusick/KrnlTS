@@ -1,0 +1,18 @@
+{
+  "target": "api",
+  "entry": "src/backend/adapters/httpsAdapter.ts",
+  "include": [
+    "backend/adapters",
+    "backend/services/*/server",
+    "backend/services/*/remote",
+    "backend/services/*/repositories",
+    "backend/orchestrations",
+    "backend/gateway",
+    "libraries"
+  ],
+  "exclude": [
+    "frontend",
+    "frontend-state",
+    "**/client/**"
+  ]
+}
