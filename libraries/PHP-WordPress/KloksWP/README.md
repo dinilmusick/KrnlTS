@@ -1,0 +1,2 @@
+# KloksWP
+Kloks for WP.
