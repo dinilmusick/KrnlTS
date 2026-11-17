@@ -1,0 +1,63 @@
+{
+  "usr_1790876530697": {
+    "id": "usr_1790876530697",
+    "email": "admin@aiko.vault",
+    "passwordHash": "hash_YWRtaW4xMjM=",
+    "name": "admin",
+    "role": "admin",
+    "workspaces": [],
+    "createdAt": 1790876530697
+  },
+  "usr_admin_01": {
+    "id": "usr_admin_01",
+    "email": "admin@ultrst.krnl",
+    "passwordHash": "$2b$10$AdzAk4fE3T21xCIf.DcdT.51NzYjtwa0YdNlyDQb8/wkjSK7TQUM.",
+    "name": "System Admin Operator",
+    "role": "admin",
+    "workspaces": [
+      {
+        "id": "ws-1791640560390",
+        "name": "Dev Agents Space",
+        "description": "A space for agents that are used primarily dev and automation",
+        "engine": "backblaze_b2",
+        "storageProvider": "backblaze_b2",
+        "storageConnectionId": "conn_b2_1789201964818",
+        "b2BucketName": "ultrst-apps",
+        "b2Endpoint": "s3.eu-central-003.backblazeb2.com",
+        "b2Region": "eu-central-003",
+        "workspacePath": "aiko_dev_agents_space",
+        "createdAt": 1791640560390,
+        "itemCount": 0
+      }
+    ],
+    "createdAt": 1790877215244,
+    "activeWorkspaceId": "ws-1791640560390"
+  },
+  "user-1788281164629-h2c7o": {
+    "id": "user-1788281164629-h2c7o",
+    "email": "dinil@gmail.com",
+    "passwordHash": "$2b$10$BZtcn9SHsc06NpLos5n2LuMXBsFdZXO8HN/5mqavRfssnyGFwsB0O",
+    "name": "dinil",
+    "role": "user",
+    "workspaces": [
+      {
+        "id": "ws-1791639695846",
+        "name": "Dev Agents Space",
+        "engine": "backblaze_b2",
+        "b2Region": "eu-central-003",
+        "createdAt": 1791639695846,
+        "itemCount": 0,
+        "b2Endpoint": "s3.eu-central-003.backblazeb2.com",
+        "description": "A space for agents that are used primarily dev and automation",
+        "b2BucketName": "ultrst-apps",
+        "workspacePath": "./ultrst_aiko_dinil_dev_agents_space",
+        "localFolderKey": "ultrst_aiko_dinil_dev_agents_space",
+        "localFolderName": "ultrst_aiko_dinil_dev_agents_space",
+        "storageProvider": "backblaze_b2",
+        "storageConnectionId": "conn_b2_1789201964818"
+      }
+    ],
+    "createdAt": 1791622209239,
+    "activeWorkspaceId": "ws-1791639695846"
+  }
+}

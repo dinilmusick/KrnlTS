@@ -1,0 +1,22 @@
+name: Validate
+on: [push, pull_request]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --include=optional
+
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run verify:build-artifacts
+      - run: npm run build:fullstack
+      - run: npm test
+      - run: npm run build:api
+      - run: npm run test:architecture # re-check emitted production bundles
+      - run: python3 checklists/aiko_skipo_validator.py .

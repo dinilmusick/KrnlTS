@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": false,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": [
+    "src/backend/**/*",
+    "src/libraries/types/**/*"
+  ],
+  "exclude": [
+    "src/frontend/**/*",
+    "src/frontend-state/**/*",
+    "node_modules",
+    "dist"
+  ]
+}
