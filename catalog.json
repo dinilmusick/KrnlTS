@@ -1,0 +1,10 @@
+{
+  "$schema": "https://skipo.dev/schemas/floks-catalog.v1.json",
+  "name": "@floks",
+  "version": "1.0.0",
+  "packages": [
+    "@floks/ui",
+    "@floks/canvas-ui",
+    "@floks/contracts"
+  ]
+}

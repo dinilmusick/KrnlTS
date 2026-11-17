@@ -1,0 +1,35 @@
+{
+  "name": "@floks/contracts",
+  "version": "1.0.0",
+  "description": "Floks Canonical Component Theme Contracts, Visual Slots, States, Parameters, and Compatibility Validation for Theta Engine",
+  "type": "module",
+  "private": false,
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "skipoManifest": "./floks.manifest.json",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./state-graph": {
+      "import": "./dist/state-graph.js",
+      "types": "./dist/state-graph.d.ts",
+      "default": "./dist/state-graph.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/state-graph.ts --format esm --dts --clean --external zod",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  }
+}

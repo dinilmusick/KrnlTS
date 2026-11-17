@@ -1,0 +1,5 @@
+import { CANONICAL_ELEMENTS_BASE } from './canonicalElementsBase.js';
+import { CANONICAL_ELEMENTS_DOMAIN } from './canonicalElementsDomain.js';
+
+export { CANONICAL_ELEMENTS_BASE, CANONICAL_ELEMENTS_DOMAIN };
+export const CANONICAL_ELEMENTS = [...CANONICAL_ELEMENTS_BASE, ...CANONICAL_ELEMENTS_DOMAIN];

@@ -1,0 +1,94 @@
+:root {
+  /* Typography */
+  --skipo-font: 'Inter', -apple-system, 'SF Pro Display', 'Segoe UI', sans-serif;
+  --skipo-font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Page base & surfaces */
+  --skipo-bg: #16181d;
+  --skipo-surface: rgba(26, 29, 36, 0.85);
+  --skipo-surface-hover: rgba(34, 38, 48, 0.92);
+  --skipo-matte-bg: rgba(26, 29, 36, 0.85);
+  --skipo-matte-bg-hover: rgba(34, 38, 48, 0.92);
+  --skipo-matte-blur: blur(20px);
+
+  /* Gloss & Tactile */
+  --skipo-gloss-bg: linear-gradient(160deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.03) 100%);
+  --skipo-gloss-shine: inset 0 1px 0 rgba(255,255,255,0.20);
+
+  /* Typography Colors */
+  --skipo-text: #f1f5f9;
+  --skipo-text-muted: #8e95a5;
+  --skipo-text-inverse: #0f172a;
+
+  /* Borders & shadows */
+  --skipo-border-color: rgba(255, 255, 255, 0.85);
+  --skipo-border: 2px solid rgba(255, 255, 255, 0.85);
+  --skipo-border-input: 2px solid rgba(255, 255, 255, 0.85);
+  --skipo-radius: 10px;
+  --skipo-radius-sm: 6px;
+  --skipo-radius-lg: 14px;
+  --skipo-shadow: 5px 5px 0px rgba(0, 0, 0, 0.90);
+  --skipo-shadow-hover: 8px 8px 0px rgba(0, 0, 0, 0.95);
+  --skipo-shadow-btn: 3px 3px 0px rgba(0, 0, 0, 0.90);
+  --skipo-shadow-btn-hover: 5px 5px 0px rgba(0, 0, 0, 0.95);
+  --skipo-shadow-btn-active: 1px 1px 0px rgba(0, 0, 0, 0.90);
+
+  /* Semantic accents */
+  --skipo-accent:      #d4af37;
+  --skipo-accent-fg:   #000000;
+  --skipo-accent-contrast: #b89628;
+  --skipo-accent-glow: 0 0 14px rgba(212, 175, 55, 0.45);
+  --skipo-rune-glow:   0 0 14px rgba(212, 163, 89, 0.35);
+  --skipo-ambient-glow: 0 0 10px rgba(255, 255, 255, 0.12);
+  --skipo-success:     #10b981;
+  --skipo-success-fg:  #000000;
+  --skipo-danger:      #ef4444;
+  --skipo-danger-fg:   #ffffff;
+  --skipo-warning:     #f59e0b;
+  --skipo-warning-fg:  #000000;
+  --skipo-info:        #3b82f6;
+  --skipo-info-fg:     #ffffff;
+
+  /* App Shell & Navigation */
+  --skipo-top-toolbar-height: 44px;
+  --skipo-top-toolbar-bg: rgba(18, 20, 25, 0.95);
+  --skipo-bottom-strip-height: 30px;
+  --skipo-bottom-strip-bg: rgba(15, 17, 21, 0.95);
+  --skipo-inspection-text-color: rgba(241, 245, 249, 0.80);
+}
+
+[data-skipo-theme='light'] {
+  --skipo-bg: #f5f0e8;
+  --skipo-surface: rgba(245, 240, 232, 0.90);
+  --skipo-surface-hover: rgba(238, 230, 218, 0.95);
+  --skipo-matte-bg: rgba(245, 240, 232, 0.90);
+  --skipo-matte-bg-hover: rgba(238, 230, 218, 0.95);
+  --skipo-text: #21140e;
+  --skipo-text-muted: #6b5c52;
+  --skipo-text-inverse: #f5f0e8;
+
+  --skipo-border-color: rgba(44, 24, 16, 0.85);
+  --skipo-border: 2px solid rgba(44, 24, 16, 0.85);
+  --skipo-border-input: 2px solid rgba(44, 24, 16, 0.85);
+  --skipo-shadow: 5px 5px 0px rgba(44, 24, 16, 0.25);
+  --skipo-shadow-hover: 8px 8px 0px rgba(44, 24, 16, 0.35);
+  --skipo-shadow-btn: 3px 3px 0px rgba(44, 24, 16, 0.25);
+  --skipo-shadow-btn-hover: 5px 5px 0px rgba(44, 24, 16, 0.35);
+  --skipo-shadow-btn-active: 1px 1px 0px rgba(44, 24, 16, 0.25);
+  
+  --skipo-accent: #6f4e37;
+  --skipo-accent-fg: #ffffff;
+  --skipo-accent-glow: 0 0 12px rgba(111, 78, 55, 0.35);
+  --skipo-success: #059669;
+  --skipo-success-fg: #ffffff;
+  --skipo-danger: #dc2626;
+  --skipo-danger-fg: #ffffff;
+  --skipo-warning: #d97706;
+  --skipo-warning-fg: #ffffff;
+  --skipo-info: #2563eb;
+  --skipo-info-fg: #ffffff;
+
+  --skipo-top-toolbar-bg: rgba(240, 233, 222, 0.95);
+  --skipo-bottom-strip-bg: rgba(235, 226, 214, 0.95);
+  --skipo-inspection-text-color: rgba(33, 20, 14, 0.80);
+}
