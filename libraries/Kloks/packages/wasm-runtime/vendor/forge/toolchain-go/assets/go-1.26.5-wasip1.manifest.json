@@ -1,0 +1,1788 @@
+{
+  "compiler": {
+    "command": "go-compile",
+    "sha256": "9e557f5b86961fd604217d7521461c5d2b7322e383fa30dead5669b77db12201",
+    "sourceSha256": "dcb91ab9e74bba9855dccc8d57700216685b9e6e8c7bacce0d3e9191e5a469e6"
+  },
+  "deterministicReplacements": [
+    "wasi_snapshot_preview1.random_get",
+    "wasi_snapshot_preview1.clock_time_get",
+    "wasi_snapshot_preview1.sock_accept",
+    "wasi_snapshot_preview1.sock_shutdown"
+  ],
+  "filesystemMount": null,
+  "linker": {
+    "command": "go-link",
+    "sha256": "2eefca10af935a307ab7946447146bd30e0ea0fb5460be54dc1c55844d155580",
+    "sourceSha256": "24c1082bf5eb9b5a735820ccf767ee87f9ef795dbecb942ad9b7a97106288bb5"
+  },
+  "output": {
+    "compressedBytes": 12412445,
+    "compressedSha256": "70a7e359884b09b2e1a622d6ac5cd6e31c334aab519e6dd80dff5e040a9e09e4",
+    "path": "go-1.26.5-wasip1.webc.gz.bin",
+    "sha256": "c3a97934b6a83fefdea5c31f99141f70f76189eedc9ec0fa9ccd41302e50963b",
+    "uncompressedBytes": 59361742
+  },
+  "packages": [
+    {
+      "archivePath": "/go/pkg/archive/tar.a",
+      "importPath": "archive/tar",
+      "sha256": "d851868cf062e8039401659aa4a9cb8b5245e68ea4bb87b49ab5c988e6bb35f9"
+    },
+    {
+      "archivePath": "/go/pkg/archive/zip.a",
+      "importPath": "archive/zip",
+      "sha256": "10033637717f0bc0ab6065a0be8e3e80b96d5af9e0493b507968746bbf8d97ea"
+    },
+    {
+      "archivePath": "/go/pkg/bufio.a",
+      "importPath": "bufio",
+      "sha256": "0daac4621bbd6670937b74b4546c7673e1f40577bfe5d96d1a567026001df24a"
+    },
+    {
+      "archivePath": "/go/pkg/bytes.a",
+      "importPath": "bytes",
+      "sha256": "77342044179ca2000288f245074a523d9d53be16e9f1be3f49a05566acc33832"
+    },
+    {
+      "archivePath": "/go/pkg/cmp.a",
+      "importPath": "cmp",
+      "sha256": "dc23ace115b50624a3acc187c00a96412dfda4b5208befc5193c11ea75b5d7f4"
+    },
+    {
+      "archivePath": "/go/pkg/compress/bzip2.a",
+      "importPath": "compress/bzip2",
+      "sha256": "1a4d42b684b1d852df7f6161be5abc929e833bf7c01ca179fe5c28ac9491019b"
+    },
+    {
+      "archivePath": "/go/pkg/compress/flate.a",
+      "importPath": "compress/flate",
+      "sha256": "5312d903cea34950a2d0e4a71209fc87896198a28f0c05fb255a813a40c37055"
+    },
+    {
+      "archivePath": "/go/pkg/compress/gzip.a",
+      "importPath": "compress/gzip",
+      "sha256": "9f8c9d233b945c6bd3c7953a1986868fd8441a3def53df87cf27c3b5eea67a03"
+    },
+    {
+      "archivePath": "/go/pkg/compress/lzw.a",
+      "importPath": "compress/lzw",
+      "sha256": "9218456211a2141cc8a167412357adcf685c382ba075c12f399f4bc7813821f6"
+    },
+    {
+      "archivePath": "/go/pkg/compress/zlib.a",
+      "importPath": "compress/zlib",
+      "sha256": "89da5b8109fe90efc623bd20994c549da553942739904fb7fef4f12fabc02910"
+    },
+    {
+      "archivePath": "/go/pkg/container/heap.a",
+      "importPath": "container/heap",
+      "sha256": "418932679d6821654019c7bf1a185ad22c20db13c9877ed2f07c9b1c89e71878"
+    },
+    {
+      "archivePath": "/go/pkg/container/list.a",
+      "importPath": "container/list",
+      "sha256": "523190a85a05abda256030bde8a372f19085046fa099df52d116d5f5cfda4a54"
+    },
+    {
+      "archivePath": "/go/pkg/container/ring.a",
+      "importPath": "container/ring",
+      "sha256": "7d24d4372a29f18e71955e872b146ad9702c1928f053f1c564012b3cabe245b3"
+    },
+    {
+      "archivePath": "/go/pkg/context.a",
+      "importPath": "context",
+      "sha256": "9721f2c0915eaba53a115cbed2fa103f02b201b75b6ccf01e37feeacf8ba0f22"
+    },
+    {
+      "archivePath": "/go/pkg/crypto.a",
+      "importPath": "crypto",
+      "sha256": "51ff2bf3c7430fdcc9ffff031b68049a0b38ff994e9bdf6543712187f7afa01a"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/aes.a",
+      "importPath": "crypto/aes",
+      "sha256": "2444918699bbf46a542e652fd58157824899d8bf65ba261ae4bec8473810f30e"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/cipher.a",
+      "importPath": "crypto/cipher",
+      "sha256": "1fda4a850d04ad77b9e715490e9378cad938e73dffd0b2f073ff75f17c13b51d"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/des.a",
+      "importPath": "crypto/des",
+      "sha256": "58b7c26a56d90d91a9fc3d01beff97842c9515fd8085c9c90454b3ea79d71ab3"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/dsa.a",
+      "importPath": "crypto/dsa",
+      "sha256": "e1dceed6182924a2cefad10e2fe00d828724c91f4e9886bba8b03851af2df7b8"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/ecdh.a",
+      "importPath": "crypto/ecdh",
+      "sha256": "a5c8cf1232fcdff7b63781b2c1c0972a13c7a1d9e27b87eb9909aad04b3d3d29"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/ecdsa.a",
+      "importPath": "crypto/ecdsa",
+      "sha256": "3a49212b5e7d864905eb8357db4b8e70d941d3817567ec3737a7807cb8aa92db"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/ed25519.a",
+      "importPath": "crypto/ed25519",
+      "sha256": "4d9dbcf58305273235dbd4a272f908bde538ab653165cd7b1419c3113db5ef16"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/elliptic.a",
+      "importPath": "crypto/elliptic",
+      "sha256": "ede86880f07e51fb6b8d35c5e88538717567185690b6736ab336656f31c20860"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/fips140.a",
+      "importPath": "crypto/fips140",
+      "sha256": "4ae82f4b40e168bfe9ef3ea93365d06d091510550ccaec2f08070299a60f1d16"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/hkdf.a",
+      "importPath": "crypto/hkdf",
+      "sha256": "7ba865782d7301c761cd2fbb11d4bd99b9749b22541ad25a1d6da2605a9a7f74"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/hmac.a",
+      "importPath": "crypto/hmac",
+      "sha256": "7ce1fbd9d0989a91bd8f8595f5484b68ffc6cf91a6c7cc7d30be43a4850c408a"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/hpke.a",
+      "importPath": "crypto/hpke",
+      "sha256": "cafe50e00ba213d352ba8fd748fc15735524aa55f973c3096527da4aa077d233"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/boring.a",
+      "importPath": "crypto/internal/boring",
+      "sha256": "04e5d714d06177bdb3ca91fd6220ecd4f3932b9f55f3741d8ed0de94b2c3a41d"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/boring/bbig.a",
+      "importPath": "crypto/internal/boring/bbig",
+      "sha256": "f59cbfba1cf5aded16b554f79ad026c0917a65edb35091dd29d8c397bb9b63cd"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/boring/bcache.a",
+      "importPath": "crypto/internal/boring/bcache",
+      "sha256": "dd01a2d5ffb623dbba840f51f5932b5bbf2c26ed6942f37a974ad718f783c61d"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/boring/sig.a",
+      "importPath": "crypto/internal/boring/sig",
+      "sha256": "0ef5a018cb167f3e011129093a281132679d60cccfd40417e8068e23329a8dca"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/constanttime.a",
+      "importPath": "crypto/internal/constanttime",
+      "sha256": "927b6866776424bf382fe5614f50722585baa833ed0909f7385636bc7dda7ede"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/cryptotest.a",
+      "importPath": "crypto/internal/cryptotest",
+      "sha256": "b0d2c97c93981b300e17170600d86eab8aeb1ec0d7f094069b08d71bcd689b08"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/entropy.a",
+      "importPath": "crypto/internal/entropy",
+      "sha256": "3cfce9762f8453a855a79bbc95121cd3d5969bec3db2819ca5b927a865077e2f"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/entropy/v1.0.0.a",
+      "importPath": "crypto/internal/entropy/v1.0.0",
+      "sha256": "50ad1a5a75f18b0f76acb0d01f4c0bfd3daf457d7979075a0980069647b21880"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140.a",
+      "importPath": "crypto/internal/fips140",
+      "sha256": "24c4bb3507b2f4e24b64ebf04af9070c96a1be67a8858651088cc4f8989672f0"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/aes.a",
+      "importPath": "crypto/internal/fips140/aes",
+      "sha256": "dbd13455789ea3e0173a2a4ae97df9f703bfe1e894b13f7d57a85d57494bbb90"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/aes/gcm.a",
+      "importPath": "crypto/internal/fips140/aes/gcm",
+      "sha256": "e28dc9f6c750813be8b5ef6df438c9a67c8137f4bc9c1a9a424193a14f99605f"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/alias.a",
+      "importPath": "crypto/internal/fips140/alias",
+      "sha256": "de4e81ab2798e5fbca7c81ddda6f2f1640a4a92c84fa3244e70d31e8623c1be0"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/bigmod.a",
+      "importPath": "crypto/internal/fips140/bigmod",
+      "sha256": "ecb6e3a215b2545ae7cf16902b7da4e4ae3293eceae91f8a0f106baaae27dad1"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/check.a",
+      "importPath": "crypto/internal/fips140/check",
+      "sha256": "6ba5dced4450bccee3c62998c3604093373f4c13855ef71dd0e05316be645bf5"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/check/checktest.a",
+      "importPath": "crypto/internal/fips140/check/checktest",
+      "sha256": "c05adc2c4331514e2e5e853ac4c1e4295f232ac691b3778e280b7e1320cf98da"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/drbg.a",
+      "importPath": "crypto/internal/fips140/drbg",
+      "sha256": "4502f4aa24da526094021dcb1a921d48ae5fbaefb7dff6db04c51716c72a79d7"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/ecdh.a",
+      "importPath": "crypto/internal/fips140/ecdh",
+      "sha256": "dda3c3fcae478f895bc82b02343db55fed400a325b2bf3fc9637eb80546f2ba9"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/ecdsa.a",
+      "importPath": "crypto/internal/fips140/ecdsa",
+      "sha256": "bcaf981c5b0f433007e665d4b47e7196fb196a8546811a217936eb596b8148b3"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/ed25519.a",
+      "importPath": "crypto/internal/fips140/ed25519",
+      "sha256": "1ea9c9167d8c8faccfef5e9ce7e9a3c5ecf52d7c753d12e60d4bb538de305af6"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/edwards25519.a",
+      "importPath": "crypto/internal/fips140/edwards25519",
+      "sha256": "764447af6a5aa78eb3fbf6132ab53f635bab9d60785af49558ddd13efe916f4f"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/edwards25519/field.a",
+      "importPath": "crypto/internal/fips140/edwards25519/field",
+      "sha256": "6ea12c0f4b378302051faa82941ef637f29b8ea5ad9f8ab2e8f27c5e1166f8ec"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/hkdf.a",
+      "importPath": "crypto/internal/fips140/hkdf",
+      "sha256": "3d28ca28a55c0061b4391014ffd0f2cc280eb2689180f83480ec869748b24f44"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/hmac.a",
+      "importPath": "crypto/internal/fips140/hmac",
+      "sha256": "034392a78e20f809ecb3b3f44640a29d9c34462519e5c4a6df9a7a4754b9f731"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/mldsa.a",
+      "importPath": "crypto/internal/fips140/mldsa",
+      "sha256": "ba3875f3289e15382d0a7afa9f88e89669ad2972381760dd9a82367780342411"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/mlkem.a",
+      "importPath": "crypto/internal/fips140/mlkem",
+      "sha256": "c8f4760d7859555238230e5a6f14a2e30b4adc0618fddea8a710be00eaac1a9b"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/nistec.a",
+      "importPath": "crypto/internal/fips140/nistec",
+      "sha256": "33af8e574e1476e8b8eea2f3850470c71d2746097c1d149dc728fe97f2afd053"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/nistec/fiat.a",
+      "importPath": "crypto/internal/fips140/nistec/fiat",
+      "sha256": "139b6da3cb7048ecf38adbd5366ec08404aa1c29fe4992e76fe1dd5c62cbc9f2"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/pbkdf2.a",
+      "importPath": "crypto/internal/fips140/pbkdf2",
+      "sha256": "d0dd58b593bf90be90e00fd796c49de5c2d55ff834afd765fa8c126c56ded83b"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/rsa.a",
+      "importPath": "crypto/internal/fips140/rsa",
+      "sha256": "ee1514aa8e253a42c8a770530f206e54794a1af4ba9c5325223efbe60dcfd7f1"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/sha256.a",
+      "importPath": "crypto/internal/fips140/sha256",
+      "sha256": "1c3beac0492043e67f217ed8642874eca5a3aac76c2b69b2db4ddca9bf187a95"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/sha3.a",
+      "importPath": "crypto/internal/fips140/sha3",
+      "sha256": "d789b36bcef25a40d2f7db917650646b7051e47fb6036228bd3928ef3613f84d"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/sha512.a",
+      "importPath": "crypto/internal/fips140/sha512",
+      "sha256": "9342caf47757330b00f7c89caf805252ba34aa56e89b18fdcc98c5ab8871da85"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/ssh.a",
+      "importPath": "crypto/internal/fips140/ssh",
+      "sha256": "457e18037610a43cbbdfef9842034c74cffc4ab86b179f4d91c95109d43d295e"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/subtle.a",
+      "importPath": "crypto/internal/fips140/subtle",
+      "sha256": "c24fe0b84cb9abe82a7d3a4970cac727ab92139041c89efb90c844a74963ac19"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/tls12.a",
+      "importPath": "crypto/internal/fips140/tls12",
+      "sha256": "1829e36b69c2b72d0e66355e0b8532273d2ad15859977aaaa95e5539cf357f2f"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140/tls13.a",
+      "importPath": "crypto/internal/fips140/tls13",
+      "sha256": "0f87262e53e46b2f46b3e6c3506288279dbf9c4b168c186293d61385a387261d"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140cache.a",
+      "importPath": "crypto/internal/fips140cache",
+      "sha256": "65b11ff4583557c86dc8fc80e1fef04480ffa6ec00f3b3bbba9a8148c26b67af"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140deps.a",
+      "importPath": "crypto/internal/fips140deps",
+      "sha256": "74de2dd8b4682ef803a2b49b7e7b0c83041aa910c58da6bcd2b4629860c7af8a"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140deps/byteorder.a",
+      "importPath": "crypto/internal/fips140deps/byteorder",
+      "sha256": "f07581913e5b9d0843e7ebe0312c81d4b8c24d9534eaffcc4c54a77f9eee3a9b"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140deps/cpu.a",
+      "importPath": "crypto/internal/fips140deps/cpu",
+      "sha256": "bd9befaee70b145d79faea769ee7bbf00c3949d9da32e251a083e767c251befe"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140deps/godebug.a",
+      "importPath": "crypto/internal/fips140deps/godebug",
+      "sha256": "6df61ec56a92655f538bebd35c469f02c790045f7722e8e6afeda41ae23517b3"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140deps/time.a",
+      "importPath": "crypto/internal/fips140deps/time",
+      "sha256": "321768243f9c1c732a4ba8ec56fdf3b5ae459542efe28d797d7e057b1884e293"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140hash.a",
+      "importPath": "crypto/internal/fips140hash",
+      "sha256": "541a5ee9293d21e9f152ebfd7c622557692ef6ccb6081cc5c86a349a2b2d9557"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/fips140only.a",
+      "importPath": "crypto/internal/fips140only",
+      "sha256": "64d3e214c23adeb9d922876da419a53a0a057476fd9276c672b20c395fad9ee3"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/impl.a",
+      "importPath": "crypto/internal/impl",
+      "sha256": "31f3a8139f2392530e6c7be511f8e32dc7e0d23171561b38e3482bc372eed38a"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/rand.a",
+      "importPath": "crypto/internal/rand",
+      "sha256": "8a68998ebf202fd57cac04a7c8c36eb869bc5196af65007f372cd47a8c59359b"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/randutil.a",
+      "importPath": "crypto/internal/randutil",
+      "sha256": "591651d57602dd59f7e677c0144c21dc03b36156508857fa582cec75c6de6609"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/sysrand.a",
+      "importPath": "crypto/internal/sysrand",
+      "sha256": "90269479d5a228ba120a188d5da954d5d104b23d51043b0fed336d74db698971"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/internal/sysrand/internal/seccomp.a",
+      "importPath": "crypto/internal/sysrand/internal/seccomp",
+      "sha256": "af8a913cc384bbf10f467bb4a8d1f0937e486701b31d924e2eb140ffe7831963"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/md5.a",
+      "importPath": "crypto/md5",
+      "sha256": "619ab0575dd8a4372c7df4903cc2cca4571badf53deceb51c5378a724113be68"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/mlkem.a",
+      "importPath": "crypto/mlkem",
+      "sha256": "2f28d860640c9c87fed1b6891d41ab074171f99bd98032e6e1c32143cb49e303"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/mlkem/mlkemtest.a",
+      "importPath": "crypto/mlkem/mlkemtest",
+      "sha256": "df7fe5e8ad70d208b24d7dfe5849d031c16bb50a113c21986df7a5748165a843"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/pbkdf2.a",
+      "importPath": "crypto/pbkdf2",
+      "sha256": "12e5119d5f618ca9a900402f08b5320ea748c9d23dbe79fef635ea45da727724"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/rand.a",
+      "importPath": "crypto/rand",
+      "sha256": "9150753ffd69e6dcdc6a0c90f6ba0e9011dc8ac1c56706e13c36889d6f07ebab"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/rc4.a",
+      "importPath": "crypto/rc4",
+      "sha256": "60f0886a8050f02fce9761a98c291f75141e8d1aa8ad658fd6537954c079d479"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/rsa.a",
+      "importPath": "crypto/rsa",
+      "sha256": "befd2a3ca7b317a6aa428984d6c2890ddd23148bc203ec44abe0772586de4930"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/sha1.a",
+      "importPath": "crypto/sha1",
+      "sha256": "7aa00c2701d5c22f8cbdcfa513238a01d91c90eca19474430863a6fc5fc89054"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/sha256.a",
+      "importPath": "crypto/sha256",
+      "sha256": "1b42987702ff856f0247bf8875ed7a9737f733d77143eda141dc1b7487098d82"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/sha3.a",
+      "importPath": "crypto/sha3",
+      "sha256": "046d1ebb64ffc4983dd1018358f2493c9184cfa0b9084ab3b91aa9284b8a76fe"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/sha512.a",
+      "importPath": "crypto/sha512",
+      "sha256": "be663a3203299a4af97721bf05f561fdbf89af2544304d92d9962b81377dc2e1"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/subtle.a",
+      "importPath": "crypto/subtle",
+      "sha256": "4158a3416470e775eee202e6f76e89ad720e2d281a57e14255077e57a51f637c"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/tls.a",
+      "importPath": "crypto/tls",
+      "sha256": "7741393af08427bb84c8677ddd4e5f4d97998e7a92c99ee48331328080c0cee5"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/tls/internal/fips140tls.a",
+      "importPath": "crypto/tls/internal/fips140tls",
+      "sha256": "ebc22470da91ec6d26e07c3ba5f524a08b43d7d872378fcddd878b9defa3f549"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/x509.a",
+      "importPath": "crypto/x509",
+      "sha256": "d8a01647da0fd6a59f23422753bdf8de01a7fcb2ef0d59b178026a3bf43639c5"
+    },
+    {
+      "archivePath": "/go/pkg/crypto/x509/pkix.a",
+      "importPath": "crypto/x509/pkix",
+      "sha256": "80e2c11a6bfd32ae2cfcb0b5b24e269612c8bd8e0c130822713bf9c41e841374"
+    },
+    {
+      "archivePath": "/go/pkg/database/sql.a",
+      "importPath": "database/sql",
+      "sha256": "28f563c2290641369df3209160b7d35dd61284cc559d8caf56988f916a03cca0"
+    },
+    {
+      "archivePath": "/go/pkg/database/sql/driver.a",
+      "importPath": "database/sql/driver",
+      "sha256": "0296b8e465cd0f8e3f4ab114fb96b16afbffd6965144c4a28a0bcb72aff69423"
+    },
+    {
+      "archivePath": "/go/pkg/debug/buildinfo.a",
+      "importPath": "debug/buildinfo",
+      "sha256": "b1000c7c0f2ae6ab78599f9c3ac533741437160af0cc982f36184a951cbfa1d5"
+    },
+    {
+      "archivePath": "/go/pkg/debug/dwarf.a",
+      "importPath": "debug/dwarf",
+      "sha256": "814e60a2a302e9cbec18fb0e03b35f63770d67c74f6e2c3a5e11fe71a16f1844"
+    },
+    {
+      "archivePath": "/go/pkg/debug/elf.a",
+      "importPath": "debug/elf",
+      "sha256": "dd4a7c7a5be30f579358e040f833e3b626134987b9a74421332f31a60e5d4c17"
+    },
+    {
+      "archivePath": "/go/pkg/debug/gosym.a",
+      "importPath": "debug/gosym",
+      "sha256": "b60177b6fe6c07a672a6eefa1c8214c5ef2487060e423f4221d8dce5744ac5dd"
+    },
+    {
+      "archivePath": "/go/pkg/debug/macho.a",
+      "importPath": "debug/macho",
+      "sha256": "6652955899b283ab040237f78476b6c3b8835b6af7389504d9097a63e28f4a45"
+    },
+    {
+      "archivePath": "/go/pkg/debug/pe.a",
+      "importPath": "debug/pe",
+      "sha256": "6c06554c250a0bc7bb6ccab0717fd0a65a50134906cd9e18311e1bb551eebe14"
+    },
+    {
+      "archivePath": "/go/pkg/debug/plan9obj.a",
+      "importPath": "debug/plan9obj",
+      "sha256": "0c71b2151f8a36683f6248a92d6d6a11b949026681eaf6f1e4b20183b77f8e05"
+    },
+    {
+      "archivePath": "/go/pkg/embed.a",
+      "importPath": "embed",
+      "sha256": "8c59b06945c1a53916dab876249510bb48502f98fb9a483eba8c8b69eb810322"
+    },
+    {
+      "archivePath": "/go/pkg/encoding.a",
+      "importPath": "encoding",
+      "sha256": "77dd5a666368edc6c8789357eaff8d89afb26403ffec2d60b381bd0aba8631bc"
+    },
+    {
+      "archivePath": "/go/pkg/encoding/ascii85.a",
+      "importPath": "encoding/ascii85",
+      "sha256": "8b32fab8c1171ec7b7460e3bbc24d305225a9c0f45a3469469f1e232ea37b958"
+    },
+    {
+      "archivePath": "/go/pkg/encoding/asn1.a",
+      "importPath": "encoding/asn1",
+      "sha256": "9b2447ebf460e96353617ffdf5154997db421ff5477ca7d80ee1bbff888e4e32"
+    },
+    {
+      "archivePath": "/go/pkg/encoding/base32.a",
+      "importPath": "encoding/base32",
+      "sha256": "94a1843dc1afcdc58307d4477a65e5e17ac0fdc64389c4efd359f8ce69bde0c7"
+    },
+    {
+      "archivePath": "/go/pkg/encoding/base64.a",
+      "importPath": "encoding/base64",
+      "sha256": "171a202b4a01878ce728a02fb3a81923f1fbb19aba42e7f7b2954666a08a119f"
+    },
+    {
+      "archivePath": "/go/pkg/encoding/binary.a",
+      "importPath": "encoding/binary",
+      "sha256": "689f312bf6f43cf532355c0f5a92ab08495df2b0892150a5f8cd1adfc2d0509f"
+    },
+    {
+      "archivePath": "/go/pkg/encoding/csv.a",
+      "importPath": "encoding/csv",
+      "sha256": "1a18dd560e753af0699c8ec1bdc19ea51f726e588932846bbcdd88b68752c0c4"
+    },
+    {
+      "archivePath": "/go/pkg/encoding/gob.a",
+      "importPath": "encoding/gob",
+      "sha256": "930ab02648b259c03a361d6be61e2f7c82dc810bc20f2fc5516ed423e943d577"
+    },
+    {
+      "archivePath": "/go/pkg/encoding/hex.a",
+      "importPath": "encoding/hex",
+      "sha256": "76a3be4ded8f323ac0212ef62f5c1c1076d0e1b143bc6bd0d76782beb37e8693"
+    },
+    {
+      "archivePath": "/go/pkg/encoding/json.a",
+      "importPath": "encoding/json",
+      "sha256": "7eac93c1892921ead3d0245320e3baacab3c767bf9ca1318d801885af4d6366f"
+    },
+    {
+      "archivePath": "/go/pkg/encoding/pem.a",
+      "importPath": "encoding/pem",
+      "sha256": "b5ecc62c0acc5a81296da7040cabb0c8986cad5cc3bb09067d62132eebd03021"
+    },
+    {
+      "archivePath": "/go/pkg/encoding/xml.a",
+      "importPath": "encoding/xml",
+      "sha256": "04238064b4813ef5ca7b5c3afcd94e2959a663878de0a32fbf6184ccf68f83a7"
+    },
+    {
+      "archivePath": "/go/pkg/errors.a",
+      "importPath": "errors",
+      "sha256": "a9bbe0149b092533d1c6d403408e87f5b41b4f5ebfbbed07059773d088682349"
+    },
+    {
+      "archivePath": "/go/pkg/expvar.a",
+      "importPath": "expvar",
+      "sha256": "b6dd35b91afcea428eb5bde55245def5ddb17b1c87e54d03c82e3e32537666cc"
+    },
+    {
+      "archivePath": "/go/pkg/flag.a",
+      "importPath": "flag",
+      "sha256": "ebfa44cf2d759008cbf31e7cef6a2817fd4fed52c9ffd996f5a2536037d0cedb"
+    },
+    {
+      "archivePath": "/go/pkg/fmt.a",
+      "importPath": "fmt",
+      "sha256": "89d025e977103e8b49e7f4e1e9ce81c79008342448ab49f40de57f849c226626"
+    },
+    {
+      "archivePath": "/go/pkg/go/ast.a",
+      "importPath": "go/ast",
+      "sha256": "d2c9842a4b21119b4a23c50e4d2d27709a6bd2b69cf5ad58ab83f837d09949f6"
+    },
+    {
+      "archivePath": "/go/pkg/go/build.a",
+      "importPath": "go/build",
+      "sha256": "1b49786da5c53c0da030118b5719eda56825f80da15c155d3b8a2186d21c6530"
+    },
+    {
+      "archivePath": "/go/pkg/go/build/constraint.a",
+      "importPath": "go/build/constraint",
+      "sha256": "155aa01ec77267bb3aa6f0800761041f4707bcc38f6dab356aa625b8e761d513"
+    },
+    {
+      "archivePath": "/go/pkg/go/constant.a",
+      "importPath": "go/constant",
+      "sha256": "16453298e371e112f66b1f3ef3d7082f65736aa3a50a74cdd5236a8b3f7e047b"
+    },
+    {
+      "archivePath": "/go/pkg/go/doc.a",
+      "importPath": "go/doc",
+      "sha256": "e73a57fd0cfdd6e3ce28465855656c4850763cba78807c88a4e577c82934e6b1"
+    },
+    {
+      "archivePath": "/go/pkg/go/doc/comment.a",
+      "importPath": "go/doc/comment",
+      "sha256": "c6d15b1b478a14272a192c96776233fac0eff927e4f4b59c3889b01a15db3af0"
+    },
+    {
+      "archivePath": "/go/pkg/go/format.a",
+      "importPath": "go/format",
+      "sha256": "d40241307ecd8c737196da873b8ddc31f59abfbaffbec7ce47b01d4cee6a23e2"
+    },
+    {
+      "archivePath": "/go/pkg/go/importer.a",
+      "importPath": "go/importer",
+      "sha256": "cfa1d3ccca324f6cefa09236ccd79dcf141e8c037fe1ea02a26337009706f2a9"
+    },
+    {
+      "archivePath": "/go/pkg/go/internal/gccgoimporter.a",
+      "importPath": "go/internal/gccgoimporter",
+      "sha256": "22f1706d7ecb8bbc9af4dc8c2dace4736e85acac46736f48eb108b240c6a1ba2"
+    },
+    {
+      "archivePath": "/go/pkg/go/internal/gcimporter.a",
+      "importPath": "go/internal/gcimporter",
+      "sha256": "fee4cf273e3b6009c07ece9bb13fc9d69972a4c802085e9d1ae62b4d15c07d05"
+    },
+    {
+      "archivePath": "/go/pkg/go/internal/scannerhooks.a",
+      "importPath": "go/internal/scannerhooks",
+      "sha256": "0e72ed55b0a0d8b2151106d78b1417f13f61ce6432bdaa1b239072f6f7c0e430"
+    },
+    {
+      "archivePath": "/go/pkg/go/internal/srcimporter.a",
+      "importPath": "go/internal/srcimporter",
+      "sha256": "3ece58a4133d1c5e4ff054466797b3fb8fbd4b87ef38bce05cd5ce750d5ea278"
+    },
+    {
+      "archivePath": "/go/pkg/go/parser.a",
+      "importPath": "go/parser",
+      "sha256": "17fb6fdbe61baaed15fb44ad92d052b480ceeb4a83c2d101784f8aaaf4d26c68"
+    },
+    {
+      "archivePath": "/go/pkg/go/printer.a",
+      "importPath": "go/printer",
+      "sha256": "78b2643a3845b102ecae9101dbc9caaad787a97209ea6dfbe17f31051735d20b"
+    },
+    {
+      "archivePath": "/go/pkg/go/scanner.a",
+      "importPath": "go/scanner",
+      "sha256": "36d2642e5e845e0775e4ca00b44e7456e0f3965ecf3111c8319c723175263981"
+    },
+    {
+      "archivePath": "/go/pkg/go/token.a",
+      "importPath": "go/token",
+      "sha256": "fca48e6f8e32af1608d75a8bedb4bcdc2d452a83819825cfdc5738cf684103c5"
+    },
+    {
+      "archivePath": "/go/pkg/go/types.a",
+      "importPath": "go/types",
+      "sha256": "aa5a8dd2b86cf952af8e2eeec6deb77317320924acd0ab7cc5479b9c38583d2d"
+    },
+    {
+      "archivePath": "/go/pkg/go/version.a",
+      "importPath": "go/version",
+      "sha256": "64e00c58ec73e607451921b8603fc10236cd96be2503543d5439c42ae5dd91dd"
+    },
+    {
+      "archivePath": "/go/pkg/hash.a",
+      "importPath": "hash",
+      "sha256": "ccd22f6ecc3ab40194bd916f267bf4ac0a66d4c7bcd33e0ffbdfcdf2770bb6a9"
+    },
+    {
+      "archivePath": "/go/pkg/hash/adler32.a",
+      "importPath": "hash/adler32",
+      "sha256": "c2784473d2eedb6dd3f1d1c9608604dcb758ba7fc1ba988e16d6688d9d56a641"
+    },
+    {
+      "archivePath": "/go/pkg/hash/crc32.a",
+      "importPath": "hash/crc32",
+      "sha256": "72a56012a2657a148e4ec7f19f258f4cb6443a0c78c576856edbe5efe9abc62b"
+    },
+    {
+      "archivePath": "/go/pkg/hash/crc64.a",
+      "importPath": "hash/crc64",
+      "sha256": "3f4d5e543c5fa8c73f3923f23277b251b1229279afca2850bbd30c81b4cae38a"
+    },
+    {
+      "archivePath": "/go/pkg/hash/fnv.a",
+      "importPath": "hash/fnv",
+      "sha256": "d12dc25c5cad462b100fcc4da3b0f5118d028251345fc99217cc1e0823cd5454"
+    },
+    {
+      "archivePath": "/go/pkg/hash/maphash.a",
+      "importPath": "hash/maphash",
+      "sha256": "4b9271e3478806d8a302bf2171b7b0978ba388473d4da992a3f97160055f1d2b"
+    },
+    {
+      "archivePath": "/go/pkg/html.a",
+      "importPath": "html",
+      "sha256": "93ed8d2e85f507e704b55918d6c72c8dc34380b00219404616caf1851dedc3a7"
+    },
+    {
+      "archivePath": "/go/pkg/html/template.a",
+      "importPath": "html/template",
+      "sha256": "3156acfad72b4f4a494a718f1c49a6b6303d7e7db85b115af3beeab46da64680"
+    },
+    {
+      "archivePath": "/go/pkg/image.a",
+      "importPath": "image",
+      "sha256": "35d8a8f9fc0f9d08b28a01b20208fb581dde321cd1ec552654dce66aed5f73a7"
+    },
+    {
+      "archivePath": "/go/pkg/image/color.a",
+      "importPath": "image/color",
+      "sha256": "52ceeed747bfa3fb7fc6d122a68c9773ae8502a316307eab6db43d7637b1b5c8"
+    },
+    {
+      "archivePath": "/go/pkg/image/color/palette.a",
+      "importPath": "image/color/palette",
+      "sha256": "2a73427230c88fbbd50b0d4a139064a50d3c3a424647463c8641a377c795c888"
+    },
+    {
+      "archivePath": "/go/pkg/image/draw.a",
+      "importPath": "image/draw",
+      "sha256": "3fe7a5610f8dbdfc9ca3edb71b830690627b0f66551b7bcf996967047307a782"
+    },
+    {
+      "archivePath": "/go/pkg/image/gif.a",
+      "importPath": "image/gif",
+      "sha256": "a3a42412e735e7f8bc735cca74874c8ae92ad432a16a35635a0a08b67c0966aa"
+    },
+    {
+      "archivePath": "/go/pkg/image/internal/imageutil.a",
+      "importPath": "image/internal/imageutil",
+      "sha256": "8003f3b4fe8f5f32cf7bbe8a8d8deacab1bcf5a508eadcdabf9a495684d86965"
+    },
+    {
+      "archivePath": "/go/pkg/image/jpeg.a",
+      "importPath": "image/jpeg",
+      "sha256": "abb40a212b413b2b0a0f2db8de3f9d7441e353b92b1355ac9a3abe0db91e340c"
+    },
+    {
+      "archivePath": "/go/pkg/image/png.a",
+      "importPath": "image/png",
+      "sha256": "d7fbc7562304ddb15ef2c1b39b9133a7fcb9b944237ddf7102c66405a38b740d"
+    },
+    {
+      "archivePath": "/go/pkg/index/suffixarray.a",
+      "importPath": "index/suffixarray",
+      "sha256": "b3e06cef08c9455af43f4ea6044b2821c474749d953eaffae64e2cac112c27ed"
+    },
+    {
+      "archivePath": "/go/pkg/internal/abi.a",
+      "importPath": "internal/abi",
+      "sha256": "2b4f7b9046159b2997e245d4788378fabac5dd88a9c91c9cda4b328e9e466a7c"
+    },
+    {
+      "archivePath": "/go/pkg/internal/asan.a",
+      "importPath": "internal/asan",
+      "sha256": "7e15b504794add342c63e9a32611314bde079007fbf3b1c43d5db53024b05eea"
+    },
+    {
+      "archivePath": "/go/pkg/internal/bisect.a",
+      "importPath": "internal/bisect",
+      "sha256": "7686cb805e8a0a39f952e2f9e1cee5a249078777fead81c4e1716f06056833d6"
+    },
+    {
+      "archivePath": "/go/pkg/internal/buildcfg.a",
+      "importPath": "internal/buildcfg",
+      "sha256": "cad99e4ab3e3b9fdbaae299aa319ff3f18c2b87b28a83c7d3fd50ad7c8d6c667"
+    },
+    {
+      "archivePath": "/go/pkg/internal/bytealg.a",
+      "importPath": "internal/bytealg",
+      "sha256": "38c134856d9da148c9a01b5156efcffa0cfb3c69792930fa89dad7ddc12d6ebb"
+    },
+    {
+      "archivePath": "/go/pkg/internal/byteorder.a",
+      "importPath": "internal/byteorder",
+      "sha256": "3392a715097c3efa9a9ede36cd645bbdfe9b5550c565440874fb338578073322"
+    },
+    {
+      "archivePath": "/go/pkg/internal/cfg.a",
+      "importPath": "internal/cfg",
+      "sha256": "7f24f63682fef127eeb4e7b0eefebd9d2780951ee921c19ab4c3ff2802cc156b"
+    },
+    {
+      "archivePath": "/go/pkg/internal/chacha8rand.a",
+      "importPath": "internal/chacha8rand",
+      "sha256": "f685a91c078d4b5d9eef678938b589d53e3798e4c757b31c1d3a18302f8ffae3"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage.a",
+      "importPath": "internal/coverage",
+      "sha256": "1eff7e23f34c7048fbd84d9dc29c44c96e2b161ef850a07a92f7ba3f78e01afb"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/calloc.a",
+      "importPath": "internal/coverage/calloc",
+      "sha256": "6b903d0bde71b9b071148efc84e115ca1025aab9f404f50a88d85c602d4abf2e"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/cfile.a",
+      "importPath": "internal/coverage/cfile",
+      "sha256": "b315d35b22e4c97664f23213c35b820ce9247b929d70dfaa1a6b8081187c96df"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/cformat.a",
+      "importPath": "internal/coverage/cformat",
+      "sha256": "9bb881557dfcc7a77e89849042ae61f8276bfc89192fa5fbb0ec37fb07bcb403"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/cmerge.a",
+      "importPath": "internal/coverage/cmerge",
+      "sha256": "6c717c7ac1ac6a9e937bebea6257212eed61b8d6b11a92b2e71df264353929ab"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/decodecounter.a",
+      "importPath": "internal/coverage/decodecounter",
+      "sha256": "58c69accfae294eb451e4970e376415aa798f681b2a0cb4f6e0fbabf8bdf037f"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/decodemeta.a",
+      "importPath": "internal/coverage/decodemeta",
+      "sha256": "f75069c3bf3e0858d9597ce353dc86834e6131cfe01438f6817d07da23950fa5"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/encodecounter.a",
+      "importPath": "internal/coverage/encodecounter",
+      "sha256": "f29cd8ecd882064b61c54109dd4f9438722fed1860ac900cac108213c90abe59"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/encodemeta.a",
+      "importPath": "internal/coverage/encodemeta",
+      "sha256": "a3da7cd0f2beddc564c23ba9ca9f3b7d547da3c698606d69b3d77b071a8340dd"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/pods.a",
+      "importPath": "internal/coverage/pods",
+      "sha256": "860b1c6fb2b9e1f20300deb72fd6a20e3092e3208b93b53bf188ad7df01c471c"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/rtcov.a",
+      "importPath": "internal/coverage/rtcov",
+      "sha256": "52f07539c55c7cc46e76b87832ed4b704bad63d96f3c212d4b57a74ad9afe687"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/slicereader.a",
+      "importPath": "internal/coverage/slicereader",
+      "sha256": "1f7d0f6cde01cb179bf2cca4b59800fa2a45f5f96a2aa9cd5ce63a267761f7be"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/slicewriter.a",
+      "importPath": "internal/coverage/slicewriter",
+      "sha256": "669856b66818018be37e1c466c89872e4a132eea6976d4ab210448399422df5d"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/stringtab.a",
+      "importPath": "internal/coverage/stringtab",
+      "sha256": "c8d993e7f820bddb480475f4cc68c3d980af82f691fdbc54e72df0fe8b728c59"
+    },
+    {
+      "archivePath": "/go/pkg/internal/coverage/uleb128.a",
+      "importPath": "internal/coverage/uleb128",
+      "sha256": "e45cb7713b3cc99de23736fa49a839ef660a2671d63cefef23e716b2a0a22109"
+    },
+    {
+      "archivePath": "/go/pkg/internal/cpu.a",
+      "importPath": "internal/cpu",
+      "sha256": "ed542f730505e376e8f56b40c7f4cc67dc646432c09d24e9623ec38ff297569d"
+    },
+    {
+      "archivePath": "/go/pkg/internal/dag.a",
+      "importPath": "internal/dag",
+      "sha256": "c7c9093156748a9345871824e56bf9bbe7328a62364ca65818eb7f78f483c453"
+    },
+    {
+      "archivePath": "/go/pkg/internal/diff.a",
+      "importPath": "internal/diff",
+      "sha256": "677049c3bb64af95603993d909a2864979868c6de397e2a1f9fc095dc40200e3"
+    },
+    {
+      "archivePath": "/go/pkg/internal/exportdata.a",
+      "importPath": "internal/exportdata",
+      "sha256": "527e2f8f81dea6ce05ec6cda03622e87527ed99a55e5a41b738f66f7465d7826"
+    },
+    {
+      "archivePath": "/go/pkg/internal/filepathlite.a",
+      "importPath": "internal/filepathlite",
+      "sha256": "161da777774868df626f9f67e536e2da11ef39b5117fa80d3dc4fa40bd1f2a8e"
+    },
+    {
+      "archivePath": "/go/pkg/internal/fmtsort.a",
+      "importPath": "internal/fmtsort",
+      "sha256": "b052558ea78701a4f728da23d3b31d8eaa56815e33f028d5e3670730fbbeac07"
+    },
+    {
+      "archivePath": "/go/pkg/internal/fuzz.a",
+      "importPath": "internal/fuzz",
+      "sha256": "4e3fd02e325b64ada52a50a8929dd97860fbfda5011d7085dcaa4f4aad7c252a"
+    },
+    {
+      "archivePath": "/go/pkg/internal/goarch.a",
+      "importPath": "internal/goarch",
+      "sha256": "8a756e9548fe2350b2641ea75a4530a54e846e2e989bd2d8c3583010a2185291"
+    },
+    {
+      "archivePath": "/go/pkg/internal/godebug.a",
+      "importPath": "internal/godebug",
+      "sha256": "2777e770e83579141082fa1cdd95a457edd40964dc3e007520a6f8a00c412de3"
+    },
+    {
+      "archivePath": "/go/pkg/internal/godebugs.a",
+      "importPath": "internal/godebugs",
+      "sha256": "7e1d92cfb5f6fffa21ed21587a3b5d2c338f5a07c82795ffbde9db8bc9a84eec"
+    },
+    {
+      "archivePath": "/go/pkg/internal/goexperiment.a",
+      "importPath": "internal/goexperiment",
+      "sha256": "6dc142802c06769b05a5cd46bfb6f58c40324040ab03656cbf4ed9a55f534441"
+    },
+    {
+      "archivePath": "/go/pkg/internal/goos.a",
+      "importPath": "internal/goos",
+      "sha256": "f62ed384445e6ef42eac1ba45902943d2e7f124d41188e3a2f5d5316c4ffee35"
+    },
+    {
+      "archivePath": "/go/pkg/internal/goroot.a",
+      "importPath": "internal/goroot",
+      "sha256": "c652a46699b9a8a8160631f61b2a0053a3b9ab1b3ef86be7b4cffcc5c65851f2"
+    },
+    {
+      "archivePath": "/go/pkg/internal/gover.a",
+      "importPath": "internal/gover",
+      "sha256": "e3368837a773aa2cb0e11fb0741b3bcf5bad635b12d7cbcb478eb81ed8f2dd14"
+    },
+    {
+      "archivePath": "/go/pkg/internal/goversion.a",
+      "importPath": "internal/goversion",
+      "sha256": "bff0497435c23708a80675dbdfa4ce4c5daa899946a617baf575ac58b757fd8f"
+    },
+    {
+      "archivePath": "/go/pkg/internal/lazyregexp.a",
+      "importPath": "internal/lazyregexp",
+      "sha256": "8631f1b9df47bc02ec4a6c551188af84636621a515c06276d31953c8006b51ef"
+    },
+    {
+      "archivePath": "/go/pkg/internal/lazytemplate.a",
+      "importPath": "internal/lazytemplate",
+      "sha256": "d60efd0378cd0864fea530bade4d49ba7206c085044813add3e8d4f5819337a7"
+    },
+    {
+      "archivePath": "/go/pkg/internal/msan.a",
+      "importPath": "internal/msan",
+      "sha256": "8800ce2d20da2146f412fcf2367e8570ad90d0eeb73b6f4533618b28054d1944"
+    },
+    {
+      "archivePath": "/go/pkg/internal/nettrace.a",
+      "importPath": "internal/nettrace",
+      "sha256": "9c85f4a340e1296cca8628072a1bc4e438c1de7132e379c665c91b98ff143ea1"
+    },
+    {
+      "archivePath": "/go/pkg/internal/obscuretestdata.a",
+      "importPath": "internal/obscuretestdata",
+      "sha256": "571fb5aba64a7544dc490550366d014a6aae9550cc8ccd3c2c4787e14c363c68"
+    },
+    {
+      "archivePath": "/go/pkg/internal/oserror.a",
+      "importPath": "internal/oserror",
+      "sha256": "178423633d797f3f85735cad198da69d8f459f0d7ae45458f3b3b936743f8525"
+    },
+    {
+      "archivePath": "/go/pkg/internal/pkgbits.a",
+      "importPath": "internal/pkgbits",
+      "sha256": "dc0acc895b8178359030f56c07506347838c20174e9e987120fb7b9242caaf5a"
+    },
+    {
+      "archivePath": "/go/pkg/internal/platform.a",
+      "importPath": "internal/platform",
+      "sha256": "d03cb346f061805a2ab898b15e403d775f0fe4b490d15ea0bccf29799b168cb9"
+    },
+    {
+      "archivePath": "/go/pkg/internal/poll.a",
+      "importPath": "internal/poll",
+      "sha256": "0449724f15b395539e1479783d8c776e3d76027cb90c485c84a50516b4a5615f"
+    },
+    {
+      "archivePath": "/go/pkg/internal/profile.a",
+      "importPath": "internal/profile",
+      "sha256": "78a880fe43eeab9f78c2e43bb46bd639c395436c46afc2015c67fbf07581e2c7"
+    },
+    {
+      "archivePath": "/go/pkg/internal/profilerecord.a",
+      "importPath": "internal/profilerecord",
+      "sha256": "6a87535397ded8f17c9e8ef48b90c0892dc61dd0c2e95c6b286dffb8b44aaf38"
+    },
+    {
+      "archivePath": "/go/pkg/internal/race.a",
+      "importPath": "internal/race",
+      "sha256": "67c3562e7bd4b6bd29bdc33cfd0a58becbcc4a7b9ef6d8a13058fb44dfcda9bc"
+    },
+    {
+      "archivePath": "/go/pkg/internal/reflectlite.a",
+      "importPath": "internal/reflectlite",
+      "sha256": "0d1bcd163d637863dfbacc66c75cb177850f2220413c407d343750a64db77c61"
+    },
+    {
+      "archivePath": "/go/pkg/internal/runtime/atomic.a",
+      "importPath": "internal/runtime/atomic",
+      "sha256": "f89273926f4d777a1175dcc5ee4e964152505e04e4fc247ce37fe62ae6f3001d"
+    },
+    {
+      "archivePath": "/go/pkg/internal/runtime/cgroup.a",
+      "importPath": "internal/runtime/cgroup",
+      "sha256": "5906a5850c7dae72e76d5084aef5e840a6651d68a89e59560df1fed5df214b8f"
+    },
+    {
+      "archivePath": "/go/pkg/internal/runtime/exithook.a",
+      "importPath": "internal/runtime/exithook",
+      "sha256": "76d432771d9481f703602c31110a6d64acb44c50e8df28862aafda1463f8be20"
+    },
+    {
+      "archivePath": "/go/pkg/internal/runtime/gc.a",
+      "importPath": "internal/runtime/gc",
+      "sha256": "86f46080d0d28ac482a1bd30fca19e0a77be0849b56c9e0e48b71d2986214108"
+    },
+    {
+      "archivePath": "/go/pkg/internal/runtime/gc/internal/gen.a",
+      "importPath": "internal/runtime/gc/internal/gen",
+      "sha256": "ec87f74325802aad07a9cf7334ad3f906a2f319699b161204611c6f2ca94bd95"
+    },
+    {
+      "archivePath": "/go/pkg/internal/runtime/gc/scan.a",
+      "importPath": "internal/runtime/gc/scan",
+      "sha256": "6a245dce59f6245df778c395d97b246e19289f53cdca0e29c62309f7b5232fe2"
+    },
+    {
+      "archivePath": "/go/pkg/internal/runtime/maps.a",
+      "importPath": "internal/runtime/maps",
+      "sha256": "fe5e7e2e9b5db6ed4db05c7a3e5f6d236507ff888063c5acd528494970033177"
+    },
+    {
+      "archivePath": "/go/pkg/internal/runtime/math.a",
+      "importPath": "internal/runtime/math",
+      "sha256": "10123d9c478ee691114fe6cc71fca4d6f742b5c4ca006a0a5babd7e048829908"
+    },
+    {
+      "archivePath": "/go/pkg/internal/runtime/pprof/label.a",
+      "importPath": "internal/runtime/pprof/label",
+      "sha256": "fc30d2fce7be7432f216da7d66d7389d8ef5af51901e21d755dbcf92cade7a9b"
+    },
+    {
+      "archivePath": "/go/pkg/internal/runtime/sys.a",
+      "importPath": "internal/runtime/sys",
+      "sha256": "f167ff4659194eb5647553909403a605d10ea91ce2533848d865b7bdba4849af"
+    },
+    {
+      "archivePath": "/go/pkg/internal/saferio.a",
+      "importPath": "internal/saferio",
+      "sha256": "ccbca019f86bf1ee354d5e62c98f248e11dee43fe661752faaabc4c9f4d03e4a"
+    },
+    {
+      "archivePath": "/go/pkg/internal/singleflight.a",
+      "importPath": "internal/singleflight",
+      "sha256": "ba8a06e824e57a18a6adab3c2efdcb93d40da0ea80e720d2d117f96dcc24fad9"
+    },
+    {
+      "archivePath": "/go/pkg/internal/strconv.a",
+      "importPath": "internal/strconv",
+      "sha256": "731d3ed0faa9acd10a4f0bab25805d5d3da11bff0bbff6e08df52d78e42477e7"
+    },
+    {
+      "archivePath": "/go/pkg/internal/stringslite.a",
+      "importPath": "internal/stringslite",
+      "sha256": "b8eba2dc5b798503d08bde67378df5a5cc0d9dfce19cb1be730112ccb52ee829"
+    },
+    {
+      "archivePath": "/go/pkg/internal/sync.a",
+      "importPath": "internal/sync",
+      "sha256": "30d608d5f21056311a2bbdadbc7864b31fc50733880175fdf7d44e972b706823"
+    },
+    {
+      "archivePath": "/go/pkg/internal/synctest.a",
+      "importPath": "internal/synctest",
+      "sha256": "b07bbc4c8119930e69b570324136c54dcc441ca94e1877a69c4231e8ee288608"
+    },
+    {
+      "archivePath": "/go/pkg/internal/syscall/execenv.a",
+      "importPath": "internal/syscall/execenv",
+      "sha256": "0f988f2f521cf8b5fdb45c62578c71eaaf6b46e730ce10bb9de1d28f1645fb7d"
+    },
+    {
+      "archivePath": "/go/pkg/internal/syscall/unix.a",
+      "importPath": "internal/syscall/unix",
+      "sha256": "47a3ea64ecb81bb0351cd9c3c4c0db3c7cbc5c167762a6937fbcb7b1f58fe21b"
+    },
+    {
+      "archivePath": "/go/pkg/internal/sysinfo.a",
+      "importPath": "internal/sysinfo",
+      "sha256": "d37ef0f75d78053a14032f7bcb4233d866d1788a97d25b96f02625152bd939e1"
+    },
+    {
+      "archivePath": "/go/pkg/internal/syslist.a",
+      "importPath": "internal/syslist",
+      "sha256": "666b6dbcf5a557d397fb97eed55974f3d6b9c833a67ab8b30dcf38ab53a8e661"
+    },
+    {
+      "archivePath": "/go/pkg/internal/testenv.a",
+      "importPath": "internal/testenv",
+      "sha256": "2ea1a4cd1ba2ada16112fe68eb8844dfb7e0cd53b33acef9a252fae98ec696e7"
+    },
+    {
+      "archivePath": "/go/pkg/internal/testhash.a",
+      "importPath": "internal/testhash",
+      "sha256": "97f1f3218bed70c2856c6ac8d85d41ec6ca87714d8566c1f93e76b2b27cfb979"
+    },
+    {
+      "archivePath": "/go/pkg/internal/testlog.a",
+      "importPath": "internal/testlog",
+      "sha256": "95531b814aec8a76a160ad74c9bc6bc88ced634b0eff96d20d8ab2cfda2f6f42"
+    },
+    {
+      "archivePath": "/go/pkg/internal/testpty.a",
+      "importPath": "internal/testpty",
+      "sha256": "6e926849cb541f2b08adb9f4fa6e226333d323d6e5cab0c92e577f56b9ff3fee"
+    },
+    {
+      "archivePath": "/go/pkg/internal/trace.a",
+      "importPath": "internal/trace",
+      "sha256": "f67631356881b07b7601754b1ec051c9155b28e353123b2dc3061ca3c1ed4c2d"
+    },
+    {
+      "archivePath": "/go/pkg/internal/trace/internal/testgen.a",
+      "importPath": "internal/trace/internal/testgen",
+      "sha256": "57fca8a192aa97f59f638fc9b80314e3acb7c1856d4bbb4894267c255b0ecc0d"
+    },
+    {
+      "archivePath": "/go/pkg/internal/trace/internal/tracev1.a",
+      "importPath": "internal/trace/internal/tracev1",
+      "sha256": "a08f8d69c7a6286e64e1ce5f53e3115264422a124f10bde70730a8dfc58fc320"
+    },
+    {
+      "archivePath": "/go/pkg/internal/trace/raw.a",
+      "importPath": "internal/trace/raw",
+      "sha256": "5a2415f21a824bf977b046ca53d8ff208af9bc16c394671f1726d6bdca264d6e"
+    },
+    {
+      "archivePath": "/go/pkg/internal/trace/testtrace.a",
+      "importPath": "internal/trace/testtrace",
+      "sha256": "d1896ebe81380cc59865aa7bca2e6460641367ba1e7ab71b7759adc5bac49c14"
+    },
+    {
+      "archivePath": "/go/pkg/internal/trace/tracev2.a",
+      "importPath": "internal/trace/tracev2",
+      "sha256": "5b127a3e3dd25605db214c3d7c367c167b72eba009bbfd039adc40b7b9438a46"
+    },
+    {
+      "archivePath": "/go/pkg/internal/trace/traceviewer.a",
+      "importPath": "internal/trace/traceviewer",
+      "sha256": "88e09f53644e8561cb7568c797f2927a219d798f677b56d0b3c4c7cadad23234"
+    },
+    {
+      "archivePath": "/go/pkg/internal/trace/traceviewer/format.a",
+      "importPath": "internal/trace/traceviewer/format",
+      "sha256": "6d88a3634ffa4c59c481f7cdfd8ed99db913349066bb29c4c4c142274a26e8ec"
+    },
+    {
+      "archivePath": "/go/pkg/internal/trace/version.a",
+      "importPath": "internal/trace/version",
+      "sha256": "c88373bf1f080411cf4e863ef89db94eed20acdb976e6d08c780bd403defdd9b"
+    },
+    {
+      "archivePath": "/go/pkg/internal/txtar.a",
+      "importPath": "internal/txtar",
+      "sha256": "54297122ea92bd0bd651f31c096ab6364ee607e0009b1e423a5f4bd0d2aca264"
+    },
+    {
+      "archivePath": "/go/pkg/internal/types/errors.a",
+      "importPath": "internal/types/errors",
+      "sha256": "1361492c16c348c3463e74d043185b0875e4cf709f09809ba81a13f91aa20f32"
+    },
+    {
+      "archivePath": "/go/pkg/internal/unsafeheader.a",
+      "importPath": "internal/unsafeheader",
+      "sha256": "420ce909531ab464f447b85cdc5ed5ba9ce9ab23a393c3eba54a63ad5999db93"
+    },
+    {
+      "archivePath": "/go/pkg/internal/xcoff.a",
+      "importPath": "internal/xcoff",
+      "sha256": "ba3efc2ae62599037016ebdd710811d55e89c4d4d7f8882afb54517c1b2fdfa8"
+    },
+    {
+      "archivePath": "/go/pkg/internal/zstd.a",
+      "importPath": "internal/zstd",
+      "sha256": "581a86d51dedda6f7bc1bae96eee1ed22246e355e02665907d8f17ec286126f6"
+    },
+    {
+      "archivePath": "/go/pkg/io.a",
+      "importPath": "io",
+      "sha256": "1ac6f92ce22233d1d9a2a3a88bb17795dd7ea7888805c8926db7ac72e9c9ad26"
+    },
+    {
+      "archivePath": "/go/pkg/io/fs.a",
+      "importPath": "io/fs",
+      "sha256": "5f87506dae0dd9c20bd4f9057fdfe1b33f87265c874800f046ed3ad4ec542942"
+    },
+    {
+      "archivePath": "/go/pkg/io/ioutil.a",
+      "importPath": "io/ioutil",
+      "sha256": "7ad2f978959ece392d968d7584133ff62f03f9d2db265958e0c1ba269269033c"
+    },
+    {
+      "archivePath": "/go/pkg/iter.a",
+      "importPath": "iter",
+      "sha256": "20cf71c00f60c6be6be74536145620a02b28cad797de3cdec7a15258b485c55c"
+    },
+    {
+      "archivePath": "/go/pkg/log.a",
+      "importPath": "log",
+      "sha256": "68bd061ecd30cb940506fe148c336b9d75b69461820d6fca04c46c77dbe5de87"
+    },
+    {
+      "archivePath": "/go/pkg/log/internal.a",
+      "importPath": "log/internal",
+      "sha256": "33d5d18df0c323dce5a5821c7c526d60508898d4a98b0e7a589845e038a2951c"
+    },
+    {
+      "archivePath": "/go/pkg/log/slog.a",
+      "importPath": "log/slog",
+      "sha256": "ccf09b52ec28ddb0c9c82b6bd00741eaa39be96c48f6288a64f8959527f43f9d"
+    },
+    {
+      "archivePath": "/go/pkg/log/slog/internal.a",
+      "importPath": "log/slog/internal",
+      "sha256": "aeff902b6788df61f5f440a55ea94194ce553092273f16764084541a4127d6b7"
+    },
+    {
+      "archivePath": "/go/pkg/log/slog/internal/benchmarks.a",
+      "importPath": "log/slog/internal/benchmarks",
+      "sha256": "7860d0acd19667e989124a1662097701ec9d4b602420b88783943db27caef273"
+    },
+    {
+      "archivePath": "/go/pkg/log/slog/internal/buffer.a",
+      "importPath": "log/slog/internal/buffer",
+      "sha256": "3f8852dba3ff1213015066be5bb4ade48e254ce02ec555bd5098ba2a727cf8b3"
+    },
+    {
+      "archivePath": "/go/pkg/log/syslog.a",
+      "importPath": "log/syslog",
+      "sha256": "67f04047a57ee6a6b3e8b84f54479448db78154a548d669934e10c6e4668ecc0"
+    },
+    {
+      "archivePath": "/go/pkg/maps.a",
+      "importPath": "maps",
+      "sha256": "13d68934d3ad9fd73d2cefd9aa1f2219ba32aeefa38333f95b6e35d0a4e974d0"
+    },
+    {
+      "archivePath": "/go/pkg/math.a",
+      "importPath": "math",
+      "sha256": "859884fe60ab790d12adef25e0e90ba0c4cfb421c009aebbbcf7913d4ceaf501"
+    },
+    {
+      "archivePath": "/go/pkg/math/big.a",
+      "importPath": "math/big",
+      "sha256": "b81fb523e399d4bcbc635d02fe2be9b1d1174a851fdd38cb9e3e7d7024376ce8"
+    },
+    {
+      "archivePath": "/go/pkg/math/big/internal/asmgen.a",
+      "importPath": "math/big/internal/asmgen",
+      "sha256": "949421ffa6059168e0c4e1f5390860b797377f0e53a6b2268103ad3f649cf147"
+    },
+    {
+      "archivePath": "/go/pkg/math/bits.a",
+      "importPath": "math/bits",
+      "sha256": "c79fb4c22336aff9297694d1074a665fe2302ba4bde16993a6b52de59fe8cbb3"
+    },
+    {
+      "archivePath": "/go/pkg/math/cmplx.a",
+      "importPath": "math/cmplx",
+      "sha256": "dc770655f9dc4eadf8d20e60eedc7f42b1cac28c32bb1099fcdecf4a8e61e379"
+    },
+    {
+      "archivePath": "/go/pkg/math/rand.a",
+      "importPath": "math/rand",
+      "sha256": "80d54f729c72265b39bff9d1e78121469803a09cfdb3003db216ba8f4151774a"
+    },
+    {
+      "archivePath": "/go/pkg/math/rand/v2.a",
+      "importPath": "math/rand/v2",
+      "sha256": "2bb255e79ace7d5826780789cabd9b4e283c25b4787ac1b7b71722340994cc54"
+    },
+    {
+      "archivePath": "/go/pkg/mime.a",
+      "importPath": "mime",
+      "sha256": "9b5d624e7fca3cda6c41dc225dd2e23e6fb06146558fcda8eef1574d3a004d98"
+    },
+    {
+      "archivePath": "/go/pkg/mime/multipart.a",
+      "importPath": "mime/multipart",
+      "sha256": "a86e3dde5b7ca961faf727f49b5283f2cb31e4771de418e186b1273b95971784"
+    },
+    {
+      "archivePath": "/go/pkg/mime/quotedprintable.a",
+      "importPath": "mime/quotedprintable",
+      "sha256": "51064eb617b08f56f97eb78e42aac119b622661b62f7c1b7ee3d0d243cd6ceb6"
+    },
+    {
+      "archivePath": "/go/pkg/net.a",
+      "importPath": "net",
+      "sha256": "2b6c3633b3cb49cfe2187a844ba571a695a81fb7d6d48d53f5a78d08e6d1da89"
+    },
+    {
+      "archivePath": "/go/pkg/net/http.a",
+      "importPath": "net/http",
+      "sha256": "3373e69bc5a13318fe9beda4e657e19d7177121378cb9da5d1db43d734489e1e"
+    },
+    {
+      "archivePath": "/go/pkg/net/http/cgi.a",
+      "importPath": "net/http/cgi",
+      "sha256": "bb65c4a3c5fd2f6a9a9a1e92b4c09dac6daab8d441c92f120931cecbce1946ce"
+    },
+    {
+      "archivePath": "/go/pkg/net/http/cookiejar.a",
+      "importPath": "net/http/cookiejar",
+      "sha256": "dd335df5f2b83bd355ad8d723bd6388fa2dec8be9d852feb0b949296d0b0fb85"
+    },
+    {
+      "archivePath": "/go/pkg/net/http/fcgi.a",
+      "importPath": "net/http/fcgi",
+      "sha256": "516bd9c3469c82257745e3ec6ca5dc99e77e4ea42e3aee6830e837dda463173d"
+    },
+    {
+      "archivePath": "/go/pkg/net/http/httptest.a",
+      "importPath": "net/http/httptest",
+      "sha256": "77f14ff63c7c1ca285089064e47f22e33b46b75c8226bd68846aaee4ea1f38f4"
+    },
+    {
+      "archivePath": "/go/pkg/net/http/httptrace.a",
+      "importPath": "net/http/httptrace",
+      "sha256": "575bf1efb9ccecb8a70eb98157495ca0cf91057d8e3ca5358182b215b6fa1d31"
+    },
+    {
+      "archivePath": "/go/pkg/net/http/httputil.a",
+      "importPath": "net/http/httputil",
+      "sha256": "8f48658e870c0b68c02108870dd5ef4b8099f979c3aff004d75032e9b07905c7"
+    },
+    {
+      "archivePath": "/go/pkg/net/http/internal.a",
+      "importPath": "net/http/internal",
+      "sha256": "2cee3b61cc97ff3079b374dcdbd4b39282170ee3ec32e9ed2f20464d4c184d7d"
+    },
+    {
+      "archivePath": "/go/pkg/net/http/internal/ascii.a",
+      "importPath": "net/http/internal/ascii",
+      "sha256": "77af100da0eff469b971c6637bc99f5b0aaa18dbc2285eb31158517cabd48b40"
+    },
+    {
+      "archivePath": "/go/pkg/net/http/internal/httpcommon.a",
+      "importPath": "net/http/internal/httpcommon",
+      "sha256": "88e1c099818db89f887c8e9735da01cc5bd3943c9f7865c2b6036e4cc345adf0"
+    },
+    {
+      "archivePath": "/go/pkg/net/http/internal/testcert.a",
+      "importPath": "net/http/internal/testcert",
+      "sha256": "ac2442f3ae51b464be3a340cc15bb9e125eb0bd5e5ec755ce2bf1ab6c2bb893c"
+    },
+    {
+      "archivePath": "/go/pkg/net/http/pprof.a",
+      "importPath": "net/http/pprof",
+      "sha256": "ddd7bcd8141eeb68ac35baeee97a8a1eb14eac32c75c486031082292ad5237ab"
+    },
+    {
+      "archivePath": "/go/pkg/net/internal/socktest.a",
+      "importPath": "net/internal/socktest",
+      "sha256": "f9f663d575412be35843d85a3146d34ee7fa2f47675bbb2deed8134346cc0631"
+    },
+    {
+      "archivePath": "/go/pkg/net/mail.a",
+      "importPath": "net/mail",
+      "sha256": "2c11f5da4caade295f497fbc78826c9070e4f1322181f19f24ca007ff3787bcf"
+    },
+    {
+      "archivePath": "/go/pkg/net/netip.a",
+      "importPath": "net/netip",
+      "sha256": "91ebab87355101ba33a91bfaaf334eac0f8ab230e495cab655ff7fe4b26c959f"
+    },
+    {
+      "archivePath": "/go/pkg/net/rpc.a",
+      "importPath": "net/rpc",
+      "sha256": "3bb3f698ec368b4b6dcb98c6c5ded4e00bde5a989bc9bbcb30dfa0a4f72fcb15"
+    },
+    {
+      "archivePath": "/go/pkg/net/rpc/jsonrpc.a",
+      "importPath": "net/rpc/jsonrpc",
+      "sha256": "8ba94ee1739a57fecb6cee8adea84e7f7afabf5ce431251ee15dd12845d3c4f0"
+    },
+    {
+      "archivePath": "/go/pkg/net/smtp.a",
+      "importPath": "net/smtp",
+      "sha256": "21db40253c446aef10bf507a70b0db775986c1bb212de6fcca08033473d004a2"
+    },
+    {
+      "archivePath": "/go/pkg/net/textproto.a",
+      "importPath": "net/textproto",
+      "sha256": "038d88c7fabe2799e52ffdd53c630ba2e2b58698a0567d963c84c32af958bfb0"
+    },
+    {
+      "archivePath": "/go/pkg/net/url.a",
+      "importPath": "net/url",
+      "sha256": "1f070984a478954db5580349ab3054f7fdb37d32c0c19ab230549b7fe663627e"
+    },
+    {
+      "archivePath": "/go/pkg/os.a",
+      "importPath": "os",
+      "sha256": "9079ffc2bf3b16205c8f47aef7e8dd21c63fe21ce6aacf94eb72f2bb29c99e50"
+    },
+    {
+      "archivePath": "/go/pkg/os/exec.a",
+      "importPath": "os/exec",
+      "sha256": "9edf66d73c5853019d8ff6d1abf703bd54b947411b8dfcb696bd46ebcb13769c"
+    },
+    {
+      "archivePath": "/go/pkg/os/exec/internal/fdtest.a",
+      "importPath": "os/exec/internal/fdtest",
+      "sha256": "c82ab305734050bc2bc28e6a8c629a7b3df858564165848c427bf70a834cb7df"
+    },
+    {
+      "archivePath": "/go/pkg/os/signal.a",
+      "importPath": "os/signal",
+      "sha256": "143b0a7ffd2c7aea0e2df4dee0fc66080c0f048f278065fb6fb25b1cc2a75d8d"
+    },
+    {
+      "archivePath": "/go/pkg/os/user.a",
+      "importPath": "os/user",
+      "sha256": "8992dd6aa2dfe15e2e464de46a8d57c087af165e93244594d9c49af0822ebdec"
+    },
+    {
+      "archivePath": "/go/pkg/path.a",
+      "importPath": "path",
+      "sha256": "bf9cf81c1ccef941e0af6bfe479871bf6182dc669f2a092347619a956aba9292"
+    },
+    {
+      "archivePath": "/go/pkg/path/filepath.a",
+      "importPath": "path/filepath",
+      "sha256": "901755f3cf22a93ccfd4a3c9f3e2d02221e6b9898d61c8245960d125b6ade0a3"
+    },
+    {
+      "archivePath": "/go/pkg/plugin.a",
+      "importPath": "plugin",
+      "sha256": "19349b6d964d6dc53e5d32922b4c2bc866cf9cbd12e04a540452e4d7b43324eb"
+    },
+    {
+      "archivePath": "/go/pkg/reflect.a",
+      "importPath": "reflect",
+      "sha256": "fb36113939414e78e5488e9ee6c31df4fdb765e7d812dfc389eac966d03ea2f9"
+    },
+    {
+      "archivePath": "/go/pkg/reflect/internal/example1.a",
+      "importPath": "reflect/internal/example1",
+      "sha256": "5ed0e50e9f6675e786cc87126c534bac91640a19e8675eda37cb4bccc1b2567f"
+    },
+    {
+      "archivePath": "/go/pkg/reflect/internal/example2.a",
+      "importPath": "reflect/internal/example2",
+      "sha256": "9a76ff49485f0e436f578cb7f26d1346e414e68430ab4cceb1468c212216cfac"
+    },
+    {
+      "archivePath": "/go/pkg/regexp.a",
+      "importPath": "regexp",
+      "sha256": "c35e8d3db04fcb15b239a737dc2a1c95f56490b59becf9948e719aaebeddeb3f"
+    },
+    {
+      "archivePath": "/go/pkg/regexp/syntax.a",
+      "importPath": "regexp/syntax",
+      "sha256": "fbc9c195858fa41c6420f871455861c4249eee67b2c50c82956d90e395182183"
+    },
+    {
+      "archivePath": "/go/pkg/runtime.a",
+      "importPath": "runtime",
+      "sha256": "460d92f88a4497c9218d4c993fd06f8546a7ce4d73ecccd5d24dc2e763c3c534"
+    },
+    {
+      "archivePath": "/go/pkg/runtime/coverage.a",
+      "importPath": "runtime/coverage",
+      "sha256": "9d9dab9dab7e93f151734fa2abe211e0786c75aacf3499f2b998544fcbd79341"
+    },
+    {
+      "archivePath": "/go/pkg/runtime/debug.a",
+      "importPath": "runtime/debug",
+      "sha256": "568f0a59c407ed8d38a20f18add63e5465874863de899d7a026c7ca020e229ab"
+    },
+    {
+      "archivePath": "/go/pkg/runtime/metrics.a",
+      "importPath": "runtime/metrics",
+      "sha256": "10584a775c93ec84706920e238eec238a7767f65b62431e0518934470ce5e630"
+    },
+    {
+      "archivePath": "/go/pkg/runtime/pprof.a",
+      "importPath": "runtime/pprof",
+      "sha256": "fdb06755d4fddf20eaa28d431c7aa92951945502882541ca9ec32abf64ca2365"
+    },
+    {
+      "archivePath": "/go/pkg/runtime/race.a",
+      "importPath": "runtime/race",
+      "sha256": "f9028c10057c9f83d8828cbd6d0dd94f359d33a3f7d8b9393a9012d41f31ac5e"
+    },
+    {
+      "archivePath": "/go/pkg/runtime/trace.a",
+      "importPath": "runtime/trace",
+      "sha256": "3c360839c187d56c9a1bc8a7f71aea8b4937f78e8a9ea220f52df44adc96bf82"
+    },
+    {
+      "archivePath": "/go/pkg/slices.a",
+      "importPath": "slices",
+      "sha256": "8911f639a5a32df092c395ab86a8feb17cb3d2c88b60e0310160d9da0923f031"
+    },
+    {
+      "archivePath": "/go/pkg/sort.a",
+      "importPath": "sort",
+      "sha256": "b34271631e946d3a164440bca250adb7295f08833ab86ba0273957865d90a3aa"
+    },
+    {
+      "archivePath": "/go/pkg/strconv.a",
+      "importPath": "strconv",
+      "sha256": "db7fa0b22cb3e11f0d994fd19eac0871f2333a5e310bd12efce0e0e60e68fb58"
+    },
+    {
+      "archivePath": "/go/pkg/strings.a",
+      "importPath": "strings",
+      "sha256": "b43f238210b8288d03da75f63b87b55068eedbb7f62ad11b2174fd46c9e8d189"
+    },
+    {
+      "archivePath": "/go/pkg/structs.a",
+      "importPath": "structs",
+      "sha256": "432fc174fcd9aea05a6f194fbebc59fa6a82dd91062f789887decc2479fcd119"
+    },
+    {
+      "archivePath": "/go/pkg/sync.a",
+      "importPath": "sync",
+      "sha256": "ee66a31d19dca3b9c16af335c9682a0f5dc959c205ef8f28dd12645e8626ff74"
+    },
+    {
+      "archivePath": "/go/pkg/sync/atomic.a",
+      "importPath": "sync/atomic",
+      "sha256": "de63f4a16cf5d2b8b6fc8c53c37d31b76b8bcfceedef76a096d4647d16007e71"
+    },
+    {
+      "archivePath": "/go/pkg/syscall.a",
+      "importPath": "syscall",
+      "sha256": "77b43ae4a9a097b4931f9f990fd7bb373de750bf019426fb0db9839e86137887"
+    },
+    {
+      "archivePath": "/go/pkg/testing.a",
+      "importPath": "testing",
+      "sha256": "8241306e2556f3772ec1cc1928142d2da2affe440e06530a5f8a877d6a6b1053"
+    },
+    {
+      "archivePath": "/go/pkg/testing/cryptotest.a",
+      "importPath": "testing/cryptotest",
+      "sha256": "add55eda1cde27981782a39eb6730d0324c8ef133041927ab9a9d4f915c930ba"
+    },
+    {
+      "archivePath": "/go/pkg/testing/fstest.a",
+      "importPath": "testing/fstest",
+      "sha256": "8752fce7b9bfabbc57e413c4cd869a969ba8ab5e9132e352a7725e70bff16e83"
+    },
+    {
+      "archivePath": "/go/pkg/testing/internal/testdeps.a",
+      "importPath": "testing/internal/testdeps",
+      "sha256": "f69a4458781c634c1bbc4e8ac98c04844bbd896f1eb9a2020f3984c399e44205"
+    },
+    {
+      "archivePath": "/go/pkg/testing/iotest.a",
+      "importPath": "testing/iotest",
+      "sha256": "0dbd54c206b97e09c75591786993871e1befce4a32976b687bbcb8b473acb1e8"
+    },
+    {
+      "archivePath": "/go/pkg/testing/quick.a",
+      "importPath": "testing/quick",
+      "sha256": "f56eb994bad6edbee2e189f7859e2e64ef5820afc4d784b4d874cf840afa6c72"
+    },
+    {
+      "archivePath": "/go/pkg/testing/slogtest.a",
+      "importPath": "testing/slogtest",
+      "sha256": "1ce13c1972584491a7ddcdb4b783466141315daf4be14e06a14901104705980c"
+    },
+    {
+      "archivePath": "/go/pkg/testing/synctest.a",
+      "importPath": "testing/synctest",
+      "sha256": "9d9d64255c793944c4c7633cb0bbc7b284515f5fd1a75f4f75c7800c04754413"
+    },
+    {
+      "archivePath": "/go/pkg/text/scanner.a",
+      "importPath": "text/scanner",
+      "sha256": "daca882be1bdb86f011b4d95ee5d3fcdf6c43a6495483bb24c9dd052caf6f7dc"
+    },
+    {
+      "archivePath": "/go/pkg/text/tabwriter.a",
+      "importPath": "text/tabwriter",
+      "sha256": "5fcc714e9925fc6cac8a521dfdea5e7f39f63e2fd28e692a50d5081b8b8656fc"
+    },
+    {
+      "archivePath": "/go/pkg/text/template.a",
+      "importPath": "text/template",
+      "sha256": "f8ffecf1b0bd757182f304eb93d25581cfcf9b3cb80aba895b092bdcd94e44b5"
+    },
+    {
+      "archivePath": "/go/pkg/text/template/parse.a",
+      "importPath": "text/template/parse",
+      "sha256": "c1282d00355b328954660f28848e71bdf977c9f271e11b7c7430d28bf68722db"
+    },
+    {
+      "archivePath": "/go/pkg/time.a",
+      "importPath": "time",
+      "sha256": "69b24952d1f5cdeb592ff16f18b2005ef3e90fca8b4bfcac18d7f5be9a9ad6d3"
+    },
+    {
+      "archivePath": "/go/pkg/time/tzdata.a",
+      "importPath": "time/tzdata",
+      "sha256": "08ab74db43db85e1ada0709e3afd355a1469fc44f423ae40af7363b282d8d73c"
+    },
+    {
+      "archivePath": "/go/pkg/unicode.a",
+      "importPath": "unicode",
+      "sha256": "c1098d950e19128ba49f2a026e063b960bb421e6c470bffd748d290e33e46a33"
+    },
+    {
+      "archivePath": "/go/pkg/unicode/utf16.a",
+      "importPath": "unicode/utf16",
+      "sha256": "a916e00d7120b255e273191df11e6048b78ebc4ebf08cd06caa14d02e5c74f20"
+    },
+    {
+      "archivePath": "/go/pkg/unicode/utf8.a",
+      "importPath": "unicode/utf8",
+      "sha256": "e89e2e61f677864470c1c3c30f584302184940840a314b5cc7fea2046eb379c8"
+    },
+    {
+      "archivePath": "/go/pkg/unique.a",
+      "importPath": "unique",
+      "sha256": "c00fb10c6d54deef49a0afcdecaa8f79edf0ec474b8d43316820bc6661d6a87d"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/crypto/chacha20.a",
+      "importPath": "vendor/golang.org/x/crypto/chacha20",
+      "sha256": "23dcf1ed372ff2ecf1512c7b2fefb67175b77ff6c7b691fd9695a99bdcd08882"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/crypto/chacha20poly1305.a",
+      "importPath": "vendor/golang.org/x/crypto/chacha20poly1305",
+      "sha256": "9e01440d5c73d6b071e97c3c4761827f68b7b11c3c318257e5b96ddad8a08284"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/crypto/cryptobyte.a",
+      "importPath": "vendor/golang.org/x/crypto/cryptobyte",
+      "sha256": "9d267f499bba4380fb7af48ba9fbe4412d5ead3a93d878e57fd22f72911632e5"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/crypto/cryptobyte/asn1.a",
+      "importPath": "vendor/golang.org/x/crypto/cryptobyte/asn1",
+      "sha256": "f60ca206597983738f6b2749d316bfc47959bdceafd5c55dfc1144b8481f1fc4"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/crypto/internal/alias.a",
+      "importPath": "vendor/golang.org/x/crypto/internal/alias",
+      "sha256": "ff47f146d5b00ed32b8585e2392c241ab2fd1e17ca36f0643a3f24fd62450980"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/crypto/internal/poly1305.a",
+      "importPath": "vendor/golang.org/x/crypto/internal/poly1305",
+      "sha256": "afafea810c07343a749f9a881b2ce7023d58eaa3d9023acaf80edf73160a206b"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/net/dns/dnsmessage.a",
+      "importPath": "vendor/golang.org/x/net/dns/dnsmessage",
+      "sha256": "4b6273d67238c2e99320b274a4e2f7a2b8da326fc9bdd2abea7bcb9f485a46fd"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/net/http/httpguts.a",
+      "importPath": "vendor/golang.org/x/net/http/httpguts",
+      "sha256": "add8569dd7f26f7aca0c8f6abd86c1c268282710c5da3b67af5cfc16dc7b977b"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/net/http/httpproxy.a",
+      "importPath": "vendor/golang.org/x/net/http/httpproxy",
+      "sha256": "9e368066111df1aa82c659cc1a189119eca4cbbd6dad97f6bea7cffeb1e128d5"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/net/http2/hpack.a",
+      "importPath": "vendor/golang.org/x/net/http2/hpack",
+      "sha256": "92ded8799468b8795a9792a476e365695fa007de78a25cb6035526ef6f66d2ac"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/net/idna.a",
+      "importPath": "vendor/golang.org/x/net/idna",
+      "sha256": "8fc12242ec879d0d9df08a9098188eced3edfb5937302ea5c6a332448bdbe1c9"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/net/nettest.a",
+      "importPath": "vendor/golang.org/x/net/nettest",
+      "sha256": "1b34455c36fb965fe2c607be5a006b6c627622882bf6bc3cf58bd0706796229f"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/sys/cpu.a",
+      "importPath": "vendor/golang.org/x/sys/cpu",
+      "sha256": "63283c8ee1ce5a944a69f60908e5946ba6d43ce2809df0641102b7732024201b"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/text/secure/bidirule.a",
+      "importPath": "vendor/golang.org/x/text/secure/bidirule",
+      "sha256": "a589a1ad6f0c67b9a1cc37ba746b465dd738d273de0cd63c05525e0caa0d4575"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/text/transform.a",
+      "importPath": "vendor/golang.org/x/text/transform",
+      "sha256": "d214a6da566da40ef8ef5c7a81ef1d41617a1c75e49e496af5dbd57c759c6c73"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/text/unicode/bidi.a",
+      "importPath": "vendor/golang.org/x/text/unicode/bidi",
+      "sha256": "779d644599692acb5afa43d103cec3bdbdd6aa7fae8ba88e97983ede86aa20c5"
+    },
+    {
+      "archivePath": "/go/pkg/vendor/golang.org/x/text/unicode/norm.a",
+      "importPath": "vendor/golang.org/x/text/unicode/norm",
+      "sha256": "5ba2a9b42b67757dfc5a423fe68be3395160d517d0e4f3d6bb91b92ff36a5fa8"
+    },
+    {
+      "archivePath": "/go/pkg/weak.a",
+      "importPath": "weak",
+      "sha256": "4d77ff828df17aed4167a5aafd2b2e6d8c054e2b4772611724426a68582db150"
+    }
+  ],
+  "schema": "wasm-oj-v2/go-toolchain",
+  "source": {
+    "distributionSha256": "495be4bc87176ac567392e5b4116abd98466d33d7b49d41e764ccc6976b2dc42",
+    "distributionUrl": "https://go.dev/dl/go1.26.5.src.tar.gz"
+  },
+  "standardLibrary": {
+    "compressedBytes": 29300578,
+    "compressedSha256": "aeffc384fdc624544f174ba5fc3c22395717fdbc3c4387d677d20855b6be80d8",
+    "format": "WOJGO002",
+    "path": "go-1.26.5-wasip1.stdlib.gz.bin",
+    "sha256": "e1ec64b08efd02b35b7ffdaf3970875aaae98325fa4795eafca94ebae2d0d192",
+    "uncompressedBytes": 129696615
+  },
+  "target": "wasip1/wasm",
+  "version": "1.26.5"
+}

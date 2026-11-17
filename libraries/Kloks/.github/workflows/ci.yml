@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      NODE_PATH: /tmp/kloks-playwright/node_modules
+      PLAYWRIGHT_RUNTIME_PATH: /tmp/kloks-playwright
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install isolated Playwright host runtime
+        run: |
+          npm install --prefix /tmp/kloks-playwright --no-save --package-lock=false playwright
+          /tmp/kloks-playwright/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify isolated Playwright runtime
+        run: node scripts/verify-playwright-runtime.mjs
+      - name: Build all packages
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/diagnostics
+          pnpm build 2>&1 | tee artifacts/diagnostics/build.log
+      - name: Enforce package architecture boundaries
+        if: always()
+        run: pnpm boundary
+      - name: Verify clean-room package boundary
+        if: always()
+        run: pnpm boundary:clean-room
+      - name: Typecheck all packages
+        if: always()
+        run: |
+          set -o pipefail
+          pnpm typecheck 2>&1 | tee artifacts/diagnostics/typecheck.log
+      - name: Run unit and browser-inspection tests
+        if: always()
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee artifacts/diagnostics/test.log
+      - name: Verify emitted package exports and declarations
+        if: success()
+        run: pnpm run verify:package-exports
+      - name: Inspect published package contents
+        if: always()
+        run: npm pack --dry-run
+      - name: Verify packed npm consumer and Cloudflare Worker imports
+        if: success()
+        run: |
+          set -o pipefail
+          node scripts/clean-room-boundary.mjs 2>&1 | tee artifacts/diagnostics/clean-room.log
+      - name: Check patch whitespace
+        if: always()
+        run: git diff --check "$(git merge-base origin/main HEAD)" HEAD
+      - name: Upload build, typecheck, test and browser evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kloks-diagnostics-and-playwright
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14

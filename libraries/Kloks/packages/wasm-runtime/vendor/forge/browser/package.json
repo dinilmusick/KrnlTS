@@ -1,0 +1,47 @@
+{
+  "name": "@wasm-oj/browser",
+  "version": "0.2.6",
+  "description": "Browser compiler and runner host for the WASM-OJ SDK.",
+  "license": "MIT",
+  "author": "JacobLinCool",
+  "keywords": [
+    "online-judge",
+    "wasi",
+    "wasm",
+    "browser"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "licenses"
+  ],
+  "engines": {
+    "node": ">=24.18.0 <25"
+  },
+  "dependencies": {
+    "@wasm-oj/contracts": "0.2.6",
+    "@wasm-oj/core": "0.2.6",
+    "@wasmer/sdk": "0.10.0",
+    "es-module-lexer": "2.3.1",
+    "fflate": "0.8.3"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-library.mjs --package @wasm-oj/browser"
+  }
+}

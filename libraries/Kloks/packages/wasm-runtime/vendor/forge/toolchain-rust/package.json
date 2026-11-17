@@ -1,0 +1,46 @@
+{
+  "name": "@wasm-oj/toolchain-rust",
+  "version": "0.2.0",
+  "description": "Digest-pinned Rust compiler assets for the WASM-OJ SDK.",
+  "license": "SEE LICENSE IN THIRD_PARTY_NOTICES.md",
+  "author": "JacobLinCool",
+  "keywords": [
+    "wasi",
+    "wasm",
+    "rust",
+    "compiler"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./assets/rust-1.91.1-dev.manifest.json": "./assets/rust-1.91.1-dev.manifest.json",
+    "./assets/rust-1.91.1-dev.webc.gz.bin": "./assets/rust-1.91.1-dev.webc.gz.bin",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "assets",
+    "licenses",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=24.18.0 <25"
+  },
+  "dependencies": {
+    "@wasm-oj/contracts": "0.2.2"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-library.mjs --package @wasm-oj/toolchain-rust"
+  }
+}
