@@ -1,0 +1,130 @@
+
+.skipo-btn {
+  font-family: var(--skipo-font);
+  border: var(--skipo-border);
+  box-shadow: var(--skipo-shadow-btn);
+  border-radius: var(--skipo-radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.skipo-btn:hover {
+  box-shadow: var(--skipo-shadow-btn-hover);
+  transform: translate(-1px, -1px);
+}
+.skipo-btn:active {
+  box-shadow: var(--skipo-shadow-btn-active);
+  transform: translate(1px, 1px);
+}
+.skipo-btn--sm { padding: 0.25rem 0.5rem; font-size: 11px; height: 1.75rem; }
+.skipo-btn--md { padding: 0.375rem 0.75rem; font-size: 12px; height: 2.25rem; }
+.skipo-btn--lg { padding: 0.625rem 1rem; font-size: 14px; height: 2.75rem; }
+
+.skipo-btn--accent { background: var(--skipo-accent); color: var(--skipo-accent-fg); }
+.skipo-btn--secondary { background: var(--skipo-matte-bg); color: var(--skipo-text); }
+.skipo-btn--danger { background: var(--skipo-danger); color: var(--skipo-danger-fg); }
+.skipo-btn--success { background: var(--skipo-success); color: var(--skipo-success-fg); }
+.skipo-btn--warning { background: var(--skipo-warning); color: var(--skipo-warning-fg); }
+.skipo-btn--ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--skipo-text); }
+.skipo-btn--ghost:hover { background: rgba(0,0,0,0.1); border: var(--skipo-border); }
+
+.skipo-input {
+  width: 100%;
+  border: var(--skipo-border-input);
+  background: var(--skipo-matte-bg);
+  color: var(--skipo-text);
+  padding: 0.375rem 0.625rem;
+  font-size: 12px;
+  font-family: var(--skipo-font-mono);
+  font-weight: bold;
+  border-radius: var(--skipo-radius-sm);
+  outline: none;
+}
+.skipo-input:focus { border-color: var(--skipo-accent); }
+
+.skipo-textarea {
+  width: 100%;
+  border: var(--skipo-border-input);
+  background: var(--skipo-matte-bg);
+  color: var(--skipo-text);
+  padding: 0.375rem 0.625rem;
+  font-family: var(--skipo-font);
+  border-radius: var(--skipo-radius-sm);
+  outline: none;
+  resize: vertical;
+}
+
+.skipo-select {
+  border: var(--skipo-border-input);
+  background: var(--skipo-matte-bg);
+  color: var(--skipo-text);
+  padding: 0.375rem 0.625rem;
+  font-family: var(--skipo-font-mono);
+  font-weight: bold;
+  border-radius: var(--skipo-radius-sm);
+  text-transform: uppercase;
+}
+
+.skipo-card {
+  border: var(--skipo-border);
+  background: var(--skipo-matte-bg);
+  color: var(--skipo-text);
+  padding: 0.75rem;
+  border-radius: var(--skipo-radius);
+  transition: all 0.1s ease;
+}
+.skipo-card--surface { background: var(--skipo-matte-bg); }
+.skipo-card--subtle { background: rgba(0,0,0,0.1); }
+.skipo-card--base { background: var(--skipo-bg); }
+.skipo-card--sm { box-shadow: var(--skipo-shadow-btn); }
+.skipo-card--md { box-shadow: var(--skipo-shadow); }
+.skipo-card--lg { box-shadow: var(--skipo-shadow-hover); }
+
+.skipo-badge {
+  border: var(--skipo-border);
+  padding: 0.125rem 0.375rem;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  border-radius: 4px;
+}
+.skipo-badge--accent { background: var(--skipo-accent); color: var(--skipo-accent-fg); }
+.skipo-badge--success { background: var(--skipo-success); color: var(--skipo-success-fg); }
+
+.skipo-toggle {
+  appearance: none;
+  width: 32px;
+  height: 18px;
+  background: var(--skipo-matte-bg);
+  border: var(--skipo-border);
+  border-radius: 9px;
+  position: relative;
+  cursor: pointer;
+}
+.skipo-toggle:checked { background: var(--skipo-success); }
+.skipo-toggle::after {
+  content: '';
+  position: absolute;
+  top: 1px; left: 1px;
+  width: 12px; height: 12px;
+  background: var(--skipo-text);
+  border-radius: 50%;
+  transition: 0.2s;
+}
+.skipo-toggle:checked::after { left: 15px; }
+
+.skipo-tooltip {
+  position: absolute;
+  background: var(--skipo-matte-bg);
+  color: var(--skipo-text);
+  padding: 4px 8px;
+  border: var(--skipo-border);
+  border-radius: var(--skipo-radius-sm);
+  font-size: 11px;
+  z-index: 1000;
+}
