@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022"],
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./*"],
+      "@skipo/ui": ["./src/libraries/skipo/ui/index.ts"],
+      "@skipo/core": ["./src/libraries/skipo/core/index.ts"],
+      "@skipo/backend": ["./src/libraries/skipo/backend/index.ts"],
+      "@skipo/systems": ["./src/libraries/skipo/systems/index.ts"]
+    }
+  },
+  "include": [
+    "src/backend/adapters/httpsAdapter.ts",
+    "src/backend/**/*.ts",
+    "src/libraries/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "Skipo"]
+}

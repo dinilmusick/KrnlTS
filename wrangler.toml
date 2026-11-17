@@ -1,0 +1,22 @@
+name = "kone"
+main = "api/index.js"
+compatibility_date = "2026-11-08"
+compatibility_flags = ["nodejs_compat"]
+upload_source_maps = false
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = true
+not_found_handling = "single-page-application"
+
+[build]
+command = "npm run build"
+
+# Configure SYSTEM_DATABASE_URL as the primary Cloudflare Worker Secret.
+# SYSTEM_DATABASE_URL_2 and SYSTEM_DATABASE_URL_3 are ordered optional fallbacks.
+# Worker bindings are not copied into the Node process environment.
+
+[vars]
+APP_URL = "https://kone.todadjp.workers.dev"
+
