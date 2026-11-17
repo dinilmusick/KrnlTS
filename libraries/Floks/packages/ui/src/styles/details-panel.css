@@ -1,0 +1,147 @@
+.skipo-details-panel {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  background: var(--skipo-matte-bg);
+  backdrop-filter: var(--skipo-matte-blur);
+  -webkit-backdrop-filter: var(--skipo-matte-blur);
+  border: var(--skipo-border);
+  border-radius: var(--skipo-radius);
+  box-shadow: var(--skipo-shadow);
+  color: var(--skipo-text);
+  overflow: hidden;
+  z-index: 50;
+  box-sizing: border-box;
+}
+
+.skipo-details-panel.is-dragging {
+  user-select: none;
+  box-shadow: var(--skipo-shadow-hover);
+}
+
+.skipo-details-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--skipo-surface);
+  border-bottom: var(--skipo-border);
+  cursor: grab;
+  user-select: none;
+  min-height: 38px;
+  box-sizing: border-box;
+}
+
+.skipo-details-panel.is-dragging .skipo-details-panel-header {
+  cursor: grabbing;
+}
+
+.skipo-details-panel-title-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.skipo-details-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--skipo-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skipo-details-panel-subtitle {
+  font-size: 11px;
+  color: var(--skipo-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skipo-details-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.skipo-details-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+/* 8-Point Resize Handles */
+.skipo-resize-handle {
+  position: absolute;
+  z-index: 60;
+  box-sizing: border-box;
+}
+
+.skipo-resize-nw {
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+}
+
+.skipo-resize-ne {
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+}
+
+.skipo-resize-se {
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+}
+
+.skipo-resize-sw {
+  bottom: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+}
+
+.skipo-resize-n {
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.skipo-resize-s {
+  bottom: 0;
+  left: 10px;
+  right: 10px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.skipo-resize-w {
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.skipo-resize-e {
+  right: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 6px;
+  cursor: ew-resize;
+}

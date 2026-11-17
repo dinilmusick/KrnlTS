@@ -1,0 +1,1079 @@
+{
+  "policyVersion": "2.0.0",
+  "schemaVersion": "1.0.0",
+  "policyId": "ultrst-armada.ecosystem-architecture",
+  "status": "authoritative",
+  "compatibility": {
+    "policyMajor": 2,
+    "schema": "https://json-schema.org/draft/2020-12/schema",
+    "consumersMustDeclare": [
+      "policyId",
+      "policyVersion",
+      "schemaVersion"
+    ],
+    "sameMajor": "Compatible additive changes may be adopted without changing the policy major version. Validators must ignore unknown optional fields but must reject unknown enum values in fields they enforce.",
+    "breaking": "Changes that alter ownership, dependency direction, required declarations, or existing public surfaces require a policy major version increment and a documented migration.",
+    "schemaCompatibility": "A schema major change may invalidate documents accepted by an earlier schema major and requires an explicit migration.",
+    "legacyV1": "Version 1 documents remain readable as legacy projections during migration, but are not authoritative. Repositories must migrate to policy version 2 before enforcing the complete graph.",
+    "migration": [
+      "Read the canonical policy and record its policyVersion and schemaVersion in local validation metadata.",
+      "Replace independently authored architecture rules with a generated or synchronized projection of this policy.",
+      "Map legacy level/edge declarations to typed library-dependency edges.",
+      "Classify every additional relationship as application-composition, capability-authority, authorization-delegation, runtime-integration, theme-consumption, or governance-promotion.",
+      "Resolve conflicts by preserving working public APIs through an explicit compatibility exception with owner, rationale, scope, and expiry or removal condition.",
+      "Run repository-local validation and publish the validated policy version in CI evidence."
+    ]
+  },
+  "layers": {
+    "L0": {
+      "name": "Foundational primitives",
+      "rule": "May not depend on any higher layer or application."
+    },
+    "L1": {
+      "name": "Framework foundations",
+      "rule": "May depend on L0 only."
+    },
+    "L2": {
+      "name": "Reusable ecosystem libraries",
+      "rule": "May depend on L0 and L1 only."
+    },
+    "L3": {
+      "name": "Application composition framework",
+      "rule": "May consume L0-L2; must not become an alternative capability authority."
+    },
+    "application": {
+      "name": "Application",
+      "rule": "Composes canonical capabilities and owns product-specific behavior only."
+    },
+    "authority": {
+      "name": "Canonical authority service",
+      "rule": "Owns one explicitly assigned ecosystem capability; does not imply a numeric library layer."
+    },
+    "governance": {
+      "name": "Ecosystem governance",
+      "rule": "Defines and enforces policy and promotion workflows; is not a runtime dependency of libraries."
+    },
+    "integration": {
+      "name": "Runtime integration",
+      "rule": "Connects applications and authorities to execution environments without taking over their capabilities."
+    },
+    "theme": {
+      "name": "Theme distribution",
+      "rule": "Publishes theme assets consumed by UI foundations and applications."
+    },
+    "consumer": {
+      "name": "Downstream consumer",
+      "rule": "Consumes published packages and canonical services; does not define their architecture."
+    }
+  },
+  "repositories": [
+    {
+      "id": "gutts",
+      "name": "GutTS",
+      "github": "dinilmusick/GutTS",
+      "role": "foundational-library",
+      "layer": "L0",
+      "packageNames": [
+        "@dinilmusick/gutts"
+      ],
+      "owns": [
+        "foundational-primitives",
+        "shared-types",
+        "cross-runtime-contracts"
+      ],
+      "publicSurface": "declared-package-exports",
+      "privateSurface": [
+        "src/internal/**",
+        "build tooling"
+      ],
+      "runtimes": [
+        "node",
+        "browser",
+        "edge"
+      ],
+      "notes": "Global foundational library provider."
+    },
+    {
+      "id": "krnlts",
+      "name": "KrnlTS",
+      "github": "dinilmusick/KrnlTS",
+      "role": "framework-library",
+      "layer": "L1",
+      "packageNames": [
+        "@ultrst-armada/krnl"
+      ],
+      "owns": [
+        "backend-service-framework",
+        "service-lifecycle-contracts"
+      ],
+      "publicSurface": "declared-package-exports",
+      "privateSurface": [
+        "internal adapters",
+        "implementation modules"
+      ],
+      "runtimes": [
+        "node",
+        "edge"
+      ],
+      "notes": "Backend/service foundation."
+    },
+    {
+      "id": "frnlts",
+      "name": "FrnlTS",
+      "github": "dinilmusick/FrnlTS",
+      "role": "framework-library",
+      "layer": "L1",
+      "packageNames": [
+        "@ultrst-armada/frnlts"
+      ],
+      "owns": [
+        "frontend-ui-framework",
+        "component-runtime-contracts"
+      ],
+      "publicSurface": "declared-package-exports",
+      "privateSurface": [
+        "internal renderers",
+        "implementation modules"
+      ],
+      "runtimes": [
+        "browser",
+        "node"
+      ],
+      "notes": "Frontend/UI foundation."
+    },
+    {
+      "id": "kloks",
+      "name": "Kloks",
+      "github": "dinilmusick/Kloks",
+      "role": "reusable-library",
+      "layer": "L2",
+      "packageNames": [
+        "@ultrst-armada/kloks"
+      ],
+      "owns": [
+        "reusable-backend-services",
+        "state-graph",
+        "audio-midi-service-integrations",
+        "canonical-auth-client-integration"
+      ],
+      "publicSurface": "declared-package-exports",
+      "privateSurface": [
+        "internal adapters",
+        "provider implementation paths"
+      ],
+      "runtimes": [
+        "node",
+        "browser",
+        "edge"
+      ],
+      "notes": "May integrate with Luth but must not own identity, credentials, or canonical sessions."
+    },
+    {
+      "id": "floks",
+      "name": "Floks",
+      "github": "dinilmusick/Floks",
+      "role": "reusable-library",
+      "layer": "L2",
+      "packageNames": [
+        "@ultrst-armada/floks"
+      ],
+      "owns": [
+        "reusable-ui-components",
+        "2d-graph-ui",
+        "auth-ui-components"
+      ],
+      "publicSurface": "declared-package-exports",
+      "privateSurface": [
+        "component implementation paths",
+        "internal styles except explicit exceptions"
+      ],
+      "runtimes": [
+        "browser"
+      ],
+      "notes": "UI library; authentication UI must delegate identity operations to Luth through canonical clients."
+    },
+    {
+      "id": "skipo",
+      "name": "Skipo",
+      "github": "dinilmusick/Skipo",
+      "role": "application-composition-framework",
+      "layer": "L3",
+      "packageNames": [
+        "skipo"
+      ],
+      "owns": [
+        "fullstack-app-composition",
+        "application-scaffolding",
+        "local-library-hydration",
+        "promotion-workflow-orchestration"
+      ],
+      "publicSurface": "declared-framework-and-scaffold-contracts",
+      "privateSurface": [
+        "scaffold internals",
+        "generated implementation templates"
+      ],
+      "runtimes": [
+        "node",
+        "browser",
+        "edge",
+        "webcontainer"
+      ],
+      "notes": "Composes canonical libraries and services; generated apps must not create competing infrastructure authorities."
+    },
+    {
+      "id": "luth",
+      "name": "Luth",
+      "github": "dinilmusick/Luth",
+      "role": "canonical-authority",
+      "layer": "authority",
+      "packageNames": [],
+      "owns": [
+        "identity",
+        "authentication",
+        "credentials",
+        "canonical-sessions",
+        "session-revocation",
+        "oauth-provider-brokerage"
+      ],
+      "publicSurface": "documented-authentication-and-session-protocols",
+      "privateSurface": [
+        "credential storage implementation",
+        "session persistence internals",
+        "provider secrets"
+      ],
+      "runtimes": [
+        "node",
+        "edge"
+      ],
+      "notes": "Sole canonical identity and session authority."
+    },
+    {
+      "id": "srkl",
+      "name": "Srkl-Engine",
+      "github": "dinilmusick/Srkl-Engine",
+      "role": "canonical-authority",
+      "layer": "authority",
+      "packageNames": [],
+      "owns": [
+        "application-profiles",
+        "workspace-data",
+        "authorization-policies",
+        "resource-permissions"
+      ],
+      "publicSurface": "documented-profile-and-authorization-apis",
+      "privateSurface": [
+        "policy evaluation implementation",
+        "workspace persistence internals"
+      ],
+      "runtimes": [
+        "node",
+        "edge"
+      ],
+      "notes": "Owns application profiles and authorization; validates Luth sessions but never stores credentials or issues canonical sessions."
+    },
+    {
+      "id": "loky",
+      "name": "Loky-Engine",
+      "github": "dinilmusick/Loky-Engine",
+      "role": "runtime-integration",
+      "layer": "integration",
+      "packageNames": [],
+      "owns": [
+        "runtime-orchestration",
+        "execution-environment-lifecycle",
+        "runtime-connectivity"
+      ],
+      "publicSurface": "documented-runtime-control-and-connection-apis",
+      "privateSurface": [
+        "provider credentials",
+        "runtime adapters",
+        "execution internals"
+      ],
+      "runtimes": [
+        "node",
+        "edge"
+      ],
+      "notes": "Runtime execution/orchestration integration; does not own identity or application authorization."
+    },
+    {
+      "id": "aiko",
+      "name": "Aiko",
+      "github": "dinilmusick/Aiko",
+      "role": "application",
+      "layer": "application",
+      "packageNames": [],
+      "owns": [
+        "aiko-product-experience",
+        "aiko-specific-workflows"
+      ],
+      "publicSurface": "application-api-and-ui-contracts",
+      "privateSurface": [
+        "product implementation",
+        "application data internals"
+      ],
+      "runtimes": [
+        "browser",
+        "node",
+        "edge"
+      ],
+      "notes": "Consumes canonical ecosystem authorities and integrations."
+    },
+    {
+      "id": "kult",
+      "name": "Kult-Engine",
+      "github": "dinilmusick/Kult-Engine",
+      "role": "application",
+      "layer": "application",
+      "packageNames": [],
+      "owns": [
+        "kult-product-experience",
+        "kult-specific-workflows"
+      ],
+      "publicSurface": "application-api-and-ui-contracts",
+      "privateSurface": [
+        "product implementation",
+        "application data internals"
+      ],
+      "runtimes": [
+        "browser",
+        "node",
+        "edge"
+      ],
+      "notes": "Product/application responsibilities only unless a separately approved capability assignment exists."
+    },
+    {
+      "id": "kelt",
+      "name": "Kelt-Engine",
+      "github": "dinilmusick/Kelt-Engine",
+      "role": "application",
+      "layer": "application",
+      "packageNames": [],
+      "owns": [
+        "kelt-product-experience",
+        "kelt-specific-workflows"
+      ],
+      "publicSurface": "application-api-and-ui-contracts",
+      "privateSurface": [
+        "product implementation",
+        "application data internals"
+      ],
+      "runtimes": [
+        "browser",
+        "node",
+        "edge"
+      ],
+      "notes": "Product/application responsibilities only unless a separately approved capability assignment exists."
+    },
+    {
+      "id": "krusbl",
+      "name": "Krusbl-Engine",
+      "github": "dinilmusick/Krusbl-Engine",
+      "role": "ecosystem-governance",
+      "layer": "governance",
+      "packageNames": [],
+      "owns": [
+        "canonical-architecture-policy",
+        "capability-registry-governance",
+        "reusable-asset-promotion-governance",
+        "ecosystem-reconciliation"
+      ],
+      "publicSurface": "policy-schema-and-governance-contracts",
+      "privateSurface": [
+        "promotion engine internals",
+        "governance implementation"
+      ],
+      "runtimes": [
+        "node",
+        "edge"
+      ],
+      "notes": "Authoritative policy and promotion governance; not a runtime infrastructure provider."
+    },
+    {
+      "id": "theta",
+      "name": "Theta-Engine",
+      "github": "dinilmusick/Theta-Engine",
+      "role": "theme-distribution",
+      "layer": "theme",
+      "packageNames": [],
+      "owns": [
+        "theme-packs",
+        "design-token-distribution"
+      ],
+      "publicSurface": "declared-theme-assets-and-token-contracts",
+      "privateSurface": [
+        "theme authoring internals"
+      ],
+      "runtimes": [
+        "browser"
+      ],
+      "notes": "Theme packs consumed by FrnlTS/Floks UI surfaces."
+    },
+    {
+      "id": "depm",
+      "name": "Depm-Engine",
+      "github": "dinilmusick/Depm-Engine",
+      "role": "downstream-consumer",
+      "layer": "consumer",
+      "packageNames": [],
+      "owns": [
+        "depm-product-experience",
+        "depm-specific-workflows"
+      ],
+      "publicSurface": "application-api-and-ui-contracts",
+      "privateSurface": [
+        "product implementation",
+        "application data internals"
+      ],
+      "runtimes": [
+        "browser",
+        "node",
+        "edge"
+      ],
+      "notes": "Downstream consumer; representative of other consuming applications."
+    }
+  ],
+  "dependencyEdgeTypes": {
+    "library-dependency": {
+      "direction": "consumer-to-provider",
+      "layerRule": "Provider layer must be strictly lower than consumer layer when both have numeric L0-L3 layers.",
+      "affectsCycleDetection": true,
+      "packageManifestEvidence": true
+    },
+    "application-composition": {
+      "direction": "composed-application-to-composed-capability",
+      "layerRule": "Applications may compose declared libraries and authorities; this is not a library-layer edge.",
+      "affectsCycleDetection": true,
+      "packageManifestEvidence": false
+    },
+    "capability-authority": {
+      "direction": "capability-consumer-to-authority-owner",
+      "layerRule": "Must terminate at the unique owner of the named capability.",
+      "affectsCycleDetection": true,
+      "packageManifestEvidence": false
+    },
+    "authorization-delegation": {
+      "direction": "profile-or-resource-owner-to-authorization-authority",
+      "layerRule": "Application authorization decisions delegate to SRKL; authentication/session validity delegates to Luth.",
+      "affectsCycleDetection": true,
+      "packageManifestEvidence": false
+    },
+    "runtime-integration": {
+      "direction": "application-or-service-to-runtime-provider",
+      "layerRule": "Runtime integration cannot claim identity, credentials, or application authorization ownership.",
+      "affectsCycleDetection": true,
+      "packageManifestEvidence": false
+    },
+    "theme-consumption": {
+      "direction": "theme-consumer-to-theme-provider",
+      "layerRule": "UI consumers may consume Theta assets; theme provider does not depend on consuming applications.",
+      "affectsCycleDetection": true,
+      "packageManifestEvidence": false
+    },
+    "governance-promotion": {
+      "direction": "governed-repository-to-governance-process",
+      "layerRule": "Promotion and policy relationships are governance metadata, not runtime imports.",
+      "affectsCycleDetection": false,
+      "packageManifestEvidence": false
+    }
+  },
+  "edges": [
+    [
+      "@ultrst-armada/krnl",
+      "@dinilmusick/gutts"
+    ],
+    [
+      "@ultrst-armada/frnlts",
+      "@dinilmusick/gutts"
+    ],
+    [
+      "@ultrst-armada/kloks",
+      "@dinilmusick/gutts"
+    ],
+    [
+      "@ultrst-armada/kloks",
+      "@ultrst-armada/krnl"
+    ],
+    [
+      "@ultrst-armada/floks",
+      "@dinilmusick/gutts"
+    ],
+    [
+      "@ultrst-armada/floks",
+      "@ultrst-armada/frnlts"
+    ],
+    [
+      "skipo",
+      "@dinilmusick/gutts"
+    ],
+    [
+      "skipo",
+      "@ultrst-armada/krnl"
+    ],
+    [
+      "skipo",
+      "@ultrst-armada/frnlts"
+    ],
+    [
+      "skipo",
+      "@ultrst-armada/kloks"
+    ],
+    [
+      "skipo",
+      "@ultrst-armada/floks"
+    ]
+  ],
+  "edgeKinds": {
+    "@ultrst-armada/krnl": {
+      "@dinilmusick/gutts": "runtime"
+    },
+    "@ultrst-armada/frnlts": {
+      "@dinilmusick/gutts": "runtime"
+    },
+    "@ultrst-armada/kloks": {
+      "@dinilmusick/gutts": "runtime",
+      "@ultrst-armada/krnl": "peer"
+    },
+    "@ultrst-armada/floks": {
+      "@dinilmusick/gutts": "runtime",
+      "@ultrst-armada/frnlts": "runtime"
+    },
+    "skipo": {
+      "@dinilmusick/gutts": "runtime",
+      "@ultrst-armada/krnl": "runtime",
+      "@ultrst-armada/frnlts": "runtime",
+      "@ultrst-armada/kloks": "runtime",
+      "@ultrst-armada/floks": "runtime"
+    }
+  },
+  "typedEdges": [
+    {
+      "from": "krnlts",
+      "to": "gutts",
+      "type": "library-dependency",
+      "dependencyKind": "runtime"
+    },
+    {
+      "from": "frnlts",
+      "to": "gutts",
+      "type": "library-dependency",
+      "dependencyKind": "runtime"
+    },
+    {
+      "from": "kloks",
+      "to": "gutts",
+      "type": "library-dependency",
+      "dependencyKind": "runtime"
+    },
+    {
+      "from": "kloks",
+      "to": "krnlts",
+      "type": "library-dependency",
+      "dependencyKind": "peer"
+    },
+    {
+      "from": "floks",
+      "to": "gutts",
+      "type": "library-dependency",
+      "dependencyKind": "runtime"
+    },
+    {
+      "from": "floks",
+      "to": "frnlts",
+      "type": "library-dependency",
+      "dependencyKind": "runtime"
+    },
+    {
+      "from": "skipo",
+      "to": "gutts",
+      "type": "library-dependency",
+      "dependencyKind": "runtime"
+    },
+    {
+      "from": "skipo",
+      "to": "krnlts",
+      "type": "library-dependency",
+      "dependencyKind": "runtime"
+    },
+    {
+      "from": "skipo",
+      "to": "frnlts",
+      "type": "library-dependency",
+      "dependencyKind": "runtime"
+    },
+    {
+      "from": "skipo",
+      "to": "kloks",
+      "type": "library-dependency",
+      "dependencyKind": "runtime"
+    },
+    {
+      "from": "skipo",
+      "to": "floks",
+      "type": "library-dependency",
+      "dependencyKind": "runtime"
+    },
+    {
+      "from": "aiko",
+      "to": "luth",
+      "type": "capability-authority",
+      "capability": "identity"
+    },
+    {
+      "from": "aiko",
+      "to": "srkl",
+      "type": "authorization-delegation",
+      "capability": "application-authorization"
+    },
+    {
+      "from": "aiko",
+      "to": "loky",
+      "type": "runtime-integration",
+      "capability": "runtime-orchestration"
+    },
+    {
+      "from": "kult",
+      "to": "luth",
+      "type": "capability-authority",
+      "capability": "identity"
+    },
+    {
+      "from": "kult",
+      "to": "srkl",
+      "type": "authorization-delegation",
+      "capability": "application-authorization"
+    },
+    {
+      "from": "kelt",
+      "to": "luth",
+      "type": "capability-authority",
+      "capability": "identity"
+    },
+    {
+      "from": "kelt",
+      "to": "srkl",
+      "type": "authorization-delegation",
+      "capability": "application-authorization"
+    },
+    {
+      "from": "depm",
+      "to": "luth",
+      "type": "capability-authority",
+      "capability": "identity"
+    },
+    {
+      "from": "floks",
+      "to": "theta",
+      "type": "theme-consumption",
+      "capability": "theme-packs"
+    },
+    {
+      "from": "frnlts",
+      "to": "theta",
+      "type": "theme-consumption",
+      "capability": "theme-packs"
+    },
+    {
+      "from": "gutts",
+      "to": "krusbl",
+      "type": "governance-promotion"
+    },
+    {
+      "from": "krnlts",
+      "to": "krusbl",
+      "type": "governance-promotion"
+    },
+    {
+      "from": "frnlts",
+      "to": "krusbl",
+      "type": "governance-promotion"
+    },
+    {
+      "from": "kloks",
+      "to": "krusbl",
+      "type": "governance-promotion"
+    },
+    {
+      "from": "floks",
+      "to": "krusbl",
+      "type": "governance-promotion"
+    },
+    {
+      "from": "skipo",
+      "to": "krusbl",
+      "type": "governance-promotion"
+    },
+    {
+      "from": "luth",
+      "to": "krusbl",
+      "type": "governance-promotion"
+    },
+    {
+      "from": "srkl",
+      "to": "krusbl",
+      "type": "governance-promotion"
+    },
+    {
+      "from": "loky",
+      "to": "krusbl",
+      "type": "governance-promotion"
+    },
+    {
+      "from": "aiko",
+      "to": "krusbl",
+      "type": "governance-promotion"
+    },
+    {
+      "from": "kult",
+      "to": "krusbl",
+      "type": "governance-promotion"
+    },
+    {
+      "from": "kelt",
+      "to": "krusbl",
+      "type": "governance-promotion"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "foundational-primitives",
+      "owner": "gutts",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Cross-runtime primitives, shared contracts, and foundational utilities."
+    },
+    {
+      "id": "backend-service-framework",
+      "owner": "krnlts",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Backend service framework and lifecycle contracts."
+    },
+    {
+      "id": "frontend-ui-framework",
+      "owner": "frnlts",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Frontend component framework and UI runtime contracts."
+    },
+    {
+      "id": "reusable-backend-services",
+      "owner": "kloks",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Reusable backend services and service integrations."
+    },
+    {
+      "id": "reusable-ui-components",
+      "owner": "floks",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Reusable UI components and visual primitives."
+    },
+    {
+      "id": "application-composition",
+      "owner": "skipo",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Full-stack application composition and scaffolding."
+    },
+    {
+      "id": "identity",
+      "owner": "luth",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Canonical user identity, credentials, authentication and OAuth authority."
+    },
+    {
+      "id": "canonical-sessions",
+      "owner": "luth",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Session creation, validation, lifecycle and revocation."
+    },
+    {
+      "id": "application-profiles",
+      "owner": "srkl",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Application-specific profiles and workspace identity mappings."
+    },
+    {
+      "id": "application-authorization",
+      "owner": "srkl",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Authorization policies, resource permissions and workspace access decisions."
+    },
+    {
+      "id": "runtime-orchestration",
+      "owner": "loky",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Runtime environment provisioning, orchestration and lifecycle integration."
+    },
+    {
+      "id": "ecosystem-architecture-policy",
+      "owner": "krusbl",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Canonical ecosystem architecture policy, schema and policy governance."
+    },
+    {
+      "id": "reusable-asset-promotion-governance",
+      "owner": "krusbl",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Promotion, reconciliation and governance of reusable assets."
+    },
+    {
+      "id": "theme-packs",
+      "owner": "theta",
+      "cardinality": "single",
+      "delegates": [],
+      "description": "Theme pack and design token distribution."
+    }
+  ],
+  "runtimeCompatibility": {
+    "environments": [
+      "node",
+      "browser",
+      "edge",
+      "webcontainer"
+    ],
+    "rules": [
+      "Every public export must declare its supported runtime set.",
+      "A package entry point must not statically import modules unavailable in any runtime declared for that entry point.",
+      "Node-only dependencies must be isolated behind Node-only exports or lazy runtime adapters.",
+      "Browser exports must not expose filesystem, process, native Node APIs, server credentials, or server-only modules.",
+      "Edge exports must not require unsupported Node built-ins, native addons, or long-lived process facilities.",
+      "WebContainer support must be declared separately and tested; it must not be inferred from Node compatibility.",
+      "Conditional exports must resolve to runtime-compatible implementations and declarations."
+    ]
+  },
+  "publicSurfaceRules": {
+    "default": "Only explicitly declared package exports and documented service/API contracts are public.",
+    "forbidden": [
+      "Wildcard export maps that expose arbitrary implementation files.",
+      "Deep imports into src/, internal/, private/, generated implementation folders, or provider adapters unless explicitly excepted.",
+      "Declarations that reference non-exported implementation paths.",
+      "Publishing secrets, environment-specific credentials, or private runtime adapters."
+    ],
+    "required": [
+      "Every public export has a stable name and target.",
+      "Every public export has runtime compatibility metadata.",
+      "Published tarballs are checked for forbidden internal paths.",
+      "Type declarations resolve only through public or explicitly permitted paths."
+    ]
+  },
+  "privateSurfaceRules": {
+    "default": [
+      "src/internal/**",
+      "**/internal/**",
+      "**/private/**",
+      "provider implementation modules",
+      "build/test scripts",
+      "secrets and environment-specific configuration"
+    ],
+    "visibility": "Private implementation paths may be used within their owning repository but must not become consumer contracts."
+  },
+  "exportExceptions": [
+    {
+      "repository": "@ultrst-armada/floks",
+      "key": "./ui/theme/tokens.css",
+      "target": "./packages/ui/src/theme/tokens.css",
+      "reason": "Existing published theme-token stylesheet surface.",
+      "owner": "floks",
+      "compatibility": "preserve-existing-public-api",
+      "removalCondition": "Only remove through a documented major-version migration."
+    },
+    {
+      "repository": "@ultrst-armada/floks",
+      "key": "./ui/styles/*",
+      "target": "./packages/ui/src/styles/*",
+      "allowWildcard": true,
+      "reason": "Existing published UI stylesheet surface; wildcard is constrained to this explicit CSS-only path.",
+      "owner": "floks",
+      "compatibility": "preserve-existing-public-api",
+      "removalCondition": "Only remove through a documented major-version migration."
+    }
+  ],
+  "allowedDependencies": {
+    "gutts": [],
+    "krnlts": [
+      "gutts"
+    ],
+    "frnlts": [
+      "gutts"
+    ],
+    "kloks": [
+      "gutts",
+      "krnlts"
+    ],
+    "floks": [
+      "gutts",
+      "frnlts"
+    ],
+    "skipo": [
+      "gutts",
+      "krnlts",
+      "frnlts",
+      "kloks",
+      "floks"
+    ]
+  },
+  "forbiddenDependencies": {
+    "gutts": [
+      "krnlts",
+      "frnlts",
+      "kloks",
+      "floks",
+      "skipo",
+      "luth",
+      "srkl",
+      "loky",
+      "aiko",
+      "kult",
+      "kelt",
+      "krusbl"
+    ],
+    "krnlts": [
+      "frnlts",
+      "kloks",
+      "floks",
+      "skipo",
+      "luth",
+      "srkl",
+      "loky",
+      "aiko",
+      "kult",
+      "kelt",
+      "krusbl"
+    ],
+    "frnlts": [
+      "krnlts",
+      "kloks",
+      "floks",
+      "skipo",
+      "luth",
+      "srkl",
+      "loky",
+      "aiko",
+      "kult",
+      "kelt",
+      "krusbl"
+    ],
+    "kloks": [
+      "frnlts",
+      "floks",
+      "skipo",
+      "luth",
+      "srkl",
+      "loky",
+      "aiko",
+      "kult",
+      "kelt",
+      "krusbl"
+    ],
+    "floks": [
+      "krnlts",
+      "kloks",
+      "skipo",
+      "luth",
+      "srkl",
+      "loky",
+      "aiko",
+      "kult",
+      "kelt",
+      "krusbl"
+    ],
+    "skipo": [
+      "aiko",
+      "kult",
+      "kelt",
+      "krusbl"
+    ]
+  },
+  "validation": {
+    "requiredChecks": [
+      "policy-schema-valid",
+      "all-repositories-have-unique-identities",
+      "all-edges-reference-known-repositories",
+      "all-library-dependencies-are-declared",
+      "no-forbidden-or-undeclared-ecosystem-dependencies",
+      "no-library-layer-inversions",
+      "no-cycles-in-cycle-participating-edges",
+      "capability-owner-is-unique",
+      "capability-authority-edges-target-the-owner",
+      "applications-do-not-own-canonical-infrastructure-capabilities",
+      "runtime-exports-are-compatible",
+      "public-exports-do-not-leak-private-paths",
+      "export-exceptions-are-explicit-and-scoped",
+      "package-manifests-and-lockfiles-match-published-architecture",
+      "published-tarballs-match-declared-public-surfaces",
+      "consumer-policy-version-is-compatible"
+    ],
+    "dependencyEvidence": [
+      "package.json dependencies",
+      "package.json optionalDependencies",
+      "package.json peerDependencies",
+      "package.json exports",
+      "published package metadata",
+      "published tarball contents",
+      "generated declaration files"
+    ],
+    "undeclaredDependencyPolicy": "Any dependency on an ecosystem repository or package must have a matching typed edge. Non-ecosystem third-party dependencies are outside this graph but remain subject to runtime and security validation.",
+    "cyclePolicy": "Reject cycles among all edge types marked affectsCycleDetection=true. Governance-only edges are excluded from runtime dependency cycle detection.",
+    "ownershipPolicy": "Each canonical capability has exactly one owner. Other repositories may expose clients, UI, adapters or delegated interfaces but cannot independently implement the authority.",
+    "driftPolicy": "Repository-local architecture-boundary.json files are compatibility projections only. They must identify canonical policyId, policyVersion and schemaVersion and must not introduce contradictory ownership or graph rules."
+  },
+  "legacy": {
+    "version": 1,
+    "levels": {
+      "@dinilmusick/gutts": 0,
+      "@ultrst-armada/krnl": 1,
+      "@ultrst-armada/frnlts": 1,
+      "@ultrst-armada/kloks": 2,
+      "@ultrst-armada/floks": 2,
+      "skipo": 3
+    },
+    "edgeKinds": {
+      "@ultrst-armada/krnl": {
+        "@dinilmusick/gutts": "runtime"
+      },
+      "@ultrst-armada/frnlts": {
+        "@dinilmusick/gutts": "runtime"
+      },
+      "@ultrst-armada/kloks": {
+        "@dinilmusick/gutts": "runtime",
+        "@ultrst-armada/krnl": "peer"
+      },
+      "@ultrst-armada/floks": {
+        "@dinilmusick/gutts": "runtime",
+        "@ultrst-armada/frnlts": "runtime"
+      },
+      "skipo": {
+        "@dinilmusick/gutts": "runtime",
+        "@ultrst-armada/krnl": "runtime",
+        "@ultrst-armada/frnlts": "runtime",
+        "@ultrst-armada/kloks": "runtime",
+        "@ultrst-armada/floks": "runtime"
+      }
+    },
+    "invariants": [
+      "No dependency may point to an equal or higher architectural layer.",
+      "No undeclared ecosystem dependency is permitted.",
+      "No wildcard public export is permitted except explicitly scoped policy exceptions.",
+      "Published declaration dependencies must obey the same graph.",
+      "Published tarballs must reject internal module paths.",
+      "Transitive ecosystem dependencies must obey the graph."
+    ]
+  },
+  "invariants": [
+    "No dependency may point to an equal or higher architectural layer.",
+    "No undeclared ecosystem dependency is permitted.",
+    "No wildcard public export is permitted except explicitly scoped policy exceptions.",
+    "Published declaration dependencies must obey the same graph.",
+    "Published tarballs must reject internal module paths.",
+    "Transitive ecosystem dependencies must obey the graph."
+  ]
+}
