@@ -1,0 +1,20 @@
+{
+  "$schema": "https://skipo.dev/schemas/kloks-manifest.v1.json",
+  "package": "@kloks/functions",
+  "version": "1.0.0",
+  "services": [
+    {
+      "id": "functions",
+      "name": "System Functions & Utilities Service",
+      "version": "1.0.0",
+      "description": "Async, Cache, Crypto, FS, HTTP, and String standard utilities.",
+      "backend": {
+        "package": "@kloks/functions",
+        "export": "FunctionsServiceFacade",
+        "facade": "FunctionsServiceFacade"
+      },
+      "modes": ["backend"],
+      "targets": { "backend": ["BackendFacade.services"] }
+    }
+  ]
+}

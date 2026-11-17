@@ -1,0 +1,138 @@
+import { NodeArchetypeDefinition } from "./types";
+import { createContainerNode, createRecorderNode, createPlayerNode, createSamplerNode, createAudioPadsNode } from "../../functions/containerFactory";
+
+export const AUDIO_CORE_ARCHETYPES: NodeArchetypeDefinition[] = [
+    // ── 1. CONTAINERS (Packet Memory Storage) ──────────────────────────────────
+    {
+      id: 'container_audio_stereo',
+      category: 'Containers',
+      label: 'Audio Container (Stereo)',
+      defaultDescription: 'Stores and manages indexed stereo audio packets/clips',
+      iconName: 'file-audio',
+      spawnType: { kind: 'container', containerType: 'audio', audioFormat: 'stereo' },
+      createPrototype: () => createContainerNode('audio', 1, 120, undefined, 'stereo'),
+    },
+    {
+      id: 'container_audio_mono',
+      category: 'Containers',
+      label: 'Audio Container (Mono)',
+      defaultDescription: 'Stores and manages indexed mono acoustic audio packets/clips',
+      iconName: 'file-audio',
+      spawnType: { kind: 'container', containerType: 'audio', audioFormat: 'mono' },
+      createPrototype: () => createContainerNode('audio', 1, 120, undefined, 'mono'),
+    },
+    {
+      id: 'container_midi',
+      category: 'Containers',
+      label: 'MIDI Container',
+      defaultDescription: 'Stores and manages recorded polyphonic MIDI pattern packets',
+      iconName: 'radio',
+      spawnType: { kind: 'container', containerType: 'midi' },
+      createPrototype: () => createContainerNode('midi', 1, 120),
+    },
+    {
+      id: 'container_curve',
+      category: 'Containers',
+      label: 'Curve / CV Container',
+      defaultDescription: 'Stores and manages multi-point Bezier envelope curve packets',
+      iconName: 'activity',
+      spawnType: { kind: 'container', containerType: 'curve' },
+      createPrototype: () => createContainerNode('curve', 1, 120),
+    },
+
+    // ── 2. RECORDERS (Stream ➔ Packet Conversion) ──────────────────────────────
+    {
+      id: 'recorder_audio_stereo',
+      category: 'Recorders & Players',
+      label: 'Audio Recorder (Stereo)',
+      defaultDescription: 'Captures continuous live stereo audio stream into discrete stored packets',
+      iconName: 'disc',
+      spawnType: { kind: 'recorder', recorderType: 'audio_stereo', recordingMode: 'standard' },
+      createPrototype: () => createRecorderNode('audio_stereo', 1, undefined, 'standard'),
+    },
+    {
+      id: 'recorder_audio_mono',
+      category: 'Recorders & Players',
+      label: 'Audio Recorder (Mono)',
+      defaultDescription: 'Captures live microphone/line-in mono stream into stored packets',
+      iconName: 'disc',
+      spawnType: { kind: 'recorder', recorderType: 'audio_mono', recordingMode: 'standard' },
+      createPrototype: () => createRecorderNode('audio_mono', 1, undefined, 'standard'),
+    },
+    {
+      id: 'recorder_midi',
+      category: 'Recorders & Players',
+      label: 'MIDI Recorder',
+      defaultDescription: 'Captures live stream MIDI note input into discrete pattern packets',
+      iconName: 'disc',
+      spawnType: { kind: 'recorder', recorderType: 'midi', recordingMode: 'standard' },
+      createPrototype: () => createRecorderNode('midi', 1, undefined, 'standard'),
+    },
+    {
+      id: 'recorder_curve',
+      category: 'Recorders & Players',
+      label: 'Curve / CV Recorder',
+      defaultDescription: 'Captures real-time CV modulation streams into quantized curve packets',
+      iconName: 'disc',
+      spawnType: { kind: 'recorder', recorderType: 'curve', recordingMode: 'standard' },
+      createPrototype: () => createRecorderNode('curve', 1, undefined, 'standard'),
+    },
+    {
+      id: 'recorder_retro_midi',
+      category: 'Recorders & Players',
+      label: 'Retrospective MIDI Recorder',
+      defaultDescription: 'Continuous rolling buffer: triggers capture past 4-bar performance takes into connected container',
+      iconName: 'history',
+      spawnType: { kind: 'recorder', recorderType: 'midi', recordingMode: 'retrospective' },
+      createPrototype: () => createRecorderNode('midi', 1, undefined, 'retrospective'),
+    },
+    {
+      id: 'recorder_retro_audio',
+      category: 'Recorders & Players',
+      label: 'Retrospective Audio Recorder',
+      defaultDescription: 'Continuous rolling audio buffer: triggers capture past 4-bar acoustic ideas into container',
+      iconName: 'history',
+      spawnType: { kind: 'recorder', recorderType: 'audio_stereo', recordingMode: 'retrospective' },
+      createPrototype: () => createRecorderNode('audio_stereo', 1, undefined, 'retrospective'),
+    },
+
+    // ── 3. PLAYERS (Packet ➔ Stream Playback) ───────────────────────────────────
+    {
+      id: 'player_midi',
+      category: 'Recorders & Players',
+      label: 'MIDI Player',
+      defaultDescription: 'Reads MIDI packets from Container and triggers live synthesized notes',
+      iconName: 'play',
+      spawnType: { kind: 'player', playerType: 'midi' },
+      createPrototype: () => createPlayerNode('midi', 1),
+    },
+    {
+      id: 'player_curve',
+      category: 'Recorders & Players',
+      label: 'Curve / CV Player (LFO)',
+      defaultDescription: 'Streams cyclic control voltage modulation from stored curve envelopes',
+      iconName: 'play',
+      spawnType: { kind: 'player', playerType: 'curve' },
+      createPrototype: () => createPlayerNode('curve', 1),
+    },
+
+    // ── 4. INSTRUMENTS, PADS & SAMPLERS ────────────────────────────────────────
+    {
+      id: 'audio_pads',
+      category: 'Instruments',
+      label: 'Audio Pads',
+      defaultDescription: 'Multi-sample drum pads with per-sample direct audio outputs and MIDI triggering',
+      iconName: 'grid',
+      spawnType: { kind: 'audio_pads' },
+      createPrototype: () => createAudioPadsNode(1),
+    },
+    {
+      id: 'sampler_instrument',
+      category: 'Instruments',
+      label: 'Audio Sampler',
+      defaultDescription: 'Connects to multiple audio containers, maps key zones with center notes, single stereo audio output',
+      iconName: 'disc',
+      spawnType: { kind: 'sampler' },
+      createPrototype: () => createSamplerNode(1),
+    },
+];

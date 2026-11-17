@@ -1,0 +1,68 @@
+import { NodeArchetypeDefinition } from "./types";
+import { createEffectNode } from "../../functions/nodeFactory";
+
+export const EFFECT_CORE_ARCHETYPES: NodeArchetypeDefinition[] = [
+  {
+    id: 'effect_eq',
+      category: 'Audio Effects',
+      label: '4-Band Parametric EQ',
+      defaultDescription: 'Multi-band parametric equalizer with shelving and peaking filters',
+      iconName: 'sliders',
+      spawnType: { kind: 'effect', effectType: 'eq' },
+      createPrototype: () => createEffectNode('eq', 1),
+    },
+    {
+      id: 'effect_compressor',
+      category: 'Audio Effects',
+      label: 'Studio Compressor (Sidechain)',
+      defaultDescription: 'Dynamic range compressor with threshold, ratio, attack, release, and sidechain key ducking',
+      iconName: 'activity',
+      spawnType: { kind: 'effect', effectType: 'compressor' },
+      createPrototype: () => createEffectNode('compressor', 1),
+    },
+    {
+      id: 'effect_multiband_compressor',
+      category: 'Audio Effects',
+      label: 'Multiband Compressor (Sidechain)',
+      defaultDescription: '3-Band crossover dynamic compressor with selective band sidechain ducking',
+      iconName: 'layers',
+      spawnType: { kind: 'effect', effectType: 'multiband_compressor' },
+      createPrototype: () => createEffectNode('multiband_compressor', 1),
+    },
+    {
+      id: 'effect_limiter',
+      category: 'Audio Effects',
+      label: 'Brickwall Peak Limiter',
+      defaultDescription: 'Zero-overshoot brickwall limiter with adjustable ceiling and soft-clip protection',
+      iconName: 'shield',
+      spawnType: { kind: 'effect', effectType: 'limiter' },
+      createPrototype: () => createEffectNode('limiter', 1),
+    },
+    {
+      id: 'effect_reverb',
+      category: 'Audio Effects',
+      label: 'Stereo Algorithmic Reverb',
+      defaultDescription: 'Lush studio space reverb with decay time, frequency damping, and wet/dry mix',
+      iconName: 'waves',
+      spawnType: { kind: 'effect', effectType: 'reverb' },
+      createPrototype: () => createEffectNode('reverb', 1),
+    },
+    {
+      id: 'effect_delay',
+      category: 'Audio Effects',
+      label: 'Stereo Tape Delay',
+      defaultDescription: 'BPM-synchronized delay with ping-pong bouncing and feedback tone filtering',
+      iconName: 'clock',
+      spawnType: { kind: 'effect', effectType: 'delay' },
+      createPrototype: () => createEffectNode('delay', 1),
+    },
+    {
+      id: 'effect_saturation',
+      category: 'Audio Effects',
+      label: 'Harmonic Saturation & Drive',
+      defaultDescription: 'Warm tape/tube saturation with non-linear waveshaping and tone sculpting',
+      iconName: 'zap',
+      spawnType: { kind: 'effect', effectType: 'saturation' },
+      createPrototype: () => createEffectNode('saturation', 1),
+    },
+];

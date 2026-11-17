@@ -1,0 +1,20 @@
+{
+  "$schema": "https://skipo.dev/schemas/kloks-manifest.v1.json",
+  "package": "@kloks/contracts",
+  "version": "1.0.0",
+  "services": [
+    {
+      "id": "canonical-contracts",
+      "name": "Canonical Contract & Snapshot Engine",
+      "version": "1.0.0",
+      "description": "Zod runtime schemas, export manifests, and contract snapshot diff engine.",
+      "backend": {
+        "package": "@kloks/contracts",
+        "export": "KLOKS_CANONICAL_CONTRACT",
+        "facade": "KLOKS_CANONICAL_CONTRACT"
+      },
+      "modes": ["backend"],
+      "targets": { "backend": ["BackendFacade.contracts"] }
+    }
+  ]
+}
