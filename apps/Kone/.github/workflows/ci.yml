@@ -1,0 +1,46 @@
+name: Kone CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate
+        run: npm run validate
+      - name: End-to-end server smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          NODE_ENV=production PORT=4173 node api/index.js > /tmp/kone-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for i in $(seq 1 30); do
+            if node -e "fetch('http://127.0.0.1:4173/api/health').then(async r => { if (!r.ok) throw new Error('HTTP '+r.status); const x=await r.json(); if (x.status !== 'ok' || x.service !== 'kone') throw new Error('Unexpected health payload'); }).catch(error => { console.error(error.message); process.exit(1); })"; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != "1" ]]; then
+            echo 'Kone server failed readiness check; server log follows:'
+            cat /tmp/kone-server.log || true
+            exit 1
+          fi
+          node -e "fetch('http://127.0.0.1:4173/api/health', {headers:{Origin:'http://127.0.0.1:4173'}}).then(async r => { if (!r.ok || r.headers.get('access-control-allow-origin') !== 'http://127.0.0.1:4173') throw new Error('same-origin CORS failed'); }).catch(error => { console.error(error.message); process.exit(1); })"
+          node -e "fetch('http://127.0.0.1:4173/api/health', {headers:{Origin:'https://evil.example'}}).then(async r => { if (r.headers.get('access-control-allow-origin')) throw new Error('foreign-origin CORS was allowed'); }).catch(error => { console.error(error.message); process.exit(1); })"
+          echo 'Kone end-to-end health and CORS smoke tests passed.'
+          cat /tmp/kone-server.log
