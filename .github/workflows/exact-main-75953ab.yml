@@ -1,0 +1,43 @@
+name: KrnlTS exact-main portable closure certification
+on:
+  push:
+    branches: [verify/portable-main-75953ab-20261118]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-main:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout pinned canonical main commit
+        uses: actions/checkout@v4
+        with:
+          ref: 75953abf1e8b3efc9667daad4abe2ae967b871ad
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Establish pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+      - name: Verify exact source commit and package reproducibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "75953abf1e8b3efc9667daad4abe2ae967b871ad"
+          pnpm install --frozen-lockfile
+          pnpm run build
+          pnpm run typecheck
+          pnpm test
+          pnpm run boundary
+          pnpm run boundary:clean-room
+          pnpm run test:public-exports
+          pnpm run test:portable-closure
+          pnpm run test:package-artifact
+          test "$(git rev-parse HEAD)" = "75953abf1e8b3efc9667daad4abe2ae967b871ad"
+          test -z "$(git status --porcelain)"
+          echo KRNLTS_EXACT_HEAD_VERIFIED=75953abf1e8b3efc9667daad4abe2ae967b871ad
