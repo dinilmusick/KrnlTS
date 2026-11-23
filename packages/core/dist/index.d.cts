@@ -75,10 +75,31 @@ interface FunctionalityExecutionContext<TState = Record<string, unknown>, TEvent
     readonly metadata?: Record<string, unknown>;
     readonly emit: <K extends keyof FunctionalityEvents<TEvents> & string>(event: K, payload: FunctionalityEvents<TEvents>[K]) => void;
 }
+/**
+ * Canonical JSON Schema subset for typed, externally describable functionalities.
+ * This is declaration metadata only; external transports must validate it and
+ * explicitly authorize the operation before making it remotely available.
+ */
+interface FunctionalityJsonSchema {
+    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';
+    readonly description?: string;
+    readonly properties?: Readonly<Record<string, FunctionalityJsonSchema>>;
+    readonly required?: readonly string[];
+    readonly additionalProperties?: boolean;
+    readonly items?: FunctionalityJsonSchema;
+    readonly enum?: readonly unknown[];
+    readonly minimum?: number;
+    readonly maximum?: number;
+    readonly minLength?: number;
+    readonly maxLength?: number;
+}
 interface FunctionalityDefinition<TInput = unknown, TOutput = unknown, TState = Record<string, unknown>, TEvents extends FunctionalityCustomEvents = {}> {
     readonly id?: string;
     readonly name?: string;
     readonly description?: string;
+    /** Required for external tool publication, optional for internal functionalities. */
+    readonly inputSchema?: FunctionalityJsonSchema;
+    readonly outputSchema?: FunctionalityJsonSchema;
     readonly events?: Record<keyof TEvents & string, EventDefinition<any>>;
     readonly bubbleEvents?: boolean;
     readonly execute: (input: TInput, context: FunctionalityExecutionContext<TState, TEvents>) => Promise<TOutput> | TOutput;
@@ -1249,4 +1270,4 @@ declare class FetchProtocolAdapter implements ProtocolAdapter {
     send(endpoint: EndpointDescriptor, envelope: ProtocolEnvelope): Promise<ProtocolEnvelope>;
 }
 
-export { type BackendCommand, type CanonicalAuthProvider, type CanonicalAuthRegistration, type CanonicalAuthServiceContract, type CanonicalAuthSession, type CanonicalAuthSessionResult, type CanonicalAuthUser, type Connection, type DAGValidationResult, DefaultExecutionController, type DefaultFrontendReference, type DependencyContract, type EndpointDescriptor, EventBus, type EventChannel, type EventContract, type EventDefinition, type EventHandler, type EventSubscription, type ExecutionContext, type ExecutionController, type ExecutionProvider, type ExecutionRequest, type ExecutionResult, type ExecutionStatus, FetchProtocolAdapter, type FetchProtocolAdapterOptions, type FunctionalityCustomEvents, type FunctionalityDefinition, type FunctionalityEventNamespace, type FunctionalityEvents, type FunctionalityExecutionContext, FunctionalityFacade, type FunctionalityLifecycleEvent, type FunctionalityLifecyclePayload, FunctionalityOrchestration, type FunctionalityStepOptions, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, OrchestrationEventFacade, type OrchestrationEventNamespace, type OrchestrationFrontendReference, type OrchestrationLifecyclePayload, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, TelemetryController, type TelemetryHandle, type TelemetryInvocation, type TelemetryMode, type TelemetryOptions, type TelemetryPercentiles, type TelemetryResourceSample, type TelemetrySnapshot, type TelemetryStatus, type TelemetryTargetStats, WorkerExecutionBoundary, createEventChannels, createService, createServiceDefinition, createServiceFacade, createServiceProxy, deltaResources, sampleResources, telemetryNow, validateOrchestrationDAG, validateServiceDefinition };
+export { type BackendCommand, type CanonicalAuthProvider, type CanonicalAuthRegistration, type CanonicalAuthServiceContract, type CanonicalAuthSession, type CanonicalAuthSessionResult, type CanonicalAuthUser, type Connection, type DAGValidationResult, DefaultExecutionController, type DefaultFrontendReference, type DependencyContract, type EndpointDescriptor, EventBus, type EventChannel, type EventContract, type EventDefinition, type EventHandler, type EventSubscription, type ExecutionContext, type ExecutionController, type ExecutionProvider, type ExecutionRequest, type ExecutionResult, type ExecutionStatus, FetchProtocolAdapter, type FetchProtocolAdapterOptions, type FunctionalityCustomEvents, type FunctionalityDefinition, type FunctionalityEventNamespace, type FunctionalityEvents, type FunctionalityExecutionContext, FunctionalityFacade, type FunctionalityJsonSchema, type FunctionalityLifecycleEvent, type FunctionalityLifecyclePayload, FunctionalityOrchestration, type FunctionalityStepOptions, type IService, type IServiceFacade, type JobStatus, type KrnlJobDefinition, type KrnlJobHandle, type KrnlJobOptions, KrnlQueue, type KrnlQueueOptions, type KrnlWorkerInfo, KrnlWorkerPool, type KrnlWorkerState, type LifecycleContract, LifecycleManager, MemoryTransport, type NormalizedResult, type OperationContext, type OperationContract, type OrchestrationContext, type OrchestrationDefinition, type OrchestrationDescriptor, OrchestrationEventFacade, type OrchestrationEventNamespace, type OrchestrationFrontendReference, type OrchestrationLifecyclePayload, type OrchestrationResult, type OrchestrationStatus, type OrchestrationStep, P2PProtocolAdapter, type PeerRecord, type ProtocolAdapter, type ProtocolCapabilities, type ProtocolEnvelope, ProtocolResolver, type ProtocolType, type RegisteredServiceRecord, type SagaCompensationHandler, type ServiceCapability, type ServiceDefinition, ServiceDiscovery, ServiceEventBus, ServiceFacade, type ServiceFacadeConfig, ServiceInstance, type ServiceNamespace, ServiceProxy, ServiceRegistry, ServiceRuntime, ServiceStateStore, type ServiceStatus, type StateContract, type StepCompensation, type StepCondition, type StepDefinition, type StepExecutionResult, type StepExecutionStatus, type StepRetryPolicy, type StepStatus, type StepTimeoutPolicy, type StepType, TelemetryController, type TelemetryHandle, type TelemetryInvocation, type TelemetryMode, type TelemetryOptions, type TelemetryPercentiles, type TelemetryResourceSample, type TelemetrySnapshot, type TelemetryStatus, type TelemetryTargetStats, WorkerExecutionBoundary, createEventChannels, createService, createServiceDefinition, createServiceFacade, createServiceProxy, deltaResources, sampleResources, telemetryNow, validateOrchestrationDAG, validateServiceDefinition };
