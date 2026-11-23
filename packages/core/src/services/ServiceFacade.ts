@@ -186,6 +186,20 @@ export class ServiceFacade<
     const telemetryHandle = this.telemetry.begin(op, 'service', correlationId, telemetryParent);
     const commandId = `cmd_${this.id}_${op}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
+    // Capture invocation metadata before queueing so the caller cannot swap
+    // the authenticated principal while the worker waits to execute.
+    const original = ctx?.metadata;
+    const sourcePrincipal = original?.principal;
+    const principal = sourcePrincipal && typeof sourcePrincipal === 'object' && !Array.isArray(sourcePrincipal)
+      ? sourcePrincipal as Record<string, unknown> : null;
+    const capturedMetadata = original ? Object.freeze({
+      ...original,
+      ...(principal ? { principal: Object.freeze({
+        ...principal,
+        ...(Array.isArray(principal.roles) ? { roles: Object.freeze([...principal.roles]) } : {}),
+      }) } : {}),
+    }) : undefined;
+
     const command: BackendCommand<TIn> = {
       id: commandId,
       type: `${this.id}.${op}`,
@@ -215,6 +229,7 @@ export class ServiceFacade<
               functionalityId: functionality.id,
               correlationId: workerCtx.correlationId,
               state: this.instance.getState(),
+              metadata: capturedMetadata,
             });
           } catch (error) {
             functionalityTelemetry.end(error);
