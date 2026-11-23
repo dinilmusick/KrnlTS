@@ -46,4 +46,36 @@ describe('ServiceFacade functionality event bubbling', () => {
     expect(service.namespace.functionalities.privateOperation).toBeUndefined();
     expect(() => service.getFunctionality('privateOperation')).not.toThrow();
   });
+  it('passes a stable authenticated invocation context to the queued functionality', async () => {
+    const execute = vi.fn(async (_input: unknown, context: any) => context.metadata);
+    const service = new ServiceFacade({
+      id: 'secure-function',
+      functionalities: { inspect: { execute } },
+    });
+    const principal = { kind: 'authenticated', userId: 'alice', roles: ['viewer'] };
+    const metadata = { externalInterface: true, transport: 'mcp', principal };
+    const pending = service.call('inspect', {}, { correlationId: 'trusted', metadata });
+    principal.userId = 'bob';
+    principal.roles.push('admin');
+    const result = await pending as any;
+    expect(result).toMatchObject({
+      externalInterface: true,
+      transport: 'mcp',
+      principal: { kind: 'authenticated', userId: 'alice', roles: ['viewer'] },
+    });
+    expect(result.principal).not.toBe(principal);
+    expect(Object.isFrozen(result.principal.roles)).toBe(true);
+    await service.dispose();
+  });
+
+  it('preserves an absent authorization context as absent, never inventing a principal', async () => {
+    const service = new ServiceFacade({
+      id: 'local-function',
+      functionalities: { inspect: { execute: async (_input: unknown, context: any) =>
+        ({ metadata: context.metadata ?? null }) } },
+    });
+    await expect(service.call('inspect', {})).resolves.toEqual({ metadata: null });
+    await service.dispose();
+  });
+
 });
