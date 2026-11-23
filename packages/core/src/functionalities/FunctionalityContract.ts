@@ -33,6 +33,25 @@ export interface FunctionalityExecutionContext<
   ) => void;
 }
 
+/**
+ * Canonical JSON Schema subset for typed, externally describable functionalities.
+ * This is declaration metadata only; external transports must validate it and
+ * explicitly authorize the operation before making it remotely available.
+ */
+export interface FunctionalityJsonSchema {
+  readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';
+  readonly description?: string;
+  readonly properties?: Readonly<Record<string, FunctionalityJsonSchema>>;
+  readonly required?: readonly string[];
+  readonly additionalProperties?: boolean;
+  readonly items?: FunctionalityJsonSchema;
+  readonly enum?: readonly unknown[];
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly minLength?: number;
+  readonly maxLength?: number;
+}
+
 export interface FunctionalityDefinition<
   TInput = unknown,
   TOutput = unknown,
@@ -42,6 +61,9 @@ export interface FunctionalityDefinition<
   readonly id?: string;
   readonly name?: string;
   readonly description?: string;
+  /** Required for external tool publication, optional for internal functionalities. */
+  readonly inputSchema?: FunctionalityJsonSchema;
+  readonly outputSchema?: FunctionalityJsonSchema;
   readonly events?: Record<keyof TEvents & string, EventDefinition<any>>;
   readonly bubbleEvents?: boolean;
   readonly execute: (
