@@ -2792,6 +2792,16 @@ var ServiceFacade = class {
     const telemetryParent = typeof ctx?.metadata?.__krnlTelemetryParentSpanId === "string" ? ctx.metadata.__krnlTelemetryParentSpanId : void 0;
     const telemetryHandle = this.telemetry.begin(op, "service", correlationId, telemetryParent);
     const commandId = `cmd_${this.id}_${op}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const original = ctx?.metadata;
+    const sourcePrincipal = original?.principal;
+    const principal = sourcePrincipal && typeof sourcePrincipal === "object" && !Array.isArray(sourcePrincipal) ? sourcePrincipal : null;
+    const capturedMetadata = original ? Object.freeze({
+      ...original,
+      ...principal ? { principal: Object.freeze({
+        ...principal,
+        ...Array.isArray(principal.roles) ? { roles: Object.freeze([...principal.roles]) } : {}
+      }) } : {}
+    }) : void 0;
     const command = {
       id: commandId,
       type: `${this.id}.${op}`,
@@ -2816,7 +2826,8 @@ var ServiceFacade = class {
               serviceId: this.id,
               functionalityId: functionality.id,
               correlationId: workerCtx.correlationId,
-              state: this.instance.getState()
+              state: this.instance.getState(),
+              metadata: capturedMetadata
             });
           } catch (error) {
             functionalityTelemetry.end(error);
